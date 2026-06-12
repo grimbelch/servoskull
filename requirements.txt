@@ -1,0 +1,12 @@
+anthropic>=0.30.0
+openai>=1.30.0
+elevenlabs>=1.0.0
+piper-tts>=1.2.0
+pvporcupine>=3.0.0
+pyaudio>=0.2.14
+sounddevice>=0.4.6
+scipy>=1.11.0
+numpy>=1.24.0
+python-dotenv>=1.0.0
+spotipy>=2.23.0
+ddgs>=0.1.0

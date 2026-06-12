@@ -1,0 +1,19 @@
+# Secrets — never commit
+.env
+.spotify_cache
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Piper voice model (60MB binary — download separately, see README)
+models/*.onnx
+
+# macOS
+.DS_Store
+
+# Claude Code local settings
+.claude/
