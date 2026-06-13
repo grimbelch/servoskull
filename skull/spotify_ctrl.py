@@ -70,6 +70,9 @@ def search_and_play(query: str) -> str:
         return "not-found"
 
     dev = _device_id()
+    if dev is None:
+        print("[spotify] No available device found. Is the Spotify app open?")
+        return "no-device"
 
     def _play():
         if use_context:
@@ -81,12 +84,12 @@ def search_and_play(query: str) -> str:
         _play()
         return label
     except spotipy.SpotifyException as e:
-        if e.http_status == 404 and dev:
-            # No active device — wake it up then retry
-            print(f"[spotify] Waking device {dev}")
-            sp.transfer_playback(device_id=dev, force_play=True)
-            import time; time.sleep(1.5)
+        if e.http_status == 404:
+            # Device exists but isn't active — transfer playback to wake it then retry
+            print(f"[spotify] Device inactive, waking {dev}...")
             try:
+                sp.transfer_playback(device_id=dev, force_play=True)
+                import time; time.sleep(1.5)
                 _play()
                 return label
             except Exception as e2:

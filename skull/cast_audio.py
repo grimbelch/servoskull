@@ -20,6 +20,7 @@ import scipy.io.wavfile as wavfile
 
 _DEVICE_NAME: str = os.environ.get("GOOGLE_HOME_DEVICE", "")
 _cast = None          # cached pychromecast.Chromecast
+_browser = None       # kept alive so zeroconf stays running for the cast connection
 _cast_lock = threading.Lock()
 
 
@@ -79,21 +80,22 @@ def _local_ip() -> str:
 # ── Cast device discovery (cached) ─────────────────────────────────────────────
 
 def _get_cast():
-    global _cast
+    global _cast, _browser
     with _cast_lock:
         if _cast is not None:
             return _cast
         try:
             import pychromecast
             chromecasts, browser = pychromecast.get_chromecasts()
-            pychromecast.discovery.stop_discovery(browser)
             for cc in chromecasts:
                 if cc.name == _DEVICE_NAME:
                     cc.wait()
                     _cast = cc
+                    _browser = browser  # keep alive — zeroconf must stay running
                     return _cast
             print(f"[cast] Device '{_DEVICE_NAME}' not found. "
                   f"Available: {[c.name for c in chromecasts]}")
+            pychromecast.discovery.stop_discovery(browser)  # safe to stop, no device in use
         except Exception as e:
             print(f"[cast] Discovery error: {e}")
         return None
@@ -102,7 +104,12 @@ def _get_cast():
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 def is_configured() -> bool:
-    return bool(_DEVICE_NAME)
+    if not _DEVICE_NAME:
+        return False
+    import sys
+    # On macOS (emulator/dev) casting is opt-in; on Linux (Pi) it's opt-out.
+    default = "false" if sys.platform == "darwin" else "true"
+    return os.environ.get("CAST_ENABLED", default).lower() == "true"
 
 
 def play(wav_bytes: bytes, amplitude_fn_setter=None) -> None:

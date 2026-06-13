@@ -21,6 +21,15 @@ signal.signal(signal.SIGINT, shutdown)
 signal.signal(signal.SIGTERM, shutdown)
 
 
+_WAKE_PHRASES = [
+    "Yes, m'Lord?",
+    "How may this unit serve?",
+    "Awaiting your command.",
+    "Speak your will.",
+    "This unit attends.",
+    "Your command, m'Lord?",
+]
+
 _COGITATION_PHRASES = [
     "Cogitating.",
     "Consulting the archives.",
@@ -29,15 +38,28 @@ _COGITATION_PHRASES = [
     "Searching the cogitator.",
     "Processing.",
 ]
+
+_wake_wavs: list = []
 _cogitation_wavs: list = []
 
 
-def _preload_cogitation() -> None:
+def _preload_phrases() -> None:
+    global _wake_wavs, _cogitation_wavs
+    wake, cog = [], []
+    for phrase in _WAKE_PHRASES:
+        try:
+            wake.append(tts.synthesize(phrase))
+        except Exception as e:
+            print(f"[skull] Wake phrase preload warning: {e}")
     for phrase in _COGITATION_PHRASES:
         try:
-            _cogitation_wavs.append(tts.synthesize(phrase))
+            cog.append(tts.synthesize(phrase))
         except Exception as e:
             print(f"[skull] Cogitation preload warning: {e}")
+    # Replace atomically so the main thread always sees a complete list
+    _wake_wavs = wake
+    _cogitation_wavs = cog
+    print(f"[skull] Phrases preloaded ({config.TTS_BACKEND})")
 
 
 def _cogitation_loop(cancel: threading.Event) -> None:
@@ -50,7 +72,7 @@ def _cogitation_loop(cancel: threading.Event) -> None:
     while not cancel.is_set() and _cogitation_wavs:
         wav = _cogitation_wavs[indices[i % len(indices)]]
         try:
-            audio.play_wav_bytes(wav, stop_event=cancel)
+            audio.play_wav_bytes(wav, stop_event=cancel, output_device=config.AUDIO_OUTPUT_DEVICE)
         except Exception:
             pass
         i += 1
@@ -67,8 +89,8 @@ def main():
     eyes.off()
     candle_leds.idle()
 
-    # Pre-synthesize cogitation phrases in background so they're ready instantly
-    threading.Thread(target=_preload_cogitation, daemon=True).start()
+    # Pre-synthesize wake and cogitation phrases in background so they're ready instantly
+    threading.Thread(target=_preload_phrases, daemon=True).start()
 
     skip_wake_word = False
 
@@ -93,11 +115,19 @@ def main():
                 "Insufferable. What is it?",
             ])
             try:
-                audio.play_wav_bytes(tts.synthesize(ack))
+                audio.play_wav_bytes(tts.synthesize(ack), output_device=config.AUDIO_OUTPUT_DEVICE)
             except Exception:
                 pass
         else:
             wake_word.wait_for_wake_word(on_detected=on_wake)
+            if _wake_wavs:
+                try:
+                    audio.play_wav_bytes(
+                        random.choice(_wake_wavs),
+                        output_device=config.AUDIO_OUTPUT_DEVICE,
+                    )
+                except Exception:
+                    pass
 
         # ── 2. Record the question ─────────────────────────────────────────────
         print("[skull] Recording...")
@@ -150,17 +180,30 @@ def main():
             try:
                 if cmd[0] == "tts_backend":
                     config.TTS_BACKEND = cmd[1]
-                    print(f"[skull] TTS backend switched to: {cmd[1]}")
+                    print(f"[skull] TTS backend switched to: {cmd[1]} — re-synthesising phrases...")
+                    threading.Thread(target=_preload_phrases, daemon=True).start()
                 elif spotify_ctrl.is_configured():
                     if cmd[0] == "play":
                         result = spotify_ctrl.search_and_play(cmd[1])
                         print(f"[skull] Spotify: {result}")
+                        if result in ("no-device", "not-found") or result.startswith(("error", "spotify-error", "playback-error")):
+                            _error_phrases = {
+                                "no-device": "This unit cannot locate the Spotify cogitator. Ensure the application is active.",
+                                "not-found": "The requested composition could not be found in the Spotify archives.",
+                            }
+                            err_text = _error_phrases.get(result, "The Spotify cogitator has reported a malfunction.")
+                            try:
+                                audio.play_wav_bytes(tts.synthesize(err_text), output_device=config.AUDIO_OUTPUT_DEVICE)
+                            except Exception:
+                                pass
                     elif cmd[0] == "pause":
                         spotify_ctrl.pause()
                     elif cmd[0] == "resume":
                         spotify_ctrl.resume()
                     elif cmd[0] == "skip":
                         spotify_ctrl.skip()
+                else:
+                    print("[skull] Spotify command ignored — SPOTIFY_CLIENT_ID/SECRET not set in .env")
             except Exception as e:
                 print(f"[skull] Command error: {e}")
 
@@ -219,7 +262,7 @@ def main():
             eye_thread = threading.Thread(target=eye_loop, daemon=True)
             eye_thread.start()
 
-            audio.play_wav_bytes(speech_wav, amplitude_cb=receive_amp, stop_event=_stop_play)
+            audio.play_wav_bytes(speech_wav, amplitude_cb=receive_amp, stop_event=_stop_play, output_device=config.AUDIO_OUTPUT_DEVICE)
 
             play_done.set()
             eye_thread.join(timeout=1.0)

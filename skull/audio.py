@@ -69,6 +69,7 @@ def play_wav_bytes(
     wav_bytes: bytes,
     amplitude_cb=None,
     stop_event: threading.Event = None,
+    output_device: int = None,
 ) -> None:
     """Play WAV audio.
 
@@ -117,7 +118,10 @@ def play_wav_bytes(
         with _lock:
             _current_amp[0] = rms
 
-    with sd.OutputStream(samplerate=rate, channels=1, callback=callback, blocksize=chunk_size) as stream:
+    sd_kwargs = {"samplerate": rate, "channels": 1, "callback": callback, "blocksize": chunk_size}
+    if output_device is not None and output_device >= 0:
+        sd_kwargs["device"] = output_device
+    with sd.OutputStream(**sd_kwargs) as stream:
         while stream.active:
             time.sleep(0.05)
 

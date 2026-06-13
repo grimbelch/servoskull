@@ -12,6 +12,7 @@ LED_PIN_LEFT = int(os.getenv("LED_PIN_LEFT", "22"))    # GPIO 17 reserved by ReS
 LED_PIN_CENTER = int(os.getenv("LED_PIN_CENTER", "23"))
 LED_PIN_RIGHT = int(os.getenv("LED_PIN_RIGHT", "27"))
 MIC_DEVICE_INDEX = int(os.getenv("MIC_DEVICE_INDEX", "-1"))
+AUDIO_OUTPUT_DEVICE = int(os.getenv("AUDIO_OUTPUT_DEVICE", "-1"))
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
 
 # TTS backend: "piper" (local, free) or "elevenlabs" (cloud, quota-limited)

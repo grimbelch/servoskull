@@ -92,13 +92,18 @@ fi
 
 # ── 6. Verify audio device ─────────────────────────────────────────────────
 echo "[6/6] Checking audio devices..."
-echo "    Recording devices:"
 python3 -c "
 import pyaudio
 pa = pyaudio.PyAudio()
+print('    Input devices (microphones):')
 for i in range(pa.get_device_count()):
     d = pa.get_device_info_by_index(i)
     if d['maxInputChannels'] > 0:
+        print(f'      [{i}] {d[\"name\"]}')
+print('    Output devices (speakers):')
+for i in range(pa.get_device_count()):
+    d = pa.get_device_info_by_index(i)
+    if d['maxOutputChannels'] > 0:
         print(f'      [{i}] {d[\"name\"]}')
 pa.terminate()
 "
@@ -108,7 +113,6 @@ echo "=== Setup complete ==="
 echo ""
 echo "Next steps:"
 echo "  1. Copy your .env file into ~/skull/ (never commit it to git)"
-echo "  2. Run the skull:  cd ~/skull && source .venv/bin/activate && python -m skull.main"
-echo ""
-echo "To find the ReSpeaker mic device index, check the list above."
-echo "Set MIC_DEVICE_INDEX=<number> in your .env if it's not the default."
+echo "  2. Set MIC_DEVICE_INDEX to the USB microphone index shown above"
+echo "  3. Set AUDIO_OUTPUT_DEVICE to the ReSpeaker output index shown above"
+echo "  4. Run the skull:  cd ~/skull && source .venv/bin/activate && python -m skull.main"

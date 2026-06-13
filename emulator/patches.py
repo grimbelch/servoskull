@@ -80,3 +80,43 @@ class FakeWakeWord:
                 return True
             if cancel and cancel.is_set():
                 return False
+
+
+class HybridWakeWord:
+    """Wake word triggered by either the real OpenWakeWord mic model or the Space bar."""
+
+    def __init__(self, real_module):
+        self._real = real_module
+
+    def wait_for_wake_word(self, on_detected=None, cancel=None):
+        _trigger = threading.Event()
+        _real_cancel = threading.Event()
+
+        def _real_listener():
+            try:
+                if self._real.wait_for_wake_word(cancel=_real_cancel):
+                    _trigger.set()
+            except Exception as e:
+                print(f"[emulator] Wake word mic error: {e}")
+
+        t = threading.Thread(target=_real_listener, daemon=True)
+        t.start()
+
+        while True:
+            # Space bar trigger
+            if _wake_event.wait(timeout=0.05):
+                _wake_event.clear()
+                _real_cancel.set()
+                if on_detected:
+                    on_detected()
+                return True
+            # Real mic trigger
+            if _trigger.is_set():
+                _real_cancel.set()
+                if on_detected:
+                    on_detected()
+                return True
+            # External cancel (barge-in shutdown)
+            if cancel and cancel.is_set():
+                _real_cancel.set()
+                return False

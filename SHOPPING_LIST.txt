@@ -3,6 +3,7 @@ OMEGA-7 SERVO SKULL — SHOPPING LIST
 Warhammer 40k AI Talking Servo Skull Build
 Based on Raspberry Pi 5 + ReSpeaker HAT
 
+python run_emulator.py --wake-word
 
 CORE COMPUTING
 --------------
@@ -14,19 +15,25 @@ CORE COMPUTING
 [ ] USB-C Power Supply — 5V 5A (27W) official Pi 5 supply
     - Pi 5 REQUIRES 27W; the Pi 4 15W supply will work but throttles under load
     - Do not cheap out here; underpowering causes random crashes
+[ ] Raspberry Pi 5 Active Cooler (official)
+    - Fan + heatsink combo designed for Pi 5, very low profile
+    - Pi 5 throttles without cooling; position fan away from ReSpeaker mic
 
 
 AUDIO — INPUT & OUTPUT
 -----------------------
-[ ] Seeed ReSpeaker 2-Mic Pi HAT V2.0
-    - Handles both microphone input and speaker output
+[ ] Seeed ReSpeaker 2-Mic Pi HAT V2.0 — used for SPEAKER OUTPUT only
+    - Onboard mono amplifier drives the skull speaker
     - Plugs onto Pi 5 GPIO header (40-pin, physically compatible)
     - IMPORTANT: Pi 5 requires updated seeed-voicecard drivers
       Use fork: https://github.com/HinTak/seeed-voicecard (Pi 5 branch)
     - https://www.seeedstudio.com/ReSpeaker-2-Mics-Pi-HAT.html
 [ ] Small Speaker — 4 ohm, 3W (JST-PH 2.0 connector or bare wire)
-    - The ReSpeaker HAT has an onboard mono amplifier
-    - Size to fit inside or behind skull — 40mm or 57mm drivers work well
+    - Size to fit inside skull — 40mm or 57mm drivers work well
+[ ] USB Microphone (small condenser capsule type)
+    - Mounted in nasal cavity for cleaner voice pickup than buried HAT mics
+    - Look for a small USB conference/lapel mic capsule, not a desktop mic
+    - Connected to Pi via USB; set MIC_DEVICE_INDEX in .env once identified
 
 
 EYE LEDs — GPIO CONTROLLED
@@ -94,12 +101,13 @@ ALREADY HAVE (no purchase needed)
 
 APPROXIMATE TOTAL (hardware only)
 -----------------------------------
-Raspberry Pi 5 (4GB)         ~$60
+Raspberry Pi 5 (2GB)         ~$50
+Raspberry Pi 5 Active Cooler   ~$5
 ReSpeaker 2-Mic HAT          ~$20
 MicroSD 64GB                  ~$12
 USB-C Power Supply (27W)      ~$12
 Small Speaker                  ~$8
 LEDs, resistors, wire          ~$10
                               -----
-                         ~$122 USD
+                         ~$117 USD
 (excludes skull, candles, tentacle arm — already owned)
