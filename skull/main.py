@@ -184,7 +184,8 @@ def main():
                     threading.Thread(target=_preload_phrases, daemon=True).start()
                 elif spotify_ctrl.is_configured():
                     if cmd[0] == "play":
-                        result = spotify_ctrl.search_and_play(cmd[1])
+                        device_name = cmd[2] if len(cmd) > 2 else None
+                        result = spotify_ctrl.search_and_play(cmd[1], device_name=device_name)
                         print(f"[skull] Spotify: {result}")
                         if result in ("no-device", "not-found") or result.startswith(("error", "spotify-error", "playback-error")):
                             _error_phrases = {

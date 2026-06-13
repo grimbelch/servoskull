@@ -91,6 +91,21 @@ def web_search(query: str, max_results: int = 5) -> str:
         return f"Search unavailable: {e}"
 
 
+def news_search(query: str, max_results: int = 7) -> str:
+    """Search for current news headlines and return structured results for Claude."""
+    try:
+        results = list(DDGS().news(query, max_results=max_results))
+        if not results:
+            return "No news results found."
+        return "\n\n".join(
+            f"{r.get('date', 'Unknown date')} — {r.get('title', 'No title')} "
+            f"({r.get('source', 'Unknown source')})\n{r.get('body', '')}"
+            for r in results
+        )
+    except Exception as e:
+        return f"News search unavailable: {e}"
+
+
 def _necro_urls_from_keywords(query: str) -> list:
     """Return candidate page URLs by matching query against known keyword routes."""
     q = query.lower()

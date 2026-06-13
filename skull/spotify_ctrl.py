@@ -32,22 +32,27 @@ def _client() -> spotipy.Spotify:
     return _sp
 
 
-def _device_id() -> str | None:
-    """Find the Mac Spotify desktop app, or any available device."""
+def _device_id(prefer_name: str = None) -> str | None:
+    """Find a Spotify Connect device, optionally by name (partial, case-insensitive)."""
     devices = _client().devices().get("devices", [])
     print(f"[spotify] Available devices: {[d['name'] + ' (' + d['type'] + ')' for d in devices]}")
-    # Prefer an unrestricted Computer (desktop app)
+    if prefer_name:
+        for d in devices:
+            if prefer_name.lower() in d["name"].lower() and not d["is_restricted"]:
+                print(f"[spotify] Routing to '{d['name']}'")
+                return d["id"]
+        print(f"[spotify] Device matching '{prefer_name}' not found — falling back to default")
+    # Default: prefer Computer (desktop app), then any unrestricted device
     for d in devices:
         if d["type"] == "Computer" and not d["is_restricted"]:
             return d["id"]
-    # Fall back to any unrestricted device
     for d in devices:
         if not d["is_restricted"]:
             return d["id"]
     return None
 
 
-def search_and_play(query: str) -> str:
+def search_and_play(query: str, device_name: str = None) -> str:
     """Search Spotify and play the best match. Returns a human-readable result string."""
     sp = _client()
 
@@ -69,7 +74,7 @@ def search_and_play(query: str) -> str:
     if uri is None:
         return "not-found"
 
-    dev = _device_id()
+    dev = _device_id(prefer_name=device_name)
     if dev is None:
         print("[spotify] No available device found. Is the Spotify app open?")
         return "no-device"

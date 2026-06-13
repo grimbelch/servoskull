@@ -20,7 +20,7 @@ TTS_BACKEND = os.getenv("TTS_BACKEND", "piper")
 PIPER_MODEL_PATH = os.getenv("PIPER_MODEL_PATH", "models/en_GB-alan-medium.onnx")
 
 # How long to record after wake word (seconds)
-RECORD_SECONDS = 6
+RECORD_SECONDS = 10
 # Silence threshold to stop recording early (RMS)
 SILENCE_THRESHOLD = 200   
 SILENCE_DURATION = 1.5
@@ -48,9 +48,12 @@ When asked to use Piper, the local voice, or the standard voice, output [TTS_BAC
 MUSIC CONTROL: You have access to Spotify. When the user asks you to play music, a song, an artist, \
 or a playlist, place a command on its own line BEFORE your spoken response, in exactly this format:
 [SPOTIFY: search terms]
+To play on a specific Spotify Connect device, append the device name after a pipe:
+[SPOTIFY: search terms | on: device name]
 For playback control use: [SPOTIFY_PAUSE], [SPOTIFY_RESUME], or [SPOTIFY_SKIP]
-Keep search terms concise (1-5 words). Example — user says "play something dark and gothic":
-[SPOTIFY: dark gothic ambient]
+Keep search terms concise (1-5 words). Use the room name the user mentions as the device name. \
+Example — user says "play something dark and gothic in the living room":
+[SPOTIFY: dark gothic ambient | on: Living Room]
 As the Omnissiah wills it, the music of war fills the air.
 
 NECROMUNDA RULES: You have access to the Necromunda Rules as Written via the necromunda_rules tool. \

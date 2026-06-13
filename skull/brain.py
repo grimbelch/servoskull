@@ -12,9 +12,10 @@ _TOOLS = [
         "name": "web_search",
         "description": (
             "Search the web for current information — showtimes, recent events, "
-            "prices, news, or anything that may have changed since your training. "
+            "prices, or anything that may have changed since your training. "
             "For time-sensitive queries (showtimes, hours, events) include today's "
-            "date or 'today' in the query. Use sparingly; only search when needed."
+            "date or 'today' in the query. Use sparingly; only search when needed. "
+            "Do NOT use this for news — use news_search instead."
         ),
         "input_schema": {
             "type": "object",
@@ -22,6 +23,25 @@ _TOOLS = [
                 "query": {
                     "type": "string",
                     "description": "Concise search query (5 words or fewer works best)",
+                }
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "news_search",
+        "description": (
+            "Search for current news headlines and stories. Use this when the user "
+            "asks for news, what's happening today, current events, or headlines. "
+            "Returns structured results with date, headline, source, and summary. "
+            "Always use this tool (not web_search) for any news-related query."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "News topic or 'top news today' for general headlines",
                 }
             },
             "required": ["query"],
@@ -67,7 +87,7 @@ _TOOLS = [
 ]
 
 _SPOTIFY_RE = re.compile(
-    r"\[SPOTIFY(?::([^\]]+))?\]|\[SPOTIFY_(PAUSE|RESUME|SKIP)\]"
+    r"\[SPOTIFY(?::([^\]|]+?)(?:\s*\|\s*on:\s*([^\]]+))?)?\]|\[SPOTIFY_(PAUSE|RESUME|SKIP)\]"
 )
 _TTS_RE = re.compile(r"\[TTS_BACKEND:\s*(piper|elevenlabs)\]", re.IGNORECASE)
 
@@ -107,6 +127,15 @@ def respond(user_text: str) -> tuple[str, list[tuple]]:
                         "tool_use_id": block.id,
                         "content": result,
                     })
+                elif block.name == "news_search":
+                    query = block.input.get("query", "")
+                    print(f"[skull] Searching news: {query}")
+                    result = _search.news_search(query)
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result,
+                    })
                 elif block.name == "necromunda_rules":
                     query = block.input.get("query", "")
                     print(f"[skull] Looking up Necromunda rules: {query}")
@@ -141,9 +170,9 @@ def respond(user_text: str) -> tuple[str, list[tuple]]:
     cmds: list[tuple] = []
 
     def _extract_spotify(m: re.Match) -> str:
-        query, action = m.group(1), m.group(2)
+        query, device, action = m.group(1), m.group(2), m.group(3)
         if query:
-            cmds.append(("play", query.strip()))
+            cmds.append(("play", query.strip(), device.strip() if device else None))
         elif action:
             cmds.append((action.lower(),))
         return ""
