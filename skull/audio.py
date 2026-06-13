@@ -10,44 +10,46 @@ SAMPLE_RATE = 16000
 CHANNELS = 1
 FORMAT = pyaudio.paInt16
 CHUNK = 512
-
-_pa = pyaudio.PyAudio()
+_SAMPLE_WIDTH = 2  # bytes per sample for paInt16
 
 
 def record(seconds: float, device_index: int = -1, silence_threshold: int = 300, silence_duration: float = 1.5) -> bytes:
     """Record audio, stopping early on sustained silence. Returns raw PCM bytes."""
+    pa = pyaudio.PyAudio()
     kwargs = {}
     if device_index >= 0:
         kwargs["input_device_index"] = device_index
 
-    stream = _pa.open(
-        format=FORMAT,
-        channels=CHANNELS,
-        rate=SAMPLE_RATE,
-        input=True,
-        frames_per_buffer=CHUNK,
-        **kwargs,
-    )
+    try:
+        stream = pa.open(
+            format=FORMAT,
+            channels=CHANNELS,
+            rate=SAMPLE_RATE,
+            input=True,
+            frames_per_buffer=CHUNK,
+            **kwargs,
+        )
 
-    frames = []
-    silent_chunks = 0
-    max_chunks = int(SAMPLE_RATE / CHUNK * seconds)
-    silence_chunks_needed = int(SAMPLE_RATE / CHUNK * silence_duration)
+        frames = []
+        silent_chunks = 0
+        max_chunks = int(SAMPLE_RATE / CHUNK * seconds)
+        silence_chunks_needed = int(SAMPLE_RATE / CHUNK * silence_duration)
 
-    for _ in range(max_chunks):
-        data = stream.read(CHUNK, exception_on_overflow=False)
-        frames.append(data)
-        rms = np.sqrt(np.mean(np.frombuffer(data, dtype=np.int16).astype(np.float32) ** 2))
-        if rms < silence_threshold:
-            silent_chunks += 1
-        else:
-            silent_chunks = 0
-        # Stop early after silence_duration of quiet (but record at least 1 second)
-        if silent_chunks >= silence_chunks_needed and len(frames) > int(SAMPLE_RATE / CHUNK):
-            break
+        for _ in range(max_chunks):
+            data = stream.read(CHUNK, exception_on_overflow=False)
+            frames.append(data)
+            rms = np.sqrt(np.mean(np.frombuffer(data, dtype=np.int16).astype(np.float32) ** 2))
+            if rms < silence_threshold:
+                silent_chunks += 1
+            else:
+                silent_chunks = 0
+            if silent_chunks >= silence_chunks_needed and len(frames) > int(SAMPLE_RATE / CHUNK):
+                break
 
-    stream.stop_stream()
-    stream.close()
+        stream.stop_stream()
+        stream.close()
+    finally:
+        pa.terminate()
 
     return b"".join(frames)
 
@@ -57,7 +59,7 @@ def pcm_to_wav_bytes(pcm: bytes) -> bytes:
     buf = io.BytesIO()
     with wave.open(buf, "wb") as wf:
         wf.setnchannels(CHANNELS)
-        wf.setsampwidth(_pa.get_sample_size(FORMAT))
+        wf.setsampwidth(_SAMPLE_WIDTH)
         wf.setframerate(SAMPLE_RATE)
         wf.writeframes(pcm)
     return buf.getvalue()
@@ -121,4 +123,4 @@ def play_wav_bytes(
 
 
 def cleanup() -> None:
-    _pa.terminate()
+    pass  # PyAudio instances are now created and destroyed per-call

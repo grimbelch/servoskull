@@ -69,6 +69,7 @@ _TOOLS = [
 _SPOTIFY_RE = re.compile(
     r"\[SPOTIFY(?::([^\]]+))?\]|\[SPOTIFY_(PAUSE|RESUME|SKIP)\]"
 )
+_TTS_RE = re.compile(r"\[TTS_BACKEND:\s*(piper|elevenlabs)\]", re.IGNORECASE)
 
 
 def _strip_actions(text: str) -> str:
@@ -136,18 +137,23 @@ def respond(user_text: str) -> tuple[str, list[tuple]]:
             )
             break
 
-    # Extract Spotify commands
-    spotify_cmds: list[tuple] = []
+    # Extract commands (Spotify + TTS backend switches)
+    cmds: list[tuple] = []
 
-    def _extract(m: re.Match) -> str:
+    def _extract_spotify(m: re.Match) -> str:
         query, action = m.group(1), m.group(2)
         if query:
-            spotify_cmds.append(("play", query.strip()))
+            cmds.append(("play", query.strip()))
         elif action:
-            spotify_cmds.append((action.lower(),))
+            cmds.append((action.lower(),))
         return ""
 
-    spoken = _SPOTIFY_RE.sub(_extract, raw)
+    def _extract_tts(m: re.Match) -> str:
+        cmds.append(("tts_backend", m.group(1).lower()))
+        return ""
+
+    spoken = _SPOTIFY_RE.sub(_extract_spotify, raw)
+    spoken = _TTS_RE.sub(_extract_tts, spoken)
     spoken = _strip_actions(spoken).strip()
 
     # Store only the clean conversational turns in history
@@ -156,7 +162,7 @@ def respond(user_text: str) -> tuple[str, list[tuple]]:
     if len(_history) > 20:
         _history[:] = _history[-20:]
 
-    return spoken, spotify_cmds
+    return spoken, cmds
 
 
 def reset() -> None:

@@ -48,16 +48,3 @@ from emulator.gui import run_gui
 
 run_gui(state, trigger_wake)
 
-# ── 6. Clean shutdown — suppress PortAudio's macOS teardown noise ──────────────
-import os
-from skull import audio as _audio
-
-_devnull = os.open(os.devnull, os.O_WRONLY)
-_old_stderr = os.dup(2)
-os.dup2(_devnull, 2)
-try:
-    _audio.cleanup()
-finally:
-    os.dup2(_old_stderr, 2)
-    os.close(_devnull)
-    os.close(_old_stderr)

@@ -145,10 +145,13 @@ def main():
 
         print(f"[skull] Omega-7: {reply}")
 
-        # ── 4b. Execute Spotify commands ───────────────────────────────────────
-        if spotify_cmds and spotify_ctrl.is_configured():
-            for cmd in spotify_cmds:
-                try:
+        # ── 4b. Execute commands ───────────────────────────────────────────────
+        for cmd in spotify_cmds:
+            try:
+                if cmd[0] == "tts_backend":
+                    config.TTS_BACKEND = cmd[1]
+                    print(f"[skull] TTS backend switched to: {cmd[1]}")
+                elif spotify_ctrl.is_configured():
                     if cmd[0] == "play":
                         result = spotify_ctrl.search_and_play(cmd[1])
                         print(f"[skull] Spotify: {result}")
@@ -158,8 +161,8 @@ def main():
                         spotify_ctrl.resume()
                     elif cmd[0] == "skip":
                         spotify_ctrl.skip()
-                except Exception as e:
-                    print(f"[skull] Spotify error: {e}")
+            except Exception as e:
+                print(f"[skull] Command error: {e}")
 
         # ── 5. Synthesize speech ───────────────────────────────────────────────
         tts_text = reply[:1200]  # cap chars (Piper is unlimited; guards ElevenLabs quota)

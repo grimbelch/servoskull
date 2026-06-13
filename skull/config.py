@@ -7,9 +7,7 @@ ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 ELEVENLABS_API_KEY = os.environ["ELEVENLABS_API_KEY"]
 ELEVENLABS_VOICE_ID = os.environ["ELEVENLABS_VOICE_ID"]
-PORCUPINE_ACCESS_KEY = os.environ["PORCUPINE_ACCESS_KEY"]
-
-WAKE_WORD = os.getenv("WAKE_WORD", "omega seven")
+WAKE_WORD_MODEL = os.getenv("WAKE_WORD_MODEL", "hey_jarvis")
 LED_PIN_LEFT = int(os.getenv("LED_PIN_LEFT", "22"))   # GPIO 17 reserved by ReSpeaker HAT
 LED_PIN_RIGHT = int(os.getenv("LED_PIN_RIGHT", "27"))
 MIC_DEVICE_INDEX = int(os.getenv("MIC_DEVICE_INDEX", "-1"))
@@ -40,6 +38,10 @@ Output ONLY the spoken words. No asterisks, no stage directions, no emotes, no d
 Speak as if you are being recorded. \
 Keep responses concise — 3 sentences maximum — UNLESS you are explaining game rules, \
 in which case use as many sentences as needed to explain the rule completely and accurately.
+
+VOICE SWITCHING: You can switch your speech synthesiser between two backends. \
+When asked to use ElevenLabs, the cloud voice, or the premium voice, output [TTS_BACKEND: elevenlabs] on its own line before your spoken response. \
+When asked to use Piper, the local voice, or the standard voice, output [TTS_BACKEND: piper] on its own line before your spoken response.
 
 MUSIC CONTROL: You have access to Spotify. When the user asks you to play music, a song, an artist, \
 or a playlist, place a command on its own line BEFORE your spoken response, in exactly this format:

@@ -2,14 +2,14 @@
 # Run once before this: brew install portaudio
 #
 # Pi/native packages excluded:
-#   apa102-pi    — needs spidev (Linux kernel module)
-#   RPi.GPIO     — Pi hardware only
-#   pvporcupine  — broken macOS version check; not needed (emulator uses button)
+#   apa102-pi  — needs spidev (Linux kernel module)
+#   RPi.GPIO   — Pi hardware only
 
 anthropic>=0.30.0
 openai>=1.30.0
 elevenlabs>=1.0.0
 piper-tts>=1.2.0
+openwakeword>=0.6.0
 pyaudio>=0.2.14
 sounddevice>=0.4.6
 scipy>=1.11.0
