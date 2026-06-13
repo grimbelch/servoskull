@@ -1,0 +1,105 @@
+OMEGA-7 SERVO SKULL — SHOPPING LIST
+=====================================
+Warhammer 40k AI Talking Servo Skull Build
+Based on Raspberry Pi 5 + ReSpeaker HAT
+
+
+CORE COMPUTING
+--------------
+[ ] Raspberry Pi 5 (4GB RAM recommended)
+    - Pi 5 is faster and roughly the same price as Pi 4 now
+    - 8GB available but unnecessary for this project
+[ ] MicroSD Card — 32GB minimum, Class 10 / U3 or better
+    - 64GB recommended; Piper voice model alone is ~60MB
+[ ] USB-C Power Supply — 5V 5A (27W) official Pi 5 supply
+    - Pi 5 REQUIRES 27W; the Pi 4 15W supply will work but throttles under load
+    - Do not cheap out here; underpowering causes random crashes
+
+
+AUDIO — INPUT & OUTPUT
+-----------------------
+[ ] Seeed ReSpeaker 2-Mic Pi HAT V2.0
+    - Handles both microphone input and speaker output
+    - Plugs onto Pi 5 GPIO header (40-pin, physically compatible)
+    - IMPORTANT: Pi 5 requires updated seeed-voicecard drivers
+      Use fork: https://github.com/HinTak/seeed-voicecard (Pi 5 branch)
+    - https://www.seeedstudio.com/ReSpeaker-2-Mics-Pi-HAT.html
+[ ] Small Speaker — 4 ohm, 3W (JST-PH 2.0 connector or bare wire)
+    - The ReSpeaker HAT has an onboard mono amplifier
+    - Size to fit inside or behind skull — 40mm or 57mm drivers work well
+
+
+EYE LEDs — GPIO CONTROLLED
+----------------------------
+[ ] Red LEDs x2 — 5mm diffused (diffused gives better glow through lenses)
+[ ] 220-ohm resistors x2 — for current limiting on GPIO pins 22 & 27
+[ ] Jumper wires — male-to-female, 10cm or 20cm
+    - For connecting GPIO header to LED circuit
+[ ] Mini breadboard or small piece of stripboard/perfboard
+    - For mounting the LED + resistor circuit neatly inside skull
+
+
+CANDLE LEDs (TOP OF SKULL)
+---------------------------
+[ ] Self-flickering LED candle bulbs (E10 or bare LED type)
+    - Hardware flicker built-in — no Pi control needed
+    - Warm white or amber for candle effect
+    - Typically sold as "flicker flame LED" bulbs
+
+
+WIRING & ASSEMBLY
+------------------
+[ ] Heat shrink tubing assortment — for tidying LED leads
+[ ] Electrical tape
+[ ] Thin gauge wire (22–26 AWG) — for routing inside skull
+[ ] Zip ties or adhesive cable clips — for cable management
+[ ] Hot glue gun + sticks — for mounting components inside skull
+
+
+INITIAL PI SETUP (one-time, can borrow)
+-----------------------------------------
+[ ] Micro-HDMI to HDMI adapter or cable — for first-boot Pi setup
+[ ] USB keyboard — for initial Pi OS configuration
+
+
+NETWORKING
+-----------
+[ ] WiFi: built into Pi 4 (no extra hardware needed)
+[ ] Optional: Ethernet cable for initial setup if WiFi config is tricky
+
+
+SOFTWARE / API ACCOUNTS (no hardware cost, may have fees)
+----------------------------------------------------------
+[ ] Anthropic API key — https://console.anthropic.com
+    - Claude Haiku model used; pay-per-token, very low cost
+[ ] OpenAI API key — https://platform.openai.com
+    - Whisper STT; pay-per-use, very cheap for voice input
+[ ] ElevenLabs account — https://elevenlabs.io  (OPTIONAL)
+    - Only needed if switching to cloud TTS voice
+    - Project currently uses Piper TTS locally (free, no account)
+[ ] Spotify Premium — https://spotify.com  (OPTIONAL)
+    - Required for Spotify voice control feature
+    - Also needs a free Spotify Developer app registered at
+      https://developer.spotify.com
+
+
+ALREADY HAVE (no purchase needed)
+-----------------------------------
+[x] 3D printed skull
+[x] Red binocular eye lenses
+[x] Mechanical tentacle arm
+[x] Self-flickering candle LEDs (installed)
+[x] OpenWakeWord model (custom, trained separately)
+
+
+APPROXIMATE TOTAL (hardware only)
+-----------------------------------
+Raspberry Pi 5 (4GB)         ~$60
+ReSpeaker 2-Mic HAT          ~$20
+MicroSD 64GB                  ~$12
+USB-C Power Supply (27W)      ~$12
+Small Speaker                  ~$8
+LEDs, resistors, wire          ~$10
+                              -----
+                         ~$122 USD
+(excludes skull, candles, tentacle arm — already owned)
