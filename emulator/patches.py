@@ -28,7 +28,7 @@ def trigger_wake() -> None:
 # ── Fake skull.eyes ────────────────────────────────────────────────────────────
 
 class FakeEyes:
-    def setup(self, pin_left, pin_right):
+    def setup(self, pin_left, pin_center, pin_right):
         pass
 
     def set_brightness(self, pct: float):

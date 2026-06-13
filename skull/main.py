@@ -58,7 +58,7 @@ def _cogitation_loop(cancel: threading.Event) -> None:
 
 
 def main():
-    eyes.setup(config.LED_PIN_LEFT, config.LED_PIN_RIGHT)
+    eyes.setup(config.LED_PIN_LEFT, config.LED_PIN_CENTER, config.LED_PIN_RIGHT)
     print("[skull] Omega-7 online. Awaiting the Emperor's commands.")
 
     # Startup: brief eye flash then settle into candlelight idle

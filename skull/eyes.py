@@ -8,6 +8,7 @@ import threading
 
 _gpio_available = False
 _pwm_left = None
+_pwm_center = None
 _pwm_right = None
 
 PWM_FREQ = 100  # Hz — above visible flicker threshold
@@ -21,15 +22,17 @@ except (ImportError, RuntimeError):
     pass
 
 
-def setup(pin_left: int, pin_right: int) -> None:
-    global _pwm_left, _pwm_right
+def setup(pin_left: int, pin_center: int, pin_right: int) -> None:
+    global _pwm_left, _pwm_center, _pwm_right
     if not _gpio_available:
         return
-    GPIO.setup(pin_left, GPIO.OUT, initial=GPIO.LOW)
-    GPIO.setup(pin_right, GPIO.OUT, initial=GPIO.LOW)
+    for pin in (pin_left, pin_center, pin_right):
+        GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
     _pwm_left = GPIO.PWM(pin_left, PWM_FREQ)
+    _pwm_center = GPIO.PWM(pin_center, PWM_FREQ)
     _pwm_right = GPIO.PWM(pin_right, PWM_FREQ)
     _pwm_left.start(0)
+    _pwm_center.start(0)
     _pwm_right.start(0)
 
 
@@ -39,6 +42,7 @@ def set_brightness(pct: float) -> None:
         return
     pct = max(0.0, min(100.0, pct))
     _pwm_left.ChangeDutyCycle(pct)
+    _pwm_center.ChangeDutyCycle(pct)
     _pwm_right.ChangeDutyCycle(pct)
 
 
@@ -61,8 +65,7 @@ def set_amplitude(amp: float) -> None:
 def cleanup() -> None:
     if _gpio_available:
         set_brightness(0)
-        if _pwm_left:
-            _pwm_left.stop()
-        if _pwm_right:
-            _pwm_right.stop()
+        for pwm in (_pwm_left, _pwm_center, _pwm_right):
+            if pwm:
+                pwm.stop()
         GPIO.cleanup()
