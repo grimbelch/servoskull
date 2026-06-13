@@ -1,46 +1,52 @@
 OMEGA-7 SERVO SKULL — SHOPPING LIST
 =====================================
 Warhammer 40k AI Talking Servo Skull Build
-Based on Raspberry Pi 5 + ReSpeaker HAT
-
-python run_emulator.py --wake-word
+Based on Raspberry Pi 5
 
 CORE COMPUTING
 --------------
-[ ] Raspberry Pi 5 (4GB RAM recommended)
+[X] Raspberry Pi 5 (4GB RAM recommended)
     - Pi 5 is faster and roughly the same price as Pi 4 now
     - 8GB available but unnecessary for this project
-[ ] MicroSD Card — 32GB minimum, Class 10 / U3 or better
+[X] MicroSD Card — 32GB minimum, Class 10 / U3 or better
     - 64GB recommended; Piper voice model alone is ~60MB
-[ ] USB-C Power Supply — 5V 5A (27W) official Pi 5 supply
-    - Pi 5 REQUIRES 27W; the Pi 4 15W supply will work but throttles under load
-    - Do not cheap out here; underpowering causes random crashes
-[ ] Raspberry Pi 5 Active Cooler (official)
+[X] iUniker 27W PD USB-C Power Supply (B0FHH9K47T)
+    - 5.1V @ 5A, GaN, marketed specifically for Raspberry Pi 5
+    - Pi 5 REQUIRES 27W; underpowering causes random crashes
+[X] Raspberry Pi 5 Active Cooler (official)
     - Fan + heatsink combo designed for Pi 5, very low profile
     - Pi 5 throttles without cooling; position fan away from ReSpeaker mic
 
 
 AUDIO — INPUT & OUTPUT
 -----------------------
-[ ] Seeed ReSpeaker 2-Mic Pi HAT V2.0 — used for SPEAKER OUTPUT only
-    - Onboard mono amplifier drives the skull speaker
-    - Plugs onto Pi 5 GPIO header (40-pin, physically compatible)
-    - IMPORTANT: Pi 5 requires updated seeed-voicecard drivers
-      Use fork: https://github.com/HinTak/seeed-voicecard (Pi 5 branch)
-    - https://www.seeedstudio.com/ReSpeaker-2-Mics-Pi-HAT.html
-[ ] Small Speaker — 4 ohm, 3W (JST-PH 2.0 connector or bare wire)
-    - Size to fit inside skull — 40mm or 57mm drivers work well
-[ ] USB Microphone (small condenser capsule type)
-    - Mounted in nasal cavity for cleaner voice pickup than buried HAT mics
-    - Look for a small USB conference/lapel mic capsule, not a desktop mic
-    - Connected to Pi via USB; set MIC_DEVICE_INDEX in .env once identified
+[X] UGREEN USB External Sound Card (B01N905VOY)
+    - Provides 3.5mm headphone out (→ powered speakers) and 3.5mm mic in (→ nasal mic)
+    - USB Audio Class compliant — plug-and-play on Linux, zero driver setup
+    - Set AUDIO_OUTPUT_DEVICE and MIC_DEVICE_INDEX in .env to its device index
+[X] XMSJSIY Mini Computer Speakers (B0D7L5JQJC)
+    - USB powered (can run off Pi USB port), 3.5mm input, volume knob
+    - Stereo pair; one inside skull, one behind, or use one mono
+[X] 3.5mm electret condenser mic capsule (lavalier / tie-clip type)
+    - Mounted in nasal cavity; plugs into UGREEN mic jack
+    - Look for a bare capsule or a cheap lavalier with a standard 3.5mm TRS plug
+
+
+CAMERA — VISION
+----------------
+[X] Arducam IMX708 Wide Camera Module (B0C5D97DRJ)
+    - Sony IMX708, 12MP, 120° FOV, autofocus
+    - CSI ribbon cable with 15-to-22 pin adapter included (Pi 5 ready, no extra cable needed)
+    - Mounts directly inside skull eye socket; picamera2 driver pre-installed on Pi OS
+    - Set CAMERA_ENABLED=true in .env when ready to activate
 
 
 EYE LEDs — GPIO CONTROLLED
 ----------------------------
-[ ] Red LEDs x3 — 5mm diffused (diffused gives better glow through lenses)
-[ ] 220-ohm resistors x3 — for current limiting on GPIO pins 22, 23 & 27
-[ ] Jumper wires — male-to-female, 10cm or 20cm
+[X] EDGELEC 100pcs 5mm Red Diffused LEDs (B077X95F7C) — use 3 from pack
+    - Comes with resistors sized for 6–12V — do NOT use them with Pi GPIO (3.3V)
+[X] 220-ohm resistors x3 — for current limiting on GPIO pins 22, 23 & 27 (buy separately)
+[X] Jumper wires — male-to-female, 10cm or 20cm
     - For connecting GPIO header to LED circuit
 [ ] Mini breadboard or small piece of stripboard/perfboard
     - For mounting the LED + resistor circuit neatly inside skull
@@ -48,7 +54,7 @@ EYE LEDs — GPIO CONTROLLED
 
 CANDLE LEDs (TOP OF SKULL)
 ---------------------------
-[ ] Self-flickering LED candle bulbs (E10 or bare LED type)
+[X] Self-flickering LED candle bulbs (E10 or bare LED type)
     - Hardware flicker built-in — no Pi control needed
     - Warm white or amber for candle effect
     - Typically sold as "flicker flame LED" bulbs
@@ -56,35 +62,35 @@ CANDLE LEDs (TOP OF SKULL)
 
 WIRING & ASSEMBLY
 ------------------
-[ ] Heat shrink tubing assortment — for tidying LED leads
-[ ] Electrical tape
-[ ] Thin gauge wire (22–26 AWG) — for routing inside skull
-[ ] Zip ties or adhesive cable clips — for cable management
-[ ] Hot glue gun + sticks — for mounting components inside skull
+[X] Heat shrink tubing assortment — for tidying LED leads
+[X] Electrical tape
+[X] Thin gauge wire (22–26 AWG) — for routing inside skull
+[X] Zip ties or adhesive cable clips — for cable management
+[X] Hot glue gun + sticks — for mounting components inside skull
 
 
 INITIAL PI SETUP (one-time, can borrow)
 -----------------------------------------
-[ ] Micro-HDMI to HDMI adapter or cable — for first-boot Pi setup
-[ ] USB keyboard — for initial Pi OS configuration
+[X] Micro-HDMI to HDMI adapter or cable — for first-boot Pi setup
+[X] USB keyboard — for initial Pi OS configuration
 
 
 NETWORKING
 -----------
-[ ] WiFi: built into Pi 4 (no extra hardware needed)
+[X] WiFi: built into Pi 5 (no extra hardware needed)
 [ ] Optional: Ethernet cable for initial setup if WiFi config is tricky
 
 
 SOFTWARE / API ACCOUNTS (no hardware cost, may have fees)
 ----------------------------------------------------------
-[ ] Anthropic API key — https://console.anthropic.com
+[X] Anthropic API key — https://console.anthropic.com
     - Claude Haiku model used; pay-per-token, very low cost
-[ ] OpenAI API key — https://platform.openai.com
+[X] OpenAI API key — https://platform.openai.com
     - Whisper STT; pay-per-use, very cheap for voice input
-[ ] ElevenLabs account — https://elevenlabs.io  (OPTIONAL)
+[X] ElevenLabs account — https://elevenlabs.io  (OPTIONAL)
     - Only needed if switching to cloud TTS voice
     - Project currently uses Piper TTS locally (free, no account)
-[ ] Spotify Premium — https://spotify.com  (OPTIONAL)
+[X] Spotify Premium — https://spotify.com  (OPTIONAL)
     - Required for Spotify voice control feature
     - Also needs a free Spotify Developer app registered at
       https://developer.spotify.com
@@ -103,11 +109,13 @@ APPROXIMATE TOTAL (hardware only)
 -----------------------------------
 Raspberry Pi 5 (2GB)         ~$50
 Raspberry Pi 5 Active Cooler   ~$5
-ReSpeaker 2-Mic HAT          ~$20
 MicroSD 64GB                  ~$12
 USB-C Power Supply (27W)      ~$12
-Small Speaker                  ~$8
-LEDs, resistors, wire          ~$10
+UGREEN USB Sound Card         ~$10
+XMSJSIY Mini Speakers         ~$20
+Lavalier/condenser mic capsule ~$8
+Arducam IMX708 Wide Camera    ~$30
+LEDs, resistors, wire         ~$10
                               -----
-                         ~$117 USD
+                         ~$157 USD
 (excludes skull, candles, tentacle arm — already owned)

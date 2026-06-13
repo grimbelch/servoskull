@@ -1,10 +1,14 @@
+from __future__ import annotations
 import io
 import wave
 import threading
+from math import gcd
+
 import numpy as np
 import pyaudio
 import sounddevice as sd
 import scipy.io.wavfile as wavfile
+from scipy.signal import resample_poly
 
 SAMPLE_RATE = 16000
 CHANNELS = 1
@@ -13,9 +17,20 @@ CHUNK = 512
 _SAMPLE_WIDTH = 2  # bytes per sample for paInt16
 
 
+def _native_input_rate(pa: pyaudio.PyAudio, device_index: int) -> int:
+    if device_index >= 0:
+        info = pa.get_device_info_by_index(device_index)
+    else:
+        info = pa.get_default_input_device_info()
+    return int(info.get("defaultSampleRate", 44100))
+
+
 def record(seconds: float, device_index: int = -1, silence_threshold: int = 300, silence_duration: float = 1.5) -> bytes:
-    """Record audio, stopping early on sustained silence. Returns raw PCM bytes."""
+    """Record audio, stopping early on sustained silence. Returns raw PCM bytes at SAMPLE_RATE."""
     pa = pyaudio.PyAudio()
+    native = _native_input_rate(pa, device_index)
+    native_chunk = int(CHUNK * native / SAMPLE_RATE)
+
     kwargs = {}
     if device_index >= 0:
         kwargs["input_device_index"] = device_index
@@ -24,26 +39,26 @@ def record(seconds: float, device_index: int = -1, silence_threshold: int = 300,
         stream = pa.open(
             format=FORMAT,
             channels=CHANNELS,
-            rate=SAMPLE_RATE,
+            rate=native,
             input=True,
-            frames_per_buffer=CHUNK,
+            frames_per_buffer=native_chunk,
             **kwargs,
         )
 
         frames = []
         silent_chunks = 0
-        max_chunks = int(SAMPLE_RATE / CHUNK * seconds)
-        silence_chunks_needed = int(SAMPLE_RATE / CHUNK * silence_duration)
+        max_chunks = int(native / native_chunk * seconds)
+        silence_chunks_needed = int(native / native_chunk * silence_duration)
 
         for _ in range(max_chunks):
-            data = stream.read(CHUNK, exception_on_overflow=False)
+            data = stream.read(native_chunk, exception_on_overflow=False)
             frames.append(data)
             rms = np.sqrt(np.mean(np.frombuffer(data, dtype=np.int16).astype(np.float32) ** 2))
             if rms < silence_threshold:
                 silent_chunks += 1
             else:
                 silent_chunks = 0
-            if silent_chunks >= silence_chunks_needed and len(frames) > int(SAMPLE_RATE / CHUNK):
+            if silent_chunks >= silence_chunks_needed and len(frames) > int(native / native_chunk):
                 break
 
         stream.stop_stream()
@@ -51,7 +66,14 @@ def record(seconds: float, device_index: int = -1, silence_threshold: int = 300,
     finally:
         pa.terminate()
 
-    return b"".join(frames)
+    pcm = b"".join(frames)
+    if native != SAMPLE_RATE:
+        g = gcd(SAMPLE_RATE, native)
+        audio = resample_poly(
+            np.frombuffer(pcm, dtype=np.int16), SAMPLE_RATE // g, native // g
+        ).astype(np.int16)
+        return audio.tobytes()
+    return pcm
 
 
 def pcm_to_wav_bytes(pcm: bytes) -> bytes:

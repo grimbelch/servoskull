@@ -22,3 +22,4 @@ ddgs>=0.1.0
 # pychromecast 14+ needs Python 3.11+; 13.x is the ceiling on 3.9 (cast is optional)
 pychromecast>=13.0.0
 windows-curses>=2.3.0
+opencv-python>=4.8.0

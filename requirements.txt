@@ -10,3 +10,4 @@ numpy>=1.24.0
 python-dotenv>=1.0.0
 spotipy>=2.23.0
 ddgs>=0.1.0
+opencv-python>=4.8.0

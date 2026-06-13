@@ -6,7 +6,7 @@ import random
 
 from skull import config
 from skull import audio, wake_word, transcribe, brain, tts, eyes, candle_leds
-from skull import spotify_ctrl, cast_audio
+from skull import spotify_ctrl, cast_audio, camera
 
 
 def shutdown(sig=None, frame=None):
@@ -81,6 +81,7 @@ def _cogitation_loop(cancel: threading.Event) -> None:
 
 def main():
     eyes.setup(config.LED_PIN_LEFT, config.LED_PIN_CENTER, config.LED_PIN_RIGHT)
+    camera.start()
     print("[skull] Omega-7 online. Awaiting the Emperor's commands.")
 
     # Startup: brief eye flash then settle into candlelight idle
@@ -95,6 +96,19 @@ def main():
     skip_wake_word = False
 
     while True:
+        # ── 0. Speak any pending camera observations ───────────────────────────
+        observation = camera.get_observation()
+        if observation:
+            try:
+                eyes.on()
+                obs_wav = tts.synthesize(observation)
+                audio.play_wav_bytes(obs_wav, output_device=config.AUDIO_OUTPUT_DEVICE)
+            except Exception as e:
+                print(f"[skull] Camera observation error: {e}")
+            finally:
+                eyes.off()
+            continue
+
         # ── 1. Wait for wake word (skip after a barge-in interruption) ────────
         def on_wake():
             eyes.on()
