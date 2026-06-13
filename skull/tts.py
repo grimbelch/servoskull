@@ -59,6 +59,21 @@ def synthesize_fallback(text: str) -> None:
     """Last-resort system TTS (ElevenLabs quota exhausted, Piper unavailable)."""
     if sys.platform == "darwin":
         subprocess.run(["say", "-r", "175", text], timeout=60)
+    elif sys.platform == "win32":
+        # Windows SAPI via PowerShell — no extra dependency. Text is piped in on
+        # stdin so it needs no shell-quoting or escaping.
+        script = (
+            "Add-Type -AssemblyName System.Speech; "
+            "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
+            "$s.Rate = 1; "
+            "$s.Speak([Console]::In.ReadToEnd())"
+        )
+        subprocess.run(
+            ["powershell", "-NoProfile", "-Command", script],
+            input=text,
+            text=True,
+            timeout=60,
+        )
     else:
         subprocess.run(["espeak", "-s", "150", text], timeout=60)
 

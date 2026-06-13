@@ -1,17 +1,38 @@
 """
-Run the skull brain on your Mac with a visual LED emulator.
+Run the skull brain on your desktop (macOS or Windows) with a visual LED emulator.
 
-Real on Mac:  microphone, speaker, Claude, Whisper STT, ElevenLabs TTS
-Emulated:     GPIO eye LEDs, APA102 candle LEDs, wake word detection (button/Space)
+Real:      microphone, speaker, Claude, Whisper STT, ElevenLabs/Piper TTS
+Emulated:  GPIO eye LEDs, APA102 candle LEDs, wake word detection (button/Space)
+
+The OS is auto-detected — the TUI uses the platform's curses backend
+(stdlib on macOS, windows-curses on Windows) and TTS falls back to the
+platform's system voice (`say` on macOS, SAPI on Windows).
+
+Setup:
+    macOS:    pip install -r requirements-mac.txt
+    Windows:  pip install -r requirements-windows.txt
 
 Usage:
     python run_emulator.py
 """
 
+import platform
 import sys
 import warnings
 warnings.filterwarnings("ignore", message=".*LibreSSL.*")
 warnings.filterwarnings("ignore", message=".*NotOpenSSL.*")
+
+print(f"[emulator] Detected {platform.system()} ({sys.platform}) — starting Omega-7 emulator.")
+
+if sys.platform == "win32":
+    try:
+        import curses  # noqa: F401  (windows-curses provides this on Windows)
+    except ImportError:
+        sys.exit(
+            "[emulator] The 'curses' module is missing. On Windows, install it with:\n"
+            "    pip install -r requirements-windows.txt\n"
+            "(or: pip install windows-curses)"
+        )
 
 # ── 1. Patch hardware modules BEFORE skull.main is imported ────────────────────
 from emulator.patches import FakeEyes, FakeCandle, FakeWakeWord, get_state, trigger_wake

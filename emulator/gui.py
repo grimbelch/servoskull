@@ -32,14 +32,22 @@ def _put(stdscr, row: int, col: int, text: str, attr: int = 0) -> None:
 def _main(stdscr, state: EmulatorState, trigger_wake_fn):
     curses.curs_set(0)
     curses.start_color()
-    curses.use_default_colors()
 
-    curses.init_pair(1, curses.COLOR_RED,     -1)
-    curses.init_pair(2, curses.COLOR_YELLOW,  -1)
-    curses.init_pair(3, curses.COLOR_GREEN,   -1)
-    curses.init_pair(4, curses.COLOR_CYAN,    -1)
-    curses.init_pair(5, curses.COLOR_WHITE,   -1)
-    curses.init_pair(6, curses.COLOR_MAGENTA, -1)
+    # Prefer the terminal's default background (-1). Some curses backends
+    # (notably windows-curses/PDCurses) don't support use_default_colors();
+    # fall back to an explicit black background there.
+    try:
+        curses.use_default_colors()
+        bg = -1
+    except curses.error:
+        bg = curses.COLOR_BLACK
+
+    curses.init_pair(1, curses.COLOR_RED,     bg)
+    curses.init_pair(2, curses.COLOR_YELLOW,  bg)
+    curses.init_pair(3, curses.COLOR_GREEN,   bg)
+    curses.init_pair(4, curses.COLOR_CYAN,    bg)
+    curses.init_pair(5, curses.COLOR_WHITE,   bg)
+    curses.init_pair(6, curses.COLOR_MAGENTA, bg)
 
     RED    = curses.color_pair(1)
     YELLOW = curses.color_pair(2)
