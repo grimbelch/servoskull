@@ -3,7 +3,17 @@ Drop-in replacements for skull.eyes, skull.candle_leds, and skull.wake_word.
 Inject into sys.modules before importing skull.main.
 """
 
+import collections
 import threading
+
+# ── Log capture (shown in GUI log panel) ──────────────────────────────────────
+_logs: collections.deque = collections.deque(maxlen=8)
+
+def log_line(msg: str) -> None:
+    _logs.append(msg)
+
+def get_logs() -> list:
+    return list(_logs)
 
 
 class EmulatorState:

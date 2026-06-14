@@ -1,30 +1,33 @@
 from __future__ import annotations
+import queue
 from math import gcd
 
 import numpy as np
-import pyaudio
+import sounddevice as sd
 from scipy.signal import resample_poly
 from openwakeword.model import Model
-from skull.config import WAKE_WORD_MODEL, MIC_DEVICE_INDEX
+from skull.config import WAKE_WORD_MODEL, MIC_DEVICE_INDEX, WAKE_WORD_THRESHOLD
 
 TARGET_RATE = 16000
 CHUNK = 1280  # 80 ms at 16 kHz — minimum required by openwakeword
-THRESHOLD = 0.5
+THRESHOLD = WAKE_WORD_THRESHOLD
 
 
-def _native_rate(pa: pyaudio.PyAudio) -> int:
-    if MIC_DEVICE_INDEX >= 0:
-        info = pa.get_device_info_by_index(MIC_DEVICE_INDEX)
-    else:
-        info = pa.get_default_input_device_info()
-    return int(info.get("defaultSampleRate", 44100))
+def _native_rate(device_index: int) -> int:
+    try:
+        info = sd.query_devices(device_index if device_index >= 0 else None, kind="input")
+        return int(info["default_samplerate"])
+    except Exception:
+        return 48000
 
 
 def _to_target(audio: np.ndarray, native: int) -> np.ndarray:
     if native == TARGET_RATE:
         return audio
     g = gcd(TARGET_RATE, native)
-    return resample_poly(audio, TARGET_RATE // g, native // g).astype(np.int16)
+    # float32 conversion before resample_poly avoids int16 numerical zeroing bug
+    resampled = resample_poly(audio.astype(np.float32), TARGET_RATE // g, native // g)
+    return resampled.astype(np.int16)
 
 
 def wait_for_wake_word(on_detected=None, cancel=None) -> bool:
@@ -33,41 +36,34 @@ def wait_for_wake_word(on_detected=None, cancel=None) -> bool:
     Returns True if wake word was detected, False if cancelled.
     """
     oww = Model(wakeword_models=[WAKE_WORD_MODEL], inference_framework="onnx")
-
-    pa = pyaudio.PyAudio()
-    native = _native_rate(pa)
-    # Scale chunk so each read is still ~80 ms of real time
+    native = _native_rate(MIC_DEVICE_INDEX)
     native_chunk = int(CHUNK * native / TARGET_RATE)
+    dev = MIC_DEVICE_INDEX if MIC_DEVICE_INDEX >= 0 else None
 
-    kwargs = {}
-    if MIC_DEVICE_INDEX >= 0:
-        kwargs["input_device_index"] = MIC_DEVICE_INDEX
+    q: queue.Queue = queue.Queue()
 
-    stream = pa.open(
-        rate=native,
-        channels=1,
-        format=pyaudio.paInt16,
-        input=True,
-        frames_per_buffer=native_chunk,
-        **kwargs,
-    )
+    def _cb(indata, frames, time_info, status):
+        q.put(indata.copy())
 
-    print(f"[skull] Listening for wake word ({WAKE_WORD_MODEL}) ...")
-    try:
+    print(f"[skull] Listening for wake word ({WAKE_WORD_MODEL}) at {native}Hz...")
+    with sd.InputStream(samplerate=native, channels=1, dtype="int16",
+                        blocksize=native_chunk, device=dev, callback=_cb):
         while True:
             if cancel and cancel.is_set():
                 return False
-            raw = stream.read(native_chunk, exception_on_overflow=False)
-            audio = _to_target(np.frombuffer(raw, dtype=np.int16), native)
+            try:
+                raw = q.get(timeout=0.1)
+            except queue.Empty:
+                continue
+            audio = _to_target(raw.flatten(), native)
+            rms = float(np.sqrt(np.mean(audio.astype(np.float32) ** 2)))
             predictions = oww.predict(audio)
             score = max(predictions.values())
+            if rms > 50 or score > 0.1:
+                print(f"[ww] rms={rms:.0f} score={score:.3f} (need >={THRESHOLD})")
             if score >= THRESHOLD:
                 print("[skull] Wake word detected!")
                 oww.reset()
                 if on_detected:
                     on_detected()
                 return True
-    finally:
-        stream.stop_stream()
-        stream.close()
-        pa.terminate()

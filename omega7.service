@@ -1,0 +1,21 @@
+[Unit]
+Description=Omega-7 AI Servo Skull
+After=network-online.target bluetooth.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__HOME__/skull
+EnvironmentFile=__HOME__/skull/.env
+Environment="HOME=__HOME__"
+Environment="XDG_RUNTIME_DIR=/run/user/__UID__"
+ExecStart=__HOME__/skull/.venv/bin/python -m skull.main
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=omega7
+
+[Install]
+WantedBy=multi-user.target

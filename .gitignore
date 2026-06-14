@@ -15,5 +15,8 @@ models/*.onnx
 # macOS
 .DS_Store
 
+# Persistent conversation history
+history.json
+
 # Claude Code local settings
 .claude/

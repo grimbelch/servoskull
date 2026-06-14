@@ -22,12 +22,12 @@ signal.signal(signal.SIGTERM, shutdown)
 
 
 _WAKE_PHRASES = [
-    "Yes, m'Lord?",
+    "Yes, my Lord?",
     "How may this unit serve?",
     "Awaiting your command.",
     "Speak your will.",
     "This unit attends.",
-    "Your command, m'Lord?",
+    "Your command, my Lord?",
 ]
 
 _COGITATION_PHRASES = [
@@ -82,18 +82,47 @@ def _cogitation_loop(cancel: threading.Event) -> None:
 _BOOT_PHRASE = (
     "Omega-7 online. Neural cortex active. Ready to serve the Omnissiah."
 )
+_BOOT_CACHE = "models/boot_phrase.wav"
+
+
+def _load_or_record_boot_wav() -> bytes:
+    import pathlib
+    cache = pathlib.Path(_BOOT_CACHE)
+    if cache.exists():
+        print(f"[skull] Loading cached boot phrase from {_BOOT_CACHE}")
+        return cache.read_bytes()
+    print("[skull] Recording boot phrase with ElevenLabs (first run — will cache for next time)...")
+    saved_backend = config.TTS_BACKEND
+    config.TTS_BACKEND = "elevenlabs"
+    try:
+        wav = tts.synthesize(_BOOT_PHRASE)
+    finally:
+        config.TTS_BACKEND = saved_backend
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_bytes(wav)
+    print(f"[skull] Boot phrase cached to {_BOOT_CACHE}")
+    return wav
 
 
 def main():
     eyes.setup(config.LED_PIN_LEFT, config.LED_PIN_CENTER, config.LED_PIN_RIGHT)
     camera.start()
     print("[skull] Omega-7 online. Awaiting the Emperor's commands.")
+    try:
+        import sounddevice as sd
+        devices = sd.query_devices()
+        mic_label = f"device {config.MIC_DEVICE_INDEX}" if config.MIC_DEVICE_INDEX >= 0 else "system default"
+        out_label = f"device {config.AUDIO_OUTPUT_DEVICE}" if config.AUDIO_OUTPUT_DEVICE >= 0 else "system default"
+        print(f"[skull] Mic: {mic_label}  |  Output: {out_label}")
+        print(f"[skull] Available devices:\n{devices}")
+    except Exception:
+        pass
 
     # Pre-synthesize phrases in background while boot phrase is being generated
     threading.Thread(target=_preload_phrases, daemon=True).start()
 
     try:
-        boot_wav = tts.synthesize(_BOOT_PHRASE)
+        boot_wav = _load_or_record_boot_wav()
         eyes.on()
         audio.play_wav_bytes(boot_wav, output_device=config.AUDIO_OUTPUT_DEVICE)
     except Exception as e:
@@ -139,34 +168,73 @@ def main():
                 "This had better be important.",
                 "Insufferable. What is it?",
             ])
+            _barge_wav = None
             try:
-                audio.play_wav_bytes(tts.synthesize(ack), output_device=config.AUDIO_OUTPUT_DEVICE)
+                _barge_wav = tts.synthesize(ack)
             except Exception:
                 pass
         else:
             wake_word.wait_for_wake_word(on_detected=on_wake)
-            if _wake_wavs:
-                try:
-                    audio.play_wav_bytes(
-                        random.choice(_wake_wavs),
-                        output_device=config.AUDIO_OUTPUT_DEVICE,
-                    )
-                except Exception:
-                    pass
+            _barge_wav = None
 
-        # ── 2. Record the question ─────────────────────────────────────────────
-        print("[skull] Recording...")
-        pcm = audio.record(
-            seconds=config.RECORD_SECONDS,
-            device_index=config.MIC_DEVICE_INDEX,
-            silence_threshold=config.SILENCE_THRESHOLD,
-            silence_duration=config.SILENCE_DURATION,
-        )
+        # ── 2. Play wake ack, then record ────────────────────────────────────────
+        # Wake phrase plays first (blocking) so the mic doesn't pick up the skull's
+        # own speaker output. Recording starts after playback finishes.
+        if _barge_wav is not None:
+            try:
+                audio.play_wav_bytes(_barge_wav, output_device=config.AUDIO_OUTPUT_DEVICE)
+            except Exception:
+                pass
+        elif _wake_wavs:
+            try:
+                audio.play_wav_bytes(
+                    random.choice(_wake_wavs),
+                    output_device=config.AUDIO_OUTPUT_DEVICE,
+                )
+            except Exception:
+                pass
+
+        _rec_pcm: list = [None]
+        _rec_exc: list = [None]
+        _rec_done = threading.Event()
+
+        def _do_record():
+            try:
+                _rec_pcm[0] = audio.record(
+                    seconds=config.RECORD_SECONDS,
+                    device_index=config.MIC_DEVICE_INDEX,
+                    silence_threshold=config.SILENCE_THRESHOLD,
+                    silence_duration=config.SILENCE_DURATION,
+                )
+            except Exception as e:
+                _rec_exc[0] = e
+            finally:
+                _rec_done.set()
+
+        threading.Thread(target=_do_record, daemon=True).start()
+        print("[skull] Recording... (speak now)")
+        _rec_done.wait()
+
+        if _rec_exc[0] is not None:
+            print(f"[skull] Audio record error: {_rec_exc[0]}")
+            eyes.off()
+            candle_leds.idle()
+            continue
+
+        pcm, pcm_rate = _rec_pcm[0]
+        if not pcm:
+            print("[skull] No speech detected.")
+            eyes.off()
+            candle_leds.idle()
+            continue
+
         eyes.off()
         candle_leds.think()
 
         # ── 3. Transcribe ──────────────────────────────────────────────────────
-        wav = audio.pcm_to_wav_bytes(pcm)
+        wav = audio.pcm_to_wav_bytes(pcm, pcm_rate)
+        import pathlib; pathlib.Path("/tmp/skull_debug.wav").write_bytes(wav)
+        print("[skull] DEBUG: saved recording to /tmp/skull_debug.wav — open it to hear what the mic captured")
         print("[skull] Transcribing...")
         try:
             user_text = transcribe.transcribe(wav)
@@ -181,6 +249,17 @@ def main():
             continue
 
         print(f"[skull] Heard: {user_text}")
+
+        # ── 3b. Detect explicit voice-switch requests ──────────────────────────
+        _t = user_text.lower()
+        if any(p in _t for p in ("elevenlabs", "cloud voice", "premium voice", "cloud tts")):
+            config.TTS_BACKEND = "elevenlabs"
+            print("[skull] TTS → elevenlabs (user request)")
+            threading.Thread(target=_preload_phrases, daemon=True).start()
+        elif any(p in _t for p in ("piper", "local voice", "standard voice", "local tts")):
+            config.TTS_BACKEND = "piper"
+            print("[skull] TTS → piper (user request)")
+            threading.Thread(target=_preload_phrases, daemon=True).start()
 
         # ── 4. Generate response ───────────────────────────────────────────────
         print("[skull] Consulting the Machine God...")
@@ -203,11 +282,7 @@ def main():
         # ── 4b. Execute commands ───────────────────────────────────────────────
         for cmd in spotify_cmds:
             try:
-                if cmd[0] == "tts_backend":
-                    config.TTS_BACKEND = cmd[1]
-                    print(f"[skull] TTS backend switched to: {cmd[1]} — re-synthesising phrases...")
-                    threading.Thread(target=_preload_phrases, daemon=True).start()
-                elif spotify_ctrl.is_configured():
+                if spotify_ctrl.is_configured():
                     if cmd[0] == "play":
                         device_name = cmd[2] if len(cmd) > 2 else None
                         result = spotify_ctrl.search_and_play(cmd[1], device_name=device_name)

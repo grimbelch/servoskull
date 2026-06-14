@@ -39,8 +39,10 @@ def transcribe(wav_bytes: bytes) -> str:
         model="whisper-1",
         file=audio_file,
         language="en",
+        prompt="Omega-7, Omnissiah, Adeptus Mechanicus, Necromunda, Warhammer",
     )
     text = result.text.strip()
+    print(f"[skull] Whisper raw: {text!r}")
 
     if _is_hallucination(text):
         print(f"[skull] Whisper hallucination suppressed: {text!r}")

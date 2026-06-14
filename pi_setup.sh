@@ -49,8 +49,25 @@ else
     echo "    Voice model already present, skipping."
 fi
 
-# ── 5. Verify audio devices ────────────────────────────────────────────────
-echo "[5/5] Checking audio devices..."
+# ── 5. Install systemd service ────────────────────────────────────────────
+echo "[5/6] Installing systemd service..."
+SERVICE_DST="/etc/systemd/system/omega7.service"
+USER_ID=$(id -u)
+
+sudo cp "$HOME/skull/omega7.service" "$SERVICE_DST"
+sudo sed -i \
+    -e "s|__USER__|$USER|g" \
+    -e "s|__HOME__|$HOME|g" \
+    -e "s|__UID__|$USER_ID|g" \
+    "$SERVICE_DST"
+sudo systemctl daemon-reload
+sudo systemctl enable omega7.service
+echo "    Omega-7 service enabled — starts automatically on every boot."
+echo "    Start now: sudo systemctl start omega7"
+echo "    View logs: journalctl -u omega7 -f"
+
+# ── 6. Verify audio devices ────────────────────────────────────────────────
+echo "[6/6] Checking audio devices..."
 python3 -c "
 import pyaudio
 pa = pyaudio.PyAudio()
@@ -75,4 +92,5 @@ echo "  1. Copy your .env file into ~/skull/ (never commit it to git)"
 echo "  2. Plug in the UGREEN USB sound card and note its index above"
 echo "  3. Set MIC_DEVICE_INDEX to the UGREEN input index"
 echo "  4. Set AUDIO_OUTPUT_DEVICE to the UGREEN output index"
-echo "  5. Run the skull:  cd ~/skull && source .venv/bin/activate && python -m skull.main"
+echo "  5. Start the service: sudo systemctl start omega7"
+echo "     Or run manually:   cd ~/skull && source .venv/bin/activate && python -m skull.main"

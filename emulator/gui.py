@@ -3,7 +3,7 @@ import math
 import random
 import time
 
-from emulator.patches import EmulatorState
+from emulator.patches import EmulatorState, get_logs
 
 
 def run_gui(state: EmulatorState, trigger_wake_fn):
@@ -74,6 +74,7 @@ def _main(stdscr, state: EmulatorState, trigger_wake_fn):
             pass
 
         t = time.monotonic() - t0
+        h, w = stdscr.getmaxyx()
         stdscr.erase()
 
         # ── Header ────────────────────────────────────────────────────────────
@@ -136,8 +137,16 @@ def _main(stdscr, state: EmulatorState, trigger_wake_fn):
         if line:
             _put(stdscr, row, 4, line, RED)
 
+        # ── Log panel ─────────────────────────────────────────────────────────
+        logs = get_logs()
+        NUM_LOGS = 5
+        log_top = h - 2 - NUM_LOGS - 1   # separator row
+        if log_top > row + 1:             # only draw if it fits below the reply
+            _put(stdscr, log_top, 2, "─" * 42, WHITE | DIM)
+            for j, msg in enumerate(logs[-NUM_LOGS:]):
+                _put(stdscr, log_top + 1 + j, 2, msg[:max(0, w - 4)], DIM)
+
         # ── Footer ────────────────────────────────────────────────────────────
-        h, _ = stdscr.getmaxyx()
         _put(stdscr, h - 2, 2, "[ SPACE ] Trigger Wake Word    [ Q ] Quit", MAG)
 
         stdscr.refresh()

@@ -1,11 +1,39 @@
 from __future__ import annotations
+import json
+import pathlib
 import re
+import subprocess
+import sys
 from anthropic import Anthropic
-from skull.config import ANTHROPIC_API_KEY, CLAUDE_MODEL, SYSTEM_PROMPT
+from skull.config import ANTHROPIC_API_KEY, CLAUDE_MODEL, SYSTEM_PROMPT, HISTORY_FILE
 from skull import search as _search
 
 _client = Anthropic(api_key=ANTHROPIC_API_KEY)
 _history: list[dict] = []
+_HISTORY_PATH = pathlib.Path(HISTORY_FILE)
+
+
+def _save_history() -> None:
+    try:
+        _HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with _HISTORY_PATH.open("w") as f:
+            json.dump(_history, f)
+    except Exception as e:
+        print(f"[brain] History save error: {e}")
+
+
+def _load_history() -> None:
+    global _history
+    try:
+        if _HISTORY_PATH.exists():
+            with _HISTORY_PATH.open() as f:
+                _history = json.load(f)
+            print(f"[brain] Restored {len(_history) // 2} conversation turns from history")
+    except Exception:
+        pass
+
+
+_load_history()
 
 _TOOLS = [
     {
@@ -85,6 +113,35 @@ _TOOLS = [
         },
     },
     {
+        "name": "get_weather",
+        "description": (
+            "Get current local weather conditions (temperature, humidity, wind, sky). "
+            "Call when the user asks about the weather or outdoor conditions."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "set_volume",
+        "description": (
+            "Adjust the speaker volume. Pass '+15' to raise by 15%, '-15' to lower by 15%, "
+            "or '80' to set an absolute level. Call when user says louder, quieter, volume up/down, etc."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "level": {
+                    "type": "string",
+                    "description": "'+15' raise 15%, '-15' lower 15%, or '80' for absolute 80%",
+                }
+            },
+            "required": ["level"],
+        },
+    },
+    {
         "name": "bluetooth_scan",
         "description": (
             "Scan for nearby Bluetooth speakers. Call this when the user asks to connect to a "
@@ -145,7 +202,6 @@ def _resolve_bt_device(identifier: str, devices: list[dict]) -> dict | None:
 _SPOTIFY_RE = re.compile(
     r"\[SPOTIFY(?::([^\]|]+?)(?:\s*\|\s*on:\s*([^\]]+))?)?\]|\[SPOTIFY_(PAUSE|RESUME|SKIP)\]"
 )
-_TTS_RE = re.compile(r"\[TTS_BACKEND:\s*(piper|elevenlabs)\]", re.IGNORECASE)
 
 
 def _strip_actions(text: str) -> str:
@@ -210,6 +266,44 @@ def respond(user_text: str) -> tuple[str, list[tuple]]:
                         "tool_use_id": block.id,
                         "content": result,
                     })
+                elif block.name == "get_weather":
+                    from skull.config import WEATHER_LAT, WEATHER_LON
+                    if WEATHER_LAT == 0.0 and WEATHER_LON == 0.0:
+                        result = "Weather location not configured. Set WEATHER_LAT and WEATHER_LON in .env"
+                    else:
+                        print("[skull] Fetching weather...")
+                        result = _search.get_weather(WEATHER_LAT, WEATHER_LON)
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result,
+                    })
+                elif block.name == "set_volume":
+                    level = block.input.get("level", "+10").strip()
+                    try:
+                        if sys.platform == "darwin":
+                            if level.startswith("+"):
+                                script = f"set volume output volume (output volume of (get volume settings) + {level[1:]})"
+                            elif level.startswith("-"):
+                                script = f"set volume output volume (output volume of (get volume settings) - {level[1:]})"
+                            else:
+                                script = f"set volume output volume {level}"
+                            subprocess.run(["osascript", "-e", script], capture_output=True)
+                        else:
+                            pct = f"{level}%" if not level.endswith("%") else level
+                            subprocess.run(
+                                ["pactl", "set-sink-volume", "@DEFAULT_SINK@", pct],
+                                capture_output=True,
+                            )
+                        result = f"Volume set to {level}."
+                        print(f"[skull] Volume: {level}")
+                    except Exception as e:
+                        result = f"Volume adjustment failed: {e}"
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result,
+                    })
                 elif block.name == "bluetooth_scan":
                     from skull import bluetooth_ctrl
                     print("[skull] Scanning for Bluetooth devices...")
@@ -257,7 +351,7 @@ def respond(user_text: str) -> tuple[str, list[tuple]]:
             )
             break
 
-    # Extract commands (Spotify + TTS backend switches)
+    # Extract Spotify commands
     cmds: list[tuple] = []
 
     def _extract_spotify(m: re.Match) -> str:
@@ -268,12 +362,7 @@ def respond(user_text: str) -> tuple[str, list[tuple]]:
             cmds.append((action.lower(),))
         return ""
 
-    def _extract_tts(m: re.Match) -> str:
-        cmds.append(("tts_backend", m.group(1).lower()))
-        return ""
-
     spoken = _SPOTIFY_RE.sub(_extract_spotify, raw)
-    spoken = _TTS_RE.sub(_extract_tts, spoken)
     spoken = _strip_actions(spoken).strip()
 
     # Store only the clean conversational turns in history
@@ -281,9 +370,11 @@ def respond(user_text: str) -> tuple[str, list[tuple]]:
     _history.append({"role": "assistant", "content": spoken})
     if len(_history) > 20:
         _history[:] = _history[-20:]
+    _save_history()
 
     return spoken, cmds
 
 
 def reset() -> None:
     _history.clear()
+    _save_history()

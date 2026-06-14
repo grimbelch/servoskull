@@ -1,6 +1,19 @@
+import json
 import urllib.request
 from html.parser import HTMLParser
 from ddgs import DDGS
+
+_WMO_CODES: dict[int, str] = {
+    0: "clear sky",
+    1: "mainly clear", 2: "partly cloudy", 3: "overcast",
+    45: "foggy", 48: "depositing rime fog",
+    51: "light drizzle", 53: "moderate drizzle", 55: "dense drizzle",
+    61: "light rain", 63: "moderate rain", 65: "heavy rain",
+    71: "light snow", 73: "moderate snow", 75: "heavy snow", 77: "snow grains",
+    80: "light rain showers", 81: "moderate rain showers", 82: "heavy rain showers",
+    85: "light snow showers", 86: "heavy snow showers",
+    95: "thunderstorm", 96: "thunderstorm with hail", 99: "thunderstorm with heavy hail",
+}
 
 _NECRO_SITE = "necroraw.com.ru"
 _NECRO_BASE = f"https://www.{_NECRO_SITE}"
@@ -75,6 +88,42 @@ def _fetch_text(url: str, max_chars: int = 3000) -> str:
         return p.result()[:max_chars]
     except Exception as e:
         return f"Could not fetch {url}: {e}"
+
+
+def get_weather(lat: float, lon: float) -> str:
+    """Fetch current conditions and 2-day forecast from Open-Meteo (no API key required)."""
+    url = (
+        f"https://api.open-meteo.com/v1/forecast"
+        f"?latitude={lat}&longitude={lon}"
+        f"&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m"
+        f"&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max"
+        f"&temperature_unit=fahrenheit&wind_speed_unit=mph&forecast_days=2"
+    )
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+        c = data["current"]
+        condition = _WMO_CODES.get(c["weather_code"], f"unknown (code {c['weather_code']})")
+        current = (
+            f"Current: {condition}, {c['temperature_2m']}°F, "
+            f"humidity {c['relative_humidity_2m']}%, wind {c['wind_speed_10m']} mph."
+        )
+        daily = data.get("daily", {})
+        forecast_parts = []
+        dates = daily.get("time", [])
+        for i, date in enumerate(dates):
+            label = "Today" if i == 0 else "Tomorrow"
+            cond = _WMO_CODES.get(daily["weather_code"][i], "unknown")
+            hi = daily["temperature_2m_max"][i]
+            lo = daily["temperature_2m_min"][i]
+            rain = daily["precipitation_probability_max"][i]
+            forecast_parts.append(
+                f"{label} ({date}): {cond}, high {hi}°F, low {lo}°F, {rain}% chance of rain."
+            )
+        return current + " " + " ".join(forecast_parts)
+    except Exception as e:
+        return f"Weather data unavailable: {e}"
 
 
 def web_search(query: str, max_results: int = 5) -> str:

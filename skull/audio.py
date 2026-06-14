@@ -1,88 +1,106 @@
 from __future__ import annotations
 import io
+import time
 import wave
 import threading
-from math import gcd
 
 import numpy as np
-import pyaudio
 import sounddevice as sd
 import scipy.io.wavfile as wavfile
-from scipy.signal import resample_poly
 
-SAMPLE_RATE = 16000
 CHANNELS = 1
-FORMAT = pyaudio.paInt16
-CHUNK = 512
-_SAMPLE_WIDTH = 2  # bytes per sample for paInt16
+_SAMPLE_WIDTH = 2  # bytes per sample for int16
 
 
-def _native_input_rate(pa: pyaudio.PyAudio, device_index: int) -> int:
-    if device_index >= 0:
-        info = pa.get_device_info_by_index(device_index)
-    else:
-        info = pa.get_default_input_device_info()
-    return int(info.get("defaultSampleRate", 44100))
-
-
-def record(seconds: float, device_index: int = -1, silence_threshold: int = 300, silence_duration: float = 1.5) -> bytes:
-    """Record audio, stopping early on sustained silence. Returns raw PCM bytes at SAMPLE_RATE."""
-    pa = pyaudio.PyAudio()
-    native = _native_input_rate(pa, device_index)
-    native_chunk = int(CHUNK * native / SAMPLE_RATE)
-
-    kwargs = {}
-    if device_index >= 0:
-        kwargs["input_device_index"] = device_index
-
+def _native_input_rate(device_index: int) -> int:
     try:
-        stream = pa.open(
-            format=FORMAT,
-            channels=CHANNELS,
-            rate=native,
-            input=True,
-            frames_per_buffer=native_chunk,
-            **kwargs,
-        )
+        if device_index >= 0:
+            info = sd.query_devices(device_index)
+        else:
+            info = sd.query_devices(kind="input")
+        return int(info["default_samplerate"])
+    except Exception:
+        return 44100
 
-        frames = []
+
+def record(seconds: float, device_index: int = -1, silence_threshold: int = 300, silence_duration: float = 1.5) -> tuple:
+    """Record audio as a single continuous sd.rec() call, aborting early on sustained silence.
+
+    Returns (pcm_bytes, sample_rate) at the device's native rate.
+    Single call avoids the gap/choppiness of repeated sd.rec() calls.
+    InputStream callbacks were unreliable on macOS, so we use sd.rec() + sd.stop().
+    """
+    native = _native_input_rate(device_index)
+    dev = device_index if device_index >= 0 else None
+    max_frames = int(native * seconds)
+
+    ANALYSIS_SECS = 0.25
+    analysis_frames = int(native * ANALYSIS_SECS)
+    lead_in_secs = 1.5
+    silence_chunks_needed = max(1, round(silence_duration / ANALYSIS_SECS))
+
+    print(f"[audio] recording: device={dev}, rate={native}Hz")
+
+    buf = sd.rec(max_frames, samplerate=native, channels=1, device=dev, dtype="int16")
+    t_start = time.monotonic()
+    stop_at_frame = [max_frames]
+
+    def _monitor():
+        time.sleep(lead_in_secs)
         silent_chunks = 0
-        max_chunks = int(native / native_chunk * seconds)
-        silence_chunks_needed = int(native / native_chunk * silence_duration)
+        chunk_num = 0
+        max_rms = 0.0
 
-        for _ in range(max_chunks):
-            data = stream.read(native_chunk, exception_on_overflow=False)
-            frames.append(data)
-            rms = np.sqrt(np.mean(np.frombuffer(data, dtype=np.int16).astype(np.float32) ** 2))
+        while True:
+            time.sleep(ANALYSIS_SECS)
+            elapsed = time.monotonic() - t_start
+            write_pos = min(int(elapsed * native), max_frames)
+            read_end = write_pos
+            read_start = max(0, read_end - analysis_frames)
+            if read_end <= read_start:
+                continue
+
+            chunk = buf[read_start:read_end, 0]
+            rms = float(np.sqrt(np.mean(chunk.astype(np.float32) ** 2)))
+            max_rms = max(max_rms, rms)
+            chunk_num += 1
+            print(f"[audio] chunk {chunk_num}: rms={rms:.1f} (threshold={silence_threshold})")
+
             if rms < silence_threshold:
                 silent_chunks += 1
             else:
                 silent_chunks = 0
-            if silent_chunks >= silence_chunks_needed and len(frames) > int(native / native_chunk):
-                break
 
-        stream.stop_stream()
-        stream.close()
-    finally:
-        pa.terminate()
+            if silent_chunks >= silence_chunks_needed:
+                stop_at_frame[0] = write_pos
+                sd.stop()
+                return
 
-    pcm = b"".join(frames)
-    if native != SAMPLE_RATE:
-        g = gcd(SAMPLE_RATE, native)
-        audio = resample_poly(
-            np.frombuffer(pcm, dtype=np.int16), SAMPLE_RATE // g, native // g
-        ).astype(np.int16)
-        return audio.tobytes()
-    return pcm
+            if write_pos >= max_frames:
+                return
+
+    monitor = threading.Thread(target=_monitor, daemon=True)
+    monitor.start()
+    sd.wait()
+    monitor.join(timeout=1.0)
+
+    frames = min(stop_at_frame[0], max_frames)
+    total_secs = frames / native
+    print(f"[audio] done: {frames} frames ({total_secs:.1f}s)")
+
+    pcm_arr = buf[:frames, 0].copy()
+    if not pcm_arr.any():
+        return b"", native
+    return pcm_arr.tobytes(), native
 
 
-def pcm_to_wav_bytes(pcm: bytes) -> bytes:
-    """Wrap raw PCM in a WAV container."""
+def pcm_to_wav_bytes(pcm: bytes, sample_rate: int) -> bytes:
+    """Wrap raw PCM in a WAV container at the given sample rate."""
     buf = io.BytesIO()
     with wave.open(buf, "wb") as wf:
         wf.setnchannels(CHANNELS)
         wf.setsampwidth(_SAMPLE_WIDTH)
-        wf.setframerate(SAMPLE_RATE)
+        wf.setframerate(sample_rate)
         wf.writeframes(pcm)
     return buf.getvalue()
 
@@ -149,4 +167,4 @@ def play_wav_bytes(
 
 
 def cleanup() -> None:
-    pass  # PyAudio instances are now created and destroyed per-call
+    pass
