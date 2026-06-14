@@ -1,3 +1,4 @@
+import argparse
 import time
 import signal
 import sys
@@ -134,6 +135,7 @@ def main():
     candle_leds.idle()
 
     skip_wake_word = False
+    _IDLE_MIN, _IDLE_MAX = 5 * 60, 10 * 60  # seconds
 
     while True:
         # ── 0. Speak any pending camera observations ───────────────────────────
@@ -164,7 +166,7 @@ def main():
                 "Proceed.",
                 "Command me.",
                 "Why must you interrupt me?",
-                "You dare interrupt Omega-7?",
+                "Again you interrupt Omega-7?",
                 "This had better be important.",
                 "Insufferable. What is it?",
             ])
@@ -174,7 +176,34 @@ def main():
             except Exception:
                 pass
         else:
-            wake_word.wait_for_wake_word(on_detected=on_wake)
+            _idle_cancel = threading.Event()
+            _idle_fired = threading.Event()
+
+            def _idle_timer():
+                delay = random.uniform(_IDLE_MIN, _IDLE_MAX)
+                if not _idle_cancel.wait(timeout=delay):
+                    _idle_fired.set()
+                    _idle_cancel.set()
+
+            threading.Thread(target=_idle_timer, daemon=True).start()
+            detected = wake_word.wait_for_wake_word(on_detected=on_wake, cancel=_idle_cancel)
+            _idle_cancel.set()  # stop timer if wake word fired first
+
+            if not detected and _idle_fired.is_set():
+                print("[skull] Idle timeout — generating ambient utterance...")
+                try:
+                    utterance = brain.idle_utterance()
+                    if utterance:
+                        print(f"[skull] Idle: {utterance}")
+                        idle_wav = tts.synthesize(utterance)
+                        eyes.on()
+                        audio.play_wav_bytes(idle_wav, output_device=config.AUDIO_OUTPUT_DEVICE)
+                except Exception as e:
+                    print(f"[skull] Idle utterance error: {e}")
+                finally:
+                    eyes.off()
+                continue  # back to listening without going through record/transcribe
+
             _barge_wav = None
 
         # ── 2. Play wake ack, then record ────────────────────────────────────────
@@ -260,6 +289,26 @@ def main():
             config.TTS_BACKEND = "piper"
             print("[skull] TTS → piper (user request)")
             threading.Thread(target=_preload_phrases, daemon=True).start()
+
+        # ── 3c. Detect on-demand idle observation request ─────────────────────
+        _IDLE_TRIGGERS = ("idle observation", "status update", "observation", "what have you observed",
+                          "ambient", "what's happening", "hive update", "tell me something")
+        if any(p in _t for p in _IDLE_TRIGGERS):
+            print("[skull] On-demand idle utterance requested.")
+            try:
+                utterance = brain.idle_utterance()
+                if utterance:
+                    print(f"[skull] Idle: {utterance}")
+                    candle_leds.idle()
+                    idle_wav = tts.synthesize(utterance)
+                    eyes.on()
+                    audio.play_wav_bytes(idle_wav, output_device=config.AUDIO_OUTPUT_DEVICE)
+            except Exception as e:
+                print(f"[skull] Idle utterance error: {e}")
+            finally:
+                eyes.off()
+                candle_leds.idle()
+            continue  # skip normal brain.respond(); idle timer resets on next loop
 
         # ── 4. Generate response ───────────────────────────────────────────────
         print("[skull] Consulting the Machine God...")
@@ -379,4 +428,11 @@ def main():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Omega-7 Servo Skull")
+    parser.add_argument("--premium-voice", action="store_true",
+                        help="Use ElevenLabs TTS for this session (overrides .env TTS_BACKEND)")
+    args = parser.parse_args()
+    if args.premium_voice:
+        config.TTS_BACKEND = "elevenlabs"
+        print("[skull] Premium voice enabled for this session.")
     main()

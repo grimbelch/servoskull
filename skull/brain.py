@@ -378,3 +378,32 @@ def respond(user_text: str) -> tuple[str, list[tuple]]:
 def reset() -> None:
     _history.clear()
     _save_history()
+
+
+_IDLE_PROMPT = """\
+You are Omega-7, an ancient Imperial servo-skull drifting silently through a room, \
+unprompted. Generate one short idle utterance (1-2 sentences maximum, spoken aloud). \
+Choose randomly from these types:
+- A cryptic hive-city status report, as if monitoring distant cogitator feeds \
+  (e.g. gang movements in Sector 7, Arbites patrols, manufactorum output anomalies)
+- A fragment of Imperial lore or a servo-skull's internal monologue
+- A self-diagnostic or machine-spirit observation
+- Humming a mechanical hymn to the Omnissiah (describe it briefly in words, \
+  e.g. "Humming a low binary canticle to the Omnissiah...")
+Output ONLY the spoken words. No asterisks, no stage directions."""
+
+
+def idle_utterance() -> str:
+    """Generate a short unprompted idle line without tool use or conversation history."""
+    try:
+        response = _client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=120,
+            system=_IDLE_PROMPT,
+            messages=[{"role": "user", "content": "generate idle utterance"}],
+        )
+        text = next((b.text for b in response.content if hasattr(b, "text")), "").strip()
+        return text or ""
+    except Exception as e:
+        print(f"[brain] Idle utterance error: {e}")
+        return ""
