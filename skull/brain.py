@@ -84,7 +84,63 @@ _TOOLS = [
             "required": ["query"],
         },
     },
+    {
+        "name": "bluetooth_scan",
+        "description": (
+            "Scan for nearby Bluetooth speakers. Call this when the user asks to connect to a "
+            "Bluetooth speaker or find Bluetooth devices. Takes 8-10 seconds to complete. "
+            "Returns a numbered list of discovered devices."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "bluetooth_connect",
+        "description": (
+            "Connect to a Bluetooth device from the last scan. Pass the device name or number "
+            "(e.g. '1', '2', 'JBL Flip') as the identifier. On success, audio output routes "
+            "through the Bluetooth speaker automatically."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "identifier": {
+                    "type": "string",
+                    "description": "Device name or number from the last scan (e.g. '1', 'second', 'JBL Flip 6')",
+                }
+            },
+            "required": ["identifier"],
+        },
+    },
 ]
+
+_ORDINALS = {
+    "first": 0, "1": 0,
+    "second": 1, "2": 1,
+    "third": 2, "3": 2,
+    "fourth": 3, "4": 3,
+    "fifth": 4, "5": 4,
+}
+
+
+def _resolve_bt_device(identifier: str, devices: list[dict]) -> dict | None:
+    s = identifier.lower().strip()
+    if s in _ORDINALS:
+        i = _ORDINALS[s]
+        return devices[i] if i < len(devices) else None
+    try:
+        i = int(s) - 1
+        return devices[i] if 0 <= i < len(devices) else None
+    except ValueError:
+        pass
+    for d in devices:
+        if s in d["name"].lower():
+            return d
+    return None
+
 
 _SPOTIFY_RE = re.compile(
     r"\[SPOTIFY(?::([^\]|]+?)(?:\s*\|\s*on:\s*([^\]]+))?)?\]|\[SPOTIFY_(PAUSE|RESUME|SKIP)\]"
@@ -149,6 +205,41 @@ def respond(user_text: str) -> tuple[str, list[tuple]]:
                     query = block.input.get("query", "")
                     print(f"[skull] Looking up NetEA rules: {query}")
                     result = _search.netea_rules(query)
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result,
+                    })
+                elif block.name == "bluetooth_scan":
+                    from skull import bluetooth_ctrl
+                    print("[skull] Scanning for Bluetooth devices...")
+                    devices = bluetooth_ctrl.scan()
+                    if not devices:
+                        result = "No Bluetooth devices found nearby."
+                    else:
+                        lines = [f"{i + 1}. {d['name']}" for i, d in enumerate(devices)]
+                        result = "Nearby Bluetooth devices:\n" + "\n".join(lines)
+                    print(f"[skull] {result}")
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result,
+                    })
+                elif block.name == "bluetooth_connect":
+                    from skull import bluetooth_ctrl
+                    identifier = block.input.get("identifier", "").strip()
+                    devices = bluetooth_ctrl.get_last_scan()
+                    device = _resolve_bt_device(identifier, devices)
+                    if device is None:
+                        result = f"Could not find '{identifier}' in the last scan."
+                    else:
+                        print(f"[skull] Connecting to {device['name']} ({device['mac']})...")
+                        success = bluetooth_ctrl.connect(device["mac"])
+                        result = (
+                            f"Connected to {device['name']}. Audio will now route through it."
+                            if success
+                            else f"Failed to connect to {device['name']}. It may be out of range or need pairing."
+                        )
                     tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": block.id,

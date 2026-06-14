@@ -79,19 +79,30 @@ def _cogitation_loop(cancel: threading.Event) -> None:
         cancel.wait(timeout=5.0)
 
 
+_BOOT_PHRASE = (
+    "Omega-7 online. Neural cortex active. Ready to serve the Omnissiah."
+)
+
+
 def main():
     eyes.setup(config.LED_PIN_LEFT, config.LED_PIN_CENTER, config.LED_PIN_RIGHT)
     camera.start()
     print("[skull] Omega-7 online. Awaiting the Emperor's commands.")
 
-    # Startup: brief eye flash then settle into candlelight idle
-    eyes.on()
-    time.sleep(0.5)
-    eyes.off()
-    candle_leds.idle()
-
-    # Pre-synthesize wake and cogitation phrases in background so they're ready instantly
+    # Pre-synthesize phrases in background while boot phrase is being generated
     threading.Thread(target=_preload_phrases, daemon=True).start()
+
+    try:
+        boot_wav = tts.synthesize(_BOOT_PHRASE)
+        eyes.on()
+        audio.play_wav_bytes(boot_wav, output_device=config.AUDIO_OUTPUT_DEVICE)
+    except Exception as e:
+        print(f"[skull] Boot phrase error: {e}")
+        time.sleep(0.5)
+    finally:
+        eyes.off()
+
+    candle_leds.idle()
 
     skip_wake_word = False
 
