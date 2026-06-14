@@ -2,7 +2,7 @@
 Run the skull brain on your desktop (macOS or Windows) with a visual LED emulator.
 
 Real:      microphone, speaker, Claude, Whisper STT, ElevenLabs/Piper TTS
-Emulated:  GPIO eye LEDs, APA102 candle LEDs, wake word detection (button/Space)
+Emulated:  GPIO eye LEDs, wake word detection (button/Space)
 
 The OS is auto-detected — the TUI uses the platform's curses backend
 (stdlib on macOS, windows-curses on Windows) and TTS falls back to the
@@ -82,10 +82,9 @@ if _args.mic_device is not None:
     print(f"[emulator] Mic device overridden to index {_args.mic_device}")
 
 # ── 1. Patch hardware modules BEFORE skull.main is imported ────────────────────
-from emulator.patches import FakeEyes, FakeCandle, FakeWakeWord, HybridWakeWord, get_state, trigger_wake, log_line
+from emulator.patches import FakeEyes, FakeWakeWord, HybridWakeWord, get_state, trigger_wake, log_line
 
-sys.modules["skull.eyes"]        = FakeEyes()
-sys.modules["skull.candle_leds"] = FakeCandle()
+sys.modules["skull.eyes"] = FakeEyes()
 
 if _args.wake_word:
     import skull.wake_word as _real_ww  # import real module before replacing it

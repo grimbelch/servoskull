@@ -1,5 +1,5 @@
 """
-Drop-in replacements for skull.eyes, skull.candle_leds, and skull.wake_word.
+Drop-in replacements for skull.eyes and skull.wake_word.
 Inject into sys.modules before importing skull.main.
 """
 
@@ -18,7 +18,6 @@ def get_logs() -> list:
 
 class EmulatorState:
     eye_brightness: float = 0.0   # 0–100
-    candle_state: str = "off"     # idle | listen | think | off
     last_heard: str = ""
     last_reply: str = ""
 
@@ -55,25 +54,6 @@ class FakeEyes:
 
     def cleanup(self):
         _state.eye_brightness = 0.0
-
-
-# ── Fake skull.candle_leds ─────────────────────────────────────────────────────
-
-class FakeCandle:
-    def idle(self):
-        _state.candle_state = "idle"
-
-    def listen(self):
-        _state.candle_state = "listen"
-
-    def think(self):
-        _state.candle_state = "think"
-
-    def off(self):
-        _state.candle_state = "off"
-
-    def cleanup(self):
-        _state.candle_state = "off"
 
 
 # ── Fake skull.wake_word ───────────────────────────────────────────────────────

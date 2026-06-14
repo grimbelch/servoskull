@@ -4,6 +4,7 @@ import pathlib
 import re
 import subprocess
 import sys
+from datetime import datetime
 from anthropic import Anthropic
 from skull.config import ANTHROPIC_API_KEY, CLAUDE_MODEL, SYSTEM_PROMPT, HISTORY_FILE
 from skull import search as _search
@@ -173,6 +174,63 @@ _TOOLS = [
             "required": ["identifier"],
         },
     },
+    {
+        "name": "remember_fact",
+        "description": (
+            "Permanently store a fact the user has explicitly asked to be remembered. "
+            "Use when the user says 'remember that...', 'please remember...', 'don't forget that...', etc. "
+            "Store the fact exactly as stated. This memory persists forever until the user asks to forget it."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "fact": {
+                    "type": "string",
+                    "description": "The exact fact to remember, as a clear statement (e.g. 'Sean's address is 1810 NE 62nd Avenue')",
+                }
+            },
+            "required": ["fact"],
+        },
+    },
+    {
+        "name": "forget_fact",
+        "description": (
+            "Remove a fact the user has explicitly asked to be forgotten. "
+            "Use when the user says 'forget that...', 'stop remembering...', 'erase...', etc."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "A word or phrase identifying which fact to remove (e.g. 'address', 'phone number')",
+                }
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "update_fact",
+        "description": (
+            "Replace an existing long-term memory fact with a corrected version. "
+            "Use when the user says 'update my...', 'change my...', 'correct that...', "
+            "'my address has changed to...', etc. Finds the old fact by keyword and replaces it."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Keyword identifying the fact to replace (e.g. 'address', 'phone')",
+                },
+                "new_fact": {
+                    "type": "string",
+                    "description": "The corrected fact as a full statement (e.g. 'Sean's address is 2000 NW Hoyt St')",
+                },
+            },
+            "required": ["query", "new_fact"],
+        },
+    },
 ]
 
 _ORDINALS = {
@@ -215,7 +273,10 @@ def respond(user_text: str) -> tuple[str, list[tuple]]:
     """Return (spoken_text, spotify_commands)."""
     messages = _history + [{"role": "user", "content": user_text}]
     facts = _memory.load()
-    system = SYSTEM_PROMPT + _memory.facts_prompt(facts)
+    longterm = _memory.load_longterm()
+    now = datetime.now()
+    date_ctx = f"\n\nCURRENT DATE AND TIME: {now.strftime('%A, %B %-d, %Y at %-I:%M %p')}."
+    system = SYSTEM_PROMPT + date_ctx + _memory.longterm_prompt(longterm) + _memory.facts_prompt(facts)
 
     # Tool use loop — Claude may call web_search before giving a final answer
     while True:
@@ -337,6 +398,32 @@ def respond(user_text: str) -> tuple[str, list[tuple]]:
                             if success
                             else f"Failed to connect to {device['name']}. It may be out of range or need pairing."
                         )
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result,
+                    })
+
+                elif block.name == "remember_fact":
+                    fact = block.input.get("fact", "").strip()
+                    result = _memory.remember(fact)
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result,
+                    })
+                elif block.name == "forget_fact":
+                    query = block.input.get("query", "").strip()
+                    result = _memory.forget(query)
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result,
+                    })
+                elif block.name == "update_fact":
+                    query = block.input.get("query", "").strip()
+                    new_fact = block.input.get("new_fact", "").strip()
+                    result = _memory.update(query, new_fact)
                     tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": block.id,

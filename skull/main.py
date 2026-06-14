@@ -6,13 +6,12 @@ import threading
 import random
 
 from skull import config
-from skull import audio, wake_word, transcribe, brain, tts, eyes, candle_leds
+from skull import audio, wake_word, transcribe, brain, tts, eyes
 from skull import spotify_ctrl, cast_audio, camera
 
 
 def shutdown(sig=None, frame=None):
     print("\n[skull] Powering down. The Emperor protects.")
-    candle_leds.cleanup()
     eyes.cleanup()
     audio.cleanup()
     sys.exit(0)
@@ -132,8 +131,6 @@ def main():
     finally:
         eyes.off()
 
-    candle_leds.idle()
-
     skip_wake_word = False
     _IDLE_MIN, _IDLE_MAX = 5 * 60, 10 * 60  # seconds
 
@@ -154,7 +151,6 @@ def main():
         # ── 1. Wait for wake word (skip after a barge-in interruption) ────────
         def on_wake():
             eyes.on()
-            candle_leds.listen()
 
         if skip_wake_word:
             skip_wake_word = False
@@ -247,18 +243,15 @@ def main():
         if _rec_exc[0] is not None:
             print(f"[skull] Audio record error: {_rec_exc[0]}")
             eyes.off()
-            candle_leds.idle()
             continue
 
         pcm, pcm_rate = _rec_pcm[0]
         if not pcm:
             print("[skull] No speech detected.")
             eyes.off()
-            candle_leds.idle()
             continue
 
         eyes.off()
-        candle_leds.think()
 
         # ── 3. Transcribe ──────────────────────────────────────────────────────
         wav = audio.pcm_to_wav_bytes(pcm, pcm_rate)
@@ -269,12 +262,10 @@ def main():
             user_text = transcribe.transcribe(wav)
         except Exception as e:
             print(f"[skull] STT error: {e}")
-            candle_leds.idle()
             continue
 
         if not user_text:
             print("[skull] No speech detected.")
-            candle_leds.idle()
             continue
 
         print(f"[skull] Heard: {user_text}")
@@ -299,7 +290,7 @@ def main():
                 utterance = brain.idle_utterance()
                 if utterance:
                     print(f"[skull] Idle: {utterance}")
-                    candle_leds.idle()
+            
                     idle_wav = tts.synthesize(utterance)
                     eyes.on()
                     audio.play_wav_bytes(idle_wav, output_device=config.AUDIO_OUTPUT_DEVICE)
@@ -307,8 +298,7 @@ def main():
                 print(f"[skull] Idle utterance error: {e}")
             finally:
                 eyes.off()
-                candle_leds.idle()
-            continue  # skip normal brain.respond(); idle timer resets on next loop
+                continue  # skip normal brain.respond(); idle timer resets on next loop
 
         # ── 4. Generate response ───────────────────────────────────────────────
         print("[skull] Consulting the Machine God...")
@@ -319,7 +309,7 @@ def main():
             reply, spotify_cmds = brain.respond(user_text)
         except Exception as e:
             print(f"[skull] Brain error: {e}")
-            candle_leds.idle()
+    
             _cancel_cog.set()
             continue
         finally:
@@ -370,11 +360,10 @@ def main():
                     print(f"[skull] System TTS error: {fe}")
             else:
                 print(f"[skull] TTS error: {e}")
-            candle_leds.idle()
             continue
 
         # ── 6. Play audio + barge-in listener ────────────────────────────────
-        candle_leds.idle()
+
 
         _stop_play = threading.Event()
         _interrupted = threading.Event()
@@ -424,7 +413,7 @@ def main():
             _cancel_listener.set()
             int_thread.join(timeout=1.0)
 
-        candle_leds.idle()
+
 
 
 if __name__ == "__main__":

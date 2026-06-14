@@ -7,7 +7,76 @@ from anthropic import Anthropic
 from skull.config import ANTHROPIC_API_KEY, CLAUDE_MODEL
 
 _MEMORY_PATH = pathlib.Path("memory.json")
+_LONGTERM_PATH = pathlib.Path("longterm_memory.json")
 _lock = threading.Lock()
+
+
+# ── Long-term explicit memory (only changes on direct user instruction) ────────
+
+def load_longterm() -> list[str]:
+    with _lock:
+        try:
+            if _LONGTERM_PATH.exists():
+                return json.loads(_LONGTERM_PATH.read_text())
+        except Exception:
+            pass
+        return []
+
+
+def _save_longterm(facts: list[str]) -> None:
+    with _lock:
+        try:
+            _LONGTERM_PATH.write_text(json.dumps(facts, indent=2))
+        except Exception as e:
+            print(f"[memory] Longterm save error: {e}")
+
+
+def remember(fact: str) -> str:
+    """Add a fact to long-term memory. Returns confirmation string."""
+    facts = load_longterm()
+    if fact.lower() in {f.lower() for f in facts}:
+        return "Already committed to long-term memory."
+    facts.append(fact)
+    _save_longterm(facts)
+    print(f"[memory] Longterm stored: {fact!r}")
+    return f"Committed to long-term memory: {fact}"
+
+
+def forget(query: str) -> str:
+    """Remove the fact most closely matching query. Returns confirmation string."""
+    facts = load_longterm()
+    q = query.lower()
+    matches = [f for f in facts if q in f.lower()]
+    if not matches:
+        return f"No long-term memory found matching: {query}"
+    for m in matches:
+        facts.remove(m)
+    _save_longterm(facts)
+    removed = "; ".join(matches)
+    print(f"[memory] Longterm removed: {removed!r}")
+    return f"Erased from long-term memory: {removed}"
+
+
+def update(query: str, new_fact: str) -> str:
+    """Replace the fact matching query with new_fact. Returns confirmation string."""
+    facts = load_longterm()
+    q = query.lower()
+    matches = [f for f in facts if q in f.lower()]
+    if not matches:
+        return f"No long-term memory found matching: {query}. Use remember_fact to add it as new."
+    for m in matches:
+        idx = facts.index(m)
+        facts[idx] = new_fact
+    _save_longterm(facts)
+    print(f"[memory] Longterm updated: {matches} → {new_fact!r}")
+    return f"Updated long-term memory: {'; '.join(matches)} → {new_fact}"
+
+
+def longterm_prompt(facts: list[str]) -> str:
+    if not facts:
+        return ""
+    lines = "\n".join(f"- {f}" for f in facts)
+    return f"\n\nEXPLICITLY REMEMBERED FACTS (permanent until forgotten):\n{lines}"
 
 _EXTRACT_SYSTEM = """\
 You are a memory extraction system for an AI assistant. \

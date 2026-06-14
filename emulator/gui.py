@@ -83,49 +83,28 @@ def _main(stdscr, state: EmulatorState, trigger_wake_fn):
 
         # ── Eye LEDs ──────────────────────────────────────────────────────────
         ep = state.eye_brightness
-        _put(stdscr, 3, 2,  "EYE LEDs   ", WHITE)
+        _put(stdscr, 3, 2,  "EYE LEDs", WHITE)
         _put(stdscr, 3, 13, _bar(ep), RED | (BOLD if ep > 50 else DIM))
         _put(stdscr, 3, 36, f" {ep:5.1f}%", WHITE | DIM)
 
-        # ── Candle LEDs ───────────────────────────────────────────────────────
-        cs = state.candle_state
-        if cs == "idle":
-            base = 30 + 20 * math.sin(t * 1.3) + 10 * math.sin(t * 3.7 + 1.1)
-            cp = max(5.0, min(65.0, base + random.uniform(-8, 8)))
-        elif cs == "listen":
-            cp = 75 + 10 * math.sin(t * 4)
-        elif cs == "think":
-            cp = 20 + 35 * (0.5 + 0.5 * math.sin(t * 1.5))
-        else:
-            cp = 0.0
-
-        _put(stdscr, 4, 2,  "CANDLE LEDs", WHITE)
-        _put(stdscr, 4, 13, _bar(cp), YELLOW | (BOLD if cp > 50 else DIM))
-        _put(stdscr, 4, 36, f" {cp:5.1f}%", WHITE | DIM)
-
         # ── Status ────────────────────────────────────────────────────────────
-        speaking = cs == "idle" and ep > 10
-        if speaking:
+        if ep > 80:
             slabel, sattr = "● SPEAKING",  RED | BOLD
-        elif cs == "listen":
-            slabel, sattr = "● LISTENING", YELLOW | BOLD
-        elif cs == "think":
-            slabel, sattr = "● THINKING",  CYAN | BOLD
-        elif cs == "idle":
-            slabel, sattr = "● IDLE",      GREEN
+        elif ep > 0:
+            slabel, sattr = "● ACTIVE",    YELLOW | BOLD
         else:
-            slabel, sattr = "● OFFLINE",   WHITE | DIM
+            slabel, sattr = "● IDLE",      GREEN
 
-        _put(stdscr, 6, 2, "STATUS  ", WHITE)
-        _put(stdscr, 6, 10, slabel, sattr)
+        _put(stdscr, 5, 2, "STATUS  ", WHITE)
+        _put(stdscr, 5, 10, slabel, sattr)
 
         # ── Conversation ──────────────────────────────────────────────────────
-        _put(stdscr, 8,  2, "HEARD",   WHITE | DIM)
-        _put(stdscr, 9,  4, (state.last_heard or "—")[:68], WHITE)
+        _put(stdscr, 7,  2, "HEARD",   WHITE | DIM)
+        _put(stdscr, 8,  4, (state.last_heard or "—")[:68], WHITE)
 
-        _put(stdscr, 11, 2, "OMEGA-7", RED)
+        _put(stdscr, 10, 2, "OMEGA-7", RED)
         reply = state.last_reply or "—"
-        row = 12
+        row = 11
         line = ""
         for word in reply.split():
             if len(line) + len(word) + 1 > 68:
