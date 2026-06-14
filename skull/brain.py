@@ -7,6 +7,7 @@ import sys
 from anthropic import Anthropic
 from skull.config import ANTHROPIC_API_KEY, CLAUDE_MODEL, SYSTEM_PROMPT, HISTORY_FILE
 from skull import search as _search
+from skull import memory as _memory
 
 _client = Anthropic(api_key=ANTHROPIC_API_KEY)
 _history: list[dict] = []
@@ -213,13 +214,15 @@ def _strip_actions(text: str) -> str:
 def respond(user_text: str) -> tuple[str, list[tuple]]:
     """Return (spoken_text, spotify_commands)."""
     messages = _history + [{"role": "user", "content": user_text}]
+    facts = _memory.load()
+    system = SYSTEM_PROMPT + _memory.facts_prompt(facts)
 
     # Tool use loop — Claude may call web_search before giving a final answer
     while True:
         response = _client.messages.create(
             model=CLAUDE_MODEL,
             max_tokens=800,
-            system=SYSTEM_PROMPT,
+            system=system,
             tools=_TOOLS,
             messages=messages,
         )
@@ -371,6 +374,9 @@ def respond(user_text: str) -> tuple[str, list[tuple]]:
     if len(_history) > 20:
         _history[:] = _history[-20:]
     _save_history()
+
+    # Extract and persist any memorable facts in the background
+    _memory.store_in_background(user_text, spoken)
 
     return spoken, cmds
 
