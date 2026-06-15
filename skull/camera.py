@@ -19,6 +19,35 @@ from skull import config
 
 _observation_queue: queue.Queue = queue.Queue()
 _last_observation_time: float = 0.0
+_call_times: list[float] = []  # timestamps of recent vision calls (rolling hour)
+
+
+def _is_blank(gray) -> bool:
+    """True if the frame is too dark or too uniform to be worth describing.
+
+    Guards against sending covered-lens, unlit-room, or garbage frames to
+    Claude. `gray` is a single-channel uint8 image.
+    """
+    import numpy as np
+    mean = float(np.mean(gray))
+    std = float(np.std(gray))
+    # Dark frame, or near-flat frame (no detail) -> treat as blank.
+    return mean < config.CAMERA_MIN_BRIGHTNESS or std < 8.0
+
+
+def _rate_limited() -> bool:
+    """True if we've already hit the per-hour vision-call ceiling.
+
+    A backstop independent of motion/cooldown so a noisy sensor can't run
+    away with the API budget. Prunes timestamps older than one hour.
+    """
+    now = time.time()
+    cutoff = now - 3600.0
+    _call_times[:] = [t for t in _call_times if t >= cutoff]
+    if len(_call_times) >= config.CAMERA_MAX_PER_HOUR:
+        return True
+    _call_times.append(now)
+    return False
 
 _VISION_PROMPT = (
     "You have just detected movement with your optical sensors and captured this image. "
@@ -92,8 +121,15 @@ def _motion_loop_picamera2() -> None:
         if (motion_score >= config.CAMERA_MOTION_THRESHOLD
                 and now - _last_observation_time >= config.CAMERA_COOLDOWN):
             _last_observation_time = now
-            print(f"[camera] Motion detected (score={motion_score}) — querying vision")
             clean = picam2.capture_array()
+            clean_gray = cv2.cvtColor(clean, cv2.COLOR_RGB2GRAY)
+            if _is_blank(clean_gray):
+                print(f"[camera] Motion (score={motion_score}) but frame is blank/dark — skipping vision")
+                continue
+            if _rate_limited():
+                print("[camera] Per-hour vision-call limit reached — skipping")
+                continue
+            print(f"[camera] Motion detected (score={motion_score}) — querying vision")
             bgr = cv2.cvtColor(clean, cv2.COLOR_RGB2BGR)
             _, buf = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 75])
             _run_observation(buf.tobytes())
@@ -134,10 +170,17 @@ def _motion_loop_cv2() -> None:
         if (motion_score >= config.CAMERA_MOTION_THRESHOLD
                 and now - _last_observation_time >= config.CAMERA_COOLDOWN):
             _last_observation_time = now
-            print(f"[camera] Motion detected (score={motion_score}) — querying vision")
             ret2, clean = cap.read()
             if not ret2:
                 continue
+            clean_gray = cv2.cvtColor(clean, cv2.COLOR_BGR2GRAY)
+            if _is_blank(clean_gray):
+                print(f"[camera] Motion (score={motion_score}) but frame is blank/dark — skipping vision")
+                continue
+            if _rate_limited():
+                print("[camera] Per-hour vision-call limit reached — skipping")
+                continue
+            print(f"[camera] Motion detected (score={motion_score}) — querying vision")
             _, buf = cv2.imencode(".jpg", clean, [cv2.IMWRITE_JPEG_QUALITY, 75])
             _run_observation(buf.tobytes())
 

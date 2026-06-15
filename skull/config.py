@@ -20,8 +20,17 @@ VOICE_OUTPUT_DEVICE = int(os.getenv("VOICE_OUTPUT_DEVICE", str(AUDIO_OUTPUT_DEVI
 SPOTIFY_DEVICE_NAME = os.getenv("SPOTIFY_DEVICE_NAME", "Omega-7")
 CAMERA_ENABLED = os.getenv("CAMERA_ENABLED", "false").lower() == "true"
 CAMERA_DEVICE_INDEX = int(os.getenv("CAMERA_DEVICE_INDEX", "0"))
-CAMERA_MOTION_THRESHOLD = int(os.getenv("CAMERA_MOTION_THRESHOLD", "5000"))
-CAMERA_COOLDOWN = int(os.getenv("CAMERA_COOLDOWN", "30"))
+# ~8% of a 640x480 frame must change before we treat it as motion. The old
+# default (5000 / ~1.6%) tripped on auto-exposure and sensor noise, firing a
+# vision call every cooldown around the clock — a steady credit drain.
+CAMERA_MOTION_THRESHOLD = int(os.getenv("CAMERA_MOTION_THRESHOLD", "25000"))
+CAMERA_COOLDOWN = int(os.getenv("CAMERA_COOLDOWN", "120"))
+# Hard ceiling on vision calls per rolling hour, independent of motion. A
+# backstop so a misbehaving sensor can never run away with the API budget.
+CAMERA_MAX_PER_HOUR = int(os.getenv("CAMERA_MAX_PER_HOUR", "15"))
+# Mean grayscale brightness (0-255) below which a frame is considered blank/
+# dark and is never sent to Claude. Guards against covered-lens / night frames.
+CAMERA_MIN_BRIGHTNESS = int(os.getenv("CAMERA_MIN_BRIGHTNESS", "20"))
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
 WEATHER_LAT = float(os.getenv("WEATHER_LAT", "0.0"))
 WEATHER_LON = float(os.getenv("WEATHER_LON", "0.0"))
