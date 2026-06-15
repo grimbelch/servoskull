@@ -113,12 +113,19 @@ class _GUIStdout:
         self._buf = ""
         self._lock = threading.Lock()
     def write(self, s: str) -> int:
+        from skull import config as _cfg
         with self._lock:
             self._buf += s
             while "\n" in self._buf:
                 line, self._buf = self._buf.split("\n", 1)
-                if line.strip():
-                    log_line(line)
+                if not line.strip():
+                    continue
+                # Suppress verbose audio/wake-word polling unless AUDIO_DEBUG is enabled
+                if not _cfg.AUDIO_DEBUG and (
+                    line.startswith("[audio] chunk") or line.startswith("[ww] rms=")
+                ):
+                    continue
+                log_line(line)
         return len(s)
     def flush(self) -> None:
         pass

@@ -64,7 +64,9 @@ def record(seconds: float, device_index: int = -1, silence_threshold: int = 300,
             rms = float(np.sqrt(np.mean(chunk.astype(np.float32) ** 2)))
             max_rms = max(max_rms, rms)
             chunk_num += 1
-            print(f"[audio] chunk {chunk_num}: rms={rms:.1f} (threshold={silence_threshold})")
+            from skull import config as _cfg
+            if _cfg.AUDIO_DEBUG:
+                print(f"[audio] chunk {chunk_num}: rms={rms:.1f} (threshold={silence_threshold})")
 
             if rms < silence_threshold:
                 silent_chunks += 1

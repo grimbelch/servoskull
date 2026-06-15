@@ -31,6 +31,9 @@ HISTORY_FILE = os.getenv("HISTORY_FILE", "history.json")
 TTS_BACKEND = os.getenv("TTS_BACKEND", "piper")
 PIPER_MODEL_PATH = os.getenv("PIPER_MODEL_PATH", "models/en_GB-alan-medium.onnx")
 
+# Set to true in .env to print per-chunk RMS values during recording
+AUDIO_DEBUG = os.getenv("AUDIO_DEBUG", "false").lower() == "true"
+
 # How long to record after wake word (seconds)
 RECORD_SECONDS = 10
 # Silence threshold to stop recording early (RMS)

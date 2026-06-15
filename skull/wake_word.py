@@ -59,7 +59,8 @@ def wait_for_wake_word(on_detected=None, cancel=None) -> bool:
             rms = float(np.sqrt(np.mean(audio.astype(np.float32) ** 2)))
             predictions = oww.predict(audio)
             score = max(predictions.values())
-            if rms > 50 or score > 0.1:
+            from skull import config as _cfg
+            if _cfg.AUDIO_DEBUG and (rms > 50 or score > 0.1):
                 print(f"[ww] rms={rms:.0f} score={score:.3f} (need >={THRESHOLD})")
             if score >= THRESHOLD:
                 print("[skull] Wake word detected!")
