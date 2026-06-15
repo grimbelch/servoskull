@@ -327,11 +327,30 @@ def main():
 
         # ── 3b. Detect explicit voice-switch requests ──────────────────────────
         _t = user_text.lower()
-        if any(p in _t for p in ("elevenlabs", "cloud voice", "premium voice", "cloud tts")):
+        # Unambiguous phrases match on their own (they name a backend or contain "voice").
+        _ELEVENLABS_PHRASES = (
+            "elevenlabs", "eleven labs", "cloud voice", "premium voice", "cloud tts",
+            "fancy voice", "good voice", "better voice", "real voice", "nice voice",
+        )
+        _PIPER_PHRASES = (
+            "piper", "local voice", "standard voice", "local tts",
+            "basic voice", "offline voice", "robot voice", "cheap voice",
+        )
+        # Bare words that are too common to match alone (e.g. "Spotify Premium",
+        # "premium ammunition") — only count when a voice-switch intent word is present.
+        _SWITCH_INTENT = ("voice", "speak", "sound", "talk", "tts", "switch")
+        _has_intent = any(w in _t for w in _SWITCH_INTENT)
+        _AMBIGUOUS_ELEVENLABS = ("premium", "cloud")
+        _AMBIGUOUS_PIPER = ("local", "offline")
+        if any(p in _t for p in _ELEVENLABS_PHRASES) or (
+            _has_intent and any(p in _t for p in _AMBIGUOUS_ELEVENLABS)
+        ):
             config.TTS_BACKEND = "elevenlabs"
             print("[skull] TTS → elevenlabs (user request)")
             threading.Thread(target=_preload_phrases, daemon=True).start()
-        elif any(p in _t for p in ("piper", "local voice", "standard voice", "local tts")):
+        elif any(p in _t for p in _PIPER_PHRASES) or (
+            _has_intent and any(p in _t for p in _AMBIGUOUS_PIPER)
+        ):
             config.TTS_BACKEND = "piper"
             print("[skull] TTS → piper (user request)")
             threading.Thread(target=_preload_phrases, daemon=True).start()
