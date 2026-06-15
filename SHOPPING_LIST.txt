@@ -52,6 +52,17 @@ EYE LEDs — GPIO CONTROLLED
     - For mounting the LED + resistor circuit neatly inside skull
 
 
+PROXIMITY SENSOR
+-----------------
+[ ] HC-SR04 Ultrasonic Distance Sensor
+    - Detects presence/approach up to ~4m; mounts outside skull
+    - VCC=5V, GND, Trig (3.3V digital out), Echo (5V — needs voltage divider)
+    - Add a 1kΩ + 2kΩ resistor divider on the Echo line to protect Pi GPIO
+[ ] 4-pin Dupont ribbon cable (female-to-female, 20–30cm)
+    - Routes from sensor outside skull through to GPIO header inside
+    - JST-XH 4-pin connector kit is a tidier alternative if you want a locking plug
+
+
 CANDLE LEDs (TOP OF SKULL)
 ---------------------------
 [X] Self-flickering LED candle bulbs (E10 or bare LED type)

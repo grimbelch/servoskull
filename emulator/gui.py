@@ -5,6 +5,11 @@ import time
 
 from emulator.patches import EmulatorState, get_logs
 
+try:
+    from skull import mood as _skull_mood
+except Exception:
+    _skull_mood = None
+
 
 def run_gui(state: EmulatorState, trigger_wake_fn):
     try:
@@ -99,13 +104,18 @@ def _main(stdscr, state: EmulatorState, trigger_wake_fn):
         _put(stdscr, 5, 2, "STATUS  ", WHITE)
         _put(stdscr, 5, 10, slabel, sattr)
 
-        # ── Conversation ──────────────────────────────────────────────────────
-        _put(stdscr, 7,  2, "HEARD",   WHITE | DIM)
-        _put(stdscr, 8,  4, (state.last_heard or "—")[:68], WHITE)
+        # ── Mood ──────────────────────────────────────────────────────────────
+        if _skull_mood is not None:
+            _put(stdscr, 6, 2, "MOOD    ", WHITE | DIM)
+            _put(stdscr, 6, 10, f"◆ {_skull_mood.label().upper()}", CYAN | DIM)
 
-        _put(stdscr, 10, 2, "OMEGA-7", RED)
+        # ── Conversation ──────────────────────────────────────────────────────
+        _put(stdscr, 8,  2, "HEARD",   WHITE | DIM)
+        _put(stdscr, 9,  4, (state.last_heard or "—")[:68], WHITE)
+
+        _put(stdscr, 11, 2, "OMEGA-7", RED)
         reply = state.last_reply or "—"
-        row = 11
+        row = 12
         line = ""
         for word in reply.split():
             if len(line) + len(word) + 1 > 68:

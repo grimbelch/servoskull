@@ -78,9 +78,22 @@ def get_last_scan() -> list[dict]:
 
 
 def connect(mac: str) -> bool:
-    """Connect to a device by MAC address and route Pi audio through it."""
+    """Connect to a device by MAC address.
+
+    Sets the BT device as the PulseAudio default sink so Spotify/system audio
+    plays through it. Pins config.VOICE_OUTPUT_DEVICE to the pre-BT local device
+    so TTS/SFX stay on Omega-7's own speaker.
+    """
     if not is_supported():
         return False
+
+    # Snapshot the local output device index BEFORE BT routing changes the default
+    local_out = -1
+    try:
+        import sounddevice as _sd
+        local_out = int(_sd.query_devices(kind="output")["index"])
+    except Exception:
+        pass
 
     try:
         proc = subprocess.Popen(
@@ -108,7 +121,7 @@ def connect(mac: str) -> bool:
         )
 
         if success:
-            _route_audio(mac)
+            _route_audio(mac, local_out)
 
         return success
 
@@ -117,11 +130,16 @@ def connect(mac: str) -> bool:
         return False
 
 
-def _route_audio(mac: str) -> None:
-    """Set connected BT device as PulseAudio/PipeWire default sink."""
+def _route_audio(mac: str, local_device_idx: int) -> None:
+    """Route BT audio without disturbing TTS output.
+
+    - Sets the BT device as the PulseAudio default sink so Spotify/system audio
+      plays through it automatically.
+    - Pins config.VOICE_OUTPUT_DEVICE to the pre-BT local device so TTS/SFX
+      stay on Omega-7's own speaker regardless of the new default sink.
+    """
     time.sleep(2)  # give the sink a moment to register
 
-    # Try to find the bluez sink by MAC
     mac_under = mac.replace(":", "_")
     try:
         sinks = subprocess.run(
@@ -139,12 +157,15 @@ def _route_audio(mac: str) -> None:
                 ["pactl", "set-default-sink", sink_name],
                 capture_output=True, timeout=5,
             )
-            # Switch runtime output to system default so sounddevice picks it up
-            from skull import config
-            config.AUDIO_OUTPUT_DEVICE = -1
-            print(f"[bluetooth] Audio routed to {sink_name}")
+            print(f"[bluetooth] System audio default → {sink_name}")
         else:
-            print(f"[bluetooth] Sink for {mac} not found — audio routing unchanged")
+            print(f"[bluetooth] Sink for {mac} not found — PulseAudio default unchanged")
 
     except Exception as e:
         print(f"[bluetooth] Audio routing error: {e}")
+
+    # Pin voice output to the pre-BT local device so TTS/SFX stay on Omega-7's speaker
+    from skull import config
+    if local_device_idx >= 0:
+        config.VOICE_OUTPUT_DEVICE = local_device_idx
+        print(f"[bluetooth] Voice pinned to local device {local_device_idx}")

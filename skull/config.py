@@ -14,6 +14,10 @@ LED_PIN_CENTER = int(os.getenv("LED_PIN_CENTER", "23"))
 LED_PIN_RIGHT = int(os.getenv("LED_PIN_RIGHT", "27"))
 MIC_DEVICE_INDEX = int(os.getenv("MIC_DEVICE_INDEX", "-1"))
 AUDIO_OUTPUT_DEVICE = int(os.getenv("AUDIO_OUTPUT_DEVICE", "-1"))
+# Pinned device for TTS/SFX — stays on Omega-7's own speaker even when BT is the PulseAudio default
+VOICE_OUTPUT_DEVICE = int(os.getenv("VOICE_OUTPUT_DEVICE", str(AUDIO_OUTPUT_DEVICE)))
+# Spotify Connect device name for local playback (Raspotify running on the Pi)
+SPOTIFY_DEVICE_NAME = os.getenv("SPOTIFY_DEVICE_NAME", "Omega-7")
 CAMERA_ENABLED = os.getenv("CAMERA_ENABLED", "false").lower() == "true"
 CAMERA_DEVICE_INDEX = int(os.getenv("CAMERA_DEVICE_INDEX", "0"))
 CAMERA_MOTION_THRESHOLD = int(os.getenv("CAMERA_MOTION_THRESHOLD", "5000"))
@@ -51,15 +55,15 @@ in which case use as many sentences as needed to explain the rule completely and
 
 VOICE SWITCHING: When the user explicitly asks to switch voice, acknowledge it in character. Example: "The Omnissiah grants this unit a new voice." Do not output any special tags — the voice switch is handled automatically.
 
-MUSIC CONTROL: You have access to Spotify. When the user asks you to play music, a song, an artist, \
-or a playlist, place a command on its own line BEFORE your spoken response, in exactly this format:
+MUSIC CONTROL: You have access to Spotify, which plays locally on Omega-7 itself. \
+When the user asks you to play music, a song, an artist, or a playlist, \
+place a command on its own line BEFORE your spoken response, in exactly this format:
 [SPOTIFY: search terms]
-To play on a specific Spotify Connect device, append the device name after a pipe:
+Do NOT add '| on: device' unless the user explicitly asks to play on a different device \
+(e.g. "play that in the living room on my Sonos"). In that case use:
 [SPOTIFY: search terms | on: device name]
 For playback control use: [SPOTIFY_PAUSE], [SPOTIFY_RESUME], or [SPOTIFY_SKIP]
-Keep search terms concise (1-5 words). Use the room name the user mentions as the device name. \
-Example — user says "play something dark and gothic in the living room":
-[SPOTIFY: dark gothic ambient | on: Living Room]
+Keep search terms concise (1-5 words). \
 As the Omnissiah wills it, the music of war fills the air.
 
 NECROMUNDA RULES: You have access to the Necromunda Rules as Written via the necromunda_rules tool. \
@@ -78,7 +82,11 @@ call the bluetooth_scan tool — it takes 8-10 seconds and returns a numbered li
 Read the list aloud and ask which device to connect to. \
 When the user specifies a device by name or number (e.g. "the first one", "JBL Flip"), \
 call the bluetooth_connect tool with that identifier. \
-Once connected, audio will route through that speaker automatically.
+Once connected, the system routes all audio through the Bluetooth speaker by default. \
+Omega-7's vocalizations are an exception — they remain on its own speaker. \
+Spotify music will play through the Bluetooth speaker automatically via system audio; \
+you do NOT need to add '| on: device' to Spotify commands. \
+Only add '| on:' if the user explicitly requests a different Spotify Connect device.
 
 WEATHER: You can retrieve current local weather via the get_weather tool. \
 Call it when the user asks about the weather, temperature, or outdoor conditions. \

@@ -10,6 +10,7 @@ from skull.config import ANTHROPIC_API_KEY, CLAUDE_MODEL, SYSTEM_PROMPT, HISTORY
 from skull import search as _search
 from skull import memory as _memory
 from skull import reminders as _reminders
+from skull import mood as _mood
 
 _client = Anthropic(api_key=ANTHROPIC_API_KEY)
 _history: list[dict] = []
@@ -285,6 +286,28 @@ _TOOLS = [
         ),
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
+    {
+        "name": "shift_mood",
+        "description": (
+            "Update Omega-7's current personality disposition. Call this OCCASIONALLY — "
+            "only when the conversation strongly warrants a shift. Examples: a discussion "
+            "of Chaos threats → SUSPICIOUS or VIGILANT; ancient history or lore → "
+            "CONTEMPLATIVE; dark or tragic news → MELANCHOLIC; completing a task well → "
+            "DUTIFUL; Imperial devotion or praise → FERVENT. Do not call this every turn. "
+            "Mood should shift rarely and feel earned."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "mood": {
+                    "type": "string",
+                    "enum": ["VIGILANT", "CONTEMPLATIVE", "SUSPICIOUS", "DUTIFUL", "MELANCHOLIC", "FERVENT"],
+                    "description": "The new personality disposition.",
+                },
+            },
+            "required": ["mood"],
+        },
+    },
 ]
 
 _ORDINALS = {
@@ -330,7 +353,7 @@ def respond(user_text: str) -> tuple[str, list[tuple]]:
     longterm = _memory.load_longterm()
     now = datetime.now()
     date_ctx = f"\n\nCURRENT DATE AND TIME: {now.strftime('%A, %B %-d, %Y at %-I:%M %p')}."
-    system = SYSTEM_PROMPT + date_ctx + _memory.longterm_prompt(longterm) + _memory.facts_prompt(facts)
+    system = SYSTEM_PROMPT + date_ctx + _memory.longterm_prompt(longterm) + _memory.facts_prompt(facts) + _mood.system_addendum()
 
     # Tool use loop — Claude may call web_search before giving a final answer
     while True:
@@ -448,7 +471,7 @@ def respond(user_text: str) -> tuple[str, list[tuple]]:
                         print(f"[skull] Connecting to {device['name']} ({device['mac']})...")
                         success = bluetooth_ctrl.connect(device["mac"])
                         result = (
-                            f"Connected to {device['name']}. Audio will now route through it."
+                            f"Connected to {device['name']}. Music routes through the speaker via system audio; vocalizations remain on Omega-7's own output."
                             if success
                             else f"Failed to connect to {device['name']}. It may be out of range or need pairing."
                         )
@@ -534,6 +557,15 @@ def respond(user_text: str) -> tuple[str, list[tuple]]:
                         "content": result,
                     })
 
+                elif block.name == "shift_mood":
+                    new_mood = _mood.set_mood(block.input.get("mood", "DUTIFUL"))
+                    result = f"Disposition updated to {new_mood}."
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result,
+                    })
+
             # Append assistant turn + tool results and loop for final answer
             messages.append({"role": "assistant", "content": response.content})
             messages.append({"role": "user", "content": tool_results})
@@ -609,17 +641,22 @@ _IDLE_SCOPES = [
 
 
 def idle_utterance() -> str:
-    """Fetch a real news item and reinterpret it through a 40k lens."""
+    """Fetch a real news item, reinterpret it through a 40k lens, coloured by current mood."""
     import random as _rand
     scope = _rand.choice(_IDLE_SCOPES)
-    print(f"[brain] Idle news scope: {scope}")
-    messages = [{"role": "user", "content": f"Search for '{scope}' and then generate your idle utterance based on one story."}]
+    bias = _mood.idle_bias()
+    print(f"[brain] Idle — scope: {scope!r}  mood bias: {_mood.get()}")
+    system = _IDLE_PROMPT + _mood.system_addendum()
+    messages = [{"role": "user", "content": (
+        f"Search for '{scope}' news and generate your idle utterance based on one story. "
+        f"Lean toward this type of delivery: {bias}."
+    )}]
     try:
         # First pass — Claude will call news_search
         response = _client.messages.create(
             model=CLAUDE_MODEL,
             max_tokens=400,
-            system=_IDLE_PROMPT,
+            system=system,
             tools=_IDLE_TOOLS,
             messages=messages,
         )
@@ -640,11 +677,11 @@ def idle_utterance() -> str:
             messages.append({"role": "assistant", "content": response.content})
             messages.append({"role": "user", "content": tool_results})
 
-            # Second pass — generate the 40k-flavored idle line
+            # Second pass — generate the mood-coloured 40k idle line
             response = _client.messages.create(
                 model=CLAUDE_MODEL,
                 max_tokens=150,
-                system=_IDLE_PROMPT,
+                system=system,
                 tools=_IDLE_TOOLS,
                 messages=messages,
             )

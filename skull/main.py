@@ -6,7 +6,7 @@ import threading
 import random
 
 from skull import config
-from skull import audio, wake_word, transcribe, brain, tts, eyes, sfx, reminders
+from skull import audio, wake_word, transcribe, brain, tts, eyes, sfx, reminders, mood
 from skull import spotify_ctrl, cast_audio, camera
 
 
@@ -72,7 +72,7 @@ def _cogitation_loop(cancel: threading.Event) -> None:
     while not cancel.is_set() and _cogitation_wavs:
         wav = _cogitation_wavs[indices[i % len(indices)]]
         try:
-            audio.play_wav_bytes(wav, stop_event=cancel, output_device=config.AUDIO_OUTPUT_DEVICE)
+            audio.play_wav_bytes(wav, stop_event=cancel, output_device=config.VOICE_OUTPUT_DEVICE)
         except Exception:
             pass
         i += 1
@@ -112,7 +112,7 @@ def main():
         import sounddevice as sd
         devices = sd.query_devices()
         mic_label = f"device {config.MIC_DEVICE_INDEX}" if config.MIC_DEVICE_INDEX >= 0 else "system default"
-        out_label = f"device {config.AUDIO_OUTPUT_DEVICE}" if config.AUDIO_OUTPUT_DEVICE >= 0 else "system default"
+        out_label = f"device {config.VOICE_OUTPUT_DEVICE}" if config.VOICE_OUTPUT_DEVICE >= 0 else "system default"
         print(f"[skull] Mic: {mic_label}  |  Output: {out_label}")
         print(f"[skull] Available devices:\n{devices}")
     except Exception:
@@ -121,11 +121,11 @@ def main():
     # Pre-synthesize phrases in background while boot phrase is being generated
     threading.Thread(target=_preload_phrases, daemon=True).start()
 
-    sfx.play("skull_boot", config.AUDIO_OUTPUT_DEVICE)
+    sfx.play("skull_boot", config.VOICE_OUTPUT_DEVICE)
     try:
         boot_wav = _load_or_record_boot_wav()
         eyes.on()
-        audio.play_wav_bytes(boot_wav, output_device=config.AUDIO_OUTPUT_DEVICE)
+        audio.play_wav_bytes(boot_wav, output_device=config.VOICE_OUTPUT_DEVICE)
     except Exception as e:
         print(f"[skull] Boot phrase error: {e}")
         time.sleep(0.5)
@@ -140,10 +140,10 @@ def main():
         for _rem in reminders.get_due():
             print(f"[skull] Reminder firing: {_rem['message']}")
             try:
-                sfx.play_blocking("wake_ping", config.AUDIO_OUTPUT_DEVICE)
+                sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
                 eyes.on()
                 rem_wav = tts.synthesize(_rem["message"])
-                audio.play_wav_bytes(rem_wav, output_device=config.AUDIO_OUTPUT_DEVICE)
+                audio.play_wav_bytes(rem_wav, output_device=config.VOICE_OUTPUT_DEVICE)
             except Exception as _e:
                 print(f"[skull] Reminder TTS error: {_e}")
             finally:
@@ -156,7 +156,7 @@ def main():
             try:
                 eyes.on()
                 obs_wav = tts.synthesize(observation)
-                audio.play_wav_bytes(obs_wav, output_device=config.AUDIO_OUTPUT_DEVICE)
+                audio.play_wav_bytes(obs_wav, output_device=config.VOICE_OUTPUT_DEVICE)
             except Exception as e:
                 print(f"[skull] Camera observation error: {e}")
             finally:
@@ -165,7 +165,7 @@ def main():
 
         # ── 1. Wait for wake word (skip after a barge-in interruption) ────────
         def on_wake():
-            sfx.play_blocking("wake_ping", config.AUDIO_OUTPUT_DEVICE)
+            sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
             eyes.on()
 
         if skip_wake_word:
@@ -216,10 +216,10 @@ def main():
                 for _rem in _due_reminders:
                     print(f"[skull] Reminder firing: {_rem['message']}")
                     try:
-                        sfx.play_blocking("wake_ping", config.AUDIO_OUTPUT_DEVICE)
+                        sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
                         eyes.on()
                         rem_wav = tts.synthesize(_rem["message"])
-                        audio.play_wav_bytes(rem_wav, output_device=config.AUDIO_OUTPUT_DEVICE)
+                        audio.play_wav_bytes(rem_wav, output_device=config.VOICE_OUTPUT_DEVICE)
                     except Exception as _e:
                         print(f"[skull] Reminder TTS error: {_e}")
                     finally:
@@ -228,6 +228,9 @@ def main():
                 continue  # back to top of loop
 
             if not detected and _idle_fired.is_set():
+                new_mood = mood.drift()
+                if new_mood:
+                    print(f"[skull] Mood drifted → {new_mood}")
                 print("[skull] Idle timeout — generating ambient utterance...")
                 try:
                     utterance = brain.idle_utterance()
@@ -235,7 +238,7 @@ def main():
                         print(f"[skull] Idle: {utterance}")
                         idle_wav = tts.synthesize(utterance)
                         eyes.on()
-                        audio.play_wav_bytes(idle_wav, output_device=config.AUDIO_OUTPUT_DEVICE)
+                        audio.play_wav_bytes(idle_wav, output_device=config.VOICE_OUTPUT_DEVICE)
                 except Exception as e:
                     print(f"[skull] Idle utterance error: {e}")
                 finally:
@@ -249,14 +252,14 @@ def main():
         # own speaker output. Recording starts after playback finishes.
         if _barge_wav is not None:
             try:
-                audio.play_wav_bytes(_barge_wav, output_device=config.AUDIO_OUTPUT_DEVICE)
+                audio.play_wav_bytes(_barge_wav, output_device=config.VOICE_OUTPUT_DEVICE)
             except Exception:
                 pass
         elif _wake_wavs:
             try:
                 audio.play_wav_bytes(
                     random.choice(_wake_wavs),
-                    output_device=config.AUDIO_OUTPUT_DEVICE,
+                    output_device=config.VOICE_OUTPUT_DEVICE,
                 )
             except Exception:
                 pass
@@ -292,7 +295,7 @@ def main():
 
         if _rec_exc[0] is not None:
             print(f"[skull] Audio record error: {_rec_exc[0]}")
-            sfx.play("negative", config.AUDIO_OUTPUT_DEVICE)
+            sfx.play("negative", config.VOICE_OUTPUT_DEVICE)
             eyes.off()
             continue
 
@@ -313,7 +316,7 @@ def main():
             user_text = transcribe.transcribe(wav)
         except Exception as e:
             print(f"[skull] STT error: {e}")
-            sfx.play("negative", config.AUDIO_OUTPUT_DEVICE)
+            sfx.play("negative", config.VOICE_OUTPUT_DEVICE)
             continue
 
         if not user_text:
@@ -345,7 +348,7 @@ def main():
             
                     idle_wav = tts.synthesize(utterance)
                     eyes.on()
-                    audio.play_wav_bytes(idle_wav, output_device=config.AUDIO_OUTPUT_DEVICE)
+                    audio.play_wav_bytes(idle_wav, output_device=config.VOICE_OUTPUT_DEVICE)
             except Exception as e:
                 print(f"[skull] Idle utterance error: {e}")
             finally:
@@ -375,7 +378,7 @@ def main():
             try:
                 if spotify_ctrl.is_configured():
                     if cmd[0] == "play":
-                        device_name = cmd[2] if len(cmd) > 2 else None
+                        device_name = cmd[2] if len(cmd) > 2 else config.SPOTIFY_DEVICE_NAME
                         result = spotify_ctrl.search_and_play(cmd[1], device_name=device_name)
                         print(f"[skull] Spotify: {result}")
                         if result in ("no-device", "not-found") or result.startswith(("error", "spotify-error", "playback-error")):
@@ -385,7 +388,7 @@ def main():
                             }
                             err_text = _error_phrases.get(result, "The Spotify cogitator has reported a malfunction.")
                             try:
-                                audio.play_wav_bytes(tts.synthesize(err_text), output_device=config.AUDIO_OUTPUT_DEVICE)
+                                audio.play_wav_bytes(tts.synthesize(err_text), output_device=config.VOICE_OUTPUT_DEVICE)
                             except Exception:
                                 pass
                     elif cmd[0] == "pause":
@@ -453,7 +456,7 @@ def main():
             eye_thread = threading.Thread(target=eye_loop, daemon=True)
             eye_thread.start()
 
-            audio.play_wav_bytes(speech_wav, amplitude_cb=receive_amp, stop_event=_stop_play, output_device=config.AUDIO_OUTPUT_DEVICE)
+            audio.play_wav_bytes(speech_wav, amplitude_cb=receive_amp, stop_event=_stop_play, output_device=config.VOICE_OUTPUT_DEVICE)
 
             play_done.set()
             eye_thread.join(timeout=1.0)

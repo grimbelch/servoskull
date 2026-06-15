@@ -7,6 +7,18 @@ set -e
 
 echo "=== Omega-7 Pi 5 Setup ==="
 
+# Load credentials from .env if present
+ENV_FILE="$HOME/skull/.env"
+if [ -f "$ENV_FILE" ]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "$ENV_FILE"
+    set +a
+    echo "    Loaded credentials from .env"
+else
+    echo "    WARNING: .env not found at $ENV_FILE — Raspotify credentials will not be configured."
+fi
+
 # ── 1. System packages ──────────────────────────────────────────────────────
 echo "[1/5] Installing system dependencies..."
 sudo apt-get update -q
@@ -66,8 +78,40 @@ echo "    Omega-7 service enabled — starts automatically on every boot."
 echo "    Start now: sudo systemctl start omega7"
 echo "    View logs: journalctl -u omega7 -f"
 
-# ── 6. Verify audio devices ────────────────────────────────────────────────
-echo "[6/6] Checking audio devices..."
+# ── 6. Raspotify (local Spotify Connect daemon) ───────────────────────────
+echo "[6/7] Installing Raspotify (local Spotify playback)..."
+if command -v raspotify &>/dev/null || systemctl list-unit-files raspotify.service &>/dev/null 2>&1; then
+    echo "    Raspotify already installed, skipping."
+else
+    curl -sL https://dtcooper.github.io/raspotify/install.sh | sh
+fi
+
+RASPOTIFY_CONF="/etc/raspotify/conf"
+if [ -f "$RASPOTIFY_CONF" ]; then
+    # Set device name — replaces any existing (commented or not) DEVICE_NAME line
+    sudo sed -i 's/^#\?DEVICE_NAME=.*/DEVICE_NAME="Omega-7"/' "$RASPOTIFY_CONF"
+    # Enable high-quality bitrate
+    sudo sed -i 's/^#\?BITRATE=.*/BITRATE="320"/' "$RASPOTIFY_CONF"
+    echo "    Raspotify configured: device name = Omega-7, bitrate = 320kbps"
+
+    if [ -n "$SPOTIFY_USERNAME" ] && [ -n "$SPOTIFY_PASSWORD" ]; then
+        sudo sed -i "s/^#\?USERNAME=.*/USERNAME=\"$SPOTIFY_USERNAME\"/" "$RASPOTIFY_CONF"
+        sudo sed -i "s/^#\?PASSWORD=.*/PASSWORD=\"$SPOTIFY_PASSWORD\"/" "$RASPOTIFY_CONF"
+        echo "    Raspotify credentials set from .env"
+    else
+        echo "    WARNING: SPOTIFY_USERNAME / SPOTIFY_PASSWORD not found in .env"
+        echo "             Add them and re-run, or set manually in $RASPOTIFY_CONF"
+    fi
+else
+    echo "    WARNING: $RASPOTIFY_CONF not found — configure it manually."
+fi
+
+sudo systemctl enable --now raspotify
+echo "    Raspotify service enabled and started."
+echo "    This Pi will appear as 'Omega-7' in Spotify Connect."
+
+# ── 7. Verify audio devices ────────────────────────────────────────────────
+echo "[7/7] Checking audio devices..."
 python3 -c "
 import pyaudio
 pa = pyaudio.PyAudio()
@@ -92,5 +136,9 @@ echo "  1. Copy your .env file into ~/skull/ (never commit it to git)"
 echo "  2. Plug in the UGREEN USB sound card and note its index above"
 echo "  3. Set MIC_DEVICE_INDEX to the UGREEN input index"
 echo "  4. Set AUDIO_OUTPUT_DEVICE to the UGREEN output index"
-echo "  5. Start the service: sudo systemctl start omega7"
+echo "  5. Add your Spotify credentials to .env:"
+echo "       SPOTIFY_CLIENT_ID=..."
+echo "       SPOTIFY_CLIENT_SECRET=..."
+echo "     Raspotify is already named 'Omega-7' — Omega-7 will play Spotify locally."
+echo "  6. Start the service: sudo systemctl start omega7"
 echo "     Or run manually:   cd ~/skull && source .venv/bin/activate && python -m skull.main"
