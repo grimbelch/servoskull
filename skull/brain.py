@@ -9,6 +9,7 @@ from anthropic import Anthropic
 from skull.config import ANTHROPIC_API_KEY, CLAUDE_MODEL, SYSTEM_PROMPT, HISTORY_FILE
 from skull import search as _search
 from skull import memory as _memory
+from skull import reminders as _reminders
 
 _client = Anthropic(api_key=ANTHROPIC_API_KEY)
 _history: list[dict] = []
@@ -231,6 +232,59 @@ _TOOLS = [
             "required": ["query", "new_fact"],
         },
     },
+    {
+        "name": "set_reminder",
+        "description": (
+            "Set a timer or reminder that fires after a delay. Use for 'set a timer for X minutes', "
+            "'remind me to do Y in Z minutes', 'wake me up in X hours', etc. "
+            "Convert the requested duration to seconds. "
+            "Phrase the message in Omega-7's 40k voice (e.g. 'Your 5-minute cogitation cycle is complete.' "
+            "or 'Reminder, my lord: the dog requires its evening patrol.')."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "description": "What Omega-7 will speak aloud when the reminder fires.",
+                },
+                "delay_seconds": {
+                    "type": "integer",
+                    "description": "Seconds from now until the reminder fires. Convert minutes/hours accordingly.",
+                },
+            },
+            "required": ["message", "delay_seconds"],
+        },
+    },
+    {
+        "name": "list_reminders",
+        "description": "List all active timers and reminders with their IDs and time remaining.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "cancel_reminder",
+        "description": "Cancel an active timer or reminder by its ID.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "reminder_id": {
+                    "type": "string",
+                    "description": "The short ID returned when the reminder was set (e.g. 'a3f8c21b').",
+                },
+            },
+            "required": ["reminder_id"],
+        },
+    },
+    {
+        "name": "acknowledge_reminders",
+        "description": (
+            "Stop all currently repeating timer/reminder alerts. Call this when the user "
+            "acknowledges an alert — e.g. 'got it', 'acknowledged', 'stop', 'I heard you', "
+            "'silence', 'ok ok', 'enough'. Only clears timers that have already expired and "
+            "are repeating; pending future timers are never affected."
+        ),
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
 ]
 
 _ORDINALS = {
@@ -424,6 +478,56 @@ def respond(user_text: str) -> tuple[str, list[tuple]]:
                     query = block.input.get("query", "").strip()
                     new_fact = block.input.get("new_fact", "").strip()
                     result = _memory.update(query, new_fact)
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result,
+                    })
+
+                elif block.name == "set_reminder":
+                    message = block.input.get("message", "").strip()
+                    delay = int(block.input.get("delay_seconds", 60))
+                    rid = _reminders.add(message, delay)
+                    mins, secs = divmod(delay, 60)
+                    human = f"{mins}m {secs}s" if mins else f"{secs}s"
+                    result = f"Reminder set (ID: {rid}). Will fire in {human}."
+                    print(f"[brain] Reminder set: [{rid}] in {human} — {message!r}")
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result,
+                    })
+
+                elif block.name == "list_reminders":
+                    items = _reminders.list_all()
+                    if not items:
+                        result = "No active timers or reminders."
+                    else:
+                        lines = [
+                            f"[{r['id']}] in {_reminders.format_remaining(r['fire_at'])}: {r['message']}"
+                            for r in items
+                        ]
+                        result = "\n".join(lines)
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result,
+                    })
+
+                elif block.name == "cancel_reminder":
+                    rid = block.input.get("reminder_id", "").strip()
+                    found = _reminders.cancel(rid)
+                    result = f"Reminder [{rid}] cancelled." if found else f"No reminder found with ID '{rid}'."
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result,
+                    })
+
+                elif block.name == "acknowledge_reminders":
+                    count = _reminders.acknowledge_all()
+                    result = f"Silenced {count} repeating alert(s)." if count else "No repeating alerts were active."
+                    print(f"[brain] Acknowledged {count} repeating reminder(s)")
                     tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": block.id,

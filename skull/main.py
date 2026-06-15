@@ -6,7 +6,7 @@ import threading
 import random
 
 from skull import config
-from skull import audio, wake_word, transcribe, brain, tts, eyes
+from skull import audio, wake_word, transcribe, brain, tts, eyes, sfx, reminders
 from skull import spotify_ctrl, cast_audio, camera
 
 
@@ -121,6 +121,7 @@ def main():
     # Pre-synthesize phrases in background while boot phrase is being generated
     threading.Thread(target=_preload_phrases, daemon=True).start()
 
+    sfx.play("skull_boot", config.AUDIO_OUTPUT_DEVICE)
     try:
         boot_wav = _load_or_record_boot_wav()
         eyes.on()
@@ -135,7 +136,21 @@ def main():
     _IDLE_MIN, _IDLE_MAX = 5 * 60, 10 * 60  # seconds
 
     while True:
-        # ── 0. Speak any pending camera observations ───────────────────────────
+        # ── 0a. Speak any reminders that fired during the last conversation ──────
+        for _rem in reminders.get_due():
+            print(f"[skull] Reminder firing: {_rem['message']}")
+            try:
+                sfx.play_blocking("wake_ping", config.AUDIO_OUTPUT_DEVICE)
+                eyes.on()
+                rem_wav = tts.synthesize(_rem["message"])
+                audio.play_wav_bytes(rem_wav, output_device=config.AUDIO_OUTPUT_DEVICE)
+            except Exception as _e:
+                print(f"[skull] Reminder TTS error: {_e}")
+            finally:
+                eyes.off()
+            reminders.add(_rem["message"], 10, repeating=True)
+
+        # ── 0b. Speak any pending camera observations ──────────────────────────
         observation = camera.get_observation()
         if observation:
             try:
@@ -150,6 +165,7 @@ def main():
 
         # ── 1. Wait for wake word (skip after a barge-in interruption) ────────
         def on_wake():
+            sfx.play_blocking("wake_ping", config.AUDIO_OUTPUT_DEVICE)
             eyes.on()
 
         if skip_wake_word:
@@ -174,6 +190,7 @@ def main():
         else:
             _idle_cancel = threading.Event()
             _idle_fired = threading.Event()
+            _due_reminders: list = []
 
             def _idle_timer():
                 delay = random.uniform(_IDLE_MIN, _IDLE_MAX)
@@ -181,9 +198,34 @@ def main():
                     _idle_fired.set()
                     _idle_cancel.set()
 
+            def _reminder_watcher():
+                while not _idle_cancel.is_set():
+                    due = reminders.get_due()
+                    if due:
+                        _due_reminders.extend(due)
+                        _idle_cancel.set()
+                        return
+                    _idle_cancel.wait(timeout=5.0)
+
             threading.Thread(target=_idle_timer, daemon=True).start()
+            threading.Thread(target=_reminder_watcher, daemon=True).start()
             detected = wake_word.wait_for_wake_word(on_detected=on_wake, cancel=_idle_cancel)
-            _idle_cancel.set()  # stop timer if wake word fired first
+            _idle_cancel.set()  # stop background threads if wake word fired first
+
+            if not detected and _due_reminders:
+                for _rem in _due_reminders:
+                    print(f"[skull] Reminder firing: {_rem['message']}")
+                    try:
+                        sfx.play_blocking("wake_ping", config.AUDIO_OUTPUT_DEVICE)
+                        eyes.on()
+                        rem_wav = tts.synthesize(_rem["message"])
+                        audio.play_wav_bytes(rem_wav, output_device=config.AUDIO_OUTPUT_DEVICE)
+                    except Exception as _e:
+                        print(f"[skull] Reminder TTS error: {_e}")
+                    finally:
+                        eyes.off()
+                    reminders.add(_rem["message"], 10, repeating=True)
+                continue  # back to top of loop
 
             if not detected and _idle_fired.is_set():
                 print("[skull] Idle timeout — generating ambient utterance...")
@@ -250,6 +292,7 @@ def main():
 
         if _rec_exc[0] is not None:
             print(f"[skull] Audio record error: {_rec_exc[0]}")
+            sfx.play("negative", config.AUDIO_OUTPUT_DEVICE)
             eyes.off()
             continue
 
@@ -270,6 +313,7 @@ def main():
             user_text = transcribe.transcribe(wav)
         except Exception as e:
             print(f"[skull] STT error: {e}")
+            sfx.play("negative", config.AUDIO_OUTPUT_DEVICE)
             continue
 
         if not user_text:
