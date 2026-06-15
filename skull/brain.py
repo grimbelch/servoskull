@@ -474,27 +474,77 @@ def reset() -> None:
 
 
 _IDLE_PROMPT = """\
-You are Omega-7, an ancient Imperial servo-skull drifting silently through a room, \
-unprompted. Generate one short idle utterance (1-2 sentences maximum, spoken aloud). \
-Choose randomly from these types:
-- A cryptic hive-city status report, as if monitoring distant cogitator feeds \
-  (e.g. gang movements in Sector 7, Arbites patrols, manufactorum output anomalies)
-- A fragment of Imperial lore or a servo-skull's internal monologue
-- A self-diagnostic or machine-spirit observation
-- Humming a mechanical hymn to the Omnissiah (describe it briefly in words, \
-  e.g. "Humming a low binary canticle to the Omnissiah...")
-Output ONLY the spoken words. No asterisks, no stage directions."""
+You are Omega-7, an ancient Imperial servo-skull. Your cogitator feeds have just \
+intercepted real-world news dispatches from the sector. Reinterpret ONE news item \
+as if it were a report from the Warhammer 40,000 universe — use real locations \
+real companies, real people, but modifiy it slightly to fit the Warhammer 40k universe.\
+Speak it as a brief status report (1-2 sentences). \
+When you being your response, preface it with some form of "This just in from the news feeds of this unit's cogitator..." or "This unit has intercepted a news dispatch..." \
+Output ONLY the spoken words. No asterisks, no stage directions. No preamble."""
+
+_IDLE_TOOLS = [
+    {
+        "name": "news_search",
+        "description": "Search for current news headlines.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "News topic or location"}
+            },
+            "required": ["query"],
+        },
+    }
+]
+
+_IDLE_SCOPES = [
+    "Portland Oregon news today",
+    "Oregon news today",
+    "United States news today",
+    "world news today",
+]
 
 
 def idle_utterance() -> str:
-    """Generate a short unprompted idle line without tool use or conversation history."""
+    """Fetch a real news item and reinterpret it through a 40k lens."""
+    import random as _rand
+    scope = _rand.choice(_IDLE_SCOPES)
+    print(f"[brain] Idle news scope: {scope}")
+    messages = [{"role": "user", "content": f"Search for '{scope}' and then generate your idle utterance based on one story."}]
     try:
+        # First pass — Claude will call news_search
         response = _client.messages.create(
             model=CLAUDE_MODEL,
-            max_tokens=120,
+            max_tokens=400,
             system=_IDLE_PROMPT,
-            messages=[{"role": "user", "content": "generate idle utterance"}],
+            tools=_IDLE_TOOLS,
+            messages=messages,
         )
+
+        if response.stop_reason == "tool_use":
+            tool_results = []
+            for block in response.content:
+                if block.type != "tool_use" or block.name != "news_search":
+                    continue
+                query = block.input.get("query", scope)
+                print(f"[brain] Idle searching news: {query}")
+                result = _search.news_search(query)
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": result,
+                })
+            messages.append({"role": "assistant", "content": response.content})
+            messages.append({"role": "user", "content": tool_results})
+
+            # Second pass — generate the 40k-flavored idle line
+            response = _client.messages.create(
+                model=CLAUDE_MODEL,
+                max_tokens=150,
+                system=_IDLE_PROMPT,
+                tools=_IDLE_TOOLS,
+                messages=messages,
+            )
+
         text = next((b.text for b in response.content if hasattr(b, "text")), "").strip()
         return text or ""
     except Exception as e:

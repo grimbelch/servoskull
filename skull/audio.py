@@ -81,7 +81,24 @@ def record(seconds: float, device_index: int = -1, silence_threshold: int = 300,
 
     monitor = threading.Thread(target=_monitor, daemon=True)
     monitor.start()
-    sd.wait()
+
+    # sd.wait() has no timeout — wrap it in a thread so we can enforce one.
+    # Without this, a CoreAudio hang (macOS mic permission/init race) blocks forever.
+    _sd_wait_done = threading.Event()
+
+    def _run_sd_wait():
+        sd.wait()
+        _sd_wait_done.set()
+
+    threading.Thread(target=_run_sd_wait, daemon=True).start()
+    if not _sd_wait_done.wait(timeout=seconds + 5.0):
+        print("[audio] Recording timed out — forcing stop")
+        try:
+            sd.stop()
+        except Exception:
+            pass
+        _sd_wait_done.wait(timeout=1.0)
+
     monitor.join(timeout=1.0)
 
     frames = min(stop_at_frame[0], max_frames)
@@ -161,8 +178,10 @@ def play_wav_bytes(
     sd_kwargs = {"samplerate": rate, "channels": 1, "callback": callback, "blocksize": chunk_size}
     if output_device is not None and output_device >= 0:
         sd_kwargs["device"] = output_device
+    duration = len(data) / rate + 5.0  # audio duration + 5s safety margin
+    deadline = time.monotonic() + duration
     with sd.OutputStream(**sd_kwargs) as stream:
-        while stream.active:
+        while stream.active and time.monotonic() < deadline:
             time.sleep(0.05)
 
 

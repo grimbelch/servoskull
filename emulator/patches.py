@@ -20,6 +20,7 @@ class EmulatorState:
     eye_brightness: float = 0.0   # 0–100
     last_heard: str = ""
     last_reply: str = ""
+    status: str = "LISTENING"     # LISTENING | RECORDING | THINKING | SPEAKING
 
 
 _state = EmulatorState()
@@ -60,11 +61,13 @@ class FakeEyes:
 
 class FakeWakeWord:
     def wait_for_wake_word(self, on_detected=None, cancel=None):
+        _state.status = "LISTENING"
         print('[emulator] Waiting — press Space or click "Trigger Wake Word"')
         while True:
             triggered = _wake_event.wait(timeout=0.1)
             if triggered:
                 _wake_event.clear()
+                _state.status = "RECORDING"
                 if on_detected:
                     on_detected()
                 return True
@@ -79,6 +82,7 @@ class HybridWakeWord:
         self._real = real_module
 
     def wait_for_wake_word(self, on_detected=None, cancel=None):
+        _state.status = "LISTENING"
         _trigger = threading.Event()
         _real_cancel = threading.Event()
 
@@ -97,12 +101,14 @@ class HybridWakeWord:
             if _wake_event.wait(timeout=0.05):
                 _wake_event.clear()
                 _real_cancel.set()
+                _state.status = "RECORDING"
                 if on_detected:
                     on_detected()
                 return True
             # Real mic trigger
             if _trigger.is_set():
                 _real_cancel.set()
+                _state.status = "RECORDING"
                 if on_detected:
                     on_detected()
                 return True

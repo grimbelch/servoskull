@@ -238,7 +238,15 @@ def main():
 
         threading.Thread(target=_do_record, daemon=True).start()
         print("[skull] Recording... (speak now)")
-        _rec_done.wait()
+        if not _rec_done.wait(timeout=config.RECORD_SECONDS + 15.0):
+            print("[skull] Recording hung — forcing recovery")
+            try:
+                import sounddevice as _sd_recovery
+                _sd_recovery.stop()
+            except Exception:
+                pass
+            eyes.off()
+            continue
 
         if _rec_exc[0] is not None:
             print(f"[skull] Audio record error: {_rec_exc[0]}")

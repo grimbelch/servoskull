@@ -88,12 +88,13 @@ def _main(stdscr, state: EmulatorState, trigger_wake_fn):
         _put(stdscr, 3, 36, f" {ep:5.1f}%", WHITE | DIM)
 
         # ── Status ────────────────────────────────────────────────────────────
-        if ep > 80:
-            slabel, sattr = "● SPEAKING",  RED | BOLD
-        elif ep > 0:
-            slabel, sattr = "● ACTIVE",    YELLOW | BOLD
-        else:
-            slabel, sattr = "● IDLE",      GREEN
+        _status_map = {
+            "LISTENING": ("● LISTENING", GREEN),
+            "RECORDING": ("● RECORDING", YELLOW | BOLD),
+            "THINKING":  ("● THINKING",  CYAN  | BOLD),
+            "SPEAKING":  ("● SPEAKING",  RED   | BOLD),
+        }
+        slabel, sattr = _status_map.get(state.status, ("● IDLE", GREEN | DIM))
 
         _put(stdscr, 5, 2, "STATUS  ", WHITE)
         _put(stdscr, 5, 10, slabel, sattr)

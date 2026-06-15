@@ -127,11 +127,30 @@ import threading
 sys.stdout = _GUIStdout()
 
 state = get_state()
+
+# Wrap audio.record to update emulator status
+import skull.audio as _skull_audio
+_orig_audio_record = _skull_audio.record
+
+def _patched_audio_record(*args, **kwargs):
+    state.status = "RECORDING"
+    try:
+        return _orig_audio_record(*args, **kwargs)
+    finally:
+        state.status = "LISTENING"
+
+_skull_audio.record = _patched_audio_record
+
+# Wrap brain.respond to update emulator status and capture conversation
 _orig_respond = _brain.respond
 
 def _patched_respond(text: str):
     state.last_heard = text
-    spoken, cmds = _orig_respond(text)
+    state.status = "THINKING"
+    try:
+        spoken, cmds = _orig_respond(text)
+    finally:
+        state.status = "SPEAKING"
     state.last_reply = spoken
     return spoken, cmds
 
