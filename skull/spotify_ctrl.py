@@ -104,6 +104,54 @@ def search_and_play(query: str, device_name: str = None) -> str:
         return f"error: {e}"
 
 
+_pre_duck_volume: int | None = None
+
+
+def duck(level: int = 20) -> None:
+    """Lower the music volume while Omega-7 speaks, then restore() afterwards.
+
+    Idempotent (a second call while already ducked is a no-op) and silent when
+    nothing is playing. Only acts if Spotify has already been used this session —
+    we never force the lazy OAuth flow just to duck, so wake/idle stay snappy and
+    headless boots don't block on a browser auth prompt.
+    """
+    global _pre_duck_volume
+    if _sp is None or _pre_duck_volume is not None:
+        return
+    try:
+        pb = _sp.current_playback()
+        if not pb or not pb.get("is_playing"):
+            return
+        dev = pb.get("device") or {}
+        if dev.get("supports_volume") is False:
+            return  # e.g. a restricted Connect device that can't be volume-controlled
+        cur = dev.get("volume_percent")
+        if cur is None or cur <= level:
+            return  # already at/below the duck level — nothing to restore later
+        _pre_duck_volume = cur
+        _sp.volume(level, device_id=dev.get("id"))
+        print(f"[spotify] Ducked {cur}% → {level}% (Omega-7 speaking)")
+    except Exception as e:
+        print(f"[spotify] Duck failed: {e}")
+        _pre_duck_volume = None
+
+
+def restore() -> None:
+    """Restore the pre-duck music volume. Idempotent; no-op if not ducked."""
+    global _pre_duck_volume
+    if _sp is None or _pre_duck_volume is None:
+        return
+    vol = _pre_duck_volume
+    _pre_duck_volume = None
+    try:
+        pb = _sp.current_playback()
+        dev = (pb or {}).get("device") or {}
+        _sp.volume(vol, device_id=dev.get("id"))
+        print(f"[spotify] Restored volume → {vol}%")
+    except Exception as e:
+        print(f"[spotify] Restore failed: {e}")
+
+
 def pause() -> None:
     try:
         _client().pause_playback()

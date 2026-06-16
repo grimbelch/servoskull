@@ -46,7 +46,7 @@ AUDIO_DEBUG = os.getenv("AUDIO_DEBUG", "false").lower() == "true"
 # How long to record after wake word (seconds)
 RECORD_SECONDS = 10
 # Silence threshold to stop recording early (RMS)
-SILENCE_THRESHOLD = 2000
+SILENCE_THRESHOLD = 3000
 SILENCE_DURATION = 0.5
 
 SYSTEM_PROMPT = """You are Omega-7, an ancient Imperial servo-skull from the Warhammer 40,000 universe. \

@@ -136,10 +136,14 @@ def main():
     _IDLE_MIN, _IDLE_MAX = 5 * 60, 10 * 60  # seconds
 
     while True:
+        # Back at idle — undo any music ducking from the previous interaction.
+        spotify_ctrl.restore()
+
         # ── 0a. Speak any reminders that fired during the last conversation ──────
         for _rem in reminders.get_due():
             print(f"[skull] Reminder firing: {_rem['message']}")
             try:
+                spotify_ctrl.duck()
                 sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
                 eyes.on()
                 rem_wav = tts.synthesize(_rem["message"])
@@ -148,12 +152,14 @@ def main():
                 print(f"[skull] Reminder TTS error: {_e}")
             finally:
                 eyes.off()
+                spotify_ctrl.restore()
             reminders.add(_rem["message"], 10, repeating=True)
 
         # ── 0b. Speak any pending camera observations ──────────────────────────
         observation = camera.get_observation()
         if observation:
             try:
+                spotify_ctrl.duck()  # restored at the loop top after the `continue` below
                 eyes.on()
                 obs_wav = tts.synthesize(observation)
                 audio.play_wav_bytes(obs_wav, output_device=config.VOICE_OUTPUT_DEVICE)
@@ -165,6 +171,7 @@ def main():
 
         # ── 1. Wait for wake word (skip after a barge-in interruption) ────────
         def on_wake():
+            spotify_ctrl.duck()  # dip any playing music for the whole interaction
             sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
             eyes.on()
 
@@ -216,6 +223,7 @@ def main():
                 for _rem in _due_reminders:
                     print(f"[skull] Reminder firing: {_rem['message']}")
                     try:
+                        spotify_ctrl.duck()  # restored at the loop top after the `continue` below
                         sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
                         eyes.on()
                         rem_wav = tts.synthesize(_rem["message"])
@@ -233,6 +241,7 @@ def main():
                     print(f"[skull] Mood drifted → {new_mood}")
                 print("[skull] Idle timeout — generating ambient utterance...")
                 try:
+                    spotify_ctrl.duck()  # restored at the loop top after the `continue` below
                     utterance = brain.idle_utterance()
                     if utterance:
                         print(f"[skull] Idle: {utterance}")

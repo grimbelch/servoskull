@@ -92,7 +92,17 @@ if [ -f "$RASPOTIFY_CONF" ]; then
     sudo sed -i 's/^#\?DEVICE_NAME=.*/DEVICE_NAME="Omega-7"/' "$RASPOTIFY_CONF"
     # Enable high-quality bitrate
     sudo sed -i 's/^#\?BITRATE=.*/BITRATE="320"/' "$RASPOTIFY_CONF"
-    echo "    Raspotify configured: device name = Omega-7, bitrate = 320kbps"
+    # Render through PulseAudio rather than a fixed ALSA device, so music follows
+    # the default sink: Omega-7's own speaker normally, or a Bluetooth speaker once
+    # one is connected (skull/bluetooth_ctrl.py points the default sink at it).
+    if grep -q '^#\?LIBRESPOT_BACKEND=' "$RASPOTIFY_CONF"; then
+        sudo sed -i 's/^#\?LIBRESPOT_BACKEND=.*/LIBRESPOT_BACKEND="pulseaudio"/' "$RASPOTIFY_CONF"
+    else
+        echo 'LIBRESPOT_BACKEND="pulseaudio"' | sudo tee -a "$RASPOTIFY_CONF" >/dev/null
+    fi
+    # Clear any fixed device pin — the PulseAudio default sink decides routing now.
+    sudo sed -i 's/^#\?LIBRESPOT_DEVICE=.*/#LIBRESPOT_DEVICE=/' "$RASPOTIFY_CONF"
+    echo "    Raspotify configured: device name = Omega-7, bitrate = 320kbps, backend = pulseaudio"
 
     if [ -n "$SPOTIFY_USERNAME" ] && [ -n "$SPOTIFY_PASSWORD" ]; then
         sudo sed -i "s/^#\?USERNAME=.*/USERNAME=\"$SPOTIFY_USERNAME\"/" "$RASPOTIFY_CONF"
@@ -106,9 +116,30 @@ else
     echo "    WARNING: $RASPOTIFY_CONF not found — configure it manually."
 fi
 
+# Raspotify ships as a root system service, which can't see the per-user PulseAudio
+# default sink that bluetooth_ctrl manipulates. Run it as the same user (and point it
+# at that user's PulseAudio socket) so music and voice agree on where audio goes.
+RASPOTIFY_OVERRIDE_DIR="/etc/systemd/system/raspotify.service.d"
+sudo mkdir -p "$RASPOTIFY_OVERRIDE_DIR"
+sudo tee "$RASPOTIFY_OVERRIDE_DIR/override.conf" >/dev/null <<EOF
+[Service]
+User=$USER
+Environment=XDG_RUNTIME_DIR=/run/user/$USER_ID
+Environment=PULSE_SERVER=unix:/run/user/$USER_ID/pulse/native
+EOF
+echo "    Raspotify service overridden to run as '$USER' and use its PulseAudio session."
+
+# Ensure the user's audio session exists at boot before any interactive login, so
+# both omega7.service and raspotify.service can reach it as a headless appliance.
+sudo loginctl enable-linger "$USER" || true
+
+sudo systemctl daemon-reload
 sudo systemctl enable --now raspotify
 echo "    Raspotify service enabled and started."
 echo "    This Pi will appear as 'Omega-7' in Spotify Connect."
+echo "    Music follows the system default sink (Bluetooth speaker if connected,"
+echo "    otherwise Omega-7's own speaker). Set Omega-7's USB output as the default"
+echo "    sink once with:  pactl set-default-sink <usb-sink-name>   (run 'pactl list short sinks' to find it)"
 
 # ── 7. Verify audio devices ────────────────────────────────────────────────
 echo "[7/7] Checking audio devices..."
