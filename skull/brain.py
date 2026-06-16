@@ -5,15 +5,14 @@ import re
 import subprocess
 import sys
 from datetime import datetime
-from anthropic import Anthropic
-from skull.config import ANTHROPIC_API_KEY, CLAUDE_MODEL, SYSTEM_PROMPT, HISTORY_FILE
+from skull.config import SYSTEM_PROMPT, HISTORY_FILE
 from skull import search as _search
 from skull import memory as _memory
 from skull import reminders as _reminders
 from skull import mood as _mood
 from skull import quiet as _quiet
+from skull import llm as _llm
 
-_client = Anthropic(api_key=ANTHROPIC_API_KEY)
 _history: list[dict] = []
 
 # Tools that hit the network/hardware and can take a noticeable moment. Omega-7
@@ -373,6 +372,118 @@ def _strip_actions(text: str) -> str:
     return " ".join(text.split())
 
 
+def _execute_tool(name: str, tool_input: dict) -> str:
+    """Run a single tool call and return its result string. Provider-agnostic —
+    called by the llm tool-use loop for both Claude and Gemini."""
+    if name == "web_search":
+        query = tool_input.get("query", "")
+        print(f"[skull] Searching: {query}")
+        return _search.web_search(query)
+    if name == "news_search":
+        query = tool_input.get("query", "")
+        print(f"[skull] Searching news: {query}")
+        return _search.news_search(query)
+    if name == "necromunda_rules":
+        query = tool_input.get("query", "")
+        print(f"[skull] Looking up Necromunda rules: {query}")
+        return _search.necromunda_rules(query)
+    if name == "netea_rules":
+        query = tool_input.get("query", "")
+        print(f"[skull] Looking up NetEA rules: {query}")
+        return _search.netea_rules(query)
+    if name == "get_weather":
+        from skull.config import WEATHER_LAT, WEATHER_LON
+        if WEATHER_LAT == 0.0 and WEATHER_LON == 0.0:
+            return "Weather location not configured. Set WEATHER_LAT and WEATHER_LON in .env"
+        print("[skull] Fetching weather...")
+        return _search.get_weather(WEATHER_LAT, WEATHER_LON)
+    if name == "set_volume":
+        level = str(tool_input.get("level", "+10")).strip()
+        try:
+            if sys.platform == "darwin":
+                if level.startswith("+"):
+                    script = f"set volume output volume (output volume of (get volume settings) + {level[1:]})"
+                elif level.startswith("-"):
+                    script = f"set volume output volume (output volume of (get volume settings) - {level[1:]})"
+                else:
+                    script = f"set volume output volume {level}"
+                subprocess.run(["osascript", "-e", script], capture_output=True)
+            else:
+                pct = f"{level}%" if not level.endswith("%") else level
+                subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", pct], capture_output=True)
+            print(f"[skull] Volume: {level}")
+            return f"Volume set to {level}."
+        except Exception as e:
+            return f"Volume adjustment failed: {e}"
+    if name == "bluetooth_scan":
+        from skull import bluetooth_ctrl
+        print("[skull] Scanning for Bluetooth devices...")
+        devices = bluetooth_ctrl.scan()
+        if not devices:
+            result = "No Bluetooth devices found nearby."
+        else:
+            lines = [f"{i + 1}. {d['name']}" for i, d in enumerate(devices)]
+            result = "Nearby Bluetooth devices:\n" + "\n".join(lines)
+        print(f"[skull] {result}")
+        return result
+    if name == "bluetooth_connect":
+        from skull import bluetooth_ctrl
+        identifier = str(tool_input.get("identifier", "")).strip()
+        devices = bluetooth_ctrl.get_last_scan()
+        device = _resolve_bt_device(identifier, devices)
+        if device is None:
+            return f"Could not find '{identifier}' in the last scan."
+        print(f"[skull] Connecting to {device['name']} ({device['mac']})...")
+        success = bluetooth_ctrl.connect(device["mac"])
+        return (
+            f"Connected to {device['name']}. Music routes through the speaker via system audio; vocalizations remain on Omega-7's own output."
+            if success
+            else f"Failed to connect to {device['name']}. It may be out of range or need pairing."
+        )
+    if name == "remember_fact":
+        return _memory.remember(str(tool_input.get("fact", "")).strip())
+    if name == "forget_fact":
+        return _memory.forget(str(tool_input.get("query", "")).strip())
+    if name == "update_fact":
+        return _memory.update(str(tool_input.get("query", "")).strip(),
+                              str(tool_input.get("new_fact", "")).strip())
+    if name == "set_reminder":
+        message = str(tool_input.get("message", "")).strip()
+        delay = int(tool_input.get("delay_seconds", 60))
+        rid = _reminders.add(message, delay)
+        mins, secs = divmod(delay, 60)
+        human = f"{mins}m {secs}s" if mins else f"{secs}s"
+        print(f"[brain] Reminder set: [{rid}] in {human} — {message!r}")
+        return f"Reminder set (ID: {rid}). Will fire in {human}."
+    if name == "list_reminders":
+        items = _reminders.list_all()
+        if not items:
+            return "No active timers or reminders."
+        return "\n".join(
+            f"[{r['id']}] in {_reminders.format_remaining(r['fire_at'])}: {r['message']}"
+            for r in items
+        )
+    if name == "cancel_reminder":
+        rid = str(tool_input.get("reminder_id", "")).strip()
+        return f"Reminder [{rid}] cancelled." if _reminders.cancel(rid) else f"No reminder found with ID '{rid}'."
+    if name == "acknowledge_reminders":
+        count = _reminders.acknowledge_all()
+        print(f"[brain] Acknowledged {count} repeating reminder(s)")
+        return f"Silenced {count} repeating alert(s)." if count else "No repeating alerts were active."
+    if name == "set_quiet_mode":
+        enabled = bool(tool_input.get("enabled", True))
+        _quiet.set_silent(enabled)
+        return (
+            "Silent mode engaged. This unit will cease unprompted observations."
+            if enabled
+            else "Silent mode lifted. This unit will resume its periodic observations."
+        )
+    if name == "shift_mood":
+        new_mood = _mood.set_mood(str(tool_input.get("mood", "DUTIFUL")))
+        return f"Disposition updated to {new_mood}."
+    return f"Unknown tool: {name}"
+
+
 def respond(user_text: str, on_tool_use=None) -> tuple[str, list[tuple]]:
     """Return (spoken_text, spotify_commands).
 
@@ -380,257 +491,22 @@ def respond(user_text: str, on_tool_use=None) -> tuple[str, list[tuple]]:
     (see _SLOW_TOOLS) the instant Omega-7 is about to run them, so the caller can
     give the user immediate "stand by" feedback before the call blocks.
     """
-    messages = _history + [{"role": "user", "content": user_text}]
     facts = _memory.load()
     longterm = _memory.load_longterm()
     now = datetime.now()
     date_ctx = f"\n\nCURRENT DATE AND TIME: {now.strftime('%A, %B %-d, %Y at %-I:%M %p')}."
     system = SYSTEM_PROMPT + date_ctx + _memory.longterm_prompt(longterm) + _memory.facts_prompt(facts) + _mood.system_addendum()
 
-    # Tool use loop — Claude may call web_search before giving a final answer
-    while True:
-        response = _client.messages.create(
-            model=CLAUDE_MODEL,
-            max_tokens=800,
-            system=system,
-            tools=_TOOLS,
-            messages=messages,
-        )
-
-        if response.stop_reason == "tool_use":
-            # Announce slow tool calls up front so the user isn't left waiting in silence.
-            slow = [b.name for b in response.content
-                    if getattr(b, "type", None) == "tool_use" and b.name in _SLOW_TOOLS]
-            if slow and on_tool_use is not None:
-                try:
-                    on_tool_use(slow)
-                except Exception as e:
-                    print(f"[brain] tool-use notify error: {e}")
-
-            # Execute every tool call in this turn
-            tool_results = []
-            for block in response.content:
-                if block.type != "tool_use":
-                    continue
-                if block.name == "web_search":
-                    query = block.input.get("query", "")
-                    print(f"[skull] Searching: {query}")
-                    result = _search.web_search(query)
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    })
-                elif block.name == "news_search":
-                    query = block.input.get("query", "")
-                    print(f"[skull] Searching news: {query}")
-                    result = _search.news_search(query)
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    })
-                elif block.name == "necromunda_rules":
-                    query = block.input.get("query", "")
-                    print(f"[skull] Looking up Necromunda rules: {query}")
-                    result = _search.necromunda_rules(query)
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    })
-                elif block.name == "netea_rules":
-                    query = block.input.get("query", "")
-                    print(f"[skull] Looking up NetEA rules: {query}")
-                    result = _search.netea_rules(query)
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    })
-                elif block.name == "get_weather":
-                    from skull.config import WEATHER_LAT, WEATHER_LON
-                    if WEATHER_LAT == 0.0 and WEATHER_LON == 0.0:
-                        result = "Weather location not configured. Set WEATHER_LAT and WEATHER_LON in .env"
-                    else:
-                        print("[skull] Fetching weather...")
-                        result = _search.get_weather(WEATHER_LAT, WEATHER_LON)
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    })
-                elif block.name == "set_volume":
-                    level = block.input.get("level", "+10").strip()
-                    try:
-                        if sys.platform == "darwin":
-                            if level.startswith("+"):
-                                script = f"set volume output volume (output volume of (get volume settings) + {level[1:]})"
-                            elif level.startswith("-"):
-                                script = f"set volume output volume (output volume of (get volume settings) - {level[1:]})"
-                            else:
-                                script = f"set volume output volume {level}"
-                            subprocess.run(["osascript", "-e", script], capture_output=True)
-                        else:
-                            pct = f"{level}%" if not level.endswith("%") else level
-                            subprocess.run(
-                                ["pactl", "set-sink-volume", "@DEFAULT_SINK@", pct],
-                                capture_output=True,
-                            )
-                        result = f"Volume set to {level}."
-                        print(f"[skull] Volume: {level}")
-                    except Exception as e:
-                        result = f"Volume adjustment failed: {e}"
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    })
-                elif block.name == "bluetooth_scan":
-                    from skull import bluetooth_ctrl
-                    print("[skull] Scanning for Bluetooth devices...")
-                    devices = bluetooth_ctrl.scan()
-                    if not devices:
-                        result = "No Bluetooth devices found nearby."
-                    else:
-                        lines = [f"{i + 1}. {d['name']}" for i, d in enumerate(devices)]
-                        result = "Nearby Bluetooth devices:\n" + "\n".join(lines)
-                    print(f"[skull] {result}")
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    })
-                elif block.name == "bluetooth_connect":
-                    from skull import bluetooth_ctrl
-                    identifier = block.input.get("identifier", "").strip()
-                    devices = bluetooth_ctrl.get_last_scan()
-                    device = _resolve_bt_device(identifier, devices)
-                    if device is None:
-                        result = f"Could not find '{identifier}' in the last scan."
-                    else:
-                        print(f"[skull] Connecting to {device['name']} ({device['mac']})...")
-                        success = bluetooth_ctrl.connect(device["mac"])
-                        result = (
-                            f"Connected to {device['name']}. Music routes through the speaker via system audio; vocalizations remain on Omega-7's own output."
-                            if success
-                            else f"Failed to connect to {device['name']}. It may be out of range or need pairing."
-                        )
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    })
-
-                elif block.name == "remember_fact":
-                    fact = block.input.get("fact", "").strip()
-                    result = _memory.remember(fact)
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    })
-                elif block.name == "forget_fact":
-                    query = block.input.get("query", "").strip()
-                    result = _memory.forget(query)
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    })
-                elif block.name == "update_fact":
-                    query = block.input.get("query", "").strip()
-                    new_fact = block.input.get("new_fact", "").strip()
-                    result = _memory.update(query, new_fact)
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    })
-
-                elif block.name == "set_reminder":
-                    message = block.input.get("message", "").strip()
-                    delay = int(block.input.get("delay_seconds", 60))
-                    rid = _reminders.add(message, delay)
-                    mins, secs = divmod(delay, 60)
-                    human = f"{mins}m {secs}s" if mins else f"{secs}s"
-                    result = f"Reminder set (ID: {rid}). Will fire in {human}."
-                    print(f"[brain] Reminder set: [{rid}] in {human} — {message!r}")
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    })
-
-                elif block.name == "list_reminders":
-                    items = _reminders.list_all()
-                    if not items:
-                        result = "No active timers or reminders."
-                    else:
-                        lines = [
-                            f"[{r['id']}] in {_reminders.format_remaining(r['fire_at'])}: {r['message']}"
-                            for r in items
-                        ]
-                        result = "\n".join(lines)
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    })
-
-                elif block.name == "cancel_reminder":
-                    rid = block.input.get("reminder_id", "").strip()
-                    found = _reminders.cancel(rid)
-                    result = f"Reminder [{rid}] cancelled." if found else f"No reminder found with ID '{rid}'."
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    })
-
-                elif block.name == "acknowledge_reminders":
-                    count = _reminders.acknowledge_all()
-                    result = f"Silenced {count} repeating alert(s)." if count else "No repeating alerts were active."
-                    print(f"[brain] Acknowledged {count} repeating reminder(s)")
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    })
-
-                elif block.name == "set_quiet_mode":
-                    enabled = bool(block.input.get("enabled", True))
-                    _quiet.set_silent(enabled)
-                    result = (
-                        "Silent mode engaged. This unit will cease unprompted observations."
-                        if enabled
-                        else "Silent mode lifted. This unit will resume its periodic observations."
-                    )
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    })
-
-                elif block.name == "shift_mood":
-                    new_mood = _mood.set_mood(block.input.get("mood", "DUTIFUL"))
-                    result = f"Disposition updated to {new_mood}."
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    })
-
-            # Append assistant turn + tool results and loop for final answer
-            messages.append({"role": "assistant", "content": response.content})
-            messages.append({"role": "user", "content": tool_results})
-
-        else:
-            # Final answer
-            raw = next(
-                (b.text for b in response.content if hasattr(b, "text")), ""
-            )
-            break
+    raw = _llm.run_conversation(
+        system=system,
+        history=_history,
+        user_text=user_text,
+        tools=_TOOLS,
+        execute_tool=_execute_tool,
+        on_tool_use=on_tool_use,
+        slow_tools=_SLOW_TOOLS,
+        max_tokens=800,
+    )
 
     # Extract Spotify commands
     cmds: list[tuple] = []
@@ -702,47 +578,28 @@ def idle_utterance() -> str:
     bias = _mood.idle_bias()
     print(f"[brain] Idle — scope: {scope!r}  mood bias: {_mood.get()}")
     system = _IDLE_PROMPT + _mood.system_addendum()
-    messages = [{"role": "user", "content": (
+    user_text = (
         f"Search for '{scope}' news and generate your idle utterance based on one story. "
         f"Lean toward this type of delivery: {bias}."
-    )}]
+    )
+
+    def execute_tool(name: str, tool_input: dict) -> str:
+        if name == "news_search":
+            query = tool_input.get("query", scope)
+            print(f"[brain] Idle searching news: {query}")
+            return _search.news_search(query)
+        return ""
+
     try:
-        # First pass — Claude will call news_search
-        response = _client.messages.create(
-            model=CLAUDE_MODEL,
-            max_tokens=400,
+        text = _llm.run_conversation(
             system=system,
+            history=[],
+            user_text=user_text,
             tools=_IDLE_TOOLS,
-            messages=messages,
+            execute_tool=execute_tool,
+            max_tokens=400,
         )
-
-        if response.stop_reason == "tool_use":
-            tool_results = []
-            for block in response.content:
-                if block.type != "tool_use" or block.name != "news_search":
-                    continue
-                query = block.input.get("query", scope)
-                print(f"[brain] Idle searching news: {query}")
-                result = _search.news_search(query)
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": result,
-                })
-            messages.append({"role": "assistant", "content": response.content})
-            messages.append({"role": "user", "content": tool_results})
-
-            # Second pass — generate the mood-coloured 40k idle line
-            response = _client.messages.create(
-                model=CLAUDE_MODEL,
-                max_tokens=150,
-                system=system,
-                tools=_IDLE_TOOLS,
-                messages=messages,
-            )
-
-        text = next((b.text for b in response.content if hasattr(b, "text")), "").strip()
-        return text or ""
+        return (text or "").strip()
     except Exception as e:
         print(f"[brain] Idle utterance error: {e}")
         return ""

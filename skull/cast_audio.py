@@ -112,8 +112,12 @@ def is_configured() -> bool:
     return os.environ.get("CAST_ENABLED", default).lower() == "true"
 
 
-def play(wav_bytes: bytes, amplitude_fn_setter=None) -> None:
-    """Cast wav_bytes to the Google Home and drive eye LEDs from pre-computed amplitude."""
+def play(wav_bytes: bytes, amplitude_fn_setter=None, stop_event: threading.Event = None) -> None:
+    """Cast wav_bytes to the Google Home and drive eye LEDs from pre-computed amplitude.
+
+    stop_event: if set mid-playback, the cast device is stopped immediately so
+    barge-in interruptions work the same as local playback.
+    """
     cast = _get_cast()
     if cast is None:
         return
@@ -127,6 +131,8 @@ def play(wav_bytes: bytes, amplitude_fn_setter=None) -> None:
     # Eye LED thread — replays amplitude timeline in sync with remote playback
     def eye_loop():
         for amp in timeline:
+            if stop_event and stop_event.is_set():
+                break
             if amplitude_fn_setter:
                 amplitude_fn_setter(lambda a=amp: a)
             time.sleep(chunk_sec)
@@ -141,9 +147,15 @@ def play(wav_bytes: bytes, amplitude_fn_setter=None) -> None:
         mc.block_until_active(timeout=10)
         eye_thread.start()
 
-        # Poll until playback finishes
+        # Poll until playback finishes — or until barge-in sets stop_event.
         while mc.status.player_state in ("PLAYING", "BUFFERING", "UNKNOWN"):
-            time.sleep(0.3)
+            if stop_event and stop_event.is_set():
+                try:
+                    mc.stop()  # halt remote playback on the Google Home
+                except Exception as e:
+                    print(f"[cast] Stop error: {e}")
+                break
+            time.sleep(0.1)
 
     except Exception as e:
         print(f"[cast] Playback error: {e}")

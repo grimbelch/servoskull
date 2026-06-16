@@ -7,11 +7,12 @@ import random
 
 from skull import config
 from skull import audio, wake_word, transcribe, brain, tts, eyes, sfx, reminders, mood
-from skull import spotify_ctrl, cast_audio, camera, quiet
+from skull import spotify_ctrl, cast_audio, camera, quiet, display
 
 
 def shutdown(sig=None, frame=None):
     print("\n[skull] Powering down. The Emperor protects.")
+    display.cleanup()
     eyes.cleanup()
     audio.cleanup()
     sys.exit(0)
@@ -147,6 +148,8 @@ def _load_or_record_boot_wav() -> bytes:
 
 def main():
     eyes.setup(config.LED_PIN_LEFT, config.LED_PIN_CENTER, config.LED_PIN_RIGHT)
+    display.setup()
+    display.set_mood(mood.get())
     camera.start()
     print("[skull] Omega-7 online. Awaiting the Emperor's commands.")
     try:
@@ -166,12 +169,14 @@ def main():
     try:
         boot_wav = _load_or_record_boot_wav()
         eyes.on()
+        display.on()
         audio.play_wav_bytes(boot_wav, output_device=config.VOICE_OUTPUT_DEVICE)
     except Exception as e:
         print(f"[skull] Boot phrase error: {e}")
         time.sleep(0.5)
     finally:
         eyes.off()
+        display.idle()
 
     skip_wake_word = False
     _IDLE_MIN, _IDLE_MAX = 5 * 60, 10 * 60  # seconds
@@ -286,6 +291,7 @@ def main():
                 new_mood = mood.drift()
                 if new_mood:
                     print(f"[skull] Mood drifted → {new_mood}")
+                    display.set_mood(new_mood)
                 print("[skull] Idle timeout — generating ambient utterance...")
                 try:
                     spotify_ctrl.duck()  # restored at the loop top after the `continue` below
@@ -294,11 +300,13 @@ def main():
                         print(f"[skull] Idle: {utterance}")
                         idle_wav = tts.synthesize(utterance)
                         eyes.on()
+                        display.on()
                         audio.play_wav_bytes(idle_wav, output_device=config.VOICE_OUTPUT_DEVICE)
                 except Exception as e:
                     print(f"[skull] Idle utterance error: {e}")
                 finally:
                     eyes.off()
+                    display.idle()
                 continue  # back to listening without going through record/transcribe
 
             _barge_wav = None
@@ -513,8 +521,15 @@ def main():
         int_thread = threading.Thread(target=_interrupt_listener, daemon=True)
         int_thread.start()
 
+        def _drive_visuals(amp: float) -> None:
+            eyes.set_amplitude(amp)
+            display.set_amplitude(amp)
+
         if cast_audio.is_configured():
-            cast_audio.play(speech_wav, amplitude_fn_setter=lambda fn: eyes.set_amplitude(fn()))
+            cast_audio.play(speech_wav, amplitude_fn_setter=lambda fn: _drive_visuals(fn()), stop_event=_stop_play)
+            if not _interrupted.is_set():
+                eyes.off()
+                display.idle()
         else:
             amp_ref = [None]
             play_done = threading.Event()
@@ -526,10 +541,11 @@ def main():
                 time.sleep(0.05)
                 while not play_done.is_set():
                     amp = amp_ref[0]() if amp_ref[0] else 0.0
-                    eyes.set_amplitude(amp)
+                    _drive_visuals(amp)
                     time.sleep(0.025)
                 if not _interrupted.is_set():
                     eyes.off()
+                    display.idle()
 
             eye_thread = threading.Thread(target=eye_loop, daemon=True)
             eye_thread.start()

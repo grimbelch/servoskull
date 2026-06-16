@@ -3,15 +3,37 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
+# Optional — only required when LLM_BACKEND="claude" (the Gemini backend ignores it).
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 ELEVENLABS_API_KEY = os.environ["ELEVENLABS_API_KEY"]
 ELEVENLABS_VOICE_ID = os.environ["ELEVENLABS_VOICE_ID"]
 WAKE_WORD_MODEL = os.getenv("WAKE_WORD_MODEL", "hey_jarvis")
 WAKE_WORD_THRESHOLD = float(os.getenv("WAKE_WORD_THRESHOLD", "0.5"))
-LED_PIN_LEFT = int(os.getenv("LED_PIN_LEFT", "22"))    # GPIO 17 reserved by ReSpeaker HAT
+LED_PIN_LEFT = int(os.getenv("LED_PIN_LEFT", "22"))
 LED_PIN_CENTER = int(os.getenv("LED_PIN_CENTER", "23"))
 LED_PIN_RIGHT = int(os.getenv("LED_PIN_RIGHT", "27"))
+
+# ── Face display (GC9A01 1.28" round IPS, 240x240, 4-wire SPI) ───────────────────
+# Optional "machine-spirit" eye/face display. Disabled by default so the Mac/Windows
+# emulator and displayless Pis are unaffected; set DISPLAY_ENABLED=true in .env on the
+# rig that has the panel wired.
+#
+# Audio is handled by a USB sound card (Ugreen), so the GPIO header is otherwise free
+# except the eye LEDs (22/23/27) — SPI0 is fully available for the panel.
+#
+# Wiring (BCM):
+#   VCC->3V3   GND->GND
+#   SCL(SCK)->GPIO11   SDA(MOSI)->GPIO10   CS->GPIO8 (SPI0 CE0)
+#   DC->GPIO25   RES->GPIO24   BLK->GPIO12 (or tie to 3V3 and set DISPLAY_BL_PIN=-1)
+DISPLAY_ENABLED = os.getenv("DISPLAY_ENABLED", "false").lower() == "true"
+DISPLAY_SPI_BUS = int(os.getenv("DISPLAY_SPI_BUS", "0"))       # spidev<bus>.<device>
+DISPLAY_SPI_DEVICE = int(os.getenv("DISPLAY_SPI_DEVICE", "0")) # 0 -> CE0/GPIO8
+DISPLAY_SPI_HZ = int(os.getenv("DISPLAY_SPI_HZ", "40000000"))  # 40 MHz; lower if flaky
+DISPLAY_DC_PIN = int(os.getenv("DISPLAY_DC_PIN", "25"))
+DISPLAY_RST_PIN = int(os.getenv("DISPLAY_RST_PIN", "24"))
+DISPLAY_BL_PIN = int(os.getenv("DISPLAY_BL_PIN", "12"))        # -1 if BLK tied to 3V3
+DISPLAY_ROTATION = int(os.getenv("DISPLAY_ROTATION", "0"))     # 0/90/180/270
 MIC_DEVICE_INDEX = int(os.getenv("MIC_DEVICE_INDEX", "-1"))
 AUDIO_OUTPUT_DEVICE = int(os.getenv("AUDIO_OUTPUT_DEVICE", "-1"))
 # Pinned device for TTS/SFX — stays on Omega-7's own speaker even when BT is the PulseAudio default
@@ -32,6 +54,17 @@ CAMERA_MAX_PER_HOUR = int(os.getenv("CAMERA_MAX_PER_HOUR", "15"))
 # dark and is never sent to Claude. Guards against covered-lens / night frames.
 CAMERA_MIN_BRIGHTNESS = int(os.getenv("CAMERA_MIN_BRIGHTNESS", "20"))
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
+
+# ── LLM backend ────────────────────────────────────────────────────────────────
+# Which provider powers the brain, idle utterances, memory extraction, and vision.
+# "claude" (Anthropic) or "gemini" (Google). Mirrors the TTS_BACKEND pattern.
+LLM_BACKEND = os.getenv("LLM_BACKEND", "claude")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+# "Thinking" budget for Gemini 2.5 models: 0 disables it (fastest, best for short
+# voice replies and avoids output-token starvation); a positive int caps thinking
+# tokens; -1 omits the setting entirely (for models that don't support thinking).
+GEMINI_THINKING_BUDGET = int(os.getenv("GEMINI_THINKING_BUDGET", "0"))
 WEATHER_LAT = float(os.getenv("WEATHER_LAT", "0.0"))
 WEATHER_LON = float(os.getenv("WEATHER_LON", "0.0"))
 HISTORY_FILE = os.getenv("HISTORY_FILE", "history.json")

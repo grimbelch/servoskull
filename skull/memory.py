@@ -3,8 +3,7 @@ import json
 import pathlib
 import threading
 
-from anthropic import Anthropic
-from skull.config import ANTHROPIC_API_KEY, CLAUDE_MODEL
+from skull import llm as _llm
 
 _MEMORY_PATH = pathlib.Path("memory.json")
 _LONGTERM_PATH = pathlib.Path("longterm_memory.json")
@@ -87,7 +86,6 @@ Return a JSON array of short fact strings (one fact per string). \
 Return [] if nothing memorable was said. \
 Return ONLY the JSON array — no explanation, no markdown."""
 
-_client = Anthropic(api_key=ANTHROPIC_API_KEY)
 _MAX_FACTS = 150
 
 
@@ -120,16 +118,15 @@ def facts_prompt(facts: list[str]) -> str:
 def extract_and_store(user_text: str, assistant_text: str) -> None:
     """Extract memorable facts from one exchange and merge into memory. Runs in background."""
     try:
-        response = _client.messages.create(
-            model=CLAUDE_MODEL,
+        raw = _llm.simple(
+            _EXTRACT_SYSTEM,
+            f"User said: {user_text}\nAssistant replied: {assistant_text}",
             max_tokens=300,
-            system=_EXTRACT_SYSTEM,
-            messages=[{
-                "role": "user",
-                "content": f"User said: {user_text}\nAssistant replied: {assistant_text}",
-            }],
-        )
-        raw = next((b.text for b in response.content if hasattr(b, "text")), "[]").strip()
+        ).strip()
+        # Models sometimes wrap JSON in a ```json fence — strip it before parsing.
+        if raw.startswith("```"):
+            raw = raw.strip("`")
+            raw = raw[raw.find("["):raw.rfind("]") + 1] if "[" in raw else raw
         new_facts: list[str] = json.loads(raw)
         if not isinstance(new_facts, list) or not new_facts:
             return

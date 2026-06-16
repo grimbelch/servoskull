@@ -32,6 +32,11 @@ sudo apt-get install -y \
     ffmpeg \
     python3-opencv
 
+# Enable the SPI bus for the GC9A01 face display (no-op if already on).
+if command -v raspi-config >/dev/null 2>&1; then
+    sudo raspi-config nonint do_spi 0
+fi
+
 # ── 2. Python virtual environment ──────────────────────────────────────────
 echo "[2/5] Creating Python virtual environment..."
 cd "$HOME/skull"
@@ -42,6 +47,11 @@ source .venv/bin/activate
 echo "[3/5] Installing Python packages..."
 pip install --upgrade pip
 pip install -r requirements.txt
+
+# openWakeWord ships without model weights — fetch the shared feature extractors
+# (melspectrogram + embedding) that every Model() needs, custom wake words included.
+echo "    Downloading openWakeWord feature models..."
+python3 -c "import openwakeword.utils as u; u.download_models()"
 
 # ── 4. Piper voice model ───────────────────────────────────────────────────
 echo "[4/5] Checking Piper voice model..."

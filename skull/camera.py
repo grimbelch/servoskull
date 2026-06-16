@@ -56,35 +56,14 @@ _VISION_PROMPT = (
 )
 
 
-def _ask_claude_vision(jpeg_bytes: bytes) -> str:
-    from anthropic import Anthropic
-    client = Anthropic(api_key=config.ANTHROPIC_API_KEY)
-    b64 = base64.standard_b64encode(jpeg_bytes).decode()
-    response = client.messages.create(
-        model=config.CLAUDE_MODEL,
-        max_tokens=150,
-        system=config.SYSTEM_PROMPT,
-        messages=[{
-            "role": "user",
-            "content": [
-                {
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": "image/jpeg",
-                        "data": b64,
-                    },
-                },
-                {"type": "text", "text": _VISION_PROMPT},
-            ],
-        }],
-    )
-    return response.content[0].text.strip()
+def _ask_vision(jpeg_bytes: bytes) -> str:
+    from skull import llm
+    return llm.vision(config.SYSTEM_PROMPT, jpeg_bytes, _VISION_PROMPT, max_tokens=150)
 
 
 def _run_observation(jpeg_bytes: bytes) -> None:
     try:
-        text = _ask_claude_vision(jpeg_bytes)
+        text = _ask_vision(jpeg_bytes)
         print(f"[camera] {text}")
         _observation_queue.put(text)
     except Exception as e:
