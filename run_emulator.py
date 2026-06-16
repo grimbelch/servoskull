@@ -151,11 +151,11 @@ _skull_audio.record = _patched_audio_record
 # Wrap brain.respond to update emulator status and capture conversation
 _orig_respond = _brain.respond
 
-def _patched_respond(text: str):
+def _patched_respond(text: str, *args, **kwargs):
     state.last_heard = text
     state.status = "THINKING"
     try:
-        spoken, cmds = _orig_respond(text)
+        spoken, cmds = _orig_respond(text, *args, **kwargs)
     finally:
         state.status = "SPEAKING"
     state.last_reply = spoken

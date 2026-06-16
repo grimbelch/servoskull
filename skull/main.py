@@ -7,7 +7,7 @@ import random
 
 from skull import config
 from skull import audio, wake_word, transcribe, brain, tts, eyes, sfx, reminders, mood
-from skull import spotify_ctrl, cast_audio, camera
+from skull import spotify_ctrl, cast_audio, camera, quiet
 
 
 def shutdown(sig=None, frame=None):
@@ -39,13 +39,27 @@ _COGITATION_PHRASES = [
     "Processing.",
 ]
 
+# Short "stand by" lines spoken the instant Omega-7 starts a slow tool call
+# (web search, news, rules lookup, Bluetooth scan) so the user gets immediate feedback.
+_SEARCH_PHRASES = [
+    "One moment. This unit consults the archives.",
+    "Accessing the data-vaults. Stand by.",
+    "Querying the noosphere. A moment, my Lord.",
+    "Searching the cogitator banks.",
+]
+
 _wake_wavs: list = []
 _cogitation_wavs: list = []
+_search_wavs: list = []
+
+# Serialises filler speech (search announcement + cogitation) so two threads never
+# open the output device at once. The final reply plays after these are done.
+_speech_lock = threading.Lock()
 
 
 def _preload_phrases() -> None:
-    global _wake_wavs, _cogitation_wavs
-    wake, cog = [], []
+    global _wake_wavs, _cogitation_wavs, _search_wavs
+    wake, cog, search = [], [], []
     for phrase in _WAKE_PHRASES:
         try:
             wake.append(tts.synthesize(phrase))
@@ -56,10 +70,36 @@ def _preload_phrases() -> None:
             cog.append(tts.synthesize(phrase))
         except Exception as e:
             print(f"[skull] Cogitation preload warning: {e}")
+    for phrase in _SEARCH_PHRASES:
+        try:
+            search.append(tts.synthesize(phrase))
+        except Exception as e:
+            print(f"[skull] Search phrase preload warning: {e}")
     # Replace atomically so the main thread always sees a complete list
     _wake_wavs = wake
     _cogitation_wavs = cog
+    _search_wavs = search
     print(f"[skull] Phrases preloaded ({config.TTS_BACKEND})")
+
+
+def _announce_search(tool_names) -> None:
+    """Immediate spoken 'stand by' before a slow tool call. Called from brain.respond()."""
+    print(f"[skull] Slow tool starting ({', '.join(tool_names)}) — announcing.")
+    wav = None
+    if _search_wavs:
+        wav = random.choice(_search_wavs)
+    with _speech_lock:
+        try:
+            if wav is not None:
+                audio.play_wav_bytes(wav, output_device=config.VOICE_OUTPUT_DEVICE)
+            else:
+                # Phrases not preloaded yet — synthesize one on the spot.
+                audio.play_wav_bytes(
+                    tts.synthesize(random.choice(_SEARCH_PHRASES)),
+                    output_device=config.VOICE_OUTPUT_DEVICE,
+                )
+        except Exception as e:
+            print(f"[skull] Search announcement error: {e}")
 
 
 def _cogitation_loop(cancel: threading.Event) -> None:
@@ -72,7 +112,8 @@ def _cogitation_loop(cancel: threading.Event) -> None:
     while not cancel.is_set() and _cogitation_wavs:
         wav = _cogitation_wavs[indices[i % len(indices)]]
         try:
-            audio.play_wav_bytes(wav, stop_event=cancel, output_device=config.VOICE_OUTPUT_DEVICE)
+            with _speech_lock:
+                audio.play_wav_bytes(wav, stop_event=cancel, output_device=config.VOICE_OUTPUT_DEVICE)
         except Exception:
             pass
         i += 1
@@ -157,6 +198,9 @@ def main():
 
         # ── 0b. Speak any pending camera observations ──────────────────────────
         observation = camera.get_observation()
+        if observation and quiet.is_silent():
+            # Silent mode: drain the observation so it doesn't burst out later, but stay quiet.
+            observation = None
         if observation:
             try:
                 spotify_ctrl.duck()  # restored at the loop top after the `continue` below
@@ -236,6 +280,9 @@ def main():
                 continue  # back to top of loop
 
             if not detected and _idle_fired.is_set():
+                if quiet.is_silent():
+                    print("[skull] Idle timeout — silent mode active, holding tongue.")
+                    continue  # back to listening; no unprompted observation
                 new_mood = mood.drift()
                 if new_mood:
                     print(f"[skull] Mood drifted → {new_mood}")
@@ -389,7 +436,7 @@ def main():
         cog_thread = threading.Thread(target=_cogitation_loop, args=(_cancel_cog,), daemon=True)
         cog_thread.start()
         try:
-            reply, spotify_cmds = brain.respond(user_text)
+            reply, spotify_cmds = brain.respond(user_text, on_tool_use=_announce_search)
         except Exception as e:
             print(f"[skull] Brain error: {e}")
     
@@ -402,7 +449,10 @@ def main():
         print(f"[skull] Omega-7: {reply}")
 
         # ── 4b. Execute commands ───────────────────────────────────────────────
+        if not spotify_cmds:
+            print("[skull] No Spotify command parsed from reply.")
         for cmd in spotify_cmds:
+            print(f"[skull] Spotify command: {cmd}")
             try:
                 if spotify_ctrl.is_configured():
                     if cmd[0] == "play":

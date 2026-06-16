@@ -11,9 +11,14 @@ from skull import search as _search
 from skull import memory as _memory
 from skull import reminders as _reminders
 from skull import mood as _mood
+from skull import quiet as _quiet
 
 _client = Anthropic(api_key=ANTHROPIC_API_KEY)
 _history: list[dict] = []
+
+# Tools that hit the network/hardware and can take a noticeable moment. Omega-7
+# speaks a short "stand by" before running any of these so the user gets feedback.
+_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "netea_rules", "get_weather", "bluetooth_scan"}
 _HISTORY_PATH = pathlib.Path(HISTORY_FILE)
 
 
@@ -287,6 +292,28 @@ _TOOLS = [
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
     {
+        "name": "set_quiet_mode",
+        "description": (
+            "Enable or disable silent mode — whether Omega-7 makes unprompted PERIODIC "
+            "(idle) observations on its own while waiting. Set enabled=true when the user "
+            "asks for silence, e.g. 'silent mode', 'be quiet', 'stop talking on your own', "
+            "'no more observations', 'hold your tongue'. Set enabled=false when the user "
+            "lifts it, e.g. 'you may speak', 'resume observations', 'you can talk again', "
+            "'end silent mode'. This does NOT mute replies to direct questions — Omega-7 "
+            "still answers when addressed; it only governs self-initiated idle remarks."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "true to enter silent mode (no idle observations); false to resume them.",
+                },
+            },
+            "required": ["enabled"],
+        },
+    },
+    {
         "name": "shift_mood",
         "description": (
             "Update Omega-7's current personality disposition. Call this OCCASIONALLY — "
@@ -346,8 +373,13 @@ def _strip_actions(text: str) -> str:
     return " ".join(text.split())
 
 
-def respond(user_text: str) -> tuple[str, list[tuple]]:
-    """Return (spoken_text, spotify_commands)."""
+def respond(user_text: str, on_tool_use=None) -> tuple[str, list[tuple]]:
+    """Return (spoken_text, spotify_commands).
+
+    on_tool_use: optional callback invoked with the list of slow tool names
+    (see _SLOW_TOOLS) the instant Omega-7 is about to run them, so the caller can
+    give the user immediate "stand by" feedback before the call blocks.
+    """
     messages = _history + [{"role": "user", "content": user_text}]
     facts = _memory.load()
     longterm = _memory.load_longterm()
@@ -366,6 +398,15 @@ def respond(user_text: str) -> tuple[str, list[tuple]]:
         )
 
         if response.stop_reason == "tool_use":
+            # Announce slow tool calls up front so the user isn't left waiting in silence.
+            slow = [b.name for b in response.content
+                    if getattr(b, "type", None) == "tool_use" and b.name in _SLOW_TOOLS]
+            if slow and on_tool_use is not None:
+                try:
+                    on_tool_use(slow)
+                except Exception as e:
+                    print(f"[brain] tool-use notify error: {e}")
+
             # Execute every tool call in this turn
             tool_results = []
             for block in response.content:
@@ -551,6 +592,20 @@ def respond(user_text: str) -> tuple[str, list[tuple]]:
                     count = _reminders.acknowledge_all()
                     result = f"Silenced {count} repeating alert(s)." if count else "No repeating alerts were active."
                     print(f"[brain] Acknowledged {count} repeating reminder(s)")
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result,
+                    })
+
+                elif block.name == "set_quiet_mode":
+                    enabled = bool(block.input.get("enabled", True))
+                    _quiet.set_silent(enabled)
+                    result = (
+                        "Silent mode engaged. This unit will cease unprompted observations."
+                        if enabled
+                        else "Silent mode lifted. This unit will resume its periodic observations."
+                    )
                     tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": block.id,

@@ -152,25 +152,43 @@ def restore() -> None:
         print(f"[spotify] Restore failed: {e}")
 
 
+def _active_device_id() -> str | None:
+    """The id of whatever device is currently playing, for targeted control calls."""
+    try:
+        pb = _client().current_playback()
+        return ((pb or {}).get("device") or {}).get("id")
+    except Exception:
+        return None
+
+
 def pause() -> None:
     try:
-        _client().pause_playback()
-    except Exception:
-        pass
+        _client().pause_playback(device_id=_active_device_id())
+        print("[spotify] Paused")
+    except spotipy.SpotifyException as e:
+        # 403 commonly means "already paused" — not a real failure.
+        if e.http_status == 403:
+            print("[spotify] Pause: already paused")
+        else:
+            print(f"[spotify] Pause failed: {e.http_status} {e.msg}")
+    except Exception as e:
+        print(f"[spotify] Pause failed: {e}")
 
 
 def resume() -> None:
     try:
-        _client().start_playback()
-    except Exception:
-        pass
+        _client().start_playback(device_id=_active_device_id())
+        print("[spotify] Resumed")
+    except Exception as e:
+        print(f"[spotify] Resume failed: {e}")
 
 
 def skip() -> None:
     try:
-        _client().next_track()
-    except Exception:
-        pass
+        _client().next_track(device_id=_active_device_id())
+        print("[spotify] Skipped")
+    except Exception as e:
+        print(f"[spotify] Skip failed: {e}")
 
 
 def is_configured() -> bool:
