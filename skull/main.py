@@ -146,6 +146,80 @@ def _load_or_record_boot_wav() -> bytes:
     return wav
 
 
+def _speak_interruptible(wav_bytes: bytes, on_wake) -> bool:
+    """Play wav_bytes while listening for the wake word so the user can barge in.
+
+    Mirrors the main reply path's barge-in: a background listener stops playback
+    the instant the wake word fires, and the eyes/display track speech amplitude
+    throughout. Used by the unprompted speech paths (idle utterances, camera
+    observations) which otherwise played to completion and ignored the wake word.
+
+    Returns True if the wake word interrupted playback — the caller should set
+    skip_wake_word so the next loop records the new command immediately. When not
+    interrupted, the eyes are turned off and the display returned to idle here.
+    """
+    _stop_play = threading.Event()
+    _interrupted = threading.Event()
+    _cancel_listener = threading.Event()
+
+    def _interrupt_listener():
+        if wake_word.wait_for_wake_word(cancel=_cancel_listener):
+            print("[skull] Interrupted — new command incoming.")
+            _stop_play.set()
+            _interrupted.set()
+            if on_wake:
+                on_wake()
+
+    int_thread = threading.Thread(target=_interrupt_listener, daemon=True)
+    int_thread.start()
+
+    def _drive_visuals(amp: float) -> None:
+        eyes.set_amplitude(amp)
+        display.set_amplitude(amp)
+
+    # Route to the same output the main reply path uses: cast to the Google Home
+    # when configured, otherwise the local speaker. Either way the eyes/display
+    # track amplitude and stop_event provides barge-in.
+    if cast_audio.is_configured():
+        cast_audio.play(wav_bytes, amplitude_fn_setter=lambda fn: _drive_visuals(fn()), stop_event=_stop_play)
+    else:
+        amp_ref = [None]
+        play_done = threading.Event()
+
+        def receive_amp(fn):
+            amp_ref[0] = fn
+
+        def eye_loop():
+            time.sleep(0.05)
+            while not play_done.is_set():
+                amp = amp_ref[0]() if amp_ref[0] else 0.0
+                _drive_visuals(amp)
+                time.sleep(0.025)
+
+        eye_thread = threading.Thread(target=eye_loop, daemon=True)
+        eye_thread.start()
+
+        try:
+            audio.play_wav_bytes(
+                wav_bytes,
+                amplitude_cb=receive_amp,
+                stop_event=_stop_play,
+                output_device=config.VOICE_OUTPUT_DEVICE,
+            )
+        finally:
+            play_done.set()
+            eye_thread.join(timeout=1.0)
+
+    if _interrupted.is_set():
+        # Leave the eyes lit — on_wake() already turned them on for the next command.
+        return True
+    eyes.off()
+    display.idle()
+    _cancel_listener.set()
+    int_thread.join(timeout=1.0)
+    return False
+
+
 def main():
     eyes.setup(config.LED_PIN_LEFT, config.LED_PIN_CENTER, config.LED_PIN_RIGHT)
     display.setup()
@@ -185,6 +259,14 @@ def main():
         # Back at idle — undo any music ducking from the previous interaction.
         spotify_ctrl.restore()
 
+        # Immediate feedback the moment the wake word fires: dip music, ping, light
+        # the eyes. Defined once per loop so every speech path — replies and the
+        # unprompted observations/utterances below — can hand it to the barge-in listener.
+        def on_wake():
+            spotify_ctrl.duck()  # dip any playing music for the whole interaction
+            sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
+            eyes.on()
+
         # ── 0a. Speak any reminders that fired during the last conversation ──────
         for _rem in reminders.get_due():
             print(f"[skull] Reminder firing: {_rem['message']}")
@@ -211,19 +293,16 @@ def main():
                 spotify_ctrl.duck()  # restored at the loop top after the `continue` below
                 eyes.on()
                 obs_wav = tts.synthesize(observation)
-                audio.play_wav_bytes(obs_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+                # Barge-in: let the user cut in with the wake word mid-observation.
+                if _speak_interruptible(obs_wav, on_wake):
+                    skip_wake_word = True
             except Exception as e:
                 print(f"[skull] Camera observation error: {e}")
-            finally:
                 eyes.off()
+                display.idle()
             continue
 
         # ── 1. Wait for wake word (skip after a barge-in interruption) ────────
-        def on_wake():
-            spotify_ctrl.duck()  # dip any playing music for the whole interaction
-            sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
-            eyes.on()
-
         if skip_wake_word:
             skip_wake_word = False
             on_wake()
@@ -301,10 +380,11 @@ def main():
                         idle_wav = tts.synthesize(utterance)
                         eyes.on()
                         display.on()
-                        audio.play_wav_bytes(idle_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+                        # Barge-in: let the user cut in with the wake word mid-utterance.
+                        if _speak_interruptible(idle_wav, on_wake):
+                            skip_wake_word = True
                 except Exception as e:
                     print(f"[skull] Idle utterance error: {e}")
-                finally:
                     eyes.off()
                     display.idle()
                 continue  # back to listening without going through record/transcribe
@@ -428,15 +508,15 @@ def main():
                 utterance = brain.idle_utterance()
                 if utterance:
                     print(f"[skull] Idle: {utterance}")
-            
                     idle_wav = tts.synthesize(utterance)
                     eyes.on()
-                    audio.play_wav_bytes(idle_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+                    # Barge-in: let the user cut in with the wake word mid-utterance.
+                    if _speak_interruptible(idle_wav, on_wake):
+                        skip_wake_word = True
             except Exception as e:
                 print(f"[skull] Idle utterance error: {e}")
-            finally:
                 eyes.off()
-                continue  # skip normal brain.respond(); idle timer resets on next loop
+            continue  # skip normal brain.respond(); idle timer resets on next loop
 
         # ── 4. Generate response ───────────────────────────────────────────────
         print("[skull] Consulting the Machine God...")
@@ -491,76 +571,22 @@ def main():
         # ── 5. Synthesize speech ───────────────────────────────────────────────
         tts_text = reply[:1200]  # cap chars (Piper is unlimited; guards ElevenLabs quota)
         try:
+            # synthesize() already falls back from ElevenLabs to local Piper on
+            # quota exhaustion; reaching this except means Piper failed too, so
+            # drop to the OS system voice as a last resort.
             speech_wav = tts.synthesize(tts_text)
         except Exception as e:
-            if "quota_exceeded" in str(e) or "quota" in str(e).lower():
-                print("[skull] ElevenLabs quota exhausted — using system TTS.")
-                try:
-                    tts.synthesize_fallback(tts_text)
-                except Exception as fe:
-                    print(f"[skull] System TTS error: {fe}")
-            else:
-                print(f"[skull] TTS error: {e}")
+            print(f"[skull] TTS error: {e} — using system TTS.")
+            try:
+                tts.synthesize_fallback(tts_text)
+            except Exception as fe:
+                print(f"[skull] System TTS error: {fe}")
             continue
 
-        # ── 6. Play audio + barge-in listener ────────────────────────────────
-
-
-        _stop_play = threading.Event()
-        _interrupted = threading.Event()
-        _cancel_listener = threading.Event()
-
-        def _interrupt_listener():
-            detected = wake_word.wait_for_wake_word(cancel=_cancel_listener)
-            if detected:
-                print("[skull] Interrupted — new command incoming.")
-                _stop_play.set()
-                _interrupted.set()
-                on_wake()
-
-        int_thread = threading.Thread(target=_interrupt_listener, daemon=True)
-        int_thread.start()
-
-        def _drive_visuals(amp: float) -> None:
-            eyes.set_amplitude(amp)
-            display.set_amplitude(amp)
-
-        if cast_audio.is_configured():
-            cast_audio.play(speech_wav, amplitude_fn_setter=lambda fn: _drive_visuals(fn()), stop_event=_stop_play)
-            if not _interrupted.is_set():
-                eyes.off()
-                display.idle()
-        else:
-            amp_ref = [None]
-            play_done = threading.Event()
-
-            def receive_amp(fn):
-                amp_ref[0] = fn
-
-            def eye_loop():
-                time.sleep(0.05)
-                while not play_done.is_set():
-                    amp = amp_ref[0]() if amp_ref[0] else 0.0
-                    _drive_visuals(amp)
-                    time.sleep(0.025)
-                if not _interrupted.is_set():
-                    eyes.off()
-                    display.idle()
-
-            eye_thread = threading.Thread(target=eye_loop, daemon=True)
-            eye_thread.start()
-
-            audio.play_wav_bytes(speech_wav, amplitude_cb=receive_amp, stop_event=_stop_play, output_device=config.VOICE_OUTPUT_DEVICE)
-
-            play_done.set()
-            eye_thread.join(timeout=1.0)
-
-        if _interrupted.is_set():
+        # ── 6. Play audio with barge-in (same path as idle observations) ─────────
+        if _speak_interruptible(speech_wav, on_wake):
             # Wake word already heard; go straight to recording next iteration.
             skip_wake_word = True
-        else:
-            _cancel_listener.set()
-            int_thread.join(timeout=1.0)
 
 
 

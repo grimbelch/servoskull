@@ -31,6 +31,7 @@ _mood_rgb = (255, 40, 30)  # base iris colour; default Imperial red
 
 W = H = 240
 _CX = _CY = 120
+_EYE_R = 73   # radius of the cog's central aperture; the iris lives inside this
 
 # GC9A01 command set (subset).
 _SWRESET = 0x01
@@ -181,37 +182,87 @@ def _scale(rgb, k: float):
     return (int(rgb[0] * k), int(rgb[1] * k), int(rgb[2] * k))
 
 
+def _gear_polygon(n_teeth: int, r_root: float, r_tip: float,
+                  tooth_frac: float = 0.52, tip_frac: float = 0.34,
+                  gap_steps: int = 5):
+    """Vertices of a cog: teeth alternate between the tip radius and the root
+    radius around the rim. Teeth are trapezoidal (narrower at the tip); gaps are
+    subdivided so the root follows the circle rather than chording across it."""
+    period = 2 * math.pi / n_teeth
+    half_base = period * tooth_frac / 2
+    half_tip = period * tip_frac / 2
+    polar = []
+    for i in range(n_teeth):
+        a = i * period
+        polar.append((a - half_base, r_root))   # tooth base (rising)
+        polar.append((a - half_tip, r_tip))     # tip left
+        polar.append((a + half_tip, r_tip))     # tip right
+        polar.append((a + half_base, r_root))   # tooth base (falling)
+        gap_start, gap_end = a + half_base, a + period - half_base
+        for s in range(1, gap_steps):           # arc across the gap to next tooth
+            polar.append((gap_start + (gap_end - gap_start) * s / gap_steps, r_root))
+    return [(_CX + r * math.cos(ang), _CY + r * math.sin(ang)) for ang, r in polar]
+
+
+def _make_iris_mask():
+    """White disc over the cog's central aperture. The iris is composited through
+    this mask so its glow never paints over the surrounding gear teeth."""
+    m = Image.new("L", (W, H), 0)
+    ImageDraw.Draw(m).ellipse(
+        [_CX - _EYE_R, _CY - _EYE_R, _CX + _EYE_R, _CY + _EYE_R], fill=255)
+    return m
+
+
 def _make_bezel():
-    """Static background: dark face + Mechanicus-style tick ring. Drawn once,
-    copied per frame so we only repaint the cheap iris each tick."""
+    """Static background: an Adeptus Mechanicus cog wheel with a dark central
+    aperture. Drawn once; the glowing iris is composited into the aperture each
+    frame (see _render_frame), so we only repaint the cheap iris per tick."""
+    GEAR = (60, 62, 70)     # gunmetal cog body
+    EDGE = (120, 124, 138)  # brighter machined edge so the teeth catch light
+    DARK = (24, 25, 30)     # recessed face / bolt holes
+    RIM = (150, 44, 24)     # faint red rim around the aperture, ties glow to metal
+
     bg = Image.new("RGB", (W, H), (0, 0, 0))
     d = ImageDraw.Draw(bg)
-    d.ellipse([2, 2, W - 3, H - 3], outline=(40, 6, 4), width=3)
-    for deg in range(0, 360, 15):
+
+    # Toothed cog body — the polygon fills solidly from the teeth inward.
+    d.polygon(_gear_polygon(11, r_root=96, r_tip=117), fill=GEAR, outline=EDGE, width=3)
+
+    # Bolt holes around the inner band (Mechanicus detail).
+    for deg in range(0, 360, 30):
         a = math.radians(deg)
-        r0, r1 = 116, (104 if deg % 45 == 0 else 110)
-        x0 = _CX + r0 * math.cos(a); y0 = _CY + r0 * math.sin(a)
-        x1 = _CX + r1 * math.cos(a); y1 = _CY + r1 * math.sin(a)
-        d.line([x0, y0, x1, y1], fill=(70, 12, 8), width=2)
+        bx, by = _CX + 86 * math.cos(a), _CY + 86 * math.sin(a)
+        d.ellipse([bx - 3, by - 3, bx + 3, by + 3], fill=DARK)
+
+    # Machined groove + recessed face stepping down to the eye aperture.
+    d.ellipse([_CX - 80, _CY - 80, _CX + 80, _CY + 80], outline=EDGE, width=2)
+    d.ellipse([_CX - 78, _CY - 78, _CX + 78, _CY + 78], fill=DARK)
+    # Glowing red rim of the aperture (its inner part is hidden under the iris).
+    d.ellipse([_CX - 75, _CY - 75, _CX + 75, _CY + 75], outline=RIM, width=3)
     return bg
 
 
-def _render_frame(bezel, amp: float):
-    """Compose one iris frame for normalized amplitude `amp` (0..1)."""
+def _render_frame(bezel, mask, amp: float):
+    """Compose one iris frame for normalized amplitude `amp` (0..1). The iris is
+    drawn on its own layer and pasted through `mask` so it stays in the aperture."""
     img = bezel.copy()
-    d = ImageDraw.Draw(img)
     base = _mood_rgb
     intensity = 0.25 + 0.75 * amp           # never fully dark
-    iris_r = 36 + 34 * amp                   # iris grows as it "speaks"
+    iris_r = 30 + 30 * amp                   # iris grows as it "speaks"
+
+    iris = Image.new("RGB", (W, H), (0, 0, 0))
+    d = ImageDraw.Draw(iris)
 
     def disc(r, colour):
         d.ellipse([_CX - r, _CY - r, _CX + r, _CY + r], fill=colour)
 
-    disc(iris_r * 1.9, _scale(base, intensity * 0.10))   # outer halo
-    disc(iris_r * 1.35, _scale(base, intensity * 0.30))  # glow
+    disc(iris_r * 2.0, _scale(base, intensity * 0.12))   # outer halo (fills aperture at peak)
+    disc(iris_r * 1.45, _scale(base, intensity * 0.32))  # glow
     disc(iris_r, _scale(base, intensity))                # iris
     disc(iris_r * 0.55, _scale(base, min(1.0, intensity * 1.4)))  # hot core
-    disc(iris_r * 0.28, (8, 0, 0))                       # pupil
+    disc(iris_r * 0.26, (8, 0, 0))                       # pupil
+
+    img.paste(iris, (0, 0), mask)
     return img
 
 
@@ -219,6 +270,7 @@ def _render_frame(bezel, amp: float):
 
 def _loop():
     bezel = _make_bezel()
+    mask = _make_iris_mask()
     shown = -1.0          # last amplitude actually drawn
     t0 = time.monotonic()
     while not _stop.is_set():
@@ -233,7 +285,7 @@ def _loop():
         else:
             shown += (target - shown) * 0.35
         try:
-            _blit(_render_frame(bezel, max(0.0, min(1.0, shown))))
+            _blit(_render_frame(bezel, mask, max(0.0, min(1.0, shown))))
         except Exception as e:
             print(f"[display] render error: {e}")
             return

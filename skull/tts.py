@@ -48,10 +48,35 @@ def _synthesize_piper(text: str) -> bytes:
 
 # ── Public API ─────────────────────────────────────────────────────────────────
 
+# Once ElevenLabs reports its quota is gone, stop calling it for the rest of the
+# session — every further phrase goes straight to the local Piper voice instead
+# of paying the network round-trip just to get another quota error.
+_elevenlabs_exhausted = False
+
+
+def _is_quota_error(e: Exception) -> bool:
+    msg = str(e).lower()
+    return any(s in msg for s in ("quota", "payment", "unauthorized", "401", "402"))
+
+
 def synthesize(text: str) -> bytes:
-    """Convert text to WAV bytes using the configured TTS backend."""
-    if config.TTS_BACKEND.lower() == "elevenlabs":
-        return _synthesize_elevenlabs(text)
+    """Convert text to WAV bytes using the configured TTS backend.
+
+    When the backend is ElevenLabs but its quota is exhausted (or it otherwise
+    fails), fall back to the local Piper model so the skull keeps talking — just
+    in its local voice rather than going silent.
+    """
+    global _elevenlabs_exhausted
+    if config.TTS_BACKEND.lower() == "elevenlabs" and not _elevenlabs_exhausted:
+        try:
+            return _synthesize_elevenlabs(text)
+        except Exception as e:
+            if _is_quota_error(e):
+                print("[tts] ElevenLabs quota exhausted — falling back to local "
+                      "Piper voice for the rest of this session.")
+                _elevenlabs_exhausted = True
+            else:
+                print(f"[tts] ElevenLabs error ({e}) — falling back to local Piper voice.")
     return _synthesize_piper(text)
 
 
