@@ -49,9 +49,22 @@ _SEARCH_PHRASES = [
     "Searching the cogitator banks.",
 ]
 
+# Spoken the instant the user's request is heard — confirms receipt before the
+# (otherwise silent) thinking begins. Fires on EVERY request, not just slow tool
+# calls, so even a fast reply is preceded by acknowledgement.
+_ACK_PHRASES = [
+    "Acknowledged.",
+    "As you command. One moment.",
+    "Understood. Processing.",
+    "Compliance. Stand by.",
+    "By your will, my Lord.",
+    "Affirmative. This unit attends to it.",
+]
+
 _wake_wavs: list = []
 _cogitation_wavs: list = []
 _search_wavs: list = []
+_ack_wavs: list = []
 
 # Serialises filler speech (search announcement + cogitation) so two threads never
 # open the output device at once. The final reply plays after these are done.
@@ -59,8 +72,8 @@ _speech_lock = threading.Lock()
 
 
 def _preload_phrases() -> None:
-    global _wake_wavs, _cogitation_wavs, _search_wavs
-    wake, cog, search = [], [], []
+    global _wake_wavs, _cogitation_wavs, _search_wavs, _ack_wavs
+    wake, cog, search, ack = [], [], [], []
     for phrase in _WAKE_PHRASES:
         try:
             wake.append(tts.synthesize(phrase))
@@ -76,10 +89,16 @@ def _preload_phrases() -> None:
             search.append(tts.synthesize(phrase))
         except Exception as e:
             print(f"[skull] Search phrase preload warning: {e}")
+    for phrase in _ACK_PHRASES:
+        try:
+            ack.append(tts.synthesize(phrase))
+        except Exception as e:
+            print(f"[skull] Ack phrase preload warning: {e}")
     # Replace atomically so the main thread always sees a complete list
     _wake_wavs = wake
     _cogitation_wavs = cog
     _search_wavs = search
+    _ack_wavs = ack
     print(f"[skull] Phrases preloaded ({config.TTS_BACKEND})")
 
 
@@ -101,6 +120,22 @@ def _announce_search(tool_names) -> None:
                 )
         except Exception as e:
             print(f"[skull] Search announcement error: {e}")
+
+
+def _acknowledge() -> None:
+    """Speak an immediate confirmation that the request was heard.
+
+    Fires on every request (before the silent thinking begins), so the user always
+    gets prompt feedback even when the reply itself comes back quickly. Plays
+    blocking under _speech_lock so it finishes before the cogitation loop starts
+    and never overlaps another output stream.
+    """
+    with _speech_lock:
+        try:
+            wav = random.choice(_ack_wavs) if _ack_wavs else tts.synthesize(random.choice(_ACK_PHRASES))
+            audio.play_wav_bytes(wav, output_device=config.VOICE_OUTPUT_DEVICE)
+        except Exception as e:
+            print(f"[skull] Acknowledgement error: {e}")
 
 
 def _cogitation_loop(cancel: threading.Event) -> None:
@@ -519,6 +554,9 @@ def main():
             continue  # skip normal brain.respond(); idle timer resets on next loop
 
         # ── 4. Generate response ───────────────────────────────────────────────
+        # Acknowledge the request immediately, then think (cogitation loop fills
+        # longer waits with periodic phrases).
+        _acknowledge()
         print("[skull] Consulting the Machine God...")
         _cancel_cog = threading.Event()
         cog_thread = threading.Thread(target=_cogitation_loop, args=(_cancel_cog,), daemon=True)
