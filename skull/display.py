@@ -13,6 +13,7 @@ Enable with DISPLAY_ENABLED=true in .env. Wiring lives in config.py.
 
 from __future__ import annotations
 import math
+import random
 import threading
 import time
 
@@ -31,6 +32,9 @@ _thinking = False          # True while the brain is cogitating; spins the cog
 _mood_rgb = (255, 40, 30)  # base iris colour; default Imperial red
 
 _SPIN_DEG_PER_SEC = 80.0   # cog rotation speed while thinking
+
+_BLINK_DUR = 0.14          # seconds for one close-and-open blink
+_BLINK_GAP = (2.5, 6.0)    # random idle interval (s) between blinks
 
 W = H = 240
 _CX = _CY = 120
@@ -245,14 +249,17 @@ def _make_bezel():
     return bg
 
 
-def _render_frame(bezel, mask, amp: float, angle: float = 0.0):
+def _render_frame(bezel, mask, amp: float, angle: float = 0.0, blink: float = 0.0):
     """Compose one iris frame for normalized amplitude `amp` (0..1). The iris is
     drawn on its own layer and pasted through `mask` so it stays in the aperture.
 
     `angle` (degrees) rotates the cog about its centre — used to spin the gear
     while Omega-7 is thinking. The cog fits inside the panel's inscribed circle
     (tip radius 117 < 120), so rotation never clips it; the iris is a centred
-    disc and so is unaffected."""
+    disc and so is unaffected.
+
+    `blink` (0=open..1=fully closed) squashes the iris vertically about its
+    centre into a slit, so the eye reads as blinking."""
     # rotate() returns a fresh image we can draw on; otherwise copy the shared bezel.
     img = bezel.rotate(angle, resample=Image.BICUBIC) if angle else bezel.copy()
     base = _mood_rgb
@@ -271,6 +278,14 @@ def _render_frame(bezel, mask, amp: float, angle: float = 0.0):
     disc(iris_r * 0.55, _scale(base, min(1.0, intensity * 1.4)))  # hot core
     disc(iris_r * 0.26, (8, 0, 0))                       # pupil
 
+    if blink > 0.0:
+        # Squash the iris layer vertically about centre — an eyelid closing to a
+        # slit. Rebuild on black so the closed band reads as a dark lid.
+        open_h = max(1, int(round(H * (1.0 - blink))))
+        squashed = iris.resize((W, open_h), resample=Image.BILINEAR)
+        iris = Image.new("RGB", (W, H), (0, 0, 0))
+        iris.paste(squashed, (0, (H - open_h) // 2))
+
     img.paste(iris, (0, 0), mask)
     return img
 
@@ -284,6 +299,8 @@ def _loop():
     angle = 0.0           # current cog rotation (degrees), advanced while thinking
     t0 = time.monotonic()
     last = t0
+    next_blink = t0 + random.uniform(*_BLINK_GAP)  # when the next blink starts
+    blink_t0 = None       # start time of the in-progress blink, else None
     while not _stop.is_set():
         now = time.monotonic()
         dt, last = now - last, now
@@ -301,8 +318,19 @@ def _loop():
         # gear doesn't snap back to zero.
         if _thinking:
             angle = (angle + _SPIN_DEG_PER_SEC * dt) % 360
+        # Blink every few seconds: a quick close-and-open easing 0->1->0.
+        if blink_t0 is None and now >= next_blink:
+            blink_t0 = now
+        blink = 0.0
+        if blink_t0 is not None:
+            p = (now - blink_t0) / _BLINK_DUR
+            if p >= 1.0:
+                blink_t0 = None
+                next_blink = now + random.uniform(*_BLINK_GAP)
+            else:
+                blink = math.sin(math.pi * p)  # 0 at edges, fully closed mid-blink
         try:
-            _blit(_render_frame(bezel, mask, max(0.0, min(1.0, shown)), angle))
+            _blit(_render_frame(bezel, mask, max(0.0, min(1.0, shown)), angle, blink))
         except Exception as e:
             print(f"[display] render error: {e}")
             return
