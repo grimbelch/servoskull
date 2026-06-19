@@ -28,7 +28,7 @@ sudo apt-get install -y \
     portaudio19-dev \
     espeak \
     git \
-    libatlas-base-dev \
+    libopenblas-dev \
     ffmpeg \
     python3-opencv
 
@@ -46,7 +46,18 @@ source .venv/bin/activate
 # ── 3. Python dependencies ──────────────────────────────────────────────────
 echo "[3/5] Installing Python packages..."
 pip install --upgrade pip
-pip install -r requirements.txt
+
+# openWakeWord lists tflite-runtime as a hard dependency on Linux, but tflite-runtime
+# ships no wheels for Python 3.13 (Debian trixie's default). We run wake-word inference
+# through ONNX (models/servoskull.onnx), so install openWakeWord WITHOUT its deps and
+# provide the ONNX runtime (plus openWakeWord's other real deps) ourselves.
+pip install --no-deps openwakeword
+pip install onnxruntime tqdm requests scikit-learn
+
+# openwakeword is already installed above (--no-deps, ONNX-only). Filter its line out
+# here so pip doesn't re-resolve its Linux-only tflite-runtime pin and fail. The line
+# stays in requirements.txt because it installs fine on Mac/Windows (tflite is Linux-only).
+grep -v '^openwakeword' requirements.txt | pip install -r /dev/stdin
 
 # openWakeWord ships without model weights — fetch the shared feature extractors
 # (melspectrogram + embedding) that every Model() needs, custom wake words included.

@@ -1,20 +1,33 @@
 Low-hanging fruit
 
 [X] Sound effects — Play short 40k audio stings (mechanicus chimes, vox-crackle) before speaking or on wake. ElevenLabs has a sound generation API; alternatively just bundle a few .wav files.
+
 Daily briefing — On first wake each morning, Omega-7 proactively delivers a Portland weather + top news summary without being asked. Just check wall-clock time and a "briefed today" flag.
+
 [X] Timers & reminders — "Set a reminder in 20 minutes" is a natural fit. Store pending reminders, check them in the idle loop, and speak them when they fire.
+
 Warhammer Community RSS — Add a warhammer_news tool that scrapes warhammer-community.com so Omega-7 can report on new releases and articles in character.
+
+
 
 Medium effort
 
 Jaw servo (lip sync) — Wire a servo to the skull jaw and drive it from the amplitude_cb signal already computed in audio.play_wav_bytes(). The RMS value maps directly to jaw angle.
+
 Proximity trigger — Use an HC-SR04 ultrasonic sensor or PIR module on a GPIO pin. When someone walks into range, Omega-7 wakes and greets them without needing a wake word.
+
 Vision on demand — The camera module is already there. Add a describe_scene tool that captures a frame, base64-encodes it, and sends it to Claude's vision model. "What do you see, Omega-7?"
-Mood/personality state — Track a simple internal state (alert, contemplative, suspicious) that drifts over time and influences word choice in prompts. Idle utterances would feel more varied.
+
+[X] Mood/personality state — Track a simple internal state (alert, contemplative, suspicious) that drifts over time and influences word choice in prompts. Idle utterances would feel more varied.
+
+
 
 Bigger projects
 
 Local LLM fallback — Run Ollama (Llama 3 or Mistral) on the Pi for offline operation. Fall back to it when the Anthropic API is unreachable.
+
 Home Assistant integration — A control_lights tool that calls the HA REST API. "Dim the living room" fits the 40k theme perfectly ("Reconfigure the lumens of Sector 4, servitor").
+
 [X] Custom ElevenLabs voice — Clone a voice trained specifically to sound like a servo-skull. ElevenLabs' voice design tools can get you a raspy, mechanical 40k tone that Piper can't match.
+
 Multi-skull network — If you ever build a second skull, a shared MQTT or Redis channel lets them exchange "cogitator dispatches" and respond to each other.
