@@ -71,27 +71,80 @@ _ack_wavs: list = []
 _speech_lock = threading.Lock()
 
 
+# ── ElevenLabs voice cache for the canned phrases ──────────────────────────────
+# The prerecorded phrases (wake / cogitation / search / acknowledgement / boot) are
+# spoken in the ElevenLabs voice regardless of TTS_BACKEND (which still governs the
+# dynamic conversational replies). To avoid hitting the API on every boot, each
+# phrase's WAV is cached to disk keyed by (voice id, text): changing
+# ELEVENLABS_VOICE_ID transparently regenerates them, and RESET_VOICE_CACHE=true in
+# .env wipes the cache so everything is re-synthesized on the next run.
+import hashlib
+import pathlib
+
+_VOICE_CACHE_DIR = pathlib.Path("models/phrase_cache")
+
+
+def _voice_cache_path(text: str) -> pathlib.Path:
+    key = f"{config.ELEVENLABS_VOICE_ID}:{text}".encode("utf-8")
+    return _VOICE_CACHE_DIR / f"{hashlib.sha1(key).hexdigest()[:16]}.wav"
+
+
+def _eleven_cached(text: str) -> bytes:
+    """Synthesize `text` in the ElevenLabs voice, caching the WAV to disk so the API
+    is hit at most once per (voice, phrase)."""
+    path = _voice_cache_path(text)
+    if path.exists():
+        return path.read_bytes()
+    wav = tts.synthesize_elevenlabs(text)  # raises on failure → not cached
+    try:
+        _VOICE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(wav)
+    except Exception as e:
+        print(f"[skull] Voice cache write error: {e}")
+    return wav
+
+
+def reset_voice_cache_if_requested() -> None:
+    """If RESET_VOICE_CACHE=true, delete cached phrase audio (incl. the legacy boot
+    cache) so the canned phrases are re-synthesized with the current ElevenLabs voice
+    on this run."""
+    import os
+    if os.getenv("RESET_VOICE_CACHE", "false").lower() != "true":
+        return
+    import shutil
+    try:
+        if _VOICE_CACHE_DIR.exists():
+            shutil.rmtree(_VOICE_CACHE_DIR)
+        legacy = pathlib.Path(_BOOT_CACHE)
+        if legacy.exists():
+            legacy.unlink()
+        print("[skull] RESET_VOICE_CACHE set — cleared cached phrase audio; regenerating "
+              "with ElevenLabs. Set RESET_VOICE_CACHE=false to stop wiping on every boot.")
+    except Exception as e:
+        print(f"[skull] Voice cache reset error: {e}")
+
+
 def _preload_phrases() -> None:
     global _wake_wavs, _cogitation_wavs, _search_wavs, _ack_wavs
     wake, cog, search, ack = [], [], [], []
     for phrase in _WAKE_PHRASES:
         try:
-            wake.append(tts.synthesize(phrase))
+            wake.append(_eleven_cached(phrase))
         except Exception as e:
             print(f"[skull] Wake phrase preload warning: {e}")
     for phrase in _COGITATION_PHRASES:
         try:
-            cog.append(tts.synthesize(phrase))
+            cog.append(_eleven_cached(phrase))
         except Exception as e:
             print(f"[skull] Cogitation preload warning: {e}")
     for phrase in _SEARCH_PHRASES:
         try:
-            search.append(tts.synthesize(phrase))
+            search.append(_eleven_cached(phrase))
         except Exception as e:
             print(f"[skull] Search phrase preload warning: {e}")
     for phrase in _ACK_PHRASES:
         try:
-            ack.append(tts.synthesize(phrase))
+            ack.append(_eleven_cached(phrase))
         except Exception as e:
             print(f"[skull] Ack phrase preload warning: {e}")
     # Replace atomically so the main thread always sees a complete list
@@ -99,7 +152,7 @@ def _preload_phrases() -> None:
     _cogitation_wavs = cog
     _search_wavs = search
     _ack_wavs = ack
-    print(f"[skull] Phrases preloaded ({config.TTS_BACKEND})")
+    print("[skull] Phrases preloaded (elevenlabs voice, cached)")
 
 
 def _announce_search(tool_names) -> None:
@@ -163,22 +216,9 @@ _BOOT_CACHE = "models/boot_phrase.wav"
 
 
 def _load_or_record_boot_wav() -> bytes:
-    import pathlib
-    cache = pathlib.Path(_BOOT_CACHE)
-    if cache.exists():
-        print(f"[skull] Loading cached boot phrase from {_BOOT_CACHE}")
-        return cache.read_bytes()
-    print("[skull] Recording boot phrase with ElevenLabs (first run — will cache for next time)...")
-    saved_backend = config.TTS_BACKEND
-    config.TTS_BACKEND = "elevenlabs"
-    try:
-        wav = tts.synthesize(_BOOT_PHRASE)
-    finally:
-        config.TTS_BACKEND = saved_backend
-    cache.parent.mkdir(parents=True, exist_ok=True)
-    cache.write_bytes(wav)
-    print(f"[skull] Boot phrase cached to {_BOOT_CACHE}")
-    return wav
+    """Boot line in the ElevenLabs voice, served from the shared voice cache (keyed
+    by voice id, so it regenerates if the voice changes or the cache is reset)."""
+    return _eleven_cached(_BOOT_PHRASE)
 
 
 def _speak_interruptible(wav_bytes: bytes, on_wake) -> bool:
@@ -270,6 +310,10 @@ def main():
         print(f"[skull] Available devices:\n{devices}")
     except Exception:
         pass
+
+    # Honour RESET_VOICE_CACHE before anything reads the cache, so the boot phrase
+    # and preloaded phrases regenerate with the current ElevenLabs voice this run.
+    reset_voice_cache_if_requested()
 
     # Pre-synthesize phrases in background while boot phrase is being generated
     threading.Thread(target=_preload_phrases, daemon=True).start()

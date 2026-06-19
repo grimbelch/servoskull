@@ -80,6 +80,17 @@ def synthesize(text: str) -> bytes:
     return _synthesize_piper(text)
 
 
+def synthesize_elevenlabs(text: str) -> bytes:
+    """Synthesize specifically in the ElevenLabs voice, ignoring TTS_BACKEND.
+
+    Used for the prerecorded canned phrases, which are always spoken in the
+    ElevenLabs voice. Raises on failure (no Piper fallback) so the caller can avoid
+    caching a fallback under an ElevenLabs key. This touches no global state, so it
+    is safe to call concurrently (the canned phrases preload in a background thread
+    while the boot phrase synthesizes on the main thread)."""
+    return _synthesize_elevenlabs(text)
+
+
 def synthesize_fallback(text: str) -> None:
     """Last-resort system TTS (ElevenLabs quota exhausted, Piper unavailable)."""
     if sys.platform == "darwin":
