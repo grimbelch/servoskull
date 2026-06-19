@@ -24,11 +24,17 @@ def _native_input_rate(device_index: int) -> int:
 
 
 def record(seconds: float, device_index: int = -1, silence_threshold: int = 300, silence_duration: float = 1.5) -> tuple:
-    """Record audio as a single continuous sd.rec() call, aborting early on sustained silence.
+    """Record audio via a single InputStream, stopping early on sustained silence.
 
     Returns (pcm_bytes, sample_rate) at the device's native rate.
-    Single call avoids the gap/choppiness of repeated sd.rec() calls.
-    InputStream callbacks were unreliable on macOS, so we use sd.rec() + sd.stop().
+
+    Uses ONE explicitly-managed InputStream, started once and closed exactly once
+    from this thread. The previous sd.rec()/sd.stop() approach let the silence
+    monitor and the timeout-recovery path BOTH call sd.stop() on the shared global
+    stream, racing PortAudio's (non-thread-safe) Pa_CloseStream and aborting the
+    process with "double free" / a futex error. Here the audio callback only
+    appends samples — it issues no PortAudio control calls — and stop/close happen
+    once, in finally.
     """
     native = _native_input_rate(device_index)
     dev = device_index if device_index >= 0 else None
@@ -41,73 +47,65 @@ def record(seconds: float, device_index: int = -1, silence_threshold: int = 300,
 
     print(f"[audio] recording: device={dev}, rate={native}Hz")
 
-    buf = sd.rec(max_frames, samplerate=native, channels=1, device=dev, dtype="int16")
+    chunks: list = []
+    chunks_lock = threading.Lock()
+    captured = [0]
+
+    def _cb(indata, frames, time_info, status):
+        with chunks_lock:
+            chunks.append(indata.copy())
+            captured[0] += frames
+
+    def _collected() -> np.ndarray:
+        with chunks_lock:
+            if not chunks:
+                return np.zeros(0, dtype=np.int16)
+            return np.concatenate(chunks)[:, 0]
+
+    stream = sd.InputStream(samplerate=native, channels=1, dtype="int16",
+                            device=dev, callback=_cb)
     t_start = time.monotonic()
-    stop_at_frame = [max_frames]
-
-    def _monitor():
-        time.sleep(lead_in_secs)
-        silent_chunks = 0
-        chunk_num = 0
-        max_rms = 0.0
-
+    hard_deadline = t_start + seconds + 5.0  # wall-clock safety net; never hangs
+    silent_chunks = 0
+    stream.start()
+    try:
         while True:
             time.sleep(ANALYSIS_SECS)
-            elapsed = time.monotonic() - t_start
-            write_pos = min(int(elapsed * native), max_frames)
-            read_end = write_pos
-            read_start = max(0, read_end - analysis_frames)
-            if read_end <= read_start:
+            now = time.monotonic()
+            if captured[0] >= max_frames:
+                break
+            if now >= hard_deadline:
+                print("[audio] Recording timed out — stopping")
+                break
+            if now - t_start < lead_in_secs:
                 continue
-
-            chunk = buf[read_start:read_end, 0]
-            rms = float(np.sqrt(np.mean(chunk.astype(np.float32) ** 2)))
-            max_rms = max(max_rms, rms)
-            chunk_num += 1
+            data = _collected()
+            if len(data) < analysis_frames:
+                continue
+            window = data[-analysis_frames:]
+            rms = float(np.sqrt(np.mean(window.astype(np.float32) ** 2)))
             from skull import config as _cfg
             if _cfg.AUDIO_DEBUG:
-                print(f"[audio] chunk {chunk_num}: rms={rms:.1f} (threshold={silence_threshold})")
-
+                print(f"[audio] rms={rms:.1f} (threshold={silence_threshold})")
             if rms < silence_threshold:
                 silent_chunks += 1
+                if silent_chunks >= silence_chunks_needed:
+                    break
             else:
                 silent_chunks = 0
-
-            if silent_chunks >= silence_chunks_needed:
-                stop_at_frame[0] = write_pos
-                sd.stop()
-                return
-
-            if write_pos >= max_frames:
-                return
-
-    monitor = threading.Thread(target=_monitor, daemon=True)
-    monitor.start()
-
-    # sd.wait() has no timeout — wrap it in a thread so we can enforce one.
-    # Without this, a CoreAudio hang (macOS mic permission/init race) blocks forever.
-    _sd_wait_done = threading.Event()
-
-    def _run_sd_wait():
-        sd.wait()
-        _sd_wait_done.set()
-
-    threading.Thread(target=_run_sd_wait, daemon=True).start()
-    if not _sd_wait_done.wait(timeout=seconds + 5.0):
-        print("[audio] Recording timed out — forcing stop")
+    finally:
+        # Stop and close exactly once, from this thread only.
         try:
-            sd.stop()
-        except Exception:
-            pass
-        _sd_wait_done.wait(timeout=1.0)
+            stream.stop()
+        finally:
+            stream.close()
 
-    monitor.join(timeout=1.0)
-
-    frames = min(stop_at_frame[0], max_frames)
-    total_secs = frames / native
+    data = _collected()
+    frames = min(len(data), max_frames)
+    total_secs = frames / native if native else 0.0
     print(f"[audio] done: {frames} frames ({total_secs:.1f}s)")
 
-    pcm_arr = buf[:frames, 0].copy()
+    pcm_arr = data[:frames].copy()
     if not pcm_arr.any():
         return b"", native
     return pcm_arr.tobytes(), native
