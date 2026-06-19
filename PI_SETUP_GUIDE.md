@@ -44,8 +44,14 @@ If anything core is missing, stop and source it before Friday — the Pi 5 **req
 2. Insert the microSD.
 3. In Imager:
    - **Device:** Raspberry Pi 5
-   - **OS:** Raspberry Pi OS (64-bit) — the full desktop version (Bookworm)
+   - **OS:** Raspberry Pi OS (64-bit) — the full desktop version
    - **Storage:** your microSD
+
+> **OS version note:** current Imager installs **Debian _Trixie_** (Python 3.13, PipeWire
+> audio), which is what this guide targets. Trixie dropped some packages this build used to
+> rely on — `pi_setup.sh` already handles the substitutions (`libopenblas-dev` for the old
+> `libatlas-base-dev`; openWakeWord installed ONNX-only because `tflite-runtime` has no
+> Python-3.13 wheels). Audio also goes through **PipeWire**, not PulseAudio (see §6).
 4. Click the gear / **Edit Settings** before writing and pre-configure:
    - **Hostname:** `omega7`
    - **Username/password:** pick a user (e.g. `sean`) — the systemd service runs as this user
@@ -71,7 +77,7 @@ sudo raspi-config nonint do_spi 0      # enable SPI0 (the pi_setup.sh script als
 sudo reboot
 ```
 
-The camera (CSI) and USB audio need **no** manual enabling on Bookworm — they auto-detect.
+The camera (CSI) and USB audio need **no** manual enabling — they auto-detect.
 
 ---
 
@@ -139,13 +145,13 @@ Wiring is exactly as documented in [skull/config.py](skull/config.py) (lines 25�
 
 | Panel pin | Connects to | GPIO (BCM) | Physical pin |
 |---|---|---|---|
-| VCC | 3.3 V | — | 17 |
 | GND | Ground | — | 20 |
-| SDA (MOSI) | SPI data | GPIO10 | 19 |
+| VCC | 3.3 V | — | 17 |
 | SCL (SCK) | SPI clock | GPIO11 | 23 |
-| CS | SPI chip-select (CE0) | GPIO8 | 24 |
-| DC | Data/command | GPIO25 | 22 |
+| SDA (MOSI) | SPI data | GPIO10 | 19 |
 | RES | Reset | GPIO24 | 18 |
+| DC | Data/command | GPIO25 | 22 |
+| CS | SPI chip-select (CE0) | GPIO8 | 24 |
 | BLK | Backlight | GPIO12 | 32 |
 
 > **VCC goes to 3.3 V, not 5 V.** The GC9A01's logic is 3.3 V; 5 V can damage it.
@@ -177,7 +183,7 @@ The Arducam kit includes the 15-to-22-pin adapter you need.
 4. Do the camera-end of the ribbon the same way (contacts to the lens side).
 5. Never insert/remove the ribbon while powered.
 
-`picamera2` auto-detects the IMX708 on Bookworm — your [skull/camera.py](skull/camera.py) uses
+`picamera2` auto-detects the IMX708 — your [skull/camera.py](skull/camera.py) uses
 it directly. You'll flip `CAMERA_ENABLED=true` in step 6.
 
 ### 4.5 Audio — UGREEN USB sound card
@@ -244,14 +250,19 @@ At the end it prints your **audio device indices** — keep that output, you nee
 
 > **Pi 5 GPIO shim (important).** The classic `RPi.GPIO` library does **not** work on the Pi 5
 > (its GPIO chip changed). Both [skull/eyes.py](skull/eyes.py) and [skull/display.py](skull/display.py)
-> import `RPi.GPIO`, and without it the eyes/display silently do nothing. Install the drop-in
-> shim into the venv:
+> import `RPi.GPIO`, and without it the eyes/display silently do nothing (`display.py` prints
+> "spidev/RPi.GPIO/Pillow unavailable — skipping"). Install the drop-in shim into the venv:
 > ```bash
+> # rpi-lgpio depends on lgpio, which has NO prebuilt wheel for Python 3.13 — it compiles
+> # from source, so install the build tools first or the wheel build fails (swig / -llgpio):
+> sudo apt install -y swig liblgpio-dev python3-dev
 > cd ~/skull && source .venv/bin/activate
-> pip install rpi-lgpio        # provides the RPi.GPIO API on Pi 5
+> pip uninstall -y RPi.GPIO          # remove the incompatible classic lib if present
+> pip install rpi-lgpio              # provides the RPi.GPIO API on Pi 5
 > ```
 > (If you ever see "RuntimeError: Cannot determine SOC peripheral base address", that's the
-> missing shim.)
+> missing shim. `error: command 'swig' failed` or `cannot find -llgpio` means the build deps
+> above aren't installed.)
 
 ---
 
@@ -261,9 +272,17 @@ Edit `~/skull/.env` and set the hardware-specific values. The keys come from
 [skull/config.py](skull/config.py):
 
 ```ini
-# Audio — use the index numbers pi_setup.sh printed for the UGREEN card
-MIC_DEVICE_INDEX=<UGREEN input index>
-AUDIO_OUTPUT_DEVICE=<UGREEN output index>
+# Audio — route through PipeWire, NOT the raw USB card. On Trixie the audio server
+# (PipeWire) owns the card; opening it raw via PortAudio gives "Device unavailable"
+# (PaErrorCode -9985) or paInvalidSampleRate, and mixing raw capture with PipeWire
+# playback caused PortAudio double-free crashes. -1 = PortAudio's default device,
+# which is PipeWire — it resamples and shares the card cleanly.
+MIC_DEVICE_INDEX=-1
+AUDIO_OUTPUT_DEVICE=-1
+
+# Cast OFF — pychromecast isn't installed on the Pi. With it on, the reply audio is
+# routed to a (missing) Google Home and silently dropped instead of playing locally.
+CAST_ENABLED=false
 
 # Round face display — turn it on now that it's wired
 DISPLAY_ENABLED=true
@@ -273,19 +292,26 @@ DISPLAY_ENABLED=true
 CAMERA_ENABLED=true
 ```
 
-Re-run the device list any time without the full installer:
+> **Why `-1` instead of the UGREEN's index?** Pinning the raw card (e.g. `hw:2,0`) fights the
+> PipeWire session for exclusive access and skips resampling. Letting PipeWire mediate is what
+> makes voice **and** Spotify share the one speaker. Only pin a specific index if you've
+> deliberately disabled PipeWire.
+
+Inspect devices any time (sounddevice's list shows which is the PipeWire `default`):
 
 ```bash
 cd ~/skull && source .venv/bin/activate
-python -c "import pyaudio; pa=pyaudio.PyAudio(); [print(i, pa.get_device_info_by_index(i)['name']) for i in range(pa.get_device_count())]"
+python -c "import sounddevice as sd; print(sd.query_devices())"
 ```
 
-Set the PulseAudio default sink to the UGREEN output once (so music routes correctly):
+Set the **PipeWire** default sink to the UGREEN output once (so music routes correctly). Trixie
+uses `wpctl`, not `pactl`:
 
 ```bash
-pactl list short sinks                 # find the UGREEN sink name
-pactl set-default-sink <usb-sink-name>
+wpctl status                           # find the USB sink's numeric ID under "Sinks"
+wpctl set-default <id>                 # e.g. wpctl set-default 45
 ```
+(If you prefer the `pactl` syntax, `sudo apt install pulseaudio-utils` adds a PipeWire-compatible shim.)
 
 ---
 
@@ -337,8 +363,10 @@ sudo systemctl status omega7
 The service ([omega7.service](omega7.service)) restarts on failure and launches on every boot,
 so the finished skull is a headless appliance — power it and it wakes on its own.
 
-Say the wake word (`WAKE_WORD_MODEL` in `.env`, default `hey_jarvis`) and Omega-7 should
-answer in character, eyes and iris pulsing with its speech.
+Say the wake word and Omega-7 should answer in character, eyes and iris pulsing with its
+speech. `WAKE_WORD_MODEL` in `.env` selects the openWakeWord model — a built-in name like
+`hey_jarvis`, or a path to a custom ONNX model (this build uses
+`models/Hey_Robot_20260401_210600.onnx`, i.e. "Hey Robot").
 
 ---
 
@@ -347,12 +375,15 @@ answer in character, eyes and iris pulsing with its speech.
 | Symptom | Likely cause / fix |
 |---|---|
 | Random reboots / lightning-bolt icon | Under-powered — use the 27 W supply, not a phone charger |
-| Display stays black | VCC not on 3.3 V; SPI not enabled (`do_spi 0` + reboot); DC/RES swapped |
-| `display.py` prints "spidev unavailable" | Running off-Pi, or `pip install spidev RPi.GPIO Pillow` missing |
+| Display stays black (backlight on) | VCC not on 3.3 V; SPI not enabled (`do_spi 0` + reboot); DC/RES miswired or floating; SPI clock too fast — set `DISPLAY_SPI_HZ=8000000` in `.env` |
+| `display.py` prints "spidev/RPi.GPIO/Pillow unavailable — skipping" | Pi 5 GPIO shim missing — install `rpi-lgpio` (+ `swig liblgpio-dev`, see §5); or `pip install spidev Pillow` |
 | One LED dark | Reversed polarity (flip the LED) or open resistor joint |
 | Camera "not detected" | Ribbon orientation/seating; only insert with power off; try `libcamera-hello` |
-| No mic input / wrong device | `MIC_DEVICE_INDEX` points at the wrong index — re-list devices (step 6) |
-| Music plays but voice doesn't (or vice-versa) | Default sink not set to UGREEN — `pactl set-default-sink` (step 6) |
+| Boot sound, then `-9985` / `paInvalidSampleRate` in logs | Audio pinned to the raw USB card — set `MIC_DEVICE_INDEX=-1` and `AUDIO_OUTPUT_DEVICE=-1` (route via PipeWire, §6) |
+| Speaks the acknowledgement then goes silent; `[cast] Discovery error: No module named 'pychromecast'` | Cast enabled without the library — set `CAST_ENABLED=false` (§6) |
+| `double free` / `Segmentation fault` / `Pa_CloseStream` abort | Old code — ensure the Pi has pulled the latest (single-stream recorder + reused wake-word model) |
+| No mic input / wrong device | Recording captures silence — confirm `MIC_DEVICE_INDEX=-1`; test with `python -c "import sounddevice as sd,numpy as np; d=sd.rec(int(3*44100),samplerate=44100,channels=1,dtype='int16',blocking=True); sd.wait(); print('RMS',float(np.sqrt(np.mean(d.astype('f4')**2))))"` |
+| Music plays but voice doesn't (or vice-versa) | PipeWire default sink not the UGREEN — `wpctl set-default <id>` (§6) |
 | Vision burns API credits | Tune `CAMERA_COOLDOWN`, `CAMERA_MOTION_THRESHOLD`, `CAMERA_MAX_PER_HOUR` in `.env` |
 
 ---
