@@ -365,6 +365,36 @@ _SPOTIFY_RE = re.compile(
     r"\[SPOTIFY(?::([^\]|]+?)(?:\s*\|\s*on:\s*([^\]]+))?)?\]|\[SPOTIFY_(PAUSE|RESUME|SKIP)\]"
 )
 
+# Deterministic silent-mode intent. haiku often acknowledges a silence/resume
+# request verbally without actually calling set_quiet_mode, so respond() uses
+# these as a fallback to reconcile the state when the tool wasn't invoked.
+_QUIET_OFF_RE = re.compile(
+    r"\byou (?:may|can) (?:speak|talk)\b|\b(?:speak|talk) (?:again|freely)\b"
+    r"|\bresume (?:your )?(?:observ|chatter|remarks?|speech|commentary)"
+    r"|\bend (?:silent|quiet) mode\b|\bstop being (?:silent|quiet)\b"
+    r"|\bbreak your silence\b|\byou(?:'re| are) allowed to (?:talk|speak)\b"
+    r"|\byou may resume\b|\bstart talking again\b",
+    re.I,
+)
+_QUIET_ON_RE = re.compile(
+    r"\b(?:be|stay|keep|remain) (?:silent|quiet)\b|\b(?:silent|quiet) mode\b"
+    r"|\bhold your tongue\b|\bhush\b|\bshush\b|\bshut up\b|\bpipe down\b|\bzip it\b"
+    r"|\bstop (?:your )?(?:observ|talking|chatter|comment)|\bno more (?:observ|comment|chatter|remarks?)"
+    r"|\bcease (?:your )?(?:observ|chatter|comment)|\bsilence\b",
+    re.I,
+)
+
+
+def _quiet_intent(text: str) -> bool | None:
+    """Classify an explicit silence command: True=enter silent mode,
+    False=resume, None=no clear command. Resume is checked first so phrases like
+    'stop being silent' aren't misread as a request for silence."""
+    if _QUIET_OFF_RE.search(text):
+        return False
+    if _QUIET_ON_RE.search(text):
+        return True
+    return None
+
 
 def _strip_actions(text: str) -> str:
     text = re.sub(r"\*[^*]*\*", "", text)
@@ -497,16 +527,32 @@ def respond(user_text: str, on_tool_use=None) -> tuple[str, list[tuple]]:
     date_ctx = f"\n\nCURRENT DATE AND TIME: {now.strftime('%A, %B %-d, %Y at %-I:%M %p')}."
     system = SYSTEM_PROMPT + date_ctx + _memory.longterm_prompt(longterm) + _memory.facts_prompt(facts) + _mood.system_addendum()
 
+    # Record which tools fired so we can reconcile silent mode afterwards.
+    tools_called: list[str] = []
+
+    def _exec(name: str, tool_input: dict) -> str:
+        tools_called.append(name)
+        return _execute_tool(name, tool_input)
+
     raw = _llm.run_conversation(
         system=system,
         history=_history,
         user_text=user_text,
         tools=_TOOLS,
-        execute_tool=_execute_tool,
+        execute_tool=_exec,
         on_tool_use=on_tool_use,
         slow_tools=_SLOW_TOOLS,
         max_tokens=800,
     )
+
+    # Safety net: if the user clearly asked to enter/leave silent mode but the
+    # model only acknowledged it verbally (haiku often skips the tool call),
+    # apply the change deterministically so quiet.json tracks reality.
+    if "set_quiet_mode" not in tools_called:
+        intent = _quiet_intent(user_text)
+        if intent is not None and intent != _quiet.is_silent():
+            print(f"[brain] Silent-mode fallback: model skipped the tool — forcing silent={intent}")
+            _quiet.set_silent(intent)
 
     # Extract Spotify commands
     cmds: list[tuple] = []
