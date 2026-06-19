@@ -27,7 +27,10 @@ _stop = threading.Event()
 # Shared render state (plain float/tuple assignment is atomic enough for our needs).
 _target_amp = 0.0          # 0..1, set from the speech-amplitude loop
 _speaking = False          # True while audio is playing
+_thinking = False          # True while the brain is cogitating; spins the cog
 _mood_rgb = (255, 40, 30)  # base iris colour; default Imperial red
+
+_SPIN_DEG_PER_SEC = 80.0   # cog rotation speed while thinking
 
 W = H = 240
 _CX = _CY = 120
@@ -242,10 +245,16 @@ def _make_bezel():
     return bg
 
 
-def _render_frame(bezel, mask, amp: float):
+def _render_frame(bezel, mask, amp: float, angle: float = 0.0):
     """Compose one iris frame for normalized amplitude `amp` (0..1). The iris is
-    drawn on its own layer and pasted through `mask` so it stays in the aperture."""
-    img = bezel.copy()
+    drawn on its own layer and pasted through `mask` so it stays in the aperture.
+
+    `angle` (degrees) rotates the cog about its centre — used to spin the gear
+    while Omega-7 is thinking. The cog fits inside the panel's inscribed circle
+    (tip radius 117 < 120), so rotation never clips it; the iris is a centred
+    disc and so is unaffected."""
+    # rotate() returns a fresh image we can draw on; otherwise copy the shared bezel.
+    img = bezel.rotate(angle, resample=Image.BICUBIC) if angle else bezel.copy()
     base = _mood_rgb
     intensity = 0.25 + 0.75 * amp           # never fully dark
     iris_r = 30 + 30 * amp                   # iris grows as it "speaks"
@@ -272,20 +281,28 @@ def _loop():
     bezel = _make_bezel()
     mask = _make_iris_mask()
     shown = -1.0          # last amplitude actually drawn
+    angle = 0.0           # current cog rotation (degrees), advanced while thinking
     t0 = time.monotonic()
+    last = t0
     while not _stop.is_set():
+        now = time.monotonic()
+        dt, last = now - last, now
         if _speaking:
             target = _target_amp
         else:
             # Slow idle breathing pulse (~0.2 Hz) so the eye looks "alive".
-            target = 0.12 + 0.06 * (0.5 + 0.5 * math.sin((time.monotonic() - t0) * 1.2))
+            target = 0.12 + 0.06 * (0.5 + 0.5 * math.sin((now - t0) * 1.2))
         # Ease toward the target to smooth the audio loop's jitter.
         if shown < 0:
             shown = target
         else:
             shown += (target - shown) * 0.35
+        # Spin the cog while cogitating; hold the last angle when it stops so the
+        # gear doesn't snap back to zero.
+        if _thinking:
+            angle = (angle + _SPIN_DEG_PER_SEC * dt) % 360
         try:
-            _blit(_render_frame(bezel, mask, max(0.0, min(1.0, shown))))
+            _blit(_render_frame(bezel, mask, max(0.0, min(1.0, shown)), angle))
         except Exception as e:
             print(f"[display] render error: {e}")
             return
@@ -331,11 +348,12 @@ def setup() -> None:
 
 def set_amplitude(amp: float) -> None:
     """Feed a normalized speech amplitude (0..1); marks the eye as speaking."""
-    global _target_amp, _speaking
+    global _target_amp, _speaking, _thinking
     if not _available:
         return
     _target_amp = max(0.0, min(1.0, amp))
     _speaking = True
+    _thinking = False  # speech has begun; stop spinning the cog
 
 
 def set_mood(mood: str) -> None:
@@ -346,22 +364,35 @@ def set_mood(mood: str) -> None:
     _mood_rgb = _MOOD_COLOURS.get((mood or "").upper(), (255, 40, 30))
 
 
+def think(active: bool = True) -> None:
+    """Spin the cog wheel while Omega-7 is cogitating (the silent gap between
+    hearing a command and beginning to speak). The iris keeps its idle breathing
+    pulse underneath. Call think(False) — or any speaking/idle entry point — to
+    stop the spin."""
+    global _thinking
+    if not _available:
+        return
+    _thinking = active
+
+
 def on() -> None:
     """Full-intensity steady gaze (e.g. while attending a command)."""
-    global _target_amp, _speaking
+    global _target_amp, _speaking, _thinking
     if not _available:
         return
     _target_amp = 1.0
     _speaking = True
+    _thinking = False
 
 
 def idle() -> None:
     """Return to the slow idle breathing pulse."""
-    global _speaking, _target_amp
+    global _speaking, _target_amp, _thinking
     if not _available:
         return
     _speaking = False
     _target_amp = 0.0
+    _thinking = False
 
 
 # Alias so call sites that mirror eyes.off() read naturally.

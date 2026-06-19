@@ -602,6 +602,7 @@ def main():
         # longer waits with periodic phrases).
         _acknowledge()
         print("[skull] Consulting the Machine God...")
+        display.think()  # spin the cog while the brain cogitates
         _cancel_cog = threading.Event()
         cog_thread = threading.Thread(target=_cogitation_loop, args=(_cancel_cog,), daemon=True)
         cog_thread.start()
@@ -609,8 +610,9 @@ def main():
             reply, spotify_cmds = brain.respond(user_text, on_tool_use=_announce_search)
         except Exception as e:
             print(f"[skull] Brain error: {e}")
-    
+
             _cancel_cog.set()
+            display.idle()
             continue
         finally:
             _cancel_cog.set()
@@ -663,6 +665,7 @@ def main():
                 tts.synthesize_fallback(tts_text)
             except Exception as fe:
                 print(f"[skull] System TTS error: {fe}")
+            display.idle()  # stop the thinking spin; no amplitude path ran
             continue
 
         # ── 6. Play audio with barge-in (same path as idle observations) ─────────
