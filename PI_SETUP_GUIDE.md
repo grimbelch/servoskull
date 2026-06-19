@@ -141,8 +141,8 @@ Wiring is exactly as documented in [skull/config.py](skull/config.py) (lines 25�
 |---|---|---|---|
 | VCC | 3.3 V | — | 17 |
 | GND | Ground | — | 20 |
-| SCL (SCK) | SPI clock | GPIO11 | 23 |
 | SDA (MOSI) | SPI data | GPIO10 | 19 |
+| SCL (SCK) | SPI clock | GPIO11 | 23 |
 | CS | SPI chip-select (CE0) | GPIO8 | 24 |
 | DC | Data/command | GPIO25 | 22 |
 | RES | Reset | GPIO24 | 18 |

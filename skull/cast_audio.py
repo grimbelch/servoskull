@@ -109,7 +109,16 @@ def is_configured() -> bool:
     import sys
     # On macOS (emulator/dev) casting is opt-in; on Linux (Pi) it's opt-out.
     default = "false" if sys.platform == "darwin" else "true"
-    return os.environ.get("CAST_ENABLED", default).lower() == "true"
+    if os.environ.get("CAST_ENABLED", default).lower() != "true":
+        return False
+    # Casting is impossible without pychromecast (not in the Pi requirements). Report
+    # "not configured" so callers fall back to local playback instead of silently
+    # dropping the audio when the library is absent.
+    try:
+        import pychromecast  # noqa: F401
+    except ImportError:
+        return False
+    return True
 
 
 def play(wav_bytes: bytes, amplitude_fn_setter=None, stop_event: threading.Event = None) -> None:
