@@ -1,5 +1,6 @@
 from __future__ import annotations
 import queue
+import threading
 from math import gcd
 
 import numpy as np
@@ -11,6 +12,22 @@ from skull.config import WAKE_WORD_MODEL, MIC_DEVICE_INDEX, WAKE_WORD_THRESHOLD
 TARGET_RATE = 16000
 CHUNK = 1280  # 80 ms at 16 kHz — minimum required by openwakeword
 THRESHOLD = WAKE_WORD_THRESHOLD
+
+# Build the openWakeWord model ONCE and reuse it. Constructing a Model spins up
+# onnxruntime inference sessions in native code; doing that on every call (this
+# function runs once per loop and again as the barge-in listener) churns those
+# sessions and segfaults / "free(): invalid pointer" the interpreter. Access is
+# sequential in practice, but the lock guards the lazy init against a rare race.
+_model = None
+_model_lock = threading.Lock()
+
+
+def _get_model() -> Model:
+    global _model
+    with _model_lock:
+        if _model is None:
+            _model = Model(wakeword_models=[WAKE_WORD_MODEL], inference_framework="onnx")
+    return _model
 
 
 def _native_rate(device_index: int) -> int:
@@ -35,7 +52,8 @@ def wait_for_wake_word(on_detected=None, cancel=None) -> bool:
 
     Returns True if wake word was detected, False if cancelled.
     """
-    oww = Model(wakeword_models=[WAKE_WORD_MODEL], inference_framework="onnx")
+    oww = _get_model()
+    oww.reset()  # clear prediction buffer from any previous session before reuse
     native = _native_rate(MIC_DEVICE_INDEX)
     native_chunk = int(CHUNK * native / TARGET_RATE)
     dev = MIC_DEVICE_INDEX if MIC_DEVICE_INDEX >= 0 else None
