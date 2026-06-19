@@ -7,7 +7,6 @@
 #   spidev     — GC9A01 face display; Linux kernel module (display.py no-ops here)
 
 anthropic>=0.30.0
-google-genai>=1.0.0
 openai>=1.30.0
 elevenlabs>=1.0.0
 piper-tts>=1.2.0

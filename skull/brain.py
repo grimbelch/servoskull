@@ -373,8 +373,8 @@ def _strip_actions(text: str) -> str:
 
 
 def _execute_tool(name: str, tool_input: dict) -> str:
-    """Run a single tool call and return its result string. Provider-agnostic —
-    called by the llm tool-use loop for both Claude and Gemini."""
+    """Run a single tool call and return its result string. Called by the llm
+    tool-use loop."""
     if name == "web_search":
         query = tool_input.get("query", "")
         print(f"[skull] Searching: {query}")

@@ -3,7 +3,6 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-# Optional — only required when LLM_BACKEND="claude" (the Gemini backend ignores it).
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 ELEVENLABS_API_KEY = os.environ["ELEVENLABS_API_KEY"]
@@ -53,18 +52,8 @@ CAMERA_MAX_PER_HOUR = int(os.getenv("CAMERA_MAX_PER_HOUR", "15"))
 # Mean grayscale brightness (0-255) below which a frame is considered blank/
 # dark and is never sent to Claude. Guards against covered-lens / night frames.
 CAMERA_MIN_BRIGHTNESS = int(os.getenv("CAMERA_MIN_BRIGHTNESS", "20"))
+# Claude (Anthropic) powers the brain, idle utterances, memory extraction, and vision.
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
-
-# ── LLM backend ────────────────────────────────────────────────────────────────
-# Which provider powers the brain, idle utterances, memory extraction, and vision.
-# "claude" (Anthropic) or "gemini" (Google). Mirrors the TTS_BACKEND pattern.
-LLM_BACKEND = os.getenv("LLM_BACKEND", "claude")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-# "Thinking" budget for Gemini 2.5 models: 0 disables it (fastest, best for short
-# voice replies and avoids output-token starvation); a positive int caps thinking
-# tokens; -1 omits the setting entirely (for models that don't support thinking).
-GEMINI_THINKING_BUDGET = int(os.getenv("GEMINI_THINKING_BUDGET", "0"))
 WEATHER_LAT = float(os.getenv("WEATHER_LAT", "0.0"))
 WEATHER_LON = float(os.getenv("WEATHER_LON", "0.0"))
 HISTORY_FILE = os.getenv("HISTORY_FILE", "history.json")
