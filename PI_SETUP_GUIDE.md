@@ -54,7 +54,7 @@ If anything core is missing, stop and source it before Friday — the Pi 5 **req
 > Python-3.13 wheels). Audio also goes through **PipeWire**, not PulseAudio (see §6).
 4. Click the gear / **Edit Settings** before writing and pre-configure:
    - **Hostname:** `omega7`
-   - **Username/password:** pick a user (e.g. `sean`) — the systemd service runs as this user
+   - **Username/password:** pick a user (this build uses `sspeer`) — the systemd service runs as this user
    - **Wi-Fi:** your SSID + password + country
    - **Locale/timezone**
    - **Enable SSH** (password or your key) — lets you work headless later
@@ -68,7 +68,7 @@ If anything core is missing, stop and source it before Friday — the Pi 5 **req
 
 1. Insert the microSD, connect micro-HDMI + keyboard (or go straight to SSH if Wi-Fi worked).
 2. Plug in the 27 W supply **last**. The Pi boots.
-3. From your Mac you should be able to: `ssh sean@omega7.local`
+3. From your Mac you should be able to: `ssh sspeer@omega7.local` (or just `ssh omega7`)
 4. Update everything and enable the SPI bus the round display needs:
 
 ```bash
@@ -135,7 +135,7 @@ The resistors in the EDGELEC pack are sized for 6–12 V — **don't use them.**
                                └──── common ──► GND (pin 14)
 ```
 
-Build this on the mini breadboard/perfboard. Tie all three cathodes to one GND rail, run a
+Build this on the mini breadboard/perfboard. Tie all three cathodes to ne GND rail, run a
 single wire from that rail to **pin 14 (GND)**. "Center" can drive a third LED or be left for a
 future eye — wire all three now to match the code.
 
@@ -228,14 +228,14 @@ git clone <your-repo-url> ~/skull
 
 # Option B — copy from your Mac over the network:
 #   (run this ON YOUR MAC, from the project folder)
-#   rsync -av --exclude '.venv' --exclude '.git' "./" sean@omega7.local:~/skull/
+#   rsync -av --exclude '.venv' --exclude '.git' "./" sspeer@omega7.local:~/skull/
 ```
 
 Then copy your secrets file in (it is git-ignored, so it won't have come from the clone):
 
 ```bash
 # From your Mac:
-scp "/Users/sean/Desktop/Skull Project/.env" sean@omega7.local:~/skull/.env
+scp "/Users/sean/Desktop/Skull Project/.env" sspeer@omega7.local:~/skull/.env
 ```
 
 Run the one-shot installer — it installs system packages, builds the venv, fetches the
