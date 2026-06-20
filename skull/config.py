@@ -33,7 +33,34 @@ DISPLAY_DC_PIN = int(os.getenv("DISPLAY_DC_PIN", "25"))
 DISPLAY_RST_PIN = int(os.getenv("DISPLAY_RST_PIN", "24"))
 DISPLAY_BL_PIN = int(os.getenv("DISPLAY_BL_PIN", "12"))        # -1 if BLK tied to 3V3
 DISPLAY_ROTATION = int(os.getenv("DISPLAY_ROTATION", "0"))     # 0/90/180/270
-MIC_DEVICE_INDEX = int(os.getenv("MIC_DEVICE_INDEX", "-1"))
+def _resolve_input_device(raw: str) -> int:
+    """Resolve a mic setting to a sounddevice input index.
+
+    Accepts either a numeric index (e.g. "2", or "-1" for system default) or a
+    case-insensitive name substring (e.g. "USB"). Resolving by name survives USB
+    re-enumeration across rebuilds, where a fixed index silently points elsewhere.
+    Returns -1 (system default) if a name can't be matched or audio isn't queryable.
+    """
+    raw = (raw or "").strip()
+    if raw == "":
+        return -1
+    try:
+        return int(raw)  # plain numeric index (incl. -1) — use verbatim
+    except ValueError:
+        pass
+    try:
+        import sounddevice as sd
+        for idx, dev in enumerate(sd.query_devices()):
+            if dev.get("max_input_channels", 0) > 0 and raw.lower() in dev["name"].lower():
+                print(f"[config] MIC_DEVICE_INDEX '{raw}' matched device {idx}: {dev['name']!r}")
+                return idx
+        print(f"[config] WARNING: no input device name contains '{raw}'; using system default.")
+    except Exception as e:
+        print(f"[config] mic name resolution failed ({e}); using system default.")
+    return -1
+
+
+MIC_DEVICE_INDEX = _resolve_input_device(os.getenv("MIC_DEVICE_INDEX", "-1"))
 AUDIO_OUTPUT_DEVICE = int(os.getenv("AUDIO_OUTPUT_DEVICE", "-1"))
 # Pinned device for TTS/SFX — stays on Omega-7's own speaker even when BT is the PulseAudio default
 VOICE_OUTPUT_DEVICE = int(os.getenv("VOICE_OUTPUT_DEVICE", str(AUDIO_OUTPUT_DEVICE)))
