@@ -525,7 +525,13 @@ def respond(user_text: str, on_tool_use=None) -> tuple[str, list[tuple]]:
     longterm = _memory.load_longterm()
     now = datetime.now()
     date_ctx = f"\n\nCURRENT DATE AND TIME: {now.strftime('%A, %B %-d, %Y at %-I:%M %p')}."
-    system = SYSTEM_PROMPT + date_ctx + _memory.longterm_prompt(longterm) + _memory.facts_prompt(facts) + _mood.system_addendum()
+    # Prompt caching: keep the frozen SYSTEM_PROMPT as the cached prefix (tools + system),
+    # and push everything volatile — the clock, recalled facts, and current mood — into
+    # system_suffix, which the LLM layer places AFTER the cache breakpoint. Same content
+    # and order as before; this just stops the per-minute timestamp from busting the cache.
+    system = SYSTEM_PROMPT
+    system_suffix = (date_ctx + _memory.longterm_prompt(longterm)
+                     + _memory.facts_prompt(facts) + _mood.system_addendum())
 
     # Record which tools fired so we can reconcile silent mode afterwards.
     tools_called: list[str] = []
@@ -536,6 +542,7 @@ def respond(user_text: str, on_tool_use=None) -> tuple[str, list[tuple]]:
 
     raw = _llm.run_conversation(
         system=system,
+        system_suffix=system_suffix,
         history=_history,
         user_text=user_text,
         tools=_TOOLS,
