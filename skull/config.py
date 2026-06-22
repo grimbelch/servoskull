@@ -92,6 +92,17 @@ PIPER_MODEL_PATH = os.getenv("PIPER_MODEL_PATH", "models/servoskull.onnx")
 # Set to true in .env to print per-chunk RMS values during recording
 AUDIO_DEBUG = os.getenv("AUDIO_DEBUG", "false").lower() == "true"
 
+# ── Internal temperature monitoring (Raspberry Pi only) ──────────────────────────
+# Omega-7 watches its SoC temperature and speaks a warning when it climbs too high.
+# The Pi 5 begins soft-throttling around 80°C and hard-throttles ~85°C, so the
+# default warns at 80 and re-arms once it cools below 72. No-op on non-Pi hosts
+# (no thermal sensor). Set TEMP_MONITOR_ENABLED=false to disable entirely.
+TEMP_MONITOR_ENABLED = os.getenv("TEMP_MONITOR_ENABLED", "true").lower() == "true"
+TEMP_WARN_THRESHOLD = float(os.getenv("TEMP_WARN_THRESHOLD", "80"))    # °C — warn at/above this
+TEMP_CLEAR_THRESHOLD = float(os.getenv("TEMP_CLEAR_THRESHOLD", "72"))  # °C — re-arm once below this
+TEMP_CHECK_INTERVAL = int(os.getenv("TEMP_CHECK_INTERVAL", "30"))      # seconds between readings
+TEMP_WARN_COOLDOWN = int(os.getenv("TEMP_WARN_COOLDOWN", "300"))       # min seconds between repeat warnings
+
 # How long to record after wake word (seconds)
 RECORD_SECONDS = 10
 # Silence threshold to stop recording early (RMS)

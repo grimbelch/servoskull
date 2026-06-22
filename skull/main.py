@@ -7,7 +7,7 @@ import random
 
 from skull import config
 from skull import audio, wake_word, transcribe, brain, tts, eyes, sfx, reminders, mood
-from skull import spotify_ctrl, cast_audio, camera, quiet, display
+from skull import spotify_ctrl, cast_audio, camera, quiet, display, temperature
 
 
 def shutdown(sig=None, frame=None):
@@ -300,6 +300,7 @@ def main():
     display.setup()
     display.set_mood(mood.get())
     camera.start()
+    temperature.start()
     print("[skull] Omega-7 online. Awaiting the Emperor's commands.")
     try:
         import sounddevice as sd
@@ -345,6 +346,25 @@ def main():
             spotify_ctrl.duck()  # dip any playing music for the whole interaction
             sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
             eyes.on()
+
+        # ── 0. Speak any internal-temperature warning ───────────────────────────
+        # Fires regardless of silent mode — an overheating cogitator is a hardware
+        # safety issue the master should always hear about.
+        temp_warning = temperature.get_warning()
+        if temp_warning:
+            print(f"[skull] Temperature warning: {temp_warning}")
+            try:
+                spotify_ctrl.duck()
+                sfx.play_blocking("negative", config.VOICE_OUTPUT_DEVICE)
+                eyes.on()
+                warn_wav = tts.synthesize(temp_warning)
+                audio.play_wav_bytes(warn_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+            except Exception as _e:
+                print(f"[skull] Temperature warning TTS error: {_e}")
+            finally:
+                eyes.off()
+                spotify_ctrl.restore()
+            continue  # back to the top; resume listening
 
         # ── 0a. Speak any reminders that fired during the last conversation ──────
         for _rem in reminders.get_due():
@@ -419,6 +439,9 @@ def main():
                         _due_reminders.extend(due)
                         _idle_cancel.set()
                         return
+                    if temperature.has_pending():
+                        _idle_cancel.set()  # wake the loop so the warning speaks at the top
+                        return
                     _idle_cancel.wait(timeout=5.0)
 
             threading.Thread(target=_idle_timer, daemon=True).start()
@@ -467,6 +490,9 @@ def main():
                     eyes.off()
                     display.idle()
                 continue  # back to listening without going through record/transcribe
+
+            if not detected and temperature.has_pending():
+                continue  # temp warning queued — spoken at the top of the loop
 
             _barge_wav = None
 

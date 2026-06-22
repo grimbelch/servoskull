@@ -4,7 +4,7 @@ Low-hanging fruit
 Daily briefing — On first wake each morning, Omega-7 proactively delivers a Portland weather + top news summary without being asked. Just check wall-clock time and a "briefed today" flag.
 [X] Timers & reminders — "Set a reminder in 20 minutes" is a natural fit. Store pending reminders, check them in the idle loop, and speak them when they fire.
 Warhammer Community RSS — Add a warhammer_news tool that scrapes warhammer-community.com so Omega-7 can report on new releases and articles in character.
-
+[ ] Omega7 should monitor his internal temperature and notify the user if his temperature is too high.
 
 
 Medium effort
