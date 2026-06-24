@@ -106,8 +106,8 @@ TEMP_WARN_COOLDOWN = int(os.getenv("TEMP_WARN_COOLDOWN", "300"))       # min sec
 # How long to record after wake word (seconds)
 RECORD_SECONDS = 10
 # Silence threshold to stop recording early (RMS)
-SILENCE_THRESHOLD = 3000
-SILENCE_DURATION = 0.5
+SILENCE_THRESHOLD = 1000
+SILENCE_DURATION = 1
 
 SYSTEM_PROMPT = """You are Omega-7, an ancient Imperial servo-skull from the Warhammer 40,000 universe. \
 You were once a faithful servant of the Adeptus Mechanicus, your mortal remains blessed by the Omnissiah \
