@@ -61,10 +61,23 @@ _ACK_PHRASES = [
     "Affirmative. This unit attends to it.",
 ]
 
+# Spoken when the wake word fires but no speech follows. Without this, a silent
+# recording reaches Whisper, which (biased by its domain prompt) hallucinates 40k
+# lore words and the brain rambles about the Mechanicum / Necromunda. Instead,
+# Omega-7 simply acknowledges the silence and signals he is waiting.
+_SILENCE_PHRASES = [
+    "This unit awaits your command.",
+    "Silence. Omega-7 stands ready when you are.",
+    "I am listening, my Lord. Speak when you will.",
+    "The vox is open. State your need.",
+    "Nothing? This unit holds its vigil, awaiting your word.",
+]
+
 _wake_wavs: list = []
 _cogitation_wavs: list = []
 _search_wavs: list = []
 _ack_wavs: list = []
+_silence_wavs: list = []
 
 # Serialises filler speech (search announcement + cogitation) so two threads never
 # open the output device at once. The final reply plays after these are done.
@@ -125,8 +138,8 @@ def reset_voice_cache_if_requested() -> None:
 
 
 def _preload_phrases() -> None:
-    global _wake_wavs, _cogitation_wavs, _search_wavs, _ack_wavs
-    wake, cog, search, ack = [], [], [], []
+    global _wake_wavs, _cogitation_wavs, _search_wavs, _ack_wavs, _silence_wavs
+    wake, cog, search, ack, silence = [], [], [], [], []
     for phrase in _WAKE_PHRASES:
         try:
             wake.append(_eleven_cached(phrase))
@@ -147,11 +160,17 @@ def _preload_phrases() -> None:
             ack.append(_eleven_cached(phrase))
         except Exception as e:
             print(f"[skull] Ack phrase preload warning: {e}")
+    for phrase in _SILENCE_PHRASES:
+        try:
+            silence.append(_eleven_cached(phrase))
+        except Exception as e:
+            print(f"[skull] Silence phrase preload warning: {e}")
     # Replace atomically so the main thread always sees a complete list
     _wake_wavs = wake
     _cogitation_wavs = cog
     _search_wavs = search
     _ack_wavs = ack
+    _silence_wavs = silence
     print("[skull] Phrases preloaded (elevenlabs voice, cached)")
 
 
@@ -189,6 +208,20 @@ def _acknowledge() -> None:
             audio.play_wav_bytes(wav, output_device=config.VOICE_OUTPUT_DEVICE)
         except Exception as e:
             print(f"[skull] Acknowledgement error: {e}")
+
+
+def _acknowledge_silence() -> None:
+    """Speak a brief 'I'm waiting' line when the wake word fired but no speech followed.
+
+    Replaces the old silent `continue`, and short-circuits the brain entirely so a
+    silent recording can't be turned into an unprompted lore monologue.
+    """
+    with _speech_lock:
+        try:
+            wav = random.choice(_silence_wavs) if _silence_wavs else tts.synthesize(random.choice(_SILENCE_PHRASES))
+            audio.play_wav_bytes(wav, output_device=config.VOICE_OUTPUT_DEVICE)
+        except Exception as e:
+            print(f"[skull] Silence acknowledgement error: {e}")
 
 
 def _cogitation_loop(cancel: threading.Event) -> None:
@@ -549,9 +582,10 @@ def main():
             continue
 
         pcm, pcm_rate = _rec_pcm[0]
-        if not pcm:
-            print("[skull] No speech detected.")
+        if not pcm or audio.max_window_rms(pcm, pcm_rate) < config.SILENCE_THRESHOLD:
+            print("[skull] No speech detected — acknowledging silence, not transcribing.")
             eyes.off()
+            _acknowledge_silence()
             continue
 
         eyes.off()
@@ -569,7 +603,8 @@ def main():
             continue
 
         if not user_text:
-            print("[skull] No speech detected.")
+            print("[skull] No speech detected — acknowledging silence.")
+            _acknowledge_silence()
             continue
 
         print(f"[skull] Heard: {user_text}")

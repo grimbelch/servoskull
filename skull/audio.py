@@ -111,6 +111,30 @@ def record(seconds: float, device_index: int = -1, silence_threshold: int = 300,
     return pcm_arr.tobytes(), native
 
 
+def max_window_rms(pcm: bytes, sample_rate: int, window_secs: float = 0.25) -> float:
+    """Peak RMS across non-overlapping windows — a proxy for whether speech occurred.
+
+    A recording where the wake word fired but nothing was said is just ambient floor:
+    no window ever rises above it. Real speech pushes at least one window well past the
+    silence threshold. Lets the caller tell 'nothing was said' apart from 'said something',
+    rather than trusting Whisper, which (biased by its domain prompt) hallucinates 40k
+    lore words on silence.
+    """
+    if not pcm:
+        return 0.0
+    data = np.frombuffer(pcm, dtype=np.int16).astype(np.float32)
+    win = max(1, int(sample_rate * window_secs))
+    peak = 0.0
+    for start in range(0, len(data), win):
+        seg = data[start:start + win]
+        if seg.size == 0:
+            continue
+        rms = float(np.sqrt(np.mean(seg ** 2)))
+        if rms > peak:
+            peak = rms
+    return peak
+
+
 def pcm_to_wav_bytes(pcm: bytes, sample_rate: int) -> bytes:
     """Wrap raw PCM in a WAV container at the given sample rate."""
     buf = io.BytesIO()

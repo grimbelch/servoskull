@@ -17,6 +17,14 @@ _HALLUCINATION_RE = re.compile(
     "|".join(_HALLUCINATION_PATTERNS), re.IGNORECASE
 )
 
+# The domain `prompt` below biases Whisper toward these tokens; on silence/noise it
+# regurgitates them verbatim. A transcript made of nothing but these words is that
+# hallucination, not a real request — suppress it so the brain doesn't monologue on it.
+_PROMPT_WORDS = {
+    "omega", "omega-7", "omega7", "omnissiah",
+    "adeptus", "mechanicus", "necromunda", "warhammer", "7",
+}
+
 
 def _is_hallucination(text: str) -> bool:
     if not text:
@@ -26,6 +34,10 @@ def _is_hallucination(text: str) -> bool:
     # Repeated word spam (e.g. "the the the the")
     words = text.lower().split()
     if len(words) >= 4 and len(set(words)) <= 2:
+        return True
+    # Only the prompt's domain words echoed back (e.g. "Adeptus Mechanicus. Necromunda.")
+    tokens = [t for t in re.sub(r"[^\w\s-]", " ", text.lower()).split() if t]
+    if tokens and all(t in _PROMPT_WORDS for t in tokens):
         return True
     return False
 
