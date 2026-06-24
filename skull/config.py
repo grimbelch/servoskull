@@ -3,10 +3,13 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
+# API keys are optional at import so the app starts with only the backends it
+# actually uses configured (e.g. local Piper voice needs no ElevenLabs key). Each
+# consumer raises a clear error on first use if its key is missing.
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
-ELEVENLABS_API_KEY = os.environ["ELEVENLABS_API_KEY"]
-ELEVENLABS_VOICE_ID = os.environ["ELEVENLABS_VOICE_ID"]
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
+ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "")
 WAKE_WORD_MODEL = os.getenv("WAKE_WORD_MODEL", "hey_jarvis")
 WAKE_WORD_THRESHOLD = float(os.getenv("WAKE_WORD_THRESHOLD", "0.5"))
 LED_PIN_LEFT = int(os.getenv("LED_PIN_LEFT", "22"))

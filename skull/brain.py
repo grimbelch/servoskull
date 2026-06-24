@@ -431,6 +431,12 @@ def _execute_tool(name: str, tool_input: dict) -> str:
         return _search.get_weather(WEATHER_LAT, WEATHER_LON)
     if name == "set_volume":
         level = str(tool_input.get("level", "+10")).strip()
+        # `level` is model-generated and gets interpolated into an osascript -e
+        # string below, so reject anything that isn't a bare (optionally signed,
+        # optionally %-suffixed) integer — otherwise a crafted value could inject
+        # arbitrary AppleScript / shell commands.
+        if not re.fullmatch(r"[+-]?\d{1,3}%?", level):
+            return f"Invalid volume level: {level!r}. Use '+15', '-15', or an absolute number like '80'."
         try:
             if sys.platform == "darwin":
                 if level.startswith("+"):

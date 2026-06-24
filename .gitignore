@@ -15,8 +15,14 @@ models/*.onnx
 # macOS
 .DS_Store
 
-# Persistent conversation history
+# Runtime state — generated at runtime, may contain personal data extracted from
+# conversations (names, addresses, etc.). Never commit.
 history.json
+memory.json
+longterm_memory.json
+reminders.json
+mood.json
+quiet.json
 
 # Claude Code local settings
 .claude/

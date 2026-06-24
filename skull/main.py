@@ -592,8 +592,10 @@ def main():
 
         # ── 3. Transcribe ──────────────────────────────────────────────────────
         wav = audio.pcm_to_wav_bytes(pcm, pcm_rate)
-        import pathlib; pathlib.Path("/tmp/skull_debug.wav").write_bytes(wav)
-        print("[skull] DEBUG: saved recording to /tmp/skull_debug.wav — open it to hear what the mic captured")
+        if config.AUDIO_DEBUG:
+            import pathlib
+            pathlib.Path("/tmp/skull_debug.wav").write_bytes(wav)
+            print("[skull] DEBUG: saved recording to /tmp/skull_debug.wav — open it to hear what the mic captured")
         print("[skull] Transcribing...")
         try:
             user_text = transcribe.transcribe(wav)

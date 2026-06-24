@@ -1,9 +1,20 @@
 import io
 import re
-from openai import OpenAI
 from skull.config import OPENAI_API_KEY
 
-_client = OpenAI(api_key=OPENAI_API_KEY)
+# Built lazily on first transcription so importing this module never fails just
+# because the OpenAI key isn't set (e.g. on a host that only does TTS playback).
+_client = None
+
+
+def _get_client():
+    global _client
+    if _client is None:
+        if not OPENAI_API_KEY:
+            raise RuntimeError("OPENAI_API_KEY is not set (required for Whisper speech-to-text).")
+        from openai import OpenAI
+        _client = OpenAI(api_key=OPENAI_API_KEY)
+    return _client
 
 # Whisper hallucinates these strings on silence or ambient noise
 _HALLUCINATION_PATTERNS = [
@@ -47,7 +58,7 @@ def transcribe(wav_bytes: bytes) -> str:
     audio_file = io.BytesIO(wav_bytes)
     audio_file.name = "audio.wav"
 
-    result = _client.audio.transcriptions.create(
+    result = _get_client().audio.transcriptions.create(
         model="whisper-1",
         file=audio_file,
         language="en",
