@@ -47,6 +47,15 @@ _NECRO_ROUTES = [
         "campaign", "territory", "reputation", "credits", "post-battle",
         "advancement", "experience", "xp",
     ]),
+    ("trading-post/", [
+        "trading post", "trade", "rare trade", "black market", "rarity",
+        "availability", "rare", "illegal", "common item", "exclusive item",
+        "buy", "purchase", "shopping", "price of", "cost of", "where can i get",
+    ]),
+    ("trading-post/book-of-peril-badzones-trading-post", [
+        "book of peril", "badzone", "bad zone", "special ammunition", "special ammo",
+        "ammunition", "ammo", "wargear", "trading post equipment", "personal equipment",
+    ]),
 ]
 
 
@@ -242,20 +251,24 @@ def netea_rules(query: str) -> str:
 
 def necromunda_rules(query: str) -> str:
     """Look up Necromunda rules on necroraw.com.ru and return page text."""
+    def _fetch_pages(urls: list) -> list:
+        pages = []
+        for url in urls[:4]:
+            text = _fetch_text(url)
+            if text and not text.startswith("Could not fetch") and len(text) > 200:
+                pages.append(f"Source: {url}\n\n{text}")
+            if len(pages) == 2:
+                break
+        return pages
+
     # Priority 1: keyword routing to known section pages (fast, reliable)
-    urls = _necro_urls_from_keywords(query)
+    pages = _fetch_pages(_necro_urls_from_keywords(query))
 
-    # Priority 2: DDG search (slower, may miss the site)
-    if not urls:
-        urls = _necro_urls_from_ddg(query)
-
-    pages = []
-    for url in urls[:4]:
-        text = _fetch_text(url)
-        if text and not text.startswith("Could not fetch") and len(text) > 200:
-            pages.append(f"Source: {url}\n\n{text}")
-        if len(pages) == 2:
-            break
+    # Priority 2: DDG search — used both when no route matched and when the routed
+    # pages failed to fetch (e.g. a section path went stale), so a bad route never
+    # silently swallows a query that search could have answered.
+    if not pages:
+        pages = _fetch_pages(_necro_urls_from_ddg(query))
 
     if pages:
         return "\n\n---\n\n".join(pages)

@@ -88,8 +88,10 @@ _TOOLS = [
         "description": (
             "Look up Necromunda tabletop game rules from necroraw.com.ru (Rules as Written). "
             "Use for any question about Necromunda mechanics, gangs, weapons, skills, "
-            "injuries, campaigns, scenarios, or equipment. Always use this tool before "
-            "answering a Necromunda rules question rather than relying on memory."
+            "injuries, campaigns, scenarios, or equipment — including the Trading Post and "
+            "Black Market: item availability, rarity, cost, exclusive/illegal items, and "
+            "special ammunition. Always use this tool before answering a Necromunda rules "
+            "question rather than relying on memory."
         ),
         "input_schema": {
             "type": "object",
