@@ -10,24 +10,56 @@ _LONGTERM_PATH = pathlib.Path("longterm_memory.json")
 _lock = threading.Lock()
 
 
+def _bak(path: pathlib.Path) -> pathlib.Path:
+    return path.with_suffix(path.suffix + ".bak")
+
+
+def _read_facts(path: pathlib.Path) -> list[str]:
+    """Load a JSON list of fact strings. On corruption, log LOUDLY and fall back
+    to the .bak sidecar rather than silently returning [] — a single stray comma
+    once wiped Omega-7's entire long-term memory with zero indication."""
+    for candidate, note in ((path, ""), (_bak(path), " (recovered from .bak)")):
+        if not candidate.exists():
+            continue
+        try:
+            data = json.loads(candidate.read_text())
+        except Exception as e:
+            print(f"[memory] CORRUPT {candidate.name}: {e}")
+            continue
+        if not isinstance(data, list):
+            print(f"[memory] {candidate.name} is not a JSON list; ignoring")
+            continue
+        if note:
+            print(f"[memory] {path.name}{note}")
+        return [f for f in data if isinstance(f, str)]
+    return []
+
+
+def _write_facts(path: pathlib.Path, facts: list[str]) -> None:
+    try:
+        # Preserve the last-known-good copy, but never let a corrupt current
+        # file clobber a healthy .bak.
+        if path.exists():
+            try:
+                if isinstance(json.loads(path.read_text()), list):
+                    _bak(path).write_text(path.read_text())
+            except Exception:
+                pass
+        path.write_text(json.dumps(facts, indent=2) + "\n")
+    except Exception as e:
+        print(f"[memory] Save error for {path.name}: {e}")
+
+
 # ── Long-term explicit memory (only changes on direct user instruction) ────────
 
 def load_longterm() -> list[str]:
     with _lock:
-        try:
-            if _LONGTERM_PATH.exists():
-                return json.loads(_LONGTERM_PATH.read_text())
-        except Exception:
-            pass
-        return []
+        return _read_facts(_LONGTERM_PATH)
 
 
 def _save_longterm(facts: list[str]) -> None:
     with _lock:
-        try:
-            _LONGTERM_PATH.write_text(json.dumps(facts, indent=2))
-        except Exception as e:
-            print(f"[memory] Longterm save error: {e}")
+        _write_facts(_LONGTERM_PATH, facts)
 
 
 def remember(fact: str) -> str:
@@ -96,20 +128,12 @@ _MAX_FACTS = 150
 
 def load() -> list[str]:
     with _lock:
-        try:
-            if _MEMORY_PATH.exists():
-                return json.loads(_MEMORY_PATH.read_text())
-        except Exception:
-            pass
-        return []
+        return _read_facts(_MEMORY_PATH)
 
 
 def _save(facts: list[str]) -> None:
     with _lock:
-        try:
-            _MEMORY_PATH.write_text(json.dumps(facts, indent=2))
-        except Exception as e:
-            print(f"[memory] Save error: {e}")
+        _write_facts(_MEMORY_PATH, facts)
 
 
 def facts_prompt(facts: list[str]) -> str:

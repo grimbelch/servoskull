@@ -23,6 +23,7 @@ longterm_memory.json
 reminders.json
 mood.json
 quiet.json
+*.json.bak
 
 # Claude Code local settings
 .claude/
