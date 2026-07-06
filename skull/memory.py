@@ -79,11 +79,16 @@ def longterm_prompt(facts: list[str]) -> str:
 
 _EXTRACT_SYSTEM = """\
 You are a memory extraction system for an AI assistant. \
-Given a single conversation exchange, extract any facts worth remembering long-term about the user or people they mention. \
+Given a single conversation exchange plus the facts already known, extract any NEW facts worth remembering long-term about the user or people they mention. \
 Include: names, locations (home, work, city), relationships, occupations, hobbies, preferences, pets, important possessions. \
 Do NOT include transient information (current questions, today's weather, etc.). \
-Return a JSON array of short fact strings (one fact per string). \
-Return [] if nothing memorable was said. \
+Do NOT repeat a fact that is already known unless the exchange CORRECTS it. \
+Some attributes are single-valued: the user has exactly ONE name and ONE home address. \
+If the exchange reveals or corrects such an attribute and it conflicts with an already-known fact, \
+you MUST copy the outdated fact(s) verbatim into "replaces" so they are deleted. \
+Return a JSON array of objects, each {"fact": "<short fact string>", "replaces": ["<exact existing fact to delete>", ...]}. \
+Use an empty "replaces" list for a purely additive fact. \
+Return [] if nothing new or memorable was said. \
 Return ONLY the JSON array — no explanation, no markdown."""
 
 _MAX_FACTS = 150
@@ -118,30 +123,53 @@ def facts_prompt(facts: list[str]) -> str:
 def extract_and_store(user_text: str, assistant_text: str) -> None:
     """Extract memorable facts from one exchange and merge into memory. Runs in background."""
     try:
+        existing = load()
+        existing_block = "\n".join(f"- {f}" for f in existing) or "(none yet)"
         raw = _llm.simple(
             _EXTRACT_SYSTEM,
-            f"User said: {user_text}\nAssistant replied: {assistant_text}",
-            max_tokens=300,
+            f"Already known facts:\n{existing_block}\n\n"
+            f"New exchange:\nUser said: {user_text}\nAssistant replied: {assistant_text}",
+            max_tokens=400,
         ).strip()
         # Models sometimes wrap JSON in a ```json fence — strip it before parsing.
         if raw.startswith("```"):
             raw = raw.strip("`")
             raw = raw[raw.find("["):raw.rfind("]") + 1] if "[" in raw else raw
-        new_facts: list[str] = json.loads(raw)
-        if not isinstance(new_facts, list) or not new_facts:
+        items = json.loads(raw)
+        if not isinstance(items, list) or not items:
             return
 
-        existing = load()
-        existing_lower = {f.lower() for f in existing}
-        added = [f for f in new_facts if isinstance(f, str) and f.lower() not in existing_lower]
-        if not added:
+        # Accept either bare strings (legacy) or {"fact", "replaces"} objects.
+        new_items: list[tuple[str, list[str]]] = []
+        for it in items:
+            if isinstance(it, str):
+                new_items.append((it, []))
+            elif isinstance(it, dict) and isinstance(it.get("fact"), str):
+                replaces = [r for r in (it.get("replaces") or []) if isinstance(r, str)]
+                new_items.append((it["fact"], replaces))
+        if not new_items:
             return
 
-        merged = existing + added
-        if len(merged) > _MAX_FACTS:
-            merged = merged[-_MAX_FACTS:]
-        _save(merged)
-        print(f"[memory] Stored {len(added)} new fact(s): {added}")
+        facts = existing[:]
+        changed = False
+        for fact, replaces in new_items:
+            # Delete any facts the model flagged as superseded (case-insensitive).
+            for r in replaces:
+                rl = r.lower()
+                kept = [f for f in facts if f.lower() != rl]
+                if len(kept) != len(facts):
+                    facts = kept
+                    changed = True
+            if fact.lower() not in {f.lower() for f in facts}:
+                facts.append(fact)
+                changed = True
+
+        if not changed:
+            return
+        if len(facts) > _MAX_FACTS:
+            facts = facts[-_MAX_FACTS:]
+        _save(facts)
+        print(f"[memory] Memory updated → {len(facts)} fact(s)")
     except Exception as e:
         print(f"[memory] Extraction error: {e}")
 
