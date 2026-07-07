@@ -1,7 +1,22 @@
 import json
+import os
+import pathlib
 import urllib.request
 from html.parser import HTMLParser
+
 from ddgs import DDGS
+
+
+def _rules_dir() -> pathlib.Path:
+    """Resolve the offline rules library dir without depending on skull.config.
+
+    Mirrors config's convention (OMEGA7_DATA_DIR, else the repo root) so it works
+    both here and on older deployments that predate the config data-dir refactor.
+    RULES_DIR may be a bare name (resolved under the data dir) or an absolute path."""
+    repo_root = pathlib.Path(__file__).resolve().parent.parent
+    data_dir = pathlib.Path(os.getenv("OMEGA7_DATA_DIR", str(repo_root))).expanduser()
+    rules = pathlib.Path(os.getenv("RULES_DIR", "Rules")).expanduser()
+    return rules if rules.is_absolute() else data_dir / rules
 
 _WMO_CODES: dict[int, str] = {
     0: "clear sky",
@@ -204,7 +219,10 @@ def _get_netea_text() -> str:
 def _extract_relevant(full_text: str, query: str, max_chars: int = 3000) -> str:
     """Return the most query-relevant paragraphs from a large text block."""
     words = [w for w in query.lower().split() if len(w) > 2]
-    paragraphs = [p.strip() for p in full_text.split("\n") if p.strip()]
+    # Drop Markdown table-separator / empty-cell rows (just |, -, spaces): they carry
+    # no rules text and otherwise fill excerpts with rows of "| --- | --- |".
+    paragraphs = [p.strip() for p in full_text.split("\n")
+                  if p.strip() and set(p.strip()) - set("|- ")]
 
     # Score each paragraph by how many query words it contains
     scored = []
@@ -249,8 +267,134 @@ def netea_rules(query: str) -> str:
     return f"Source: {_NETEA_URL}\n\n{excerpt}"
 
 
-def necromunda_rules(query: str) -> str:
-    """Look up Necromunda rules on necroraw.com.ru and return page text."""
+# ── Generic offline rules library ──────────────────────────────────────────────
+# A game's rules live under _rules_dir()/<game>/ as one Markdown file per page,
+# plus a manifest.json listing {path, url, title, file}. Rules/ingest_pdf.py
+# produces this layout from PDFs; the Necromunda mirror is a web scrape in the
+# same shape. We consult the local copy first so lookups work offline and
+# instantly. The engine below is game-agnostic — each game just points it at its
+# folder (and optionally a keyword→page routing table for concept boosting).
+
+# Generic query filler that would otherwise match unhelpful page titles
+# ("how the campaign *works*") instead of the actual rules subject.
+_RULES_STOPWORDS = {
+    "the", "and", "for", "how", "does", "did", "what", "when", "where", "why",
+    "who", "which", "are", "was", "can", "will", "with", "work", "works",
+    "working", "use", "used", "using", "get", "gets", "rule", "rules", "ruling",
+    "necromunda", "warhammer", "game", "play", "played", "playing", "about",
+    "into", "any", "this", "that", "there", "their", "they", "you", "your",
+}
+
+_library_cache: dict[str, list] = {}  # folder path -> cached [{title, url, text}]
+
+
+def _load_rules_library(base: pathlib.Path) -> list:
+    """Load and cache one game's local pages. Empty list if the folder is missing.
+
+    Prefers manifest.json ({file, title, url, path}); falls back to walking every
+    *.md file so a folder of loose Markdown still works (titles/URLs then absent)."""
+    key = str(base)
+    cached = _library_cache.get(key)
+    if cached is not None:
+        return cached
+
+    idx: list = []
+    manifest = base / "manifest.json"
+    entries = []
+    if manifest.exists():
+        try:
+            entries = json.loads(manifest.read_text(encoding="utf-8"))
+        except Exception as e:
+            print(f"[skull] Rules manifest unreadable at {base} ({e}); scanning folder.")
+    if not entries and base.exists():
+        entries = [{"file": str(p.relative_to(base))} for p in base.rglob("*.md")]
+
+    for e in entries:
+        fp = base / e["file"]
+        try:
+            text = fp.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        title = e.get("title") or fp.stem.replace("-", " ").title()
+        idx.append({"title": title, "url": e.get("url", ""), "text": text})
+
+    _library_cache[key] = idx
+    if idx:
+        print(f"[skull] Loaded {len(idx)} local rules pages from {base}")
+    return idx
+
+
+def _search_rules_library(base: pathlib.Path, query: str, routes: list | None = None,
+                          label: str = "rules", top_k: int = 2,
+                          max_chars: int = 2800) -> str:
+    """Rank a local rules library for a query. "" if the library is unavailable.
+
+    Score every page by RELEVANCE, not raw frequency, so a huge page (e.g. an FAQ)
+    can't win a topic just by mentioning the words in passing many times:
+      • title word hits dominate  — the page whose subject IS the query
+      • distinct body words       — breadth of coverage on the page
+      • capped frequency          — a little credit for repetition, bounded so
+                                    length can't run away with the score
+      • concept-route boost       — canonical section for a matched concept
+
+    ``routes`` (optional) is a [(path, [keywords])] table: when a query hits a
+    concept whose canonical page's title doesn't contain the word (e.g. "On Fire"
+    lives inside "Conditions"), it boosts that page's score."""
+    index = _load_rules_library(base)
+    if not index:
+        return ""
+
+    words = [w for w in query.lower().split() if len(w) > 2 and w not in _RULES_STOPWORDS]
+    if not words:  # query was all stopwords/short — fall back to the raw terms
+        words = [w for w in query.lower().split() if len(w) > 2] or query.lower().split()
+
+    ql = query.lower()
+    boosted_paths = []
+    if routes:
+        boosted_paths = [f"/docs/{path}".rstrip("/")
+                         for path, kws in routes if any(kw in ql for kw in kws)]
+
+    scored = []
+    for page in index:
+        tl = page["title"].lower()
+        bl = page["text"].lower()
+        title_hits = sum(1 for w in words if w in tl)
+        body_words = sum(1 for w in words if w in bl)
+        freq = sum(min(bl.count(w), 3) for w in words)
+        score = title_hits * 100 + body_words * 10 + freq
+        if boosted_paths and page["url"] and any(bp in page["url"] for bp in boosted_paths):
+            score += 250
+        if score > 0:
+            scored.append((score, page))
+
+    if not scored:
+        return f"No matching rules found in the local {label} library for: {query}"
+
+    scored.sort(key=lambda x: -x[0])
+    out = []
+    for _, page in scored[:top_k]:
+        excerpt = _extract_relevant(page["text"], query, max_chars=max_chars)
+        if not excerpt:
+            excerpt = page["text"][:max_chars]
+        src = page["url"] or page["title"]
+        out.append(f"Source: {src}\n\n{excerpt}")
+    return "\n\n---\n\n".join(out)
+
+
+# ── Local Necromunda ruleset (offline library) ────────────────────────────────
+# The full NecroRAW ruleset is mirrored to _rules_dir()/necromunda; the live-fetch
+# path below is kept only as a fallback when the mirror is absent.
+_NECRO_DIR = _rules_dir() / "necromunda"
+
+
+def _necromunda_rules_local(query: str) -> str:
+    """Search the local Necromunda mirror; return "" if the mirror is unavailable."""
+    return _search_rules_library(_NECRO_DIR, query, routes=_NECRO_ROUTES,
+                                 label="Necromunda")
+
+
+def _necromunda_rules_online(query: str) -> str:
+    """Fallback: look up Necromunda rules live on necroraw.com.ru."""
     def _fetch_pages(urls: list) -> list:
         pages = []
         for url in urls[:4]:
@@ -273,3 +417,30 @@ def necromunda_rules(query: str) -> str:
     if pages:
         return "\n\n---\n\n".join(pages)
     return f"No matching rules pages found on {_NECRO_SITE} for: {query}"
+
+
+def necromunda_rules(query: str) -> str:
+    """Look up Necromunda rules, preferring the offline local mirror.
+
+    Reads from config.RULES_DIR/necromunda if it has been populated; only if that
+    mirror is missing does it fall back to fetching necroraw.com.ru live."""
+    local = _necromunda_rules_local(query)
+    if local:
+        return local
+    return _necromunda_rules_online(query)
+
+
+# ── Local Warhammer 40,000 ruleset (offline library) ───────────────────────────
+# The 11th-edition core rules, faction packs, and event companions, ingested from
+# PDF to _rules_dir()/warhammer40k via Rules/ingest_pdf.py. Offline-only (no live
+# fallback — these are PDFs, not a website).
+_W40K_DIR = _rules_dir() / "warhammer40k"
+
+
+def warhammer40k_rules(query: str) -> str:
+    """Look up Warhammer 40,000 (11th edition) rules from the local library."""
+    result = _search_rules_library(_W40K_DIR, query, label="Warhammer 40,000")
+    if result:
+        return result
+    return ("The Warhammer 40,000 rules library isn't installed on this device. "
+            "Ingest the faction pack / core rules PDFs with Rules/ingest_pdf.py.")

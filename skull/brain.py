@@ -18,7 +18,7 @@ _history: list[dict] = []
 
 # Tools that hit the network/hardware and can take a noticeable moment. Omega-7
 # speaks a short "stand by" before running any of these so the user gets feedback.
-_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "netea_rules", "get_weather", "bluetooth_scan"}
+_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netea_rules", "get_weather", "bluetooth_scan"}
 _HISTORY_PATH = config.data_path(config.HISTORY_FILE)
 
 
@@ -100,6 +100,28 @@ _TOOLS = [
                 "query": {
                     "type": "string",
                     "description": "Rule, mechanic, or topic to look up (e.g. 'fighter activation', 'injury roll', 'House Goliath gang list')",
+                }
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "warhammer40k_rules",
+        "description": (
+            "Look up Warhammer 40,000 (11th edition) tabletop rules from the local rules "
+            "library — the core rules, faction packs (detachments, datasheets, stratagems, "
+            "enhancements, wargear, unit stats), rules updates/FAQs, and event companions. "
+            "Use for any 40k question: army rules, a specific unit's profile or abilities, "
+            "weapon stats, stratagems, detachment rules, points, or matched-play/tournament "
+            "rules. Always use this tool before answering a 40k rules question rather than "
+            "relying on memory."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Unit, rule, weapon, stratagem, or topic to look up (e.g. 'Defiler stats', 'World Eaters Brazen Engines detachment', 'Blessings of Khorne', 'Lone Operative')",
                 }
             },
             "required": ["query"],
@@ -420,6 +442,10 @@ def _execute_tool(name: str, tool_input: dict) -> str:
         query = tool_input.get("query", "")
         print(f"[skull] Looking up Necromunda rules: {query}")
         return _search.necromunda_rules(query)
+    if name == "warhammer40k_rules":
+        query = tool_input.get("query", "")
+        print(f"[skull] Looking up Warhammer 40k rules: {query}")
+        return _search.warhammer40k_rules(query)
     if name == "netea_rules":
         query = tool_input.get("query", "")
         print(f"[skull] Looking up NetEA rules: {query}")

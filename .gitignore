@@ -32,3 +32,11 @@ settings.json
 
 # Claude Code local settings
 .claude/
+
+# Offline game rulesets the skull references (see skull/search.py, RULES_DIR).
+# Third-party copyrighted rules text (e.g. Games Workshop / Necromunda) downloaded
+# for personal local reference only — never redistribute / commit to a public repo.
+Rules/*
+# ...but DO track the (non-copyrighted) tooling and docs that build the library.
+!Rules/README.md
+!Rules/ingest_pdf.py
