@@ -121,8 +121,7 @@ def reset_voice_cache_if_requested() -> None:
     """If RESET_VOICE_CACHE=true, delete cached phrase audio (incl. the legacy boot
     cache) so the canned phrases are re-synthesized with the current ElevenLabs voice
     on this run."""
-    import os
-    if os.getenv("RESET_VOICE_CACHE", "false").lower() != "true":
+    if not config.RESET_VOICE_CACHE:
         return
     import shutil
     try:

@@ -5,9 +5,10 @@ Authentication is lazy — only triggered on the first music command.
 """
 
 from __future__ import annotations
-import os
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
+
+from skull import config
 
 _SCOPES = " ".join([
     "user-read-playback-state",
@@ -22,12 +23,12 @@ def _client() -> spotipy.Spotify:
     global _sp
     if _sp is None:
         _sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
-            client_id=os.environ["SPOTIFY_CLIENT_ID"],
-            client_secret=os.environ["SPOTIFY_CLIENT_SECRET"],
-            redirect_uri=os.environ.get("SPOTIFY_REDIRECT_URI", "http://127.0.0.1:8888/callback"),
+            client_id=config.SPOTIFY_CLIENT_ID,
+            client_secret=config.SPOTIFY_CLIENT_SECRET,
+            redirect_uri=config.SPOTIFY_REDIRECT_URI,
             scope=_SCOPES,
             open_browser=True,
-            cache_path=".spotify_cache",
+            cache_path=str(config.data_path(".spotify_cache")),
         ))
     return _sp
 
@@ -192,4 +193,4 @@ def skip() -> None:
 
 
 def is_configured() -> bool:
-    return bool(os.environ.get("SPOTIFY_CLIENT_ID") and os.environ.get("SPOTIFY_CLIENT_SECRET"))
+    return bool(config.SPOTIFY_CLIENT_ID and config.SPOTIFY_CLIENT_SECRET)

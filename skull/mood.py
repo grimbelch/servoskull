@@ -10,7 +10,9 @@ import random
 import threading
 import time
 
-_FILE = pathlib.Path(__file__).parent.parent / "mood.json"
+from skull import config
+
+_FILE = config.data_path("mood.json")
 _lock = threading.Lock()
 
 # ── Mood definitions ───────────────────────────────────────────────────────────

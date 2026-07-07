@@ -12,7 +12,9 @@ import threading
 import uuid
 from datetime import datetime, timedelta
 
-_FILE = pathlib.Path(__file__).parent.parent / "reminders.json"
+from skull import config
+
+_FILE = config.data_path("reminders.json")
 _lock = threading.Lock()
 _items: list[dict] = []
 

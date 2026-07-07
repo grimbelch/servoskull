@@ -10,7 +10,9 @@ import json
 import pathlib
 import threading
 
-_FILE = pathlib.Path(__file__).parent.parent / "quiet.json"
+from skull import config
+
+_FILE = config.data_path("quiet.json")
 _lock = threading.Lock()
 
 _state: dict = {"silent": False}

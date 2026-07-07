@@ -3,10 +3,11 @@ import json
 import pathlib
 import threading
 
+from skull import config
 from skull import llm as _llm
 
-_MEMORY_PATH = pathlib.Path("memory.json")
-_LONGTERM_PATH = pathlib.Path("longterm_memory.json")
+_MEMORY_PATH = config.data_path("memory.json")
+_LONGTERM_PATH = config.data_path("longterm_memory.json")
 _lock = threading.Lock()
 
 

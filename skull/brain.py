@@ -5,7 +5,8 @@ import re
 import subprocess
 import sys
 from datetime import datetime
-from skull.config import SYSTEM_PROMPT, HISTORY_FILE
+from skull import config
+from skull.config import SYSTEM_PROMPT
 from skull import search as _search
 from skull import memory as _memory
 from skull import reminders as _reminders
@@ -18,7 +19,7 @@ _history: list[dict] = []
 # Tools that hit the network/hardware and can take a noticeable moment. Omega-7
 # speaks a short "stand by" before running any of these so the user gets feedback.
 _SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "netea_rules", "get_weather", "bluetooth_scan"}
-_HISTORY_PATH = pathlib.Path(HISTORY_FILE)
+_HISTORY_PATH = config.data_path(config.HISTORY_FILE)
 
 
 def _save_history() -> None:
@@ -194,7 +195,7 @@ _TOOLS = [
             "properties": {
                 "fact": {
                     "type": "string",
-                    "description": "The exact fact to remember, as a clear statement (e.g. 'Sean's address is 1810 NE 62nd Avenue')",
+                    "description": "The exact fact to remember, as a clear statement (e.g. 'The user's anniversary is June 12th')",
                 }
             },
             "required": ["fact"],
@@ -233,7 +234,7 @@ _TOOLS = [
                 },
                 "new_fact": {
                     "type": "string",
-                    "description": "The corrected fact as a full statement (e.g. 'Sean's address is 2000 NW Hoyt St')",
+                    "description": "The corrected fact as a full statement (e.g. 'The user's address is now 500 Oak Street')",
                 },
             },
             "required": ["query", "new_fact"],
@@ -624,12 +625,23 @@ _IDLE_TOOLS = [
     }
 ]
 
-_IDLE_SCOPES = [
-    "Portland Oregon news today",
-    "Oregon news today",
-    "United States news today",
-    "world news today",
-]
+def _build_idle_scopes() -> list[str]:
+    """Idle news scopes, localized to the owner's location when one is configured.
+
+    Falls back to national/world scopes on an unprovisioned unit so a fresh skull
+    still has something to riff on before setup."""
+    loc = (config.OWNER_LOCATION or "").strip()
+    scopes: list[str] = []
+    if loc:
+        scopes.append(f"{loc} news today")
+        region = loc.split(",")[-1].strip()  # broaden to state/country
+        if region and region.lower() != loc.lower():
+            scopes.append(f"{region} news today")
+    scopes += ["national news today", "world news today"]
+    return scopes
+
+
+_IDLE_SCOPES = _build_idle_scopes()
 
 
 def idle_utterance() -> str:

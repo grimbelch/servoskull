@@ -18,7 +18,9 @@ import time
 import numpy as np
 import scipy.io.wavfile as wavfile
 
-_DEVICE_NAME: str = os.environ.get("GOOGLE_HOME_DEVICE", "")
+from skull import config
+
+_DEVICE_NAME: str = config.GOOGLE_HOME_DEVICE
 _cast = None          # cached pychromecast.Chromecast
 _browser = None       # kept alive so zeroconf stays running for the cast connection
 _cast_lock = threading.Lock()
@@ -106,10 +108,8 @@ def _get_cast():
 def is_configured() -> bool:
     if not _DEVICE_NAME:
         return False
-    import sys
-    # On macOS (emulator/dev) casting is opt-in; on Linux (Pi) it's opt-out.
-    default = "false" if sys.platform == "darwin" else "true"
-    if os.environ.get("CAST_ENABLED", default).lower() != "true":
+    # Casting is opt-in on macOS (emulator/dev) and opt-out on Linux/Pi; see config.
+    if not config.CAST_ENABLED:
         return False
     # Casting is impossible without pychromecast (not in the Pi requirements). Report
     # "not configured" so callers fall back to local playback instead of silently

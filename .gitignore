@@ -25,5 +25,10 @@ mood.json
 quiet.json
 *.json.bak
 
+# Per-user configuration written by the setup wizard (keys + personal details).
+# owner.example.json IS committed as a template; owner.json is the user's real data.
+owner.json
+settings.json
+
 # Claude Code local settings
 .claude/

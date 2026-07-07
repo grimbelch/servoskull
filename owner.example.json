@@ -1,0 +1,11 @@
+{
+  "_comment": "Owner profile — the skull's personalization. The setup wizard writes this file into OMEGA7_DATA_DIR as owner.json. Every field is optional; omit or blank anything you don't want to share. With no owner.json present, the skull works fully and simply learns about you through conversation.",
+  "name": "Your Name",
+  "aliases": ["master", "boss"],
+  "birth_year": "1990",
+  "location": "City, State",
+  "interests": "Free text — hobbies and games you enjoy (e.g. 'plays Warhammer 40k and enjoys sci-fi novels').",
+  "family": "Free text — people in your life (e.g. 'Partner named Alex, dog named Rex').",
+  "occupation": "Free text — what you do (e.g. 'Works as a software engineer').",
+  "rapport": "Free text — how the skull should treat you (e.g. 'Warm and encouraging, with occasional dry wit')."
+}
