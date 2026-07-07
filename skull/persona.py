@@ -18,6 +18,7 @@ import pathlib
 
 _TEMPLATE_PATH = pathlib.Path(__file__).with_name("persona_template.txt")
 _OWNER_TOKEN = "{owner_section}"
+_NAME_TOKEN = "{skull_name}"
 
 # Used when no owner profile exists yet (fresh image, pre-setup). The skull is
 # fully functional and simply learns about its master through conversation.
@@ -100,7 +101,8 @@ def build_owner_section(owner: dict) -> str:
     return "YOUR MASTER: " + " ".join(p for p in parts if p)
 
 
-def build_system_prompt(owner: dict) -> str:
-    """Load the shipped character template and inject the owner section."""
+def build_system_prompt(owner: dict, skull_name: str = "Omega-7") -> str:
+    """Load the shipped character template and inject the skull's name + owner section."""
     template = _TEMPLATE_PATH.read_text()
+    template = template.replace(_NAME_TOKEN, (skull_name or "Omega-7").strip())
     return template.replace(_OWNER_TOKEN, build_owner_section(owner)).rstrip() + "\n"

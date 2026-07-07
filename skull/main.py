@@ -67,7 +67,7 @@ _ACK_PHRASES = [
 # Omega-7 simply acknowledges the silence and signals he is waiting.
 _SILENCE_PHRASES = [
     "This unit awaits your command.",
-    "Silence. Omega-7 stands ready when you are.",
+    f"Silence. {config.SKULL_NAME} stands ready when you are.",
     "I am listening, my Lord. Speak when you will.",
     "The vox is open. State your need.",
     "Nothing? This unit holds its vigil, awaiting your word.",
@@ -242,7 +242,7 @@ def _cogitation_loop(cancel: threading.Event) -> None:
 
 
 _BOOT_PHRASE = (
-    "Omega-7 online. Neural cortex active. Ready to serve the Omnissiah."
+    f"{config.SKULL_NAME} online. Neural cortex active. Ready to serve the Omnissiah."
 )
 _BOOT_CACHE = "models/boot_phrase.wav"
 
@@ -333,7 +333,7 @@ def main():
     display.set_mood(mood.get())
     camera.start()
     temperature.start()
-    print("[skull] Omega-7 online. Awaiting the Emperor's commands.")
+    print(f"[skull] {config.SKULL_NAME} online. Awaiting the Emperor's commands.")
     try:
         import sounddevice as sd
         devices = sd.query_devices()
@@ -444,7 +444,7 @@ def main():
                 "Proceed.",
                 "Command me.",
                 "Why must you interrupt me?",
-                "Again you interrupt Omega-7?",
+                f"Again you interrupt {config.SKULL_NAME}?",
                 "This had better be important.",
                 "Insufferable. What is it?",
             ])
@@ -680,7 +680,7 @@ def main():
             _cancel_cog.set()
             cog_thread.join(timeout=2.0)
 
-        print(f"[skull] Omega-7: {reply}")
+        print(f"[skull] {config.SKULL_NAME}: {reply}")
 
         # ── 4b. Execute commands ───────────────────────────────────────────────
         if not spotify_cmds:

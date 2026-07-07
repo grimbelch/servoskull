@@ -207,7 +207,11 @@ SILENCE_DURATION = 1
 # the setup wizard). See skull/persona.py.
 from skull import persona as _persona  # noqa: E402  (needs USER_DATA_DIR above)
 
+# The skull's own name — owner-settable at setup; defaults to the product name.
+# Woven into the persona, spoken boot/barge-in lines, and the vision/STT prompts.
+SKULL_NAME = _cfg("SKULL_NAME", "Omega-7")
+
 _OWNER_PROFILE = _persona.load_owner(USER_DATA_DIR)
-SYSTEM_PROMPT = _persona.build_system_prompt(_OWNER_PROFILE)
+SYSTEM_PROMPT = _persona.build_system_prompt(_OWNER_PROFILE, SKULL_NAME)
 # Owner location (e.g. "City, State") — drives localized idle news scopes.
 OWNER_LOCATION = _persona.owner_location(_OWNER_PROFILE)

@@ -1,6 +1,6 @@
 import io
 import re
-from skull.config import OPENAI_API_KEY
+from skull.config import OPENAI_API_KEY, SKULL_NAME
 
 # Built lazily on first transcription so importing this module never fails just
 # because the OpenAI key isn't set (e.g. on a host that only does TTS playback).
@@ -62,7 +62,7 @@ def transcribe(wav_bytes: bytes) -> str:
         model="whisper-1",
         file=audio_file,
         language="en",
-        prompt="Omega-7, Omnissiah, Adeptus Mechanicus, Necromunda, Warhammer",
+        prompt=f"{SKULL_NAME}, Omnissiah, Adeptus Mechanicus, Necromunda, Warhammer",
     )
     text = result.text.strip()
     print(f"[skull] Whisper raw: {text!r}")

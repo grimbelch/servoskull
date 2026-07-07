@@ -246,7 +246,7 @@ _TOOLS = [
             "Set a timer or reminder that fires after a delay. Use for 'set a timer for X minutes', "
             "'remind me to do Y in Z minutes', 'wake me up in X hours', etc. "
             "Convert the requested duration to seconds. "
-            "Phrase the message in Omega-7's 40k voice (e.g. 'Your 5-minute cogitation cycle is complete.' "
+            f"Phrase the message in {config.SKULL_NAME}'s 40k voice (e.g. 'Your 5-minute cogitation cycle is complete.' "
             "or 'Reminder, my lord: the dog requires its evening patrol.')."
         ),
         "input_schema": {
@@ -254,7 +254,7 @@ _TOOLS = [
             "properties": {
                 "message": {
                     "type": "string",
-                    "description": "What Omega-7 will speak aloud when the reminder fires.",
+                    "description": f"What {config.SKULL_NAME} will speak aloud when the reminder fires.",
                 },
                 "delay_seconds": {
                     "type": "integer",
@@ -296,12 +296,12 @@ _TOOLS = [
     {
         "name": "set_quiet_mode",
         "description": (
-            "Enable or disable silent mode — whether Omega-7 makes unprompted PERIODIC "
+            f"Enable or disable silent mode — whether {config.SKULL_NAME} makes unprompted PERIODIC "
             "(idle) observations on its own while waiting. Set enabled=true when the user "
             "asks for silence, e.g. 'silent mode', 'be quiet', 'stop talking on your own', "
             "'no more observations', 'hold your tongue'. Set enabled=false when the user "
             "lifts it, e.g. 'you may speak', 'resume observations', 'you can talk again', "
-            "'end silent mode'. This does NOT mute replies to direct questions — Omega-7 "
+            f"'end silent mode'. This does NOT mute replies to direct questions — {config.SKULL_NAME} "
             "still answers when addressed; it only governs self-initiated idle remarks."
         ),
         "input_schema": {
@@ -318,7 +318,7 @@ _TOOLS = [
     {
         "name": "shift_mood",
         "description": (
-            "Update Omega-7's current personality disposition. Call this OCCASIONALLY — "
+            f"Update {config.SKULL_NAME}'s current personality disposition. Call this OCCASIONALLY — "
             "only when the conversation strongly warrants a shift. Examples: a discussion "
             "of Chaos threats → SUSPICIOUS or VIGILANT; ancient history or lore → "
             "CONTEMPLATIVE; dark or tragic news → MELANCHOLIC; completing a task well → "
@@ -475,7 +475,7 @@ def _execute_tool(name: str, tool_input: dict) -> str:
         print(f"[skull] Connecting to {device['name']} ({device['mac']})...")
         success = bluetooth_ctrl.connect(device["mac"])
         return (
-            f"Connected to {device['name']}. Music routes through the speaker via system audio; vocalizations remain on Omega-7's own output."
+            f"Connected to {device['name']}. Music routes through the speaker via system audio; vocalizations remain on {config.SKULL_NAME}'s own output."
             if success
             else f"Failed to connect to {device['name']}. It may be out of range or need pairing."
         )
@@ -602,8 +602,8 @@ def reset() -> None:
     _save_history()
 
 
-_IDLE_PROMPT = """\
-You are Omega-7, an ancient Imperial servo-skull. Your cogitator feeds have just \
+_IDLE_PROMPT = f"""\
+You are {config.SKULL_NAME}, an ancient Imperial servo-skull. Your cogitator feeds have just \
 intercepted real-world news dispatches from the sector. Reinterpret ONE news item \
 as if it were a report from the Warhammer 40,000 universe — use real locations \
 real companies, real people, but modifiy it slightly to fit the Warhammer 40k universe.\

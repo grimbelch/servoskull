@@ -51,7 +51,7 @@ def _rate_limited() -> bool:
 
 _VISION_PROMPT = (
     "You have just detected movement with your optical sensors and captured this image. "
-    "Describe in one or two sentences what or who you observe, staying in character as Omega-7. "
+    f"Describe in one or two sentences what or who you observe, staying in character as {config.SKULL_NAME}. "
     "Be specific about what you see. No stage directions, no asterisks."
 )
 
