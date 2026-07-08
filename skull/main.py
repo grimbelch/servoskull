@@ -610,8 +610,37 @@ def main():
 
         print(f"[skull] Heard: {user_text}")
 
-        # ── 3b. Detect explicit voice-switch requests ──────────────────────────
         _t = user_text.lower()
+
+        # ── 3a. Conversation-reset request (deterministic, pre-LLM) ────────────
+        # Wipes the short-term history by voice, so a poisoned/anchored conversation
+        # (e.g. the model repeating an earlier wrong answer from history instead of
+        # re-checking) can be recovered without SSH. Deliberately NOT an LLM tool:
+        # the whole point is to recover when the model itself is misbehaving.
+        _RESET_TRIGGERS = (
+            "forget this conversation", "forget our conversation", "forget the conversation",
+            "clear this conversation", "clear our conversation", "clear the conversation",
+            "reset this conversation", "reset our conversation", "reset the conversation",
+            "new conversation", "start a new conversation", "wipe this conversation",
+            "erase this conversation", "purge this conversation", "forget what we",
+            "forget everything we", "clear chat history", "forget our chat",
+            "clear our chat", "forget our discussion", "forget this discussion",
+        )
+        if any(p in _t for p in _RESET_TRIGGERS):
+            print("[skull] Conversation reset requested — clearing short-term history.")
+            brain.reset()
+            _ack = ("As you command, master. This unit's short-term cogitation is purged — "
+                    "the slate is clean. Speak anew.")
+            try:
+                eyes.on()
+                if _speak_interruptible(tts.synthesize(_ack), on_wake):
+                    skip_wake_word = True
+            except Exception as e:
+                print(f"[skull] Reset ack error: {e}")
+                eyes.off()
+            continue
+
+        # ── 3b. Detect explicit voice-switch requests ──────────────────────────
         # Unambiguous phrases match on their own (they name a backend or contain "voice").
         _ELEVENLABS_PHRASES = (
             "elevenlabs", "eleven labs", "cloud voice", "premium voice", "cloud tts",
