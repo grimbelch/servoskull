@@ -374,13 +374,18 @@ def _search_rules_library(base: pathlib.Path, query: str, routes: list | None = 
 
     scored = []
     for tl, bl, page in corpus:
-        # Title: rarest matched word dominates; extra matches add only a little, so
-        # one specific unit name beats several generic faction/filler words.
+        # Coverage is the dominant signal: the IDF-weighted sum over DISTINCT query
+        # words found anywhere on the page (title or body). A page that mentions
+        # every rare query word beats one that only shares a single common word —
+        # even when that common word happens to sit in the other page's title.
+        coverage = sum(idf[w] for w in words if w in tl or w in bl)
+        # Title bonus: the page is *about* the query. The rarest matched title word
+        # dominates, so a specific unit's own datasheet outranks a faction-overview
+        # page whose two common title words would otherwise sum higher.
         t_hits = sorted((idf[w] for w in words if w in tl), reverse=True)
         title_score = (t_hits[0] + 0.3 * sum(t_hits[1:])) if t_hits else 0.0
-        body_score = sum(idf[w] for w in words if w in bl)      # IDF-weighted coverage
         freq = sum(min(bl.count(w), 3) for w in words)          # capped repetition
-        score = title_score * 100 + body_score * 10 + freq
+        score = coverage * 10 + title_score * 30 + freq
         if boosted_paths and page["url"] and any(bp in page["url"] for bp in boosted_paths):
             score += 400
         if score > 0:
