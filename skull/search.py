@@ -405,11 +405,12 @@ def _search_rules_library(base: pathlib.Path, query: str, routes: list | None = 
         # every rare query word beats one that only shares a single common word —
         # even when that common word happens to sit in the other page's title.
         coverage = sum(idf[w] for w in words if _in(w, tl) or _in(w, bl))
-        # Title bonus: the page is *about* the query. The rarest matched title word
-        # dominates, so a specific unit's own datasheet outranks a faction-overview
-        # page whose two common title words would otherwise sum higher.
-        t_hits = sorted((idf[w] for w in words if _in(w, tl)), reverse=True)
-        title_score = (t_hits[0] + 0.3 * sum(t_hits[1:])) if t_hits else 0.0
+        # Title bonus: the page is *about* the query. Use ONLY the single rarest
+        # matched title word — so a unit's own datasheet (title "Defiler") outranks
+        # its faction's cover/contents page (title "Emperor's Children"), whose two
+        # less-rare title words would otherwise sum higher and win.
+        t_hits = [idf[w] for w in words if _in(w, tl)]
+        title_score = max(t_hits) if t_hits else 0.0
         freq = sum(min(sum(bl.count(v) for v in var[w]), 3) for w in words)  # capped repetition
         score = coverage * 10 + title_score * 30 + freq
         if boosted_paths and page["url"] and any(bp in page["url"] for bp in boosted_paths):
