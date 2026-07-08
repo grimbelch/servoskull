@@ -197,9 +197,12 @@ HISTORY_FILE = os.getenv("HISTORY_FILE", "history.json")
 
 # How long to record after wake word (seconds)
 RECORD_SECONDS = 10
-# Silence threshold to stop recording early (RMS)
-SILENCE_THRESHOLD = 1000
-SILENCE_DURATION = 1
+# Silence threshold (RMS). Used both to stop recording early and to decide whether
+# any speech occurred at all — capture quieter than this is discarded as silence.
+# LOWER = more sensitive to quiet speech (but more prone to picking up background
+# noise); raise it if it starts transcribing ambient hum. Recorder floor is ~300.
+SILENCE_THRESHOLD = int(_cfg("SILENCE_THRESHOLD", "1000"))
+SILENCE_DURATION = 1.5
 
 # ── Persona (character = product data; owner profile = user data) ─────────────────
 # The servo-skull character and all tool-usage instructions live in the shipped
