@@ -488,10 +488,45 @@ def necromunda_rules(query: str) -> str:
 _W40K_DIR = _rules_dir() / "warhammer40k"
 
 
+def _w40k_faction_note(query: str) -> str:
+    """If the query names a datasheet that exists in several faction packs, list them.
+
+    Many units (Defiler, Rhino, Land Raider…) have their own datasheet in multiple
+    faction packs. The LLM tends to search without a faction, get one faction's
+    datasheet back, and then wrongly conclude the *asked* faction lacks the unit.
+    This deterministic note lists every faction that fields a matched unit, so that
+    false 'faction X has no such unit' answer can't happen regardless of phrasing."""
+    index = _load_rules_library(_W40K_DIR)
+    if not index:
+        return ""
+    ql = query.lower()
+    factions: dict[str, set] = {}
+    display: dict[str, str] = {}
+    for p in index:
+        title = p["title"].strip()
+        tl = title.lower()
+        # Only real datasheets (they carry a reconstructed stat block), and only
+        # when the unit's name actually appears in the query.
+        if len(tl) < 4 or "(stats):" not in p["text"] or tl not in ql:
+            continue
+        faction = p["url"].split(",")[0].strip() if p.get("url") else ""
+        if faction:
+            factions.setdefault(tl, set()).add(faction)
+            display[tl] = title
+    notes = [
+        f"Note: the {display[tl]} datasheet appears in multiple faction packs — "
+        f"{', '.join(sorted(facs))} — each with its own version. All of these "
+        f"factions field this unit."
+        for tl, facs in factions.items() if len(facs) >= 2
+    ]
+    return "\n".join(notes)
+
+
 def warhammer40k_rules(query: str) -> str:
     """Look up Warhammer 40,000 (11th edition) rules from the local library."""
     result = _search_rules_library(_W40K_DIR, query, label="Warhammer 40,000")
-    if result:
-        return result
-    return ("The Warhammer 40,000 rules library isn't installed on this device. "
-            "Ingest the faction pack / core rules PDFs with Rules/ingest_pdf.py.")
+    if not result:
+        return ("The Warhammer 40,000 rules library isn't installed on this device. "
+                "Ingest the faction pack / core rules PDFs with Rules/ingest_pdf.py.")
+    note = _w40k_faction_note(query)
+    return f"{result}\n\n{note}" if note else result
