@@ -40,4 +40,4 @@ Rules/*
 # ...but DO track the (non-copyrighted) tooling and docs that build the library.
 !Rules/README.md
 !Rules/ingest_pdf.py
-!Rules/clean_necromunda_stats.py
+!Rules/clean_necromunda_tables.py
