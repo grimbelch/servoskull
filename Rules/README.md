@@ -44,11 +44,11 @@ Mirror it to `Rules/<game>/` as one Markdown file per page + a `manifest.json`
 (see the Necromunda scraper notes in git history).
 
 ### From PDFs — use the ingester
-`ingest_pdf.py` converts PDFs into the layout above. It needs PyMuPDF, a **dev-time
-only** dependency (run this on a computer, not the Pi):
+`ingest_pdf.py` converts PDFs into the layout above. It needs `pymupdf4llm`, a
+**dev-time only** dependency (run this on a computer, not the Pi):
 
 ```
-pip install pymupdf
+pip install pymupdf4llm
 # every PDF in a folder -> Rules/warhammer40k/
 python Rules/ingest_pdf.py warhammer40k "/path/to/40k Rules"
 # or specific files; --split doc makes one file per PDF (better for prose books)
@@ -58,8 +58,16 @@ python Rules/ingest_pdf.py mygame book.pdf --split doc
 Each PDF becomes a subfolder (named from its filename); by default each page
 becomes one Markdown file titled from its first heading — which suits GW's
 lay-out-per-page packs (each page is a detachment / datasheet / section) and makes
-them rank well. Image-only pages (no text layer) are skipped; scanned PDFs would
-need OCR (e.g. `ocrmypdf`) first.
+them rank well. Body text/tables/columns come from pymupdf4llm (proper Markdown
+tables, multi-column aware). Image-only pages (no text layer) are skipped; scanned
+PDFs would need OCR (e.g. `ocrmypdf`) first.
+
+**Datasheet stat blocks** (M/T/SV/W/LD/OC) are drawn as graphical boxes that no
+text extractor reads correctly — they flatten to an ambiguous one-value-per-line
+jumble (which once made the skull misread a unit's Movement). `ingest_pdf.py`
+reconstructs them from word geometry and prepends a clean labelled profile list,
+then strips the garbled duplicates. This is the fiddliest part; if a future game's
+stat layout differs, that's the code to revisit (`_stat_block`).
 
 ### Then wire it up
 Add a lookup function + Claude tool for the game, following the `warhammer40k_rules`
