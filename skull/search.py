@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import pathlib
 import urllib.request
@@ -339,7 +340,13 @@ def _search_rules_library(base: pathlib.Path, query: str, routes: list | None = 
 
     ``routes`` (optional) is a [(path, [keywords])] table: when a query hits a
     concept whose canonical page's title doesn't contain the word (e.g. "On Fire"
-    lives inside "Conditions"), it boosts that page's score."""
+    lives inside "Conditions"), it boosts that page's score.
+
+    Matches are IDF-weighted so a rare, specific term (a unit name like
+    "Sanctifiers") outweighs common filler (a faction name repeated on every page,
+    or "movement"). In the title, the single rarest matched word dominates — so a
+    unit's own datasheet beats a faction-overview page even when the query also
+    names the faction (whose two common title words would otherwise sum higher)."""
     index = _load_rules_library(base)
     if not index:
         return ""
@@ -354,16 +361,28 @@ def _search_rules_library(base: pathlib.Path, query: str, routes: list | None = 
         boosted_paths = [f"/docs/{path}".rstrip("/")
                          for path, kws in routes if any(kw in ql for kw in kws)]
 
+    # First pass: document frequency of each query word → IDF (rarer = heavier).
+    n_docs = len(index) or 1
+    corpus = [(p["title"].lower(), p["text"].lower(), p) for p in index]
+    df = {w: 0 for w in words}
+    for tl, bl, _ in corpus:
+        combined = tl + " " + bl
+        for w in words:
+            if w in combined:
+                df[w] += 1
+    idf = {w: math.log(n_docs / (df[w] + 1)) + 1.0 for w in words}
+
     scored = []
-    for page in index:
-        tl = page["title"].lower()
-        bl = page["text"].lower()
-        title_hits = sum(1 for w in words if w in tl)
-        body_words = sum(1 for w in words if w in bl)
-        freq = sum(min(bl.count(w), 3) for w in words)
-        score = title_hits * 100 + body_words * 10 + freq
+    for tl, bl, page in corpus:
+        # Title: rarest matched word dominates; extra matches add only a little, so
+        # one specific unit name beats several generic faction/filler words.
+        t_hits = sorted((idf[w] for w in words if w in tl), reverse=True)
+        title_score = (t_hits[0] + 0.3 * sum(t_hits[1:])) if t_hits else 0.0
+        body_score = sum(idf[w] for w in words if w in bl)      # IDF-weighted coverage
+        freq = sum(min(bl.count(w), 3) for w in words)          # capped repetition
+        score = title_score * 100 + body_score * 10 + freq
         if boosted_paths and page["url"] and any(bp in page["url"] for bp in boosted_paths):
-            score += 250
+            score += 400
         if score > 0:
             scored.append((score, page))
 
