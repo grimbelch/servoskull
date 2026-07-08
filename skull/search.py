@@ -288,6 +288,26 @@ _RULES_STOPWORDS = {
 
 _library_cache: dict[str, list] = {}  # folder path -> cached [{title, url, text}]
 
+# British/American spelling pairs (-ize/-ise family). GW texts use British spelling
+# ("harmonised", "realised"); users/LLMs often type American ("harmonized"), which
+# would otherwise miss the rarest, most specific word in a query.
+_SPELLING_PAIRS = [
+    ("ization", "isation"), ("izations", "isations"), ("izing", "ising"),
+    ("ized", "ised"), ("izes", "ises"), ("ize", "ise"),
+]
+
+
+def _spelling_variants(word: str) -> tuple:
+    """The word plus its -ize/-ise spelling counterpart, so 'harmonized' matches
+    'harmonised' and vice versa."""
+    variants = {word}
+    for a, b in _SPELLING_PAIRS:
+        if word.endswith(a):
+            variants.add(word[: -len(a)] + b)
+        elif word.endswith(b):
+            variants.add(word[: -len(b)] + a)
+    return tuple(variants)
+
 
 def _load_rules_library(base: pathlib.Path) -> list:
     """Load and cache one game's local pages. Empty list if the folder is missing.
@@ -361,6 +381,12 @@ def _search_rules_library(base: pathlib.Path, query: str, routes: list | None = 
         boosted_paths = [f"/docs/{path}".rstrip("/")
                          for path, kws in routes if any(kw in ql for kw in kws)]
 
+    # Each word matches either spelling variant (British texts vs American queries).
+    var = {w: _spelling_variants(w) for w in words}
+
+    def _in(w: str, text: str) -> bool:
+        return any(v in text for v in var[w])
+
     # First pass: document frequency of each query word → IDF (rarer = heavier).
     n_docs = len(index) or 1
     corpus = [(p["title"].lower(), p["text"].lower(), p) for p in index]
@@ -368,7 +394,7 @@ def _search_rules_library(base: pathlib.Path, query: str, routes: list | None = 
     for tl, bl, _ in corpus:
         combined = tl + " " + bl
         for w in words:
-            if w in combined:
+            if _in(w, combined):
                 df[w] += 1
     idf = {w: math.log(n_docs / (df[w] + 1)) + 1.0 for w in words}
 
@@ -378,13 +404,13 @@ def _search_rules_library(base: pathlib.Path, query: str, routes: list | None = 
         # words found anywhere on the page (title or body). A page that mentions
         # every rare query word beats one that only shares a single common word —
         # even when that common word happens to sit in the other page's title.
-        coverage = sum(idf[w] for w in words if w in tl or w in bl)
+        coverage = sum(idf[w] for w in words if _in(w, tl) or _in(w, bl))
         # Title bonus: the page is *about* the query. The rarest matched title word
         # dominates, so a specific unit's own datasheet outranks a faction-overview
         # page whose two common title words would otherwise sum higher.
-        t_hits = sorted((idf[w] for w in words if w in tl), reverse=True)
+        t_hits = sorted((idf[w] for w in words if _in(w, tl)), reverse=True)
         title_score = (t_hits[0] + 0.3 * sum(t_hits[1:])) if t_hits else 0.0
-        freq = sum(min(bl.count(w), 3) for w in words)          # capped repetition
+        freq = sum(min(sum(bl.count(v) for v in var[w]), 3) for w in words)  # capped repetition
         score = coverage * 10 + title_score * 30 + freq
         if boosted_paths and page["url"] and any(bp in page["url"] for bp in boosted_paths):
             score += 400
