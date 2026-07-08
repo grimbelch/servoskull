@@ -2,6 +2,7 @@ import json
 import math
 import os
 import pathlib
+import re
 import urllib.request
 from html.parser import HTMLParser
 
@@ -286,7 +287,27 @@ _RULES_STOPWORDS = {
     "into", "any", "this", "that", "there", "their", "they", "you", "your",
 }
 
-_library_cache: dict[str, list] = {}  # folder path -> cached [{title, url, text}]
+_library_cache: dict[str, list] = {}  # folder path -> cached [{title, url, text, headings}]
+
+
+def _extract_headings(text: str) -> list:
+    """Lowercased text of a page's Markdown headings / bold-only lines.
+
+    Rule, stratagem, enhancement and ability NAMES are ingested as headings
+    (e.g. '##### **ENEMY WITHIN**'). Capturing them lets a query match a named rule
+    even when its words are individually common ('enemy', 'within') and so carry no
+    IDF weight — the phrase-as-a-heading is the real signal."""
+    heads = []
+    for line in text.splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        if s.startswith("#") or (s.startswith("**") and s.endswith("**")):
+            cleaned = s.lstrip("#").replace("*", "").replace("`", "").strip()
+            cleaned = re.sub(r"\s+", " ", cleaned).lower()
+            if 2 <= len(cleaned) <= 80:
+                heads.append(cleaned)
+    return heads
 
 # British/American spelling pairs (-ize/-ise family). GW texts use British spelling
 # ("harmonised", "realised"); users/LLMs often type American ("harmonized"), which
@@ -337,7 +358,8 @@ def _load_rules_library(base: pathlib.Path) -> list:
         except OSError:
             continue
         title = e.get("title") or fp.stem.replace("-", " ").title()
-        idx.append({"title": title, "url": e.get("url", ""), "text": text})
+        idx.append({"title": title, "url": e.get("url", ""), "text": text,
+                    "headings": _extract_headings(text)})
 
     _library_cache[key] = idx
     if idx:
@@ -398,6 +420,11 @@ def _search_rules_library(base: pathlib.Path, query: str, routes: list | None = 
                 df[w] += 1
     idf = {w: math.log(n_docs / (df[w] + 1)) + 1.0 for w in words}
 
+    # Phrase for heading matching: the significant words in query order. A named
+    # rule ("Enemy Within") is a heading, so matching a heading is strong evidence
+    # regardless of how common the individual words are.
+    phrase = " ".join(words)
+
     scored = []
     for tl, bl, page in corpus:
         # Coverage is the dominant signal: the IDF-weighted sum over DISTINCT query
@@ -412,7 +439,15 @@ def _search_rules_library(base: pathlib.Path, query: str, routes: list | None = 
         t_hits = [idf[w] for w in words if _in(w, tl)]
         title_score = max(t_hits) if t_hits else 0.0
         freq = sum(min(sum(bl.count(v) for v in var[w]), 3) for w in words)  # capped repetition
-        score = coverage * 10 + title_score * 30 + freq
+        # Heading bonus: a page whose heading IS the query (a named rule) wins even
+        # when the words are common. Flat, not IDF-weighted, for exactly that reason.
+        heading_bonus = 0.0
+        for h in page.get("headings", ()):
+            if phrase and phrase in h:
+                heading_bonus = max(heading_bonus, 300.0 if h == phrase else 180.0)
+            elif words and all(_in(w, h) for w in words):
+                heading_bonus = max(heading_bonus, 120.0)
+        score = coverage * 10 + title_score * 30 + freq + heading_bonus
         if boosted_paths and page["url"] and any(bp in page["url"] for bp in boosted_paths):
             score += 400
         if score > 0:
