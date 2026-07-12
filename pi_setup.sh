@@ -30,11 +30,14 @@ sudo apt-get install -y \
     git \
     libopenblas-dev \
     ffmpeg \
-    python3-opencv
+    python3-opencv \
+    i2c-tools
 
-# Enable the SPI bus for the GC9A01 face display (no-op if already on).
+# Enable the SPI bus for the GC9A01 face display and the I2C bus for the VL53L1X
+# proximity sensor (both no-ops if already on).
 if command -v raspi-config >/dev/null 2>&1; then
     sudo raspi-config nonint do_spi 0
+    sudo raspi-config nonint do_i2c 0
 fi
 
 # ── 2. Python virtual environment ──────────────────────────────────────────

@@ -154,6 +154,27 @@ CAMERA_MAX_PER_HOUR = int(os.getenv("CAMERA_MAX_PER_HOUR", "15"))
 # dark and is never sent to Claude. Guards against covered-lens / night frames.
 CAMERA_MIN_BRIGHTNESS = int(os.getenv("CAMERA_MIN_BRIGHTNESS", "20"))
 
+# ── Proximity trigger — VL53L1X time-of-flight sensor (I2C, optional) ─────────────
+# When present, the camera fires vision on genuine physical approach instead of
+# frame-difference motion — it doesn't false-trip on lighting/auto-exposure and it
+# works in a dark room (a laser rangefinder needs no ambient light). If disabled or
+# the sensor isn't found on the bus, camera.py transparently falls back to motion
+# detection, so the Mac/Windows emulator is unaffected.
+#
+# Wiring (DWEII VL53L1X breakout → Pi 5 40-pin header, I2C1):
+#   VIN → 3V3 (pin 1)   GND → GND (pin 6)   SDA → GPIO2 (pin 3)   SCL → GPIO3 (pin 5)
+PROXIMITY_ENABLED = _cfg("PROXIMITY_ENABLED", "false").lower() == "true"
+# Fire a vision call when a target is detected within this many centimetres.
+PROXIMITY_THRESHOLD_CM = int(os.getenv("PROXIMITY_THRESHOLD_CM", "150"))
+PROXIMITY_I2C_BUS = int(os.getenv("PROXIMITY_I2C_BUS", "1"))
+# VL53L1X default I2C address. int(..., 0) accepts "0x29" or plain decimal.
+PROXIMITY_I2C_ADDR = int(os.getenv("PROXIMITY_I2C_ADDR", "0x29"), 0)
+# Ranging mode: 1=short (~1.3 m, most robust in bright light), 2=medium (~3 m),
+# 3=long (~4 m). Long suits room-scale detection; drop to short if readings jitter.
+PROXIMITY_RANGE_MODE = int(os.getenv("PROXIMITY_RANGE_MODE", "3"))
+# Seconds between distance polls. 0.2 s (5 Hz) reacts promptly without busy-waiting.
+PROXIMITY_POLL_INTERVAL = float(os.getenv("PROXIMITY_POLL_INTERVAL", "0.2"))
+
 # ── Eye LEDs (Raspberry Pi GPIO, BCM numbering) — baked to this build ─────────────
 LED_PIN_LEFT = int(os.getenv("LED_PIN_LEFT", "22"))
 LED_PIN_CENTER = int(os.getenv("LED_PIN_CENTER", "23"))

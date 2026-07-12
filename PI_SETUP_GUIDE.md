@@ -91,9 +91,9 @@ Only the pins this build uses are annotated. Physical pin 1 is the corner neares
 microSD/Wi-Fi end, with the SD card facing you and USB ports to the right.
 
 ```
-            3V3  (1) (2)  5V
-    [I2C] GPIO2  (3) (4)  5V
-          GPIO3  (5) (6)  GND
+PROX VIN●   3V3  (1) (2)  5V
+PROX SDA● GPIO2  (3) (4)  5V
+PROX SCL● GPIO3  (5) (6)  GND   ● ←PROX GND
           GPIO4  (7) (8)  GPIO14
             GND  (9) (10) GPIO15
          GPIO17 (11) (12) GPIO18
@@ -113,8 +113,9 @@ DISP SCL● GPIO11(23) (24) GPIO8  ● ←DISP CS (CE0)
             GND(39) (40) GPIO21
 ```
 
-There are **no pin conflicts** between the LEDs and the display — the LEDs use plain GPIO
-(13/15/16) and the display uses the SPI0 bus (19/23/24) plus three control pins (18/22/32).
+There are **no pin conflicts**: the LEDs use plain GPIO (13/15/16), the display uses the
+SPI0 bus (19/23/24) plus three control pins (18/22/32), and the proximity sensor uses the
+I2C1 bus (3/5) — three independent peripheral buses.
 
 ### 4.2 Eye LEDs (3× red, GPIO PWM) — `eyes.py`
 
@@ -202,11 +203,37 @@ No GPIO involved — all USB/3.5 mm:
 - Speaker audio cable → UGREEN **headphone out**; speaker USB → Pi for power.
 - You'll capture the device indices in step 6.
 
-### 4.6 (Optional) HC-SR04 proximity sensor — skip for now
+### 4.6 (Optional) Proximity sensor — DWEII VL53L1X (time-of-flight, I2C) — `proximity.py`
 
-Not referenced anywhere in the current code, so leave it out of v1. When you add software
-support later: VCC→5 V, GND→GND, Trig→a spare GPIO, and Echo **through a 1 kΩ + 2 kΩ divider**
-(the Echo line is 5 V and will damage a 3.3 V GPIO without it).
+Gives the camera a reliable trigger: when someone comes within `PROXIMITY_THRESHOLD_CM`
+(default 150 cm), Omega-7 fires a vision call. Unlike frame-difference motion it doesn't
+false-trip on lighting changes and it **works in the dark** — a laser rangefinder needs no
+ambient light. If the sensor is absent the camera falls back to motion detection, so this
+is genuinely optional.
+
+Four wires to the free I2C1 bus. **VIN → 3.3 V, not 5 V** — the breakout has a regulator
+but the SDA/SCL lines idle at the Pi's 3.3 V and there's no level-shifting on the Pi side.
+
+| Breakout pin | Connects to | GPIO (BCM) | Physical pin |
+|---|---|---|---|
+| VIN | 3.3 V | — | 1 |
+| GND | Ground | — | 6 |
+| SDA | I2C data | GPIO2 | 3 |
+| SCL | I2C clock | GPIO3 | 5 |
+
+```
+ VL53L1X           Raspberry Pi 5 header
+ ───────           ─────────────────────
+  VIN  ───────────► 3V3    (pin 1)
+  GND  ───────────► GND    (pin 6)
+  SDA  ───────────► GPIO2  (pin 3)
+  SCL  ───────────► GPIO3  (pin 5)
+```
+
+`pi_setup.sh` enables the I2C bus and installs the `VL53L1X` package. Confirm the sensor
+is on the bus with `i2cdetect -y 1` — it should show up at address **0x29**. Then set
+`PROXIMITY_ENABLED=true` (and `CAMERA_ENABLED=true`) in `.env`. Leftover pins (XSHUT/GPIO1
+on the breakout) are unused.
 
 ### Wiring sanity check before powering on
 
@@ -290,6 +317,12 @@ DISPLAY_ENABLED=true
 
 # Camera vision — turn it on now that the ribbon is connected
 CAMERA_ENABLED=true
+
+# Proximity trigger — turn on if the VL53L1X is wired (section 4.6). With it on,
+# vision fires on physical approach and works in the dark; without it the camera
+# falls back to frame-difference motion. Tune PROXIMITY_THRESHOLD_CM to taste.
+PROXIMITY_ENABLED=true
+PROXIMITY_THRESHOLD_CM=150
 ```
 
 > **Why `-1` instead of the UGREEN's index?** Pinning the raw card (e.g. `hw:2,0`) fights the

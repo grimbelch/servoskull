@@ -1,21 +1,27 @@
 """
-Motion-triggered vision: detects movement, captures a frame, and asks
+Proximity-triggered vision: notices someone nearby, captures a frame, and asks
 Claude Vision to describe what it sees in Omega-7 persona.
 
-Runs in a background thread; observations are queued for main loop.
-Activate by setting CAMERA_ENABLED=true in .env.
+Trigger source, chosen automatically at startup:
+  * VL53L1X time-of-flight sensor (proximity.py) when present — fires on genuine
+    physical approach and works in the dark.
+  * Frame-difference motion detection otherwise — the fallback used by the
+    Mac/Windows emulator and any Pi without the sensor wired.
+
+Runs in a background thread; observations are queued for the main loop.
+Activate by setting CAMERA_ENABLED=true in .env (and PROXIMITY_ENABLED=true to
+use the ToF sensor).
 
 On Raspberry Pi with Camera Module 3: uses picamera2 (pre-installed on Pi OS).
 On Mac/Windows (emulator): falls back to cv2.VideoCapture.
 """
 
 from __future__ import annotations
-import base64
 import queue
 import threading
 import time
 
-from skull import config
+from skull import config, proximity
 
 _observation_queue: queue.Queue = queue.Queue()
 _last_observation_time: float = 0.0
@@ -38,7 +44,7 @@ def _is_blank(gray) -> bool:
 def _rate_limited() -> bool:
     """True if we've already hit the per-hour vision-call ceiling.
 
-    A backstop independent of motion/cooldown so a noisy sensor can't run
+    A backstop independent of the trigger/cooldown so a noisy sensor can't run
     away with the API budget. Prunes timestamps older than one hour.
     """
     now = time.time()
@@ -50,7 +56,7 @@ def _rate_limited() -> bool:
     return False
 
 _VISION_PROMPT = (
-    "You have just detected movement with your optical sensors and captured this image. "
+    "You have just sensed someone or something nearby and captured this image. "
     f"Describe in one or two sentences what or who you observe, staying in character as {config.SKULL_NAME}. "
     "Be specific about what you see. No stage directions, no asterisks."
 )
@@ -70,73 +76,110 @@ def _run_observation(jpeg_bytes: bytes) -> None:
         print(f"[camera] Vision error: {e}")
 
 
-def _motion_loop_picamera2() -> None:
-    global _last_observation_time
-    import cv2
-    import numpy as np
-    from picamera2 import Picamera2
+def _open_backend():
+    """Set up a frame source and return (read, close).
 
+    read() -> a BGR uint8 frame (numpy array) or None on failure.
+    close() releases the device.
+
+    Prefers picamera2 (Pi Camera Module 3 / IMX708); falls back to
+    cv2.VideoCapture on the emulator. Returns None if no camera can be opened.
+    """
+    try:
+        from picamera2 import Picamera2
+    except ImportError:
+        return _open_cv2_backend()
+
+    import cv2
     picam2 = Picamera2()
-    cam_cfg = picam2.create_preview_configuration(
-        main={"size": (640, 480), "format": "RGB888"}
+    picam2.configure(
+        picam2.create_preview_configuration(main={"size": (640, 480), "format": "RGB888"})
     )
-    picam2.configure(cam_cfg)
     picam2.start()
-    print("[camera] Motion detection active (picamera2 / IMX708)")
+    print("[camera] Frame source: picamera2 / IMX708")
 
-    frame = picam2.capture_array()
-    prev_gray = cv2.GaussianBlur(cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY), (21, 21), 0)
+    def read():
+        rgb = picam2.capture_array()
+        return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
 
-    while True:
-        time.sleep(0.1)
-        frame = picam2.capture_array()
-        gray = cv2.GaussianBlur(cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY), (21, 21), 0)
-        diff = cv2.absdiff(prev_gray, gray)
-        _, thresh = cv2.threshold(diff, 25, 255, cv2.THRESH_BINARY)
-        motion_score = int(np.sum(thresh) // 255)
-        prev_gray = gray
+    def close():
+        picam2.stop()
 
-        now = time.time()
-        if (motion_score >= config.CAMERA_MOTION_THRESHOLD
-                and now - _last_observation_time >= config.CAMERA_COOLDOWN):
-            _last_observation_time = now
-            clean = picam2.capture_array()
-            clean_gray = cv2.cvtColor(clean, cv2.COLOR_RGB2GRAY)
-            if _is_blank(clean_gray):
-                print(f"[camera] Motion (score={motion_score}) but frame is blank/dark — skipping vision")
-                continue
-            if _rate_limited():
-                print("[camera] Per-hour vision-call limit reached — skipping")
-                continue
-            print(f"[camera] Motion detected (score={motion_score}) — querying vision")
-            bgr = cv2.cvtColor(clean, cv2.COLOR_RGB2BGR)
-            _, buf = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 75])
-            _run_observation(buf.tobytes())
+    return read, close
 
 
-def _motion_loop_cv2() -> None:
-    global _last_observation_time
+def _open_cv2_backend():
     import cv2
-    import numpy as np
-
     cap = cv2.VideoCapture(config.CAMERA_DEVICE_INDEX)
     if not cap.isOpened():
         print(f"[camera] Could not open device {config.CAMERA_DEVICE_INDEX} — vision disabled")
-        return
+        return None
+    print(f"[camera] Frame source: cv2 / device {config.CAMERA_DEVICE_INDEX}")
 
-    print(f"[camera] Motion detection active (cv2 / device {config.CAMERA_DEVICE_INDEX})")
+    def read():
+        ret, frame = cap.read()
+        return frame if ret else None
 
-    ret, frame = cap.read()
-    if not ret:
+    def close():
         cap.release()
-        return
 
+    return read, close
+
+
+def _capture_and_observe(read, reason: str) -> None:
+    """Grab a clean frame and, unless it's blank or we're rate-limited, describe it.
+
+    Cooldown is the caller's responsibility (set before this runs) so even a
+    blank/rate-limited trigger still resets it and we don't hammer the sensor.
+    """
+    import cv2
+    frame = read()
+    if frame is None:
+        return
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    if _is_blank(gray):
+        print(f"[camera] {reason} but frame is blank/dark — skipping vision")
+        return
+    if _rate_limited():
+        print("[camera] Per-hour vision-call limit reached — skipping")
+        return
+    print(f"[camera] {reason} — querying vision")
+    _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
+    _run_observation(buf.tobytes())
+
+
+def _proximity_trigger_loop(read) -> None:
+    """Fire vision whenever a target comes within PROXIMITY_THRESHOLD_CM."""
+    global _last_observation_time
+    print("[camera] Proximity-triggered vision active (VL53L1X)")
+    while True:
+        time.sleep(config.PROXIMITY_POLL_INTERVAL)
+        cm = proximity.read_cm()
+        if cm is None:
+            continue
+        now = time.time()
+        if (cm <= config.PROXIMITY_THRESHOLD_CM
+                and now - _last_observation_time >= config.CAMERA_COOLDOWN):
+            _last_observation_time = now
+            _capture_and_observe(read, f"Proximity {cm:.0f}cm")
+
+
+def _motion_trigger_loop(read) -> None:
+    """Fallback: fire vision on frame-difference motion above the threshold."""
+    global _last_observation_time
+    import cv2
+    import numpy as np
+
+    print("[camera] Motion-triggered vision active (frame differencing)")
+    frame = read()
+    if frame is None:
+        return
     prev_gray = cv2.GaussianBlur(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), (21, 21), 0)
 
     while True:
         time.sleep(0.1)
-        ret, frame = cap.read()
-        if not ret:
+        frame = read()
+        if frame is None:
             continue
 
         gray = cv2.GaussianBlur(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), (21, 21), 0)
@@ -149,36 +192,29 @@ def _motion_loop_cv2() -> None:
         if (motion_score >= config.CAMERA_MOTION_THRESHOLD
                 and now - _last_observation_time >= config.CAMERA_COOLDOWN):
             _last_observation_time = now
-            ret2, clean = cap.read()
-            if not ret2:
-                continue
-            clean_gray = cv2.cvtColor(clean, cv2.COLOR_BGR2GRAY)
-            if _is_blank(clean_gray):
-                print(f"[camera] Motion (score={motion_score}) but frame is blank/dark — skipping vision")
-                continue
-            if _rate_limited():
-                print("[camera] Per-hour vision-call limit reached — skipping")
-                continue
-            print(f"[camera] Motion detected (score={motion_score}) — querying vision")
-            _, buf = cv2.imencode(".jpg", clean, [cv2.IMWRITE_JPEG_QUALITY, 75])
-            _run_observation(buf.tobytes())
-
-    cap.release()
+            _capture_and_observe(read, f"Motion (score={motion_score})")
 
 
-def _motion_loop() -> None:
+def _vision_loop() -> None:
+    backend = _open_backend()
+    if backend is None:
+        return
+    read, close = backend
     try:
-        import picamera2  # noqa: F401
-        _motion_loop_picamera2()
-    except ImportError:
-        _motion_loop_cv2()
+        if proximity.start():
+            _proximity_trigger_loop(read)
+        else:
+            _motion_trigger_loop(read)
+    finally:
+        close()
+        proximity.stop()
 
 
 def start() -> None:
-    """Start background motion detection. No-op if CAMERA_ENABLED is false."""
+    """Start background vision triggering. No-op if CAMERA_ENABLED is false."""
     if not config.CAMERA_ENABLED:
         return
-    threading.Thread(target=_motion_loop, daemon=True).start()
+    threading.Thread(target=_vision_loop, daemon=True).start()
 
 
 def get_observation() -> str | None:
