@@ -7,13 +7,14 @@ import random
 
 from skull import config
 from skull import audio, wake_word, transcribe, brain, tts, eyes, sfx, reminders, mood
-from skull import spotify_ctrl, cast_audio, camera, quiet, display, temperature
+from skull import spotify_ctrl, cast_audio, camera, quiet, display, temperature, candles
 
 
 def shutdown(sig=None, frame=None):
     print("\n[skull] Powering down. The Emperor protects.")
     display.cleanup()
     eyes.cleanup()
+    candles.cleanup()
     audio.cleanup()
     sys.exit(0)
 
@@ -529,6 +530,8 @@ def _speak_interruptible(wav_bytes: bytes, on_wake) -> bool:
 
 def main():
     eyes.setup(config.LED_PIN_LEFT, config.LED_PIN_CENTER, config.LED_PIN_RIGHT)
+    candles.setup(config.CANDLE_PIN)
+    candles.on()  # ambient — flicker for as long as the skull is powered
     display.setup()
     display.set_mood(mood.get())
     camera.start()

@@ -180,6 +180,16 @@ LED_PIN_LEFT = int(os.getenv("LED_PIN_LEFT", "22"))
 LED_PIN_CENTER = int(os.getenv("LED_PIN_CENTER", "23"))
 LED_PIN_RIGHT = int(os.getenv("LED_PIN_RIGHT", "27"))
 
+# ── Candle LEDs (self-flickering, GPIO-switched via transistor) — optional ────────
+# The EDGELEC 2V flicker LEDs atop the skull flicker on their own internal IC; the
+# GPIO only gates them on/off through a 2N2222 low-side switch, so the skull lights
+# its candles when it wakes and snuffs them on shutdown. Disabled by default so the
+# emulator and un-wired Pis are unaffected; set CANDLE_ENABLED=true in .env when
+# wired. Current flows from the 5V rail through the transistor, not the GPIO, so the
+# candle count is limited only by the rail — not the Pi's per-pin current budget.
+CANDLE_ENABLED = _cfg("CANDLE_ENABLED", "false").lower() == "true"
+CANDLE_PIN = int(os.getenv("CANDLE_PIN", "17"))
+
 # ── Face display (GC9A01 1.28" round IPS, 240x240, 4-wire SPI) ───────────────────
 # Optional "machine-spirit" eye/face display. Disabled by default so the Mac/Windows
 # emulator and displayless Pis are unaffected; set DISPLAY_ENABLED=true in .env on the

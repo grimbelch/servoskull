@@ -91,12 +91,12 @@ Only the pins this build uses are annotated. Physical pin 1 is the corner neares
 microSD/Wi-Fi end, with the SD card facing you and USB ports to the right.
 
 ```
-PROX VIN●   3V3  (1) (2)  5V
+PROX VIN●   3V3  (1) (2)  5V    ● ←CANDLE 5V (LED supply)
 PROX SDA● GPIO2  (3) (4)  5V
 PROX SCL● GPIO3  (5) (6)  GND   ● ←PROX GND
           GPIO4  (7) (8)  GPIO14
-            GND  (9) (10) GPIO15
-         GPIO17 (11) (12) GPIO18
+CANDLE● ←  GND  (9) (10) GPIO15   (transistor emitter GND)
+CANDLE● ← GPIO17(11) (12) GPIO18   (transistor base via 1kΩ)
   LED→ ●  GPIO27(13) (14) GND  ● ←LED cathodes common GND
   LED→ ●  GPIO22(15) (16) GPIO23  ● ←LED
 DISP VCC● 3V3  (17) (18) GPIO24 ● ←DISP RES
@@ -113,9 +113,9 @@ DISP SCL● GPIO11(23) (24) GPIO8  ● ←DISP CS (CE0)
             GND(39) (40) GPIO21
 ```
 
-There are **no pin conflicts**: the LEDs use plain GPIO (13/15/16), the display uses the
-SPI0 bus (19/23/24) plus three control pins (18/22/32), and the proximity sensor uses the
-I2C1 bus (3/5) — three independent peripheral buses.
+There are **no pin conflicts**: the eye LEDs use plain GPIO (13/15/16), the candle LEDs
+one more (GPIO17, pin 11), the display uses the SPI0 bus (19/23/24) plus three control pins
+(18/22/32), and the proximity sensor uses the I2C1 bus (3/5).
 
 ### 4.2 Eye LEDs (3× red, GPIO PWM) — `eyes.py`
 
@@ -235,6 +235,42 @@ is on the bus with `i2cdetect -y 1` — it should show up at address **0x29**. T
 `PROXIMITY_ENABLED=true` (and `CAMERA_ENABLED=true`) in `.env`. Leftover pins (XSHUT/GPIO1
 on the breakout) are unused.
 
+### 4.7 Candle LEDs (self-flickering, GPIO-switched) — `candles.py`
+
+The EDGELEC 2 V yellow flicker LEDs atop the skull generate their flame effect on an
+internal IC — the Pi doesn't animate them. A single GPIO gates them on/off through a
+**2N2222 transistor low-side switch**, so the skull lights its candles when it wakes and
+snuffs them on shutdown. Because the LED current flows from the 5 V rail through the
+transistor (not out of the GPIO), you can drive any number of candles this way — the GPIO
+only sources the tiny base current.
+
+Use the **470 Ω resistors from the EDGELEC pack** here (one per LED). At 5 V that's ≈6 mA
+per LED — safe and comfortably bright for a 2 V flicker LED. (These are the resistors the
+eye-LED section told you *not* to use at 3.3 V; on the 5 V candle rail they're correct.)
+
+| Signal | GPIO (BCM) | Physical pin | Config var |
+|---|---|---|---|
+| Candle switch | GPIO17 | 11 | `CANDLE_PIN` |
+| LED supply | 5 V | 2 | — |
+| Transistor GND | GND | 9 | — |
+
+```
+                        ┌──[470Ω]──▶|── ┐   (one 470Ω + LED per candle,
+ 5V (pin 2) ────────────┼──[470Ω]──▶|── ┤    all cathodes to the collector)
+                        └──[470Ω]──▶|── ┘
+                                        │
+                                        ▼ collector
+                          2N2222 NPN  ──┤
+ GPIO17 (pin 11) ──[1kΩ]──► base       ─┤
+                                        ▼ emitter
+                                     GND (pin 9)
+```
+
+Add a **10 kΩ resistor from base to GND** so the transistor stays off while GPIO17 floats
+during boot (otherwise the candles may glow faintly until the software drives the pin low).
+Then set `CANDLE_ENABLED=true` in `.env`. On the Mac/Windows emulator and any Pi without the
+circuit wired, `candles.py` is a silent no-op.
+
 ### Wiring sanity check before powering on
 
 - [ ] Display **VCC on pin 17 (3.3 V)** — not a 5 V pin.
@@ -242,6 +278,8 @@ on the breakout) are unused.
 - [ ] LED long legs toward the resistor/GPIO, short legs to GND.
 - [ ] Nothing bridging two header pins (look for stray strands).
 - [ ] Camera ribbon fully seated, tab locked, correct orientation.
+- [ ] Proximity/candle **VIN and 5 V taps** on the right rails (proximity → 3.3 V, candles → 5 V).
+- [ ] Candle transistor has its **10 kΩ base-to-GND pulldown** so it boots off.
 
 ---
 
@@ -323,6 +361,10 @@ CAMERA_ENABLED=true
 # falls back to frame-difference motion. Tune PROXIMITY_THRESHOLD_CM to taste.
 PROXIMITY_ENABLED=true
 PROXIMITY_THRESHOLD_CM=150
+
+# Candle LEDs — turn on if the flicker LEDs are wired to GPIO17 via the transistor
+# (section 4.7). They light at boot and snuff on shutdown.
+CANDLE_ENABLED=true
 ```
 
 > **Why `-1` instead of the UGREEN's index?** Pinning the raw card (e.g. `hw:2,0`) fights the
