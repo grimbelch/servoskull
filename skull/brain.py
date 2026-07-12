@@ -12,6 +12,7 @@ from skull import memory as _memory
 from skull import reminders as _reminders
 from skull import mood as _mood
 from skull import quiet as _quiet
+from skull import candles as _candles
 from skull import llm as _llm
 
 _history: list[dict] = []
@@ -359,6 +360,27 @@ _TOOLS = [
             "required": ["mood"],
         },
     },
+    {
+        "name": "set_candles",
+        "description": (
+            f"Light or extinguish the flickering candles atop {config.SKULL_NAME}. "
+            "Set lit=true when the user says 'light the candles', 'candles on', "
+            "'ignite the candles'. Set lit=false when the user says 'dim the candles', "
+            "'douse the candles', 'put out the candles', 'candles off', 'extinguish the "
+            "candles'. The candles are either fully lit or fully out — they cannot be "
+            "partially dimmed, so treat 'dim' as 'extinguish'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "lit": {
+                    "type": "boolean",
+                    "description": "true to light the candles; false to extinguish them.",
+                },
+            },
+            "required": ["lit"],
+        },
+    },
 ]
 
 _ORDINALS = {
@@ -546,6 +568,18 @@ def _execute_tool(name: str, tool_input: dict) -> str:
     if name == "shift_mood":
         new_mood = _mood.set_mood(str(tool_input.get("mood", "DUTIFUL")))
         return f"Disposition updated to {new_mood}."
+    if name == "set_candles":
+        lit = bool(tool_input.get("lit", True))
+        if lit:
+            _candles.on()
+        else:
+            _candles.off()
+        print(f"[skull] Candles {'lit' if lit else 'extinguished'}")
+        return (
+            "The candles are lit; their flame-glow flickers over the skull."
+            if lit
+            else "The candles are extinguished."
+        )
     return f"Unknown tool: {name}"
 
 
