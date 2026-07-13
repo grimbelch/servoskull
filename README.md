@@ -1,4 +1,4 @@
-# Omega-7 — The AI Servo Skull
+# Omega-7 — The Servo Skull Assistant
 
 > *"This unit serves the Omnissiah, and, in its infinite mercy, you."*
 
@@ -16,7 +16,7 @@ Point a wake word at it — *"Hey Robot"* — and it wakes, ignites its candle L
 
 Omega-7 is a self-contained voice assistant with a very specific soul. Everything runs **on the Pi itself** — the only things that leave the device are the API calls you opt into (Claude for the brain, optionally OpenAI Whisper for transcription, optionally ElevenLabs for the voice).
 
-- **🗣️ Talks back, in character.** Wake it with *"Hey Robot"* and it listens, thinks (Anthropic Claude), and replies aloud through a text-to-speech voice — formal, archaic, ominous, devoted to the Emperor and the Machine God. It calls itself "this unit."
+- **🗣️ Talks back, in character.** Wake it with *"Servitor"* and it listens, thinks (Anthropic Claude), and replies aloud through a text-to-speech voice — formal, archaic, ominous, devoted to the Emperor and the Machine God. It calls itself "this unit."
 - **👁️ Sees you.** An Arducam IMX708 camera lets it describe the scene on demand — *"What do you see, Omega-7?"* — and, with the optional time-of-flight proximity sensor, it can wake and greet you when you physically approach, even in the dark.
 - **💡 Physically reacts.** Three red LEDs behind the eye lenses and a GC9A01 round display "machine-spirit eye" pulse in time with its speech. Candle LEDs atop the skull light when it wakes and snuff on shutdown.
 - **📖 Knows the rules.** A built-in, offline rules library lets it answer questions about **Warhammer 40,000 (11th ed.)**, **Necromunda**, and **Net Epic Armageddon** — datasheets, stratagems, weapons, points, tournament rules — quoting the actual rulebooks rather than guessing.
