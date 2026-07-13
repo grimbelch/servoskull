@@ -3,6 +3,15 @@ OMEGA-7 SERVO SKULL — SHOPPING LIST
 Warhammer 40k AI Talking Servo Skull Build
 Based on Raspberry Pi 5
 
+3D PRINTED BODY
+---------------
+[ ] Servo Skull — LED Candlelit Lantern (3D model / STL)
+    - https://www.printables.com/model/1457078-servo-skull-led-candlelit-lantern
+    - The printable skull chassis this whole build is designed around
+    - Houses the eye LEDs, round display, camera, mic, and candle LEDs
+    - Print in your filament of choice; bone/ivory + a wash reads best for 40k
+
+
 CORE COMPUTING
 --------------
 [X] Raspberry Pi 5 (4GB RAM recommended)
