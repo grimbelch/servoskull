@@ -88,7 +88,7 @@ _TOOLS = [
     {
         "name": "necromunda_rules",
         "description": (
-            "Look up Necromunda tabletop game rules from necroraw.com.ru (Rules as Written). "
+            "Look up Necromunda tabletop game rules from the local offline rules library (Rules as Written). "
             "Use for any question about Necromunda mechanics, gangs, weapons, skills, "
             "injuries, campaigns, scenarios, or equipment — including the Trading Post and "
             "Black Market: item availability, rarity, cost, exclusive/illegal items, and "
