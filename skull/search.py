@@ -32,11 +32,10 @@ _WMO_CODES: dict[int, str] = {
     95: "thunderstorm", 96: "thunderstorm with hail", 99: "thunderstorm with heavy hail",
 }
 
-_NECRO_SITE = "necroraw.com.ru"
-_NECRO_BASE = f"https://www.{_NECRO_SITE}"
-
 # Keyword → doc page routing. For each entry: (path, [keywords that suggest this page]).
-# Order matters: first match wins for the primary page; all matches are collected.
+# Used to concept-boost the local Necromunda library: when a query hits a concept
+# whose canonical page's title doesn't contain the word (e.g. "On Fire" lives inside
+# "Conditions"), the matching page's score is boosted via its URL path.
 _NECRO_ROUTES = [
     ("gang-fighters-and-their-weaponry/weapon-traits", [
         "trait", "weapon trait", "blaze", "rapid fire", "blast", "template",
@@ -179,29 +178,6 @@ def news_search(query: str, max_results: int = 7) -> str:
         )
     except Exception as e:
         return f"News search unavailable: {e}"
-
-
-def _necro_urls_from_keywords(query: str) -> list:
-    """Return candidate page URLs by matching query against known keyword routes."""
-    q = query.lower()
-    urls = []
-    for path, keywords in _NECRO_ROUTES:
-        if any(kw in q for kw in keywords):
-            urls.append(f"{_NECRO_BASE}/docs/{path}")
-    return urls
-
-
-def _necro_urls_from_ddg(query: str) -> list:
-    """Try DDG searches and return any necroraw.com.ru URLs found."""
-    for q in [f'necroraw.com.ru {query}', f'site:{_NECRO_SITE} {query}']:
-        try:
-            results = list(DDGS().text(q, max_results=5))
-            urls = [r["href"] for r in results if _NECRO_SITE in r.get("href", "")]
-            if urls:
-                return urls
-        except Exception:
-            continue
-    return []
 
 
 # ── Net Epic Armageddon ───────────────────────────────────────────────────────
@@ -468,52 +444,19 @@ def _search_rules_library(base: pathlib.Path, query: str, routes: list | None = 
 
 
 # ── Local Necromunda ruleset (offline library) ────────────────────────────────
-# The full NecroRAW ruleset is mirrored to _rules_dir()/necromunda; the live-fetch
-# path below is kept only as a fallback when the mirror is absent.
+# The full Necromunda ruleset (Rules as Written) is mirrored to
+# _rules_dir()/necromunda as one Markdown file per page. Offline-only.
 _NECRO_DIR = _rules_dir() / "necromunda"
 
 
-def _necromunda_rules_local(query: str) -> str:
-    """Search the local Necromunda mirror; return "" if the mirror is unavailable."""
-    return _search_rules_library(_NECRO_DIR, query, routes=_NECRO_ROUTES,
-                                 label="Necromunda")
-
-
-def _necromunda_rules_online(query: str) -> str:
-    """Fallback: look up Necromunda rules live on necroraw.com.ru."""
-    def _fetch_pages(urls: list) -> list:
-        pages = []
-        for url in urls[:4]:
-            text = _fetch_text(url)
-            if text and not text.startswith("Could not fetch") and len(text) > 200:
-                pages.append(f"Source: {url}\n\n{text}")
-            if len(pages) == 2:
-                break
-        return pages
-
-    # Priority 1: keyword routing to known section pages (fast, reliable)
-    pages = _fetch_pages(_necro_urls_from_keywords(query))
-
-    # Priority 2: DDG search — used both when no route matched and when the routed
-    # pages failed to fetch (e.g. a section path went stale), so a bad route never
-    # silently swallows a query that search could have answered.
-    if not pages:
-        pages = _fetch_pages(_necro_urls_from_ddg(query))
-
-    if pages:
-        return "\n\n---\n\n".join(pages)
-    return f"No matching rules pages found on {_NECRO_SITE} for: {query}"
-
-
 def necromunda_rules(query: str) -> str:
-    """Look up Necromunda rules, preferring the offline local mirror.
-
-    Reads from config.RULES_DIR/necromunda if it has been populated; only if that
-    mirror is missing does it fall back to fetching necroraw.com.ru live."""
-    local = _necromunda_rules_local(query)
-    if local:
-        return local
-    return _necromunda_rules_online(query)
+    """Look up Necromunda rules from the local offline library."""
+    result = _search_rules_library(_NECRO_DIR, query, routes=_NECRO_ROUTES,
+                                   label="Necromunda")
+    if not result:
+        return ("The Necromunda rules library isn't installed on this device. "
+                "Populate _rules_dir()/necromunda with the mirrored ruleset pages.")
+    return result
 
 
 # ── Local Warhammer 40,000 ruleset (offline library) ───────────────────────────
