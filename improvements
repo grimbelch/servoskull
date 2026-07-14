@@ -25,7 +25,19 @@ Medium effort
 [ ] Validate bluetooth speaker connection skill and behavior
 [ ] Find (better) mounting points for mic and camera
 
+[ ] Environmental Auspex: Install secondary sensors to monitor the temperature, humidity, or air quality of your immediate workspace.
 
+[ ] Bambu H2D Telemetry: Use an MQTT client to intercept your Bambu printer's local data stream for progress updates and STC corruption (error) vocal alerts.
+
+[ ] Unraid Network Tap: Connect to your Unraid server via SMB, Nextcloud WebDAV, or the Unraid GraphQL API to monitor system health and data transfers.
+
+[ ] Networked STL Auspex: Program the skull to visually and audibly chime the exact second a new file successfully drops into your Nextcloud STL folder.
+
+[ ] Gestural Soundboard: Program OpenCV to read simple hand gestures to mute the system, play music, or trigger specific litanies.
+
+[ ] Phantom Servo Audio Illusion: Pan mechanical whirring sound effects between your left and right speakers to simulate the skull physically tracking movement across the room.
+
+[ ] Voice Command Override: Implement offline voice recognition to handle rapid, basic system commands without burning API credits.
 
 Bigger projects
 
