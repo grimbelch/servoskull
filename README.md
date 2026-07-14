@@ -4,7 +4,7 @@
 
 An AI-powered **Warhammer 40,000 servo skull** that floats on your shelf, glares at you with glowing red optics, lights its own candles when it wakes, and answers you out loud — in character as an ancient, Emperor-devoted machine-spirit. It runs entirely on a **Raspberry Pi 5**, sees you through a camera, hears you through a mic, and speaks through a real voice. It knows the 40k rulebook cold, plays your music, and remembers who you are.
 
-Point a wake word at it — *"Hey Robot"* — and it wakes, ignites its candle LEDs, pulses its iris in time with its speech, and responds.
+Point a wake word at it — *"Servitor"* — and it wakes, ignites its candle LEDs, pulses its iris in time with its speech, and responds.
 
 <p align="center">
   <img src="images/cog_eye_preview.png" width="320" alt="The machine-spirit eye — glowing red iris with the Mechanicus tick-ring">
@@ -95,7 +95,7 @@ skull/                 The application (Python package)
   main.py              Wake-word loop + orchestration
   brain.py             Claude conversation + tool dispatch
   llm.py               Anthropic client
-  wake_word.py         openWakeWord ("Hey Robot")
+  wake_word.py         openWakeWord ("Servitor")
   transcribe.py        Speech-to-text (Whisper)
   tts.py               Text-to-speech (Piper / ElevenLabs)
   audio.py             Capture & playback (PipeWire)
