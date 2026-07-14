@@ -441,7 +441,7 @@ so the finished skull is a headless appliance — power it and it wakes on its o
 Say the wake word and Omega-7 should answer in character, eyes and iris pulsing with its
 speech. `WAKE_WORD_MODEL` in `.env` selects the openWakeWord model — a built-in name like
 `hey_jarvis`, or a path to a custom ONNX model (this build uses
-`models/Hey_Robot_20260401_210600.onnx`, i.e. "Hey Robot").
+`models/servitor.onnx`, i.e. "Servitor").
 
 ---
 
