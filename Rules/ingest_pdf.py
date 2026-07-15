@@ -76,8 +76,12 @@ def _doc_slug(stem: str) -> str:
          -> 'world-eaters'
     Words are separated by '_'; hash suffixes are '-'-separated ~10-char tokens."""
     name = stem
-    for _ in range(2):  # strip up to two trailing '-'-separated hash tokens
-        name = re.sub(r"-[a-z0-9]{9,}$", "", name)
+    name = re.sub(r"-\d{4}-\d{2}-\d{2}$", "", name)  # trailing ISO date (e.g. netea-...-2026-02-04)
+    # Strip up to two trailing '-'-separated hash tokens. A real GW content hash is a
+    # long alphanumeric run that CONTAINS a digit (e.g. 'az7f3k9d2'); requiring a digit
+    # keeps genuine long words ('salamanders', 'siegemasters') from being eaten.
+    for _ in range(2):
+        name = re.sub(r"-(?=[a-z0-9]*\d)[a-z0-9]{9,}$", "", name)
     name = re.sub(r"^eng_\d\d-\d\d_", "", name)
     for junk in ("warhammer40000_", "warhammer40k_", "new40k_", "faction_pack_"):
         name = name.replace(junk, "")

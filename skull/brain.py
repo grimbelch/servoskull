@@ -19,7 +19,7 @@ _history: list[dict] = []
 
 # Tools that hit the network/hardware and can take a noticeable moment. Omega-7
 # speaks a short "stand by" before running any of these so the user gets feedback.
-_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netea_rules", "get_weather", "bluetooth_scan"}
+_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan"}
 _HISTORY_PATH = config.data_path(config.HISTORY_FILE)
 
 
@@ -129,18 +129,48 @@ _TOOLS = [
         },
     },
     {
-        "name": "netea_rules",
+        "name": "netepic_rules",
         "description": (
-            "Look up Net Epic Armageddon (NetEA) tabletop game rules from the NetEA Tournament Pack. "
-            "Use for any question about NetEA mechanics, army lists, formations, units, special rules, "
-            "or tournament regulations. Always use this tool before answering a NetEA question."
+            "Look up NetEpic (also called Epic 2nd Edition) tabletop game rules from the local "
+            "offline rules library — the NetEpic 5.0 core rules, optional rules, and army books "
+            "(Adeptus Astartes/Space Marines, Adeptus Mechanicus, Adeptus Militaris/Imperial Guard, "
+            "Adeptus Ministorum, Chaos, Tyranid, Squat, Ork, Slann, Tau). Use for any NetEpic "
+            "question: game phases, movement, combat, unit stats and army cards, formations, "
+            "titans, weapons, points, or army list building. This is a DIFFERENT game from Net "
+            "Epic Armageddon / NetEA (use netea_rules for that) — disambiguate by the keywords "
+            "'2nd edition' (NetEpic) versus 'Armageddon' or '3rd edition' (NetEA). Always use this "
+            "tool before answering a NetEpic / Epic 2nd Edition question rather than relying on memory."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "Rule, unit, formation, or topic to look up (e.g. 'blast markers', 'Space Marine Tactical formation', 'aerospace operations')",
+                    "description": "Rule, unit, army card, weapon, or topic to look up (e.g. 'orders phase', 'Space Marine Tactical Company', 'Warlord Titan', 'close combat resolution', 'Ork Gargant')",
+                }
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "netea_rules",
+        "description": (
+            "Look up Net Epic Armageddon (NetEA — also called 'Armageddon' or 'Epic 3rd Edition') "
+            "tabletop game rules from the local offline rules library: the NetEA rules, tournament "
+            "pack, FAQ, and army lists (Space Marines, Chaos, Eldar, Dark Eldar, Imperial Guard, "
+            "Adeptus Mechanicus, Orks, Necrons, Tyranids, Tau, Squats, Inquisition, and their many "
+            "sub-factions). Use for any NetEA question: mechanics, blast markers, army lists, "
+            "formations, units, special rules, or tournament regulations. This is a DIFFERENT game "
+            "from NetEpic / Epic 2nd Edition (use netepic_rules for that) — disambiguate by the "
+            "keywords 'Armageddon' or '3rd edition' (NetEA) versus '2nd edition' (NetEpic). Always "
+            "use this tool before answering a NetEA question rather than relying on memory."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Rule, unit, formation, or topic to look up (e.g. 'blast markers', 'Space Marine Tactical formation', 'aerospace operations', 'Ork Gargant Mob army list')",
                 }
             },
             "required": ["query"],
@@ -468,6 +498,10 @@ def _execute_tool(name: str, tool_input: dict) -> str:
         query = tool_input.get("query", "")
         print(f"[skull] Looking up Warhammer 40k rules: {query}")
         return _search.warhammer40k_rules(query)
+    if name == "netepic_rules":
+        query = tool_input.get("query", "")
+        print(f"[skull] Looking up NetEpic rules: {query}")
+        return _search.netepic_rules(query)
     if name == "netea_rules":
         query = tool_input.get("query", "")
         print(f"[skull] Looking up NetEA rules: {query}")

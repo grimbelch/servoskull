@@ -4,7 +4,6 @@ import os
 import pathlib
 import re
 import urllib.request
-from html.parser import HTMLParser
 
 from ddgs import DDGS
 
@@ -75,46 +74,6 @@ _NECRO_ROUTES = [
 ]
 
 
-class _TextExtractor(HTMLParser):
-    """Strips HTML to plain text, skipping nav/script/style blocks."""
-
-    _SKIP = {"script", "style", "nav", "header", "footer"}
-
-    def __init__(self):
-        super().__init__()
-        self._parts = []
-        self._depth = 0
-
-    def handle_starttag(self, tag, attrs):
-        if tag in self._SKIP:
-            self._depth += 1
-
-    def handle_endtag(self, tag):
-        if tag in self._SKIP and self._depth:
-            self._depth -= 1
-
-    def handle_data(self, data):
-        if not self._depth:
-            s = data.strip()
-            if s:
-                self._parts.append(s)
-
-    def result(self):
-        return "\n".join(self._parts)
-
-
-def _fetch_text(url: str, max_chars: int = 3000) -> str:
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            html = resp.read().decode("utf-8", errors="replace")
-        p = _TextExtractor()
-        p.feed(html)
-        return p.result()[:max_chars]
-    except Exception as e:
-        return f"Could not fetch {url}: {e}"
-
-
 def get_weather(lat: float, lon: float) -> str:
     """Fetch current conditions and 2-day forecast from Open-Meteo (no API key required)."""
     url = (
@@ -180,18 +139,9 @@ def news_search(query: str, max_results: int = 7) -> str:
         return f"News search unavailable: {e}"
 
 
-# ── Net Epic Armageddon ───────────────────────────────────────────────────────
-
-_NETEA_URL = "https://tp.net-armageddon.org/tournament-pack/"
-_netea_cache: str = ""
-
-
-def _get_netea_text() -> str:
-    global _netea_cache
-    if not _netea_cache:
-        print("[skull] Fetching NetEA rules (one-time cache)...")
-        _netea_cache = _fetch_text(_NETEA_URL, max_chars=300_000)
-    return _netea_cache
+# ── Text relevance extraction (shared helper) ─────────────────────────────────
+# Used by the offline rules-library engine below to pull the most query-relevant
+# paragraphs out of a page's full text.
 
 
 def _extract_relevant(full_text: str, query: str, max_chars: int = 3000) -> str:
@@ -232,17 +182,6 @@ def _extract_relevant(full_text: str, query: str, max_chars: int = 3000) -> str:
 
     result_parts.sort(key=lambda x: x[0])
     return "\n".join(p for _, p in result_parts)[:max_chars]
-
-
-def netea_rules(query: str) -> str:
-    """Look up Net Epic Armageddon rules from the NetEA Tournament Pack."""
-    text = _get_netea_text()
-    if text.startswith("Could not fetch"):
-        return text
-    excerpt = _extract_relevant(text, query)
-    if not excerpt:
-        return f"No relevant rules found in the NetEA Tournament Pack for: {query}"
-    return f"Source: {_NETEA_URL}\n\n{excerpt}"
 
 
 # ── Generic offline rules library ──────────────────────────────────────────────
@@ -508,3 +447,37 @@ def warhammer40k_rules(query: str) -> str:
                 "Ingest the faction pack / core rules PDFs with Rules/ingest_pdf.py.")
     note = _w40k_faction_note(query)
     return f"{result}\n\n{note}" if note else result
+
+
+# ── Local NetEpic (Epic 2nd edition) ruleset (offline library) ─────────────────
+# NetEpic 5.0 — the community continuation of Epic 2nd Edition — core rules,
+# optional rules, and army books, ingested from PDF to _rules_dir()/netepic via
+# Rules/ingest_pdf.py. Offline-only. This is a DIFFERENT game from Net Epic
+# Armageddon (see netea_rules above), which is why it has its own library.
+_NETEPIC_DIR = _rules_dir() / "netepic"
+
+
+def netepic_rules(query: str) -> str:
+    """Look up NetEpic / Epic 2nd edition rules from the local offline library."""
+    result = _search_rules_library(_NETEPIC_DIR, query, label="NetEpic")
+    if not result:
+        return ("The NetEpic rules library isn't installed on this device. "
+                "Ingest the NetEpic core rules / army book PDFs with Rules/ingest_pdf.py.")
+    return result
+
+
+# ── Local Net Epic Armageddon (NetEA / Epic 3rd edition) ruleset (offline) ─────
+# The NetEA rules, tournament pack, FAQ, and army lists, ingested from PDF to
+# _rules_dir()/netea via Rules/ingest_pdf.py. Previously fetched live from
+# tp.net-armageddon.org; now offline-only. This is a DIFFERENT game from NetEpic /
+# Epic 2nd edition (see netepic_rules above).
+_NETEA_DIR = _rules_dir() / "netea"
+
+
+def netea_rules(query: str) -> str:
+    """Look up Net Epic Armageddon (NetEA) rules from the local offline library."""
+    result = _search_rules_library(_NETEA_DIR, query, label="NetEA")
+    if not result:
+        return ("The NetEA rules library isn't installed on this device. "
+                "Ingest the NetEA rules / tournament pack / army list PDFs with Rules/ingest_pdf.py.")
+    return result
