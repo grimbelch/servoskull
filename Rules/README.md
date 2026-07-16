@@ -14,15 +14,23 @@ page (`path`, `url`, `title`, `file`).
 ```
 Rules/
   ingest_pdf.py       # reusable PDF -> Markdown ingester (tracked in git)
-  necromunda/         # NecroRAW mirror (necroraw.com.ru) — 527 pages
+  necromunda/         # NecroRAW mirror (necroraw.com.ru) — 527 pages   [git-ignored: GW IP]
     manifest.json
     general-principles/conditions.md
     gang-fighters-and-their-weaponry/weapon-traits.md
     ...
-  warhammer40k/       # 11th-ed core rules + faction packs + event companions (PDF)
+  warhammer40k/       # 11th-ed core rules + faction packs + event companions (PDF)  [git-ignored: GW IP]
     manifest.json
     world-eaters/p02-brazen-engines.md
     space-marines/...
+    ...
+  netepic/            # NetEpic 5.0 / Epic 2nd Edition — core + army books (PDF), 369 pages   [committed: fan-made]
+    manifest.json
+    01-netepic-core-rules-v5-final-1/...
+    ...
+  netea/              # Net Epic Armageddon / Epic 3rd Edition — rules + tournament pack + army lists (PDF), 511 pages   [committed: fan-made]
+    manifest.json
+    netea-rules/...
     ...
 ```
 
@@ -31,8 +39,10 @@ Rules/
 `skull/search.py` loads a game's folder once and ranks pages by relevance (title
 match + full-text scoring, with optional per-game concept routing) via the shared
 `_search_rules_library()` engine. Each game gets a thin lookup function + Claude
-tool: `necromunda_rules(query)` (falls back to live fetch if its mirror is missing)
-and `warhammer40k_rules(query)` (offline only — sourced from PDFs).
+tool: `necromunda_rules(query)`, `warhammer40k_rules(query)`, `netepic_rules(query)`,
+and `netea_rules(query)`. All are **offline-only** — they read the local library and
+never hit the network (NetEA was formerly a live web fetch; it's now a local PDF
+library like the rest).
 
 The folder is chosen by `RULES_DIR` (see `.env.example`); it defaults to `Rules/`
 next to the code.
@@ -74,6 +84,10 @@ Add a lookup function + Claude tool for the game, following the `warhammer40k_ru
 pattern in `skull/search.py` and `skull/brain.py` (call `_search_rules_library()`
 with the game's folder; add a matching entry to `TOOLS` and the dispatch).
 
-> **Note:** These files are third-party copyrighted rules text kept for personal
-> local reference on this device only. They are git-ignored — do not redistribute
-> or commit them to a public repository.
+> **Note on what's committed vs. local-only:** The fan-made community rulesets —
+> **NetEpic** and **NetEA** — are freely and openly distributed, so they *are*
+> committed to this repo. The **official Games Workshop** content (`necromunda/`,
+> `warhammer40k/`) is copyrighted and stays **git-ignored** — kept for personal
+> local reference on this device only; do not redistribute or commit it. When
+> adding a new game, apply the same rule: free/fan content can be committed;
+> official IP must stay ignored (see `.gitignore`).
