@@ -1,0 +1,23 @@
+> Source: 05 Chaos Army Book V5 Final 1, p.3 (05_chaos_army_book_v5_final_1.pdf)
+
+# NetEpic 5.1 Chaos Army Book
+
+## **Background**
+
+Before the rise of the Imperium, scientists hypothesized the existence of a dimension existing parallel to ours where the physical laws of our universe did not apply. They were right. They called this dimension the Warp, and it is how Imperial spaceships are able to travel between the stars - they enter the Warp in order to cross the mind-bogglingly huge distances involved in the galaxy-spanning Imperium. Within the Warp both space and time are malleable to the will of technology, so that a voyage of thousands of light-years may be accomplished in mere months. The Imperial scientists also believed that nothing could live in the harsh desolation of this alternate dimension. They were wrong.
+
+The Warp is a vast, formless sea of energy where thought, emotion and will take precedence over physical law. Matter, energy, even time and space can be changed with a thought. It is a realm of constant change, turmoil and an unending battle for supremacy. The beings of the Warp do not have bodies of flesh and blood nor even a physical form. They are entities of thought and emotion, with only the strong-willed having any claim to freedom. The beings of the Warp are not innately evil, but their existence is utterly alien to our universe - by their very nature they break down the fabric of reality.
+
+The great rend in space now called the Eye of Terror that was once the heartworlds of the Eldar. In ancient times the Eldar civilization descended into madness, culminating in an orgy of death and depravity spanning thousands of Eldar worlds and uncountable billions of souls. The birth of the new Chaos God, Slaanesh, tore a wound in reality. Here, the Warp and the material universe overlap. There are other such zones scattered throughout the galaxy, but they are smaller and less significant. There are stars and worlds within the Eye of Terror, but they are unlike the familiar stars, solar systems, and planets that populate the rest of the galaxy. The energy of the Warp saturates these places and sustains a cosmology based on the inhuman perceptions of the Powers of Chaos, without regard for the logic of either astrophysics or nature.
+
+Mighty Greater Daemons and favored Daemon Princes rule these worlds, using their powers to reshape them according to their desires. Thus there are worlds which are flat like dinner plates, worlds surrounded by circling fireballs which provide light and warmth, and tiered worlds like gigantic wedding cakes rising step-by-step on supporting pillars. On one world a black sun stands in a white sky and smoky threads pour from it onto a tangled black city, while another world has boiling lakes of blood from which spheres of fire float into the sky and spread their light across the firmament. Visions of such places disturb the psychically sensitive throughout the galaxy.
+
+Within the Eye the forces of Chaos are forever in motion. Armies of daemons and their living allies fight vast, bloody battles lasting for hundreds of years, where entire worlds becomes little more than vast arenas where opposing forces are pitched against each other. The weak scheme to raise themselves at any cost and the powerful plot the destruction of their rivals. Murder, betrayal and ruthlessness are the keys to success in the realms of Chaos.
+
+At the birth of the Imperium of Man, fully half of the Emperor's most trusted Space Marines Legions turned against him in a bitter civil war known as the Horus Heresy. Marine fought Marine, brother fought brother and Mankind stood upon the very brink of extinction. Their defeat came only at the expense of the Emperor, who remains suspended in his Golden Throne to this day. Ten thousand years after their defeat, those same traitors still launch their Black Crusades out of the Eye of Terror, intent upon nothing less than the utter destruction of the Imperium and the death of its weakling Emperor.
+
+Occasionally, rival Daemons put aside their differences and invade the surrounding areas of the Eye of Terror with an host of foul beasts, Warp-spawn and other servants of Chaos. Sometimes a Lesser Daemon or Aspiring Champion seeks to gain power and leads his minions in an orgy of conquest and destruction. At other times a Chaos cult achieves their goal and summons the forces of Chaos to aid them in overthrowing the world of the Imperium. And always there is the danger of Black Crusades by the traitor Space Marine Legions, twisted parodies of the Emperor's Finest that plot the downfall of the Empire they once served. These are the armies of Chaos.
+
+NetEpic 5.1 Chaos Army Book
+
+2

@@ -1,0 +1,28 @@
+> Source: Netea Space Marine Raven Guard, p.4 (netea-space-marine-raven-guard-2026-02-04.pdf)
+
+# Storm Talon Gunship
+
+|Storm Talon Gunship|AC|Fighter|5+|-<br>-<br>Twin Assault Cannon<br>Twin Heavy Bolter|30cm<br>15cm|AP4+/AT4+/AA5+, FwA<br>AP4+/AA5+, FxF||
+|---|---|---|---|---|---|---|---|
+|Thunderhawk Gunship|AC/<br>WE|Bomber|4+|6+<br>4+<br>Battle Cannon<br>2× Twin Heavy Bolter|75cm<br>30cm|AP4+/AT4+, FxF<br>AP4+/AA5+, FxF|_Damage Capacity 2, Planetfall, Reinforced Armour, Transport. May transport_<br>_eight infantry units, Attack Bikes or Dreadnoughts; Terminator units and_|
+|||||Twin Heavy Bolter|15cm|AP4+/AA5+, Left|_Dreadnoughts count as two units each. Critical Hit Effect: The unit and all units_|
+|||||Twin Heavy Bolter|15cm|AP4+/AA5+, Right|_being carried are destroyed._|
+|Battle Barge|SC|n/a|n/a|n/a<br>n/a<br>Orbital Bombardment|n/a|14BP, MW|_Slow and Steady, Transport. May transport 60 infantry units, Attack Bikes, or_<br>_Dreadnoughts; plus 60 armoured vehicle units (except Dreadnoughts); plus nine_<br>_Thunderhawk Gunships and enough Drop Pods or Landing Craft to transport any_<br>_other units being carried._|
+|Strike Cruiser|SC|n/a|n/a|n/a<br>n/a<br>Orbital Bombardment|n/a|5BP, MW|_Transport. May transport 20 infantry units, Attack Bikes, or Dreadnoughts; plus_<br>_20 light vehicles or armoured vehicle units (except Attack Bikes and_<br>_Dreadnoughts); plus six Thunderhawk Gunships and enough Drop Pods or_<br>_Landing Craft to transport any other units being carried._|
+|Drop Pod|Special|n/a|n/a|n/a<br>n/a<br>Deathwind|15cm|AP5+/AT5+|_Planetfall, Transport. May transport one formation of only Dreadnoughts or_<br>_infantry units without Jump Packs, Mounted, Reinforced Armour or Scout. After_<br>_the drop pod lands, its Deathwind attacks all enemy units within 15cm. Each_<br>_enemy formation attacked receives a Blast marker for coming under fire, and an_<br>_extra Blast marker for each casualty. Then any troops carried in the drop pod must_<br>_disembark within 5cm of the drop pod or within 5cm of another unit from the same_<br>_formation that has already landed, so long as all units are placed within 15cm of the_<br>_drop pod. Drop pod models should be removed from the board once the formation_<br>_they transport has disembarked._|
+
+## **SPECIAL RULE** **_They Shall Know No Fear_**<sup>_1_</sup>
+
+Space Marines are renowned for their tenacity and bravery. This is represented by the following rules:
+
+- It takes 2 Blast markers to suppress a Space Marine unit or kill a unit in a broken formation (ignore any leftover Blast markers).
+
+- Space Marine formations are only broken if they have 2 Blast markers per unit in the formation.
+
+- Space Marines formations only count half their number of Blaster markers in assault resolution (rounding down-note that assault resolution will not receive +1 for having no Blast markers if the formation has 1 Blast marker before rounding down). Halve the number of extra hits suffered by a Space Marine formation that loses an assault, rounding down in favour of the Space Marines.
+
+- When a broken Space Marine formation rallies, it receives a number of Blast markers equal to the number of units, rather than half this number. Space Marines with the Leader special ability remove 2 Blast markers instead of 1.
+
+### 1. They Shall Know No Fear
+
+Q: How many Blast markers does a broken Space Marine unit count as having when working out the result of an assault? A: One per unit.

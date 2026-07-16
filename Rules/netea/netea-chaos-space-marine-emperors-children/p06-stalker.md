@@ -1,0 +1,20 @@
+> Source: Netea Chaos Space Marine Emperors Children, p.6 (netea-chaos-space-marine-emperors-children-2026-02-04.pdf)
+
+# Stalker
+
+|Stalker|AV|30cm|5+|6+|6+<br>Stalker Autocannon||30cm|2× AP5+/AT6+/AA5+||
+|---|---|---|---|---|---|---|---|---|---|
+|Keeper of Secrets|WE|20cm|4+|3+|4+<br>Gaze of Slaanesh<br>Lash of Torment|and|30cm<br>(15cm)<br>(bc)|3× MW4+<br>Small Arms, EA(+1), FS, MW<br>Assault Weapons, EA(+1), FS, MW|_Daemonic Focus, Damage Capacity 3, Expendable, Fearless, Inspiring,_<br>_Invulnerable Save, Reinforced Armour, Walker. Critical Hit Effect: The_<br>_unit is destroyed, all summoned units within 5cm are destroyed on a roll of_<br>_6+._|
+|Hell-Knight|WE|30cm|5+|6+|5+<br>Thermal Lance|and|30cm<br>(15cm)|MW4+, FwA<br>Small Arms, MW|_Damage Capacity 2, Fearless, Invulnerable Save, Reinforced Armour,_<br>_Walker. Critical Hit Effect: Destroyed._|
+|Hell-Scourge|WE|30cm|5+|6+|3+<br>Castigator Cannon||45cm|3× AP3+/AT5+, FwA|_Damage Capacity 2, Fearless, Invulnerable Save, Reinforced Armour,_<br>_Walker. Critical Hit Effect: Destroyed._|
+|Questor Titan|WE|35cm|5+|5+|3+<br>2× Castigator Cannon<br>2× Battle Cannon||45cm<br>75cm|3× AP3+/AT5+<br>AP4+/AT4+|_Damage Capacity 3, Fearless, Reinforced Armour, 2 Void Shields,_<br>_Walker. May step over units and pieces of terrain that are lower than the_<br>_unit's knees and less than 2cm wide. Critical Hit Effect: Move the unit_<br>_D6cm in a random direction. If it moves into impassable terrain or another_<br>_unit it can't move over it will stop and suffer one point of damage. All units_<br>_it moves into or over suffer a hit on a roll of 6+._|
+|Subjugator Titan|WE|35cm|5+|3+|5+<br>2× Battle Cannon<br>2× Hellblades||75cm<br>(bc)|AP4+/AT4+<br>Assault Weapons, EA(+1), TK(D3)|_Damage Capacity 3, Fearless, Reinforced Armour, 2 Void Shields,_<br>_Walker. May step over units and pieces of terrain that are lower than the_<br>_unit's knees and less than 2cm wide. Critical Hit Effect: Move the unit_<br>_D6cm in a random direction. If it moves into impassable terrain or another_<br>_unit it can't move over it will stop and suffer one point of damage. All units_<br>_it moves into or over suffer a hit on a roll of 6+._|
+|Chaos Thunderhawk|AC/<br>WE|Bomber|4+|6+|4+<br>Battle Cannon<br>2× Twin Heavy Bolter<br>Twin Heavy Bolter||75cm<br>30cm<br>15cm|AP4+/AT4+, FxF<br>AP4+/AA5+, FxF<br>AP4+/AA5+, Left|_Damage Capacity 2, Planetfall, Reinforced Armour, Transport. May_<br>_transport eight infantry units or Chaos Dreadnoughts; Chaos Space_<br>_Marine Terminators, Chaos Dreadnoughts and Obliterators count as two_|
+||||||Twin Heavy Bolter||15cm|AP4+/AA5+, Right|_units each. Critical Hit Effect: The unit and all units being carried are_<br>_destroyed. Counts as a Thunderhawk Gunship for the purposes of being_<br>_transported._|
+|Harbinger|AC/|Bomber|5+|n/a|n/a<br>Reaper Autocannon||30cm|AP4+/AT6+/AA5+, FxF|_Damage Capacity 4, Invulnerable Save, Reinforced Armour. Critical Hit_|
+||WE||||Reaper Autocannon<br>Reaper Autocannon<br>Incendiary Bombs||15cm<br>15cm<br>15cm|AP4+/AT6+/AA5+, Left<br>AP4+/AT6+/AA5+, Right<br>6BP, FxF, IC|_Effect: The unit is destroyed._|
+|Hell Blade|AC|Fighter|6+|n/a|n/a<br>2× Reaper Autocannon||15cm|AP4+/AT6+/AA5+, FxF||
+|Hell Talon|AC|Fighter-<br>Bomber|5+|n/a|n/a<br>Bombs<br>Twin Lascannon<br>Havoc Launcher||15cm<br>30cm<br>45cm|2BP, FxF, IC<br>AT4+/AA4+, FxF<br>AP5+/AT6+, FxF||
+|Despoiler Class Battleship|SC|n/a|n/a|n/a|n/a<br>Orbital Bombardment<br>3× Pin-Point Attack||n/a<br>n/a|3BP, MW<br>MW2+, TK(D3)|_Slow and Steady, Transport. May transport 40 infantry units or Chaos_<br>_Dreadnoughts; plus nine Chaos Thunderhawks and enough Dreadclaws to_<br>_transport any other units being carried._|
+|Devastation Class Cruiser|SC|n/a|n/a|n/a|n/a<br>Orbital Bombardment||n/a|3BP, MW|_Transport. May transport 20 infantry units or Chaos Dreadnoughts; plus_|
+||||||Pin-Point Attack||n/a|MW2+, TK(D3)|_six Chaos Thunderhawks and enough Dreadclaws to transport any other_<br>_units being carried._|

@@ -1,0 +1,29 @@
+> Source: 04D Adeptus Ministorum Army Book V5 Final 1, p.2 (04d_adeptus_ministorum_army_book_v5_final_1.pdf)
+
+# NetEpic 5.0 Adeptus Ministorum Army Book
+
+### **Table of Contents**
+
+|**BACKGROUND 2**|
+|---|
+|**THE ADEPTUS MINISTORUM ARMY 3**|
+|**SPECIAL RULES 3**|
+|HATRED OFCHAOS 3|
+|**SAMPLE ARMY: ORDER OF THE SACRED ROSE 3**|
+|**UNIT DESCRIPTIONS 4**|
+|SPECIALUNITS 4|
+|INFANTRY 5|
+|CAVALRY 6|
+|WALKERS 6|
+|VEHICLES 6|
+|LIGHTARTILLERY 7|
+|HEAVYARTILLERY 7|
+|FLIERS 7|
+|**ADEPTUS MINISTORUM ARMY CARDS 8**|
+|SISTERS OFBATTLELIST 8|
+|FRATERISMILITIALIST 10|
+|**SUMMARY OF UNIT STATISTICS 11**|
+
+NetEpic 5.0 Adeptus Ministorum Army Book
+
+1

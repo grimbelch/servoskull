@@ -1,0 +1,6 @@
+> Source: Netea Tournament Pack, p.145 (netea-tournament-pack-2026-02-09.pdf)
+
+# Chaos Drop Pod
+
+|Chaos Drop Pod|Special|n/a|n/a|n/a<br>n/a<br>Deathwind|15cm|AP5+/AT5+|_Planetfall, Transport. May transport one formation of only the following units:_<br>_Berzerkers, Chaos Dreadnoughts, Chaos Space Marine Chosen, Chaos Space_<br>_Marines, Daemon Prince, Havocs, Noise Marines, Plague Marines, Thousand_<br>_Sons. After the drop pod lands, its Deathwind attacks all enemy units within 15cm._<br>_Each enemy formation attacked receives a Blast marker for coming under fire, and_<br>_an extra Blast marker for each casualty. Then any troops carried in the drop pod_<br>_must disembark within 5cm of the drop pod or within 5cm of another unit from the_<br>_same formation that has already landed, so long as all units are placed within 15cm_<br>_of the drop pod. Drop pod models should be removed from the board once the_<br>_formation they transport has disembarked. Counts as a Drop Pod for the purposes_<br>_of being transported._|
+|---|---|---|---|---|---|---|---|

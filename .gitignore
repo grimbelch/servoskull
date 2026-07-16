@@ -9,9 +9,6 @@ __pycache__/
 *.pyo
 *.egg-info/
 
-# Piper voice model (60MB binary — download separately, see README)
-models/*.onnx
-
 # macOS
 .DS_Store
 
@@ -34,10 +31,14 @@ settings.json
 .claude/
 
 # Offline game rulesets the skull references (see skull/search.py, RULES_DIR).
-# Third-party copyrighted rules text (e.g. Games Workshop / Necromunda) downloaded
-# for personal local reference only — never redistribute / commit to a public repo.
+# Official Games Workshop rules text (Necromunda, Warhammer 40k) is copyrighted —
+# kept local only, never committed to this public repo.
 Rules/*
-# ...but DO track the (non-copyrighted) tooling and docs that build the library.
+# Tracked: the tooling/docs that build the library, plus the free fan-made
+# community rulesets (NetEpic / Epic 2nd ed, NetEA / Epic 3rd ed / "Armageddon"),
+# which are openly distributed and safe to publish.
 !Rules/README.md
 !Rules/ingest_pdf.py
 !Rules/clean_necromunda_tables.py
+!Rules/netepic/
+!Rules/netea/

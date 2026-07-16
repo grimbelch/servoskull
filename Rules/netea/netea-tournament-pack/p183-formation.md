@@ -1,0 +1,53 @@
+> Source: Netea Tournament Pack, p.183 (netea-tournament-pack-2026-02-09.pdf)
+
+# Formation:
+
+NetEA Tournament Pack - 2026-02-09
+
+Epic Gaming
+
+### **6.6 ELDAR BIEL-TAN CRAFTWORLD ARMY LIST** 88
+
+_"There is no art more beautiful and diverse than the art of Death."_
+
+_Laconfir of Biel-Tan_
+
+#### **Forces**
+
+The Eldar Biel-Tan Craftworld Army List uses the datasheets from 5.6.
+
+#### **Using The Army List**
+
+Eldar Biel-Tan Craftworld formations come in three types, the first two are warhost and troupe formations. Each warhost you include in the army allows you to field any three troupe formations. Although you can only take a troupe formation if you first take a warhost, they are treated as separate independent formations during a battle and do not have to move around together. The third type of formation are Biel-Tan Craftworld Spacecraft, Aircraft & Titan formations. A maximum of up to a third of the points available to the army may be spent on these formations.
+
+#### **6.6.1**
+
+#### **_May Not Garrison_**
+
+The Eldar are a highly mobile army, and rarely have enough forces to try to take and hold ground. Because of this, instead of maintaining a heavily garrisoned front line, they will usually rely on a screen of Rangers and War Walkers to warn of the approach of any enemy forces. Meanwhile the bulk of the highly mobile Eldar army will be held back in reserve, where it will be ready to move quickly to any threatened sector. This tactic allows the Eldar to hold large areas of ground with relatively few troops.
+
+To represent these tactics, only Eldar Rangers and War Walkers are allowed to garrison objectives in the Epic tournament game scenario.
+
+Finally, Biel-Tan Craftworld Individuals includes special characters, formations and objective options. Each individual may only be taken once by the army. The rules for using each individual are listed in the "Notes" column.
+
+The army list includes the following information:
+
+**Formation:** The name of the formation.
+
+**Units:** The core units that make up the formation.
+
+**Extras:** An Eldar formation may include any of the extra units listed in the "Extras" column. You may include any number of extra units in a formation unless it is specifically noted otherwise. All of the core and extra units in a formation count as being part of one formation. The different units may not move off on their own.
+
+**Cost:** The points value of the formation.
+
+#### **Special Rules**
+
+The _Hit & Run Tactics_ rule applies to all Eldar formations (see 5.6.2). Additionally, certain units and weapons have special abilities described in _Farsight_ (see 5.6.1) and _Eldar Technology_ (see 5.6.3).
+
+88. 6.6 Eldar Biel-Tan Craftworld Army List
+
+- Q: Can an Avatar be placed within 15cm of a Webway Portal if a Farseer is in reserve and will enter through it?
+
+- A: No.
+
+177
