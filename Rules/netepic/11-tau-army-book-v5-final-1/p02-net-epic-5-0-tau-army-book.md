@@ -1,0 +1,31 @@
+> Source: 11 Tau Army Book V5 Final 1, p.2 (11_tau_army_book_v5_final_1.pdf)
+
+# Net Epic 5.0 Tau Army Book
+
+### **Table of Contents**
+
+|**BACKGROUND 2**|
+|---|
+|**THE TAU ARMY 3**|
+|**SPECIAL RULES 4**|
+|BATTLESUITS 4|
+|DEFENSIVEFIRE 4|
+|TA'LISSERARITUAL 3<br>|
+|KROOT 4|
+|**SAMPLE ARMY: TAU 5**|
+|**UNIT DESCRIPTIONS 6**|
+|SPECIALUNITS 6|
+|INFANTRY 7|
+|CAVALRY 8|
+|WALKERS 8|
+|VEHICLES 9|
+|FLIERS 9|
+|SUPERHEAVIES 10|
+|PRAETORIANS 10|
+|MANTISMISSILECRUISERTEMPLATE 11|
+|**TAU ARMY CARDS 13**|
+|**SUMMARY OF UNIT STATISTICS 15**|
+
+Net Epic 5.0 Tau Army Book
+
+1

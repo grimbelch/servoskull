@@ -1,0 +1,6 @@
+> Source: Netea Tournament Pack, p.165 (netea-tournament-pack-2026-02-09.pdf)
+
+# Deathwatch Drop Pod
+
+|Deathwatch Drop Pod|Special<br>n/a<br>n/a<br>n/a<br>n/a<br>Deathwind|15cm<br>AP5+/AT5+|_Planetfall, Transport. May transport one formation of only the following_<br>_units: Deathwatch Scout, Deathwatch Terminator, Deathwatch_<br>_Veteran, Venerable Dreadnought. After the drop pod lands, its_<br>_Deathwind attacks all enemy units within 15cm. Each enemy formation_<br>_attacked receives a Blast marker for coming under fire, and an extra_<br>_Blast marker for each casualty. Then any troops carried in the drop pod_<br>_must disembark within 5cm of the drop pod or within 5cm of another_<br>_unit from the same formation that has already landed, so long as all_<br>_units are placed within 15cm of the drop pod. Drop pod models should_<br>_be removed from the board once the formation they transport has_<br>_disembarked. Counts as a Drop Pod for the purposes of being_<br>_transported. Counts as a Drop Pod for the purposes of being_<br>_transported._|
+|---|---|---|---|

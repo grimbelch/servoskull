@@ -1,0 +1,11 @@
+> Source: Netea Tournament Pack, p.117 (netea-tournament-pack-2026-02-09.pdf)
+
+# Warlock Titan
+
+|Warlock Titan|WE|25cm|5+|3+<br>3+<br>Psychic Lance<br>0-1× Titan Pulsar<br>0-1× Titan Power Fist<br>2× Twin Eldar Missile Launcher|and<br>and<br>or|30cm<br>(15cm)<br>75cm<br>30cm<br>(15cm)<br>(bc)<br>45cm|3BP, D, IC, TK(D3)<br>Small Arms, EA(+2), TK(D3)<br>2× MW2+, TK<br>6× AP4+/AT4+<br>Small Arms, EA(+3)<br>Assault Weapons, EA(+2), TK(D3)<br>AP4+/AT5+/AA5+|_Damage Capacity 6, Farsight, Fearless, Holofield, Inspiring,_<br>_Leader, Reinforced Armour, Walker. Armed with a Psychic_<br>_Lance, and either a Titan Pulsar or Power Fist. May step over_<br>_units and pieces of terrain that are lower than the unit's knees and_<br>_less than 2cm wide. Critical Hit Effect: The unit loses the_<br>_Holofield ability save for the rest of the game. Subsequent critical_<br>_hits cause an extra point of damage._|
+|---|---|---|---|---|---|---|---|---|
+|Nightwing Interceptor|AC|Fighter|4+|n/a<br>n/a<br>Twin Shuriken Cannon<br>Twin Bright Lance||30cm<br>30cm|AP4+/AA5+, FxF<br>AT4+/AA5+, FxF, L||
+|Phoenix Bomber|AC|Fighter-<br>Bomber|5+|n/a<br>n/a<br>Twin Shuriken Cannon<br>Pulse Laser<br>Night Spinner||30cm<br>45cm<br>15cm|AP4+/AA5+, FxF<br>2× AT4+, FxF<br>1BP, FxF, D|_Reinforced Armour._|
+|Vampire Raider|AC/<br>WE|Bomber|5+|6+<br>4+<br>2× Pulse Laser<br>Scatter Laser||45cm<br>30cm|2× AT4+, FxF<br>AP5+/AT5+/AA5+, FxF|_Damage Capacity 2, Planetfall, Reinforced Armour, Transport._<br>_May transport eight infantry units without Mounted._<br>_Wraithguard count as two units each. Critical Hit Effect: The_<br>_unit and all units on board are destroyed._|
+|Dragonship|SC|n/a|n/a|n/a<br>n/a<br>0-1× Orbital Bombardment<br>0-1× Pin-Point Attacks||n/a<br>n/a|8BP, MW<br>2× MW2+, TK(D3)|_Transport. May transport twelve Vampire Raiders and the units_<br>_being carried on them. Armed with either an Orbital_<br>_Bombardment or Pin-Point Attacks._|
+|Wraithship|SC|n/a|n/a|n/a<br>n/a<br>0-1× Orbital Bombardment<br>0-1× Pin-Point Attack||n/a<br>n/a|4BP, MW<br>MW2+, TK(D3)|_Armed with either an Orbital Bombardment or Pin-Point_<br>_Attack._|

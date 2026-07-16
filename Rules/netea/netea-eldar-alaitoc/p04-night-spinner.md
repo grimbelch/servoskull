@@ -1,0 +1,16 @@
+> Source: Netea Eldar Alaitoc, p.4 (netea-eldar-alaitoc-2026-02-03.pdf)
+
+# Night Spinner
+
+|Night Spinner|AV|35cm|5+|6+|5+<br>Night Spinner||45cm|1BP, D, Ind|_Skimmer, Transport. May transport one infantry unit (except_<br>_Support Weapon Platforms and Wraithguard) without Jump_<br>_Packs or Mounted._|
+|---|---|---|---|---|---|---|---|---|---|
+|Wave Serpent|AV|35cm|5+|6+|4+<br>Twin Shuriken Cannon||30cm|AP4+|_Reinforced Armour, Skimmer, Transport. May transport one_<br>_Wraithguard unit or two infantry units (except Support Weapon_<br>_Platforms) without Jump Packs or Mounted; Wraithguard count_<br>_as two units each._|
+|Wraithlord|AV|15cm|4+|3+|4+<br>Bright Lance<br>Power Fists||30cm<br>(bc)|AT5+, L<br>Assault Weapons, EA(+1), MW|_Fearless, Reinforced Armour, Walker._|
+|Avatar|WE|15cm|3+|2+|4+<br>Wailing Doom|and|30cm<br>(bc)|MW5+<br>Assault Weapons, EA(+1), MW|_Commander, Damage Capacity 3, Fearless, Inspiring,_<br>_Invulnerable Save, Walker. Critical Hit Effect: The unit is_<br>_destroyed. All Eldar formations with a unit with a line of fire to_<br>_the Avatar receive a Blast marker._|
+|Cobra|WE|25cm|5+|6+|5+<br>Cobra D-Cannon<br>Eldar Missile Launcher|or|30cm<br>30cm<br>45cm|3BP, FxF, IC, MW<br>MW3+, FxF, TK(D6)<br>AP5+/AT6+/AA6+|_Damage Capacity 3, Reinforced Armour, Skimmer. Critical Hit_<br>_Effect: The unit is destroyed. All units within 5cm suffer a hit on_<br>_a roll of 6+._|
+||||||Shuriken Cannon||30cm|AP5+||
+|Phantom Titan|WE|25cm|5+|3+|3+<br>1-2× Titan Pulsar<br>0-1× Titan Power Fist|and<br>or|75cm<br>30cm<br>(15cm)<br>(bc)|2× MW2+, TK<br>6× AP4+/AT4+<br>Small Arms, EA(+3)<br>Assault Weapons, EA(+2), TK(D3)|_Damage Capacity 6, Fearless, Holofield, Leader, Reinforced_<br>_Armour, Walker. Armed with either two Titan Pulsars, or a_<br>_Titan Pulsar and Power Fist. May step over units and pieces of_<br>_terrain that are lower than the unit's knees and less than 2cm_|
+||||||2× Twin Eldar Missile Launcher||45cm|AP4+/AT5+/AA5+|_wide. Critical Hit Effect: The unit loses the Holofield ability save_<br>_for the rest of the game. Subsequent critical hits cause an extra_<br>_point of damage._|
+|Revenant Titan|WE|35cm|5+|4+|4+<br>2× Revenant Pulse Laser<br>2× Eldar Missile Launcher||45cm<br>45cm|2× MW3+<br>AP5+/AT6+/AA6+|_Damage Capacity 3, Fearless, Holofield, Jump Packs, Walker._<br>_May step over units and pieces of terrain that are lower than the_<br>_unit's knees and less than 2cm wide. Critical Hit Effect: The unit_<br>_loses the Holofield ability save for the rest of the game. Subsequent_<br>_critical hits destroy the unit._|
+|Scorpion|WE|25cm|5+|6+|5+<br>Scorpion Twin Pulsar<br>Shuriken Cannon||75cm<br>30cm|2× MW2+<br>AP5+|_Damage Capacity 3, Reinforced Armour, Skimmer. Critical Hit_<br>_Effect: The unit is destroyed. All units within 5cm suffer a hit on_<br>_a roll of 6+._|
+|Storm Serpent|WE|25cm|5+|6+|4+<br>Storm Serpent Pulse Laser<br>Scatter Laser||45cm<br>30cm|2× AT3+<br>AP5+/AT5+|_Damage Capacity 3, Reinforced Armour, Skimmer, Webway_<br>_Portal. Only formations consisting completely of infantry units,_<br>_light vehicle units or armoured vehicles units with the walker_<br>_ability may use the Storm Serpent's Webway Portal to enter play._<br>_Critical Hit Effect: The unit is destroyed. All units within 5cm_<br>_suffer a hit on a roll of 6+._|
