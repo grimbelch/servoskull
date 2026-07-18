@@ -855,6 +855,32 @@ def main():
                 eyes.off()
             continue
 
+        # ── 3a-2. Detect explicit local Spotify control commands ──────────────
+        _STOP_MUSIC_PHRASES = (
+            "stop music", "stop playing", "stop spotify", "pause music", "pause spotify",
+            "turn off music", "turn off the music", "kill the music", "halt the music",
+            "enough music", "silence the music", "stop the music"
+        )
+        _RESUME_MUSIC_PHRASES = (
+            "resume music", "resume spotify", "continue music", "unpause music", "unpause spotify", "start music"
+        )
+        _SKIP_MUSIC_PHRASES = (
+            "skip music", "skip song", "next song", "next track", "skip track"
+        )
+        
+        if any(p in _t for p in _STOP_MUSIC_PHRASES) or _t.strip() in ("stop", "pause"):
+            print("[skull] Local stop-music intent detected.")
+            if spotify_ctrl.is_configured():
+                spotify_ctrl.pause()
+        elif any(p in _t for p in _RESUME_MUSIC_PHRASES) or _t.strip() in ("resume", "unpause"):
+            print("[skull] Local resume-music intent detected.")
+            if spotify_ctrl.is_configured():
+                spotify_ctrl.resume()
+        elif any(p in _t for p in _SKIP_MUSIC_PHRASES) or _t.strip() in ("skip", "next"):
+            print("[skull] Local skip-music intent detected.")
+            if spotify_ctrl.is_configured():
+                spotify_ctrl.skip()
+
         # ── 3b. Detect explicit voice-switch requests ──────────────────────────
         # Unambiguous phrases match on their own (they name a backend or contain "voice").
         _ELEVENLABS_PHRASES = (
