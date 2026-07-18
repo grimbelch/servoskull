@@ -33,13 +33,19 @@ def _client() -> spotipy.Spotify:
     return _sp
 
 
+def _normalize_name(name: str) -> str:
+    import re
+    return re.sub(r"[^a-zA-Z0-9]", "", name).lower()
+
+
 def _device_id(prefer_name: str = None) -> str | None:
     """Find a Spotify Connect device, optionally by name (partial, case-insensitive)."""
     devices = _client().devices().get("devices", [])
     print(f"[spotify] Available devices: {[d['name'] + ' (' + d['type'] + ')' for d in devices]}")
     if prefer_name:
+        norm_prefer = _normalize_name(prefer_name)
         for d in devices:
-            if prefer_name.lower() in d["name"].lower() and not d["is_restricted"]:
+            if norm_prefer in _normalize_name(d["name"]) and not d["is_restricted"]:
                 print(f"[spotify] Routing to '{d['name']}'")
                 return d["id"]
         print(f"[spotify] Device matching '{prefer_name}' not found — falling back to default")
