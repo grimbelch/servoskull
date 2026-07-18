@@ -68,12 +68,16 @@ def _ask_vision(jpeg_bytes: bytes) -> str:
 
 
 def _run_observation(jpeg_bytes: bytes) -> None:
+    from skull import display as _display
+    _display.set_targeting(True)
     try:
         text = _ask_vision(jpeg_bytes)
         print(f"[camera] {text}")
         _observation_queue.put(text)
     except Exception as e:
         print(f"[camera] Vision error: {e}")
+    finally:
+        _display.set_targeting(False)
 
 
 def _open_backend():
