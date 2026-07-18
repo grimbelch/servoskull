@@ -30,6 +30,9 @@ _target_amp = 0.0          # 0..1, set from the speech-amplitude loop
 _speaking = False          # True while audio is playing
 _thinking = False          # True while the brain is cogitating; spins the cog
 _mood_rgb = (255, 40, 30)  # base iris colour; default Imperial red
+_rolling_die = False
+_die_start_time = 0.0
+_die_result = 0
 
 _SPIN_DEG_PER_SEC = 80.0   # cog rotation speed while thinking
 
@@ -290,9 +293,110 @@ def _render_frame(bezel, mask, amp: float, angle: float = 0.0, blink: float = 0.
     return img
 
 
+# ── 3D Die projection helpers ───────────────────────────────────────────────────
+def _rotate_x(x: float, y: float, z: float, angle: float) -> tuple[float, float, float]:
+    rad = math.radians(angle)
+    cos_a, sin_a = math.cos(rad), math.sin(rad)
+    return x, y * cos_a - z * sin_a, y * sin_a + z * cos_a
+
+
+def _rotate_y(x: float, y: float, z: float, angle: float) -> tuple[float, float, float]:
+    rad = math.radians(angle)
+    cos_a, sin_a = math.cos(rad), math.sin(rad)
+    return x * cos_a + z * sin_a, y, -x * sin_a + z * cos_a
+
+
+def _rotate_z(x: float, y: float, z: float, angle: float) -> tuple[float, float, float]:
+    rad = math.radians(angle)
+    cos_a, sin_a = math.cos(rad), math.sin(rad)
+    return x * cos_a - y * sin_a, x * sin_a + y * cos_a, z
+
+
+def _render_die_frame(bezel, mask, elapsed: float, result: int):
+    # Build on top of the static bezel
+    img = bezel.copy()
+    base = _mood_rgb
+
+    overlay = Image.new("RGB", (W, H), (0, 0, 0))
+    d = ImageDraw.Draw(overlay)
+
+    if elapsed < 1.5:
+        # Cube rotation angles
+        ax = elapsed * 480
+        ay = elapsed * 640
+        az = elapsed * 320
+
+        # 8 Cube vertices (unit cube scaled)
+        v = [(x, y, z) for x in (-1, 1) for y in (-1, 1) for z in (-1, 1)]
+
+        rotated_v = []
+        for vx, vy, vz in v:
+            # Scale the die size to fit nicely in the central aperture (radius 73)
+            vx, vy, vz = vx * 0.45, vy * 0.45, vz * 0.45
+            vx, vy, vz = _rotate_x(vx, vy, vz, ax)
+            vx, vy, vz = _rotate_y(vx, vy, vz, ay)
+            vx, vy, vz = _rotate_z(vx, vy, vz, az)
+            rotated_v.append((vx, vy, vz))
+
+        proj_v = []
+        scale = 90
+        dist = 3.0
+        for vx, vy, vz in rotated_v:
+            px = _CX + int(vx * scale / (vz + dist))
+            py = _CY + int(vy * scale / (vz + dist))
+            proj_v.append((px, py))
+
+        edges = [
+            (0, 1), (1, 3), (3, 2), (2, 0),
+            (4, 5), (5, 7), (7, 6), (6, 4),
+            (0, 4), (1, 5), (2, 6), (3, 7)
+        ]
+
+        for start, end in edges:
+            d.line(proj_v[start] + proj_v[end], fill=base, width=2)
+    else:
+        # Draw vector 7-segment result inside circular HUD frame
+        d.ellipse([_CX - 40, _CY - 40, _CX + 40, _CY + 40], outline=base, width=2)
+        # Tech notches/tick marks
+        for deg in range(0, 360, 45):
+            rad = math.radians(deg)
+            x0, y0 = _CX + 40 * math.cos(rad), _CY + 40 * math.sin(rad)
+            x1, y1 = _CX + 46 * math.cos(rad), _CY + 46 * math.sin(rad)
+            d.line([(x0, y0), (x1, y1)], fill=base, width=2)
+
+        # Draw 7-segment digit
+        segments = {
+            'a': [(_CX - 12, _CY - 24), (_CX + 12, _CY - 24)],
+            'b': [(_CX + 12, _CY - 24), (_CX + 12, _CY)],
+            'c': [(_CX + 12, _CY), (_CX + 12, _CY + 24)],
+            'd': [(_CX - 12, _CY + 24), (_CX + 12, _CY + 24)],
+            'e': [(_CX - 12, _CY), (_CX - 12, _CY + 24)],
+            'f': [(_CX - 12, _CY - 24), (_CX - 12, _CY)],
+            'g': [(_CX - 12, _CY), (_CX + 12, _CY)]
+        }
+
+        digit_map = {
+            1: ['b', 'c'],
+            2: ['a', 'b', 'g', 'e', 'd'],
+            3: ['a', 'b', 'g', 'c', 'd'],
+            4: ['f', 'g', 'b', 'c'],
+            5: ['a', 'f', 'g', 'c', 'd'],
+            6: ['a', 'f', 'e', 'd', 'c', 'g']
+        }
+
+        active_segs = digit_map.get(result, [])
+        for seg in active_segs:
+            start_p, end_p = segments[seg]
+            d.line([start_p, end_p], fill=base, width=4)
+
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
 # ── render loop ────────────────────────────────────────────────────────────────────
 
 def _loop():
+    global _rolling_die
     bezel = _make_bezel()
     mask = _make_iris_mask()
     shown = -1.0          # last amplitude actually drawn
@@ -304,6 +408,18 @@ def _loop():
     while not _stop.is_set():
         now = time.monotonic()
         dt, last = now - last, now
+        if _rolling_die:
+            roll_elapsed = now - _die_start_time
+            if roll_elapsed >= 3.5:
+                _rolling_die = False
+            else:
+                try:
+                    _blit(_render_die_frame(bezel, mask, roll_elapsed, _die_result))
+                except Exception as e:
+                    print(f"[display] die render error: {e}")
+                time.sleep(1 / 30)
+                continue
+
         if _speaking:
             target = _target_amp
         else:
@@ -335,6 +451,15 @@ def _loop():
             print(f"[display] render error: {e}")
             return
         time.sleep(1 / 30)
+
+
+def start_die_roll(result: int) -> None:
+    global _rolling_die, _die_start_time, _die_result
+    if not _available:
+        return
+    _die_result = result
+    _die_start_time = time.monotonic()
+    _rolling_die = True
 
 
 # ── public API (mirrors eyes.py) ─────────────────────────────────────────────────

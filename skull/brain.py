@@ -411,6 +411,68 @@ _TOOLS = [
             "required": ["lit"],
         },
     },
+    {
+        "name": "roll_dice",
+        "description": (
+            "Simulate dice rolls for Warhammer 40k or Necromunda attacks. "
+            "Runs the complete roll sequence (hits, wounds, saves, and optionally Feel No Pain) "
+            "and returns a detailed step-by-step result including rerolls."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "num_dice": {
+                    "type": "integer",
+                    "description": "The number of attacks/dice to roll initially.",
+                },
+                "hit_on": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "maximum": 6,
+                    "description": "The target roll required to hit (e.g. 3 for 3+).",
+                },
+                "wound_on": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "maximum": 6,
+                    "description": "The target roll required to wound (e.g. 4 for 4+).",
+                },
+                "save_on": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "maximum": 6,
+                    "description": "Optional: Base armour save of the target (e.g. 3 for 3+). If omitted, saves are not rolled.",
+                },
+                "ap": {
+                    "type": "integer",
+                    "description": "Optional: Armour penetration value (e.g. 2 or -2). Will be added to the required save roll.",
+                },
+                "invul_save": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "maximum": 6,
+                    "description": "Optional: Target's invulnerable save (e.g. 4 for 4++). Will cap the save required.",
+                },
+                "reroll_hits": {
+                    "type": "string",
+                    "enum": ["none", "ones", "failed"],
+                    "description": "Optional: Reroll rules for hits. Defaults to 'none'.",
+                },
+                "reroll_wounds": {
+                    "type": "string",
+                    "enum": ["none", "ones", "failed"],
+                    "description": "Optional: Reroll rules for wounds. Defaults to 'none'.",
+                },
+                "feel_no_pain": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "maximum": 6,
+                    "description": "Optional: Feel No Pain value (e.g. 5 for 5+++). Will roll for unsaved wounds.",
+                },
+            },
+            "required": ["num_dice", "hit_on", "wound_on"],
+        },
+    },
 ]
 
 _ORDINALS = {
@@ -477,6 +539,134 @@ def _strip_actions(text: str) -> str:
     text = re.sub(r"\*[^*]*\*", "", text)
     text = re.sub(r"_[^_]*_", "", text)
     return " ".join(text.split())
+
+
+def _simulate_dice(
+    num_dice: int,
+    hit_on: int,
+    wound_on: int,
+    save_on: int | None = None,
+    ap: int = 0,
+    invul_save: int | None = None,
+    reroll_hits: str = "none",
+    reroll_wounds: str = "none",
+    feel_no_pain: int | None = None,
+) -> str:
+    import random
+
+    details = []
+
+    def roll_d6(n: int) -> list[int]:
+        return [random.randint(1, 6) for _ in range(n)]
+
+    # Hits
+    hit_rolls = roll_d6(num_dice)
+    initial_hits = sum(1 for r in hit_rolls if r >= hit_on)
+
+    rerolled_hits_count = 0
+    new_hits = 0
+    if reroll_hits == "ones":
+        ones = sum(1 for r in hit_rolls if r == 1)
+        if ones > 0:
+            reroll_rolls = roll_d6(ones)
+            rerolled_hits_count = ones
+            new_hits = sum(1 for r in reroll_rolls if r >= hit_on)
+    elif reroll_hits == "failed":
+        failed = sum(1 for r in hit_rolls if r < hit_on)
+        if failed > 0:
+            reroll_rolls = roll_d6(failed)
+            rerolled_hits_count = failed
+            new_hits = sum(1 for r in reroll_rolls if r >= hit_on)
+
+    total_hits = initial_hits + new_hits
+
+    hit_msg = f"Hit roll: {num_dice} dice needing {hit_on}+ -> {initial_hits} initial hits."
+    if reroll_hits != "none" and rerolled_hits_count > 0:
+        hit_msg += f" Rerolled {rerolled_hits_count} {reroll_hits} -> +{new_hits} hits."
+    hit_msg += f" Total hits: {total_hits}."
+    details.append(hit_msg)
+
+    if total_hits == 0:
+        details.append("No hits generated. The attack sequence terminates.")
+        return "\n".join(details)
+
+    # Wounds
+    wound_rolls = roll_d6(total_hits)
+    initial_wounds = sum(1 for r in wound_rolls if r >= wound_on)
+
+    rerolled_wounds_count = 0
+    new_wounds = 0
+    if reroll_wounds == "ones":
+        ones = sum(1 for r in wound_rolls if r == 1)
+        if ones > 0:
+            reroll_rolls = roll_d6(ones)
+            rerolled_wounds_count = ones
+            new_wounds = sum(1 for r in reroll_rolls if r >= wound_on)
+    elif reroll_wounds == "failed":
+        failed = sum(1 for r in wound_rolls if r < wound_on)
+        if failed > 0:
+            reroll_rolls = roll_d6(failed)
+            rerolled_wounds_count = failed
+            new_wounds = sum(1 for r in reroll_rolls if r >= wound_on)
+
+    total_wounds = initial_wounds + new_wounds
+
+    wound_msg = f"Wound roll: {total_hits} dice needing {wound_on}+ -> {initial_wounds} initial wounds."
+    if reroll_wounds != "none" and rerolled_wounds_count > 0:
+        wound_msg += f" Rerolled {rerolled_wounds_count} {reroll_wounds} -> +{new_wounds} wounds."
+    wound_msg += f" Total wounds: {total_wounds}."
+    details.append(wound_msg)
+
+    if total_wounds == 0:
+        details.append("No wounds generated. The attack sequence terminates.")
+        return "\n".join(details)
+
+    # Saves
+    if save_on is None:
+        return "\n".join(details)
+
+    ap_val = abs(ap)
+    modified_save = save_on + ap_val
+
+    save_type = "armour"
+    final_save = modified_save
+    if invul_save is not None:
+        if invul_save < modified_save:
+            final_save = invul_save
+            save_type = "invulnerable"
+
+    save_rolls = roll_d6(total_wounds)
+
+    if final_save > 6:
+        passed_saves = 0
+    else:
+        passed_saves = sum(1 for r in save_rolls if r >= final_save and r != 1)
+
+    failed_saves = total_wounds - passed_saves
+
+    save_details_msg = f"using {save_on}+ base save modified by AP {ap_val} to {modified_save}+"
+    if invul_save is not None:
+        save_details_msg += f" (invul {invul_save}++ available)"
+
+    save_msg = f"Save roll: Target rolled {total_wounds} {save_type} saves needing {final_save}+ ({save_details_msg}) -> {passed_saves} passed, {failed_saves} failed."
+    details.append(save_msg)
+
+    if failed_saves == 0:
+        details.append("All saves succeeded. No damage inflicted.")
+        return "\n".join(details)
+
+    # Feel No Pain
+    if feel_no_pain is not None:
+        fnp_rolls = roll_d6(failed_saves)
+        passed_fnps = sum(1 for r in fnp_rolls if r >= feel_no_pain)
+        final_damage = failed_saves - passed_fnps
+
+        fnp_msg = f"Feel No Pain: Target rolled {failed_saves} FNP rolls needing {feel_no_pain}+ -> {passed_fnps} ignored, {final_damage} final damage inflicted."
+        details.append(fnp_msg)
+    else:
+        details.append(f"Result: {failed_saves} damage inflicted.")
+
+    return "\n".join(details)
 
 
 def _execute_tool(name: str, tool_input: dict) -> str:
@@ -613,6 +803,48 @@ def _execute_tool(name: str, tool_input: dict) -> str:
             "The candles are lit; their flame-glow flickers over the skull."
             if lit
             else "The candles are extinguished."
+        )
+    if name == "roll_dice":
+        num_dice = int(tool_input.get("num_dice", 1))
+        hit_on = int(tool_input.get("hit_on", 3))
+        wound_on = int(tool_input.get("wound_on", 4))
+        save_on = tool_input.get("save_on")
+        save_on = int(save_on) if save_on is not None else None
+        ap = int(tool_input.get("ap", 0))
+        invul_save = tool_input.get("invul_save")
+        invul_save = int(invul_save) if invul_save is not None else None
+        reroll_hits = str(tool_input.get("reroll_hits", "none"))
+        reroll_wounds = str(tool_input.get("reroll_wounds", "none"))
+        feel_no_pain = tool_input.get("feel_no_pain")
+        feel_no_pain = int(feel_no_pain) if feel_no_pain is not None else None
+        print(f"[skull] Rolling {num_dice} dice (hits: {hit_on}+, wounds: {wound_on}+)")
+        
+        # Play the dice rolling sound effect
+        from skull import sfx as _sfx
+        _sfx.play("dice_roll")
+
+        # Select a random result from 1-6 for the display roll
+        import random as _rand
+        display_result = _rand.randint(1, 6)
+        
+        # Trigger the 3D die display roll animation
+        from skull import display as _display
+        _display.start_die_roll(display_result)
+
+        # Pause to let the physical/emulated die settle before finishing cogitation
+        import time as _time
+        _time.sleep(1.5)
+
+        return _simulate_dice(
+            num_dice=num_dice,
+            hit_on=hit_on,
+            wound_on=wound_on,
+            save_on=save_on,
+            ap=ap,
+            invul_save=invul_save,
+            reroll_hits=reroll_hits,
+            reroll_wounds=reroll_wounds,
+            feel_no_pain=feel_no_pain
         )
     return f"Unknown tool: {name}"
 

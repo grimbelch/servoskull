@@ -6,6 +6,7 @@ a low baseline glow, so the skull always looks faintly alive but never in unison
 During speech/attention the brightness tracks the speech amplitude instead.
 """
 
+from __future__ import annotations
 import math
 import time
 import threading
