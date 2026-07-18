@@ -176,6 +176,9 @@ def _set_window(x0: int, y0: int, x1: int, y1: int) -> None:
 
 def _blit(img) -> None:
     """Push a 240x240 PIL RGB image to the panel as big-endian RGB565."""
+    if config.DISPLAY_FINE_ROTATION != 0.0:
+        # PIL rotate is counter-clockwise. Pass -angle to rotate clockwise.
+        img = img.rotate(-config.DISPLAY_FINE_ROTATION, resample=Image.BICUBIC)
     arr = np.asarray(img, dtype=np.uint16)
     r = (arr[..., 0] & 0xF8) << 8
     g = (arr[..., 1] & 0xFC) << 3
