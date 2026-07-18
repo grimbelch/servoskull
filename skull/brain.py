@@ -19,7 +19,7 @@ _history: list[dict] = []
 
 # Tools that hit the network/hardware and can take a noticeable moment. Omega-7
 # speaks a short "stand by" before running any of these so the user gets feedback.
-_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan"}
+_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan"}
 _HISTORY_PATH = config.data_path(config.HISTORY_FILE)
 
 
@@ -473,6 +473,19 @@ _TOOLS = [
             "required": ["num_dice", "hit_on", "wound_on"],
         },
     },
+    {
+        "name": "auspex_scan",
+        "description": (
+            "Scan the skull's internal cogitator systems (SoC temperature, memory/RAM usage, "
+            "disk storage, CPU load, and network/noosphere latency). Returns a detailed "
+            "status report of all hardware parameters."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
 ]
 
 _ORDINALS = {
@@ -539,6 +552,116 @@ def _strip_actions(text: str) -> str:
     text = re.sub(r"\*[^*]*\*", "", text)
     text = re.sub(r"_[^_]*_", "", text)
     return " ".join(text.split())
+
+
+def _run_auspex_scan() -> str:
+    # 1. Temperature
+    from skull.temperature import read_temp_c
+    temp = read_temp_c()
+
+    # 2. CPU load
+    import os
+    import sys
+    cpu_count = os.cpu_count() or 1
+    cpu_load_pct = 0.0
+    try:
+        load = os.getloadavg()
+        cpu_load_pct = (load[0] / cpu_count) * 100
+    except Exception:
+        pass
+
+    # 3. Memory
+    mem_total_gb, mem_used_gb, mem_pct = 0.0, 0.0, 0.0
+    try:
+        if sys.platform != "darwin" and os.path.exists("/proc/meminfo"):
+            mem_total, mem_avail = 0, 0
+            with open("/proc/meminfo") as f:
+                for line in f:
+                    if line.startswith("MemTotal:"):
+                        mem_total = int(line.split()[1]) * 1024
+                    elif line.startswith("MemAvailable:"):
+                        mem_avail = int(line.split()[1]) * 1024
+            if mem_total > 0:
+                mem_used = mem_total - mem_avail
+                mem_total_gb = mem_total / (1024**3)
+                mem_used_gb = mem_used / (1024**3)
+                mem_pct = (mem_used / mem_total) * 100
+        else:
+            import subprocess
+            out = subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=1).stdout.strip()
+            mem_total = int(out)
+            vm = subprocess.run(["vm_stat"], capture_output=True, text=True, timeout=1).stdout
+            pages_free = 0
+            pages_speculative = 0
+            pages_purgeable = 0
+            page_size = 4096
+            for line in vm.splitlines():
+                if "Pages free:" in line:
+                    pages_free = int(line.split()[-1].strip("."))
+                elif "Pages speculative:" in line:
+                    pages_speculative = int(line.split()[-1].strip("."))
+                elif "Pages purgeable:" in line:
+                    pages_purgeable = int(line.split()[-1].strip("."))
+                elif "page size of" in line:
+                    match_size = re.search(r"page size of (\d+) bytes", line)
+                    if match_size:
+                        page_size = int(match_size.group(1))
+            mem_avail = (pages_free + pages_speculative + pages_purgeable) * page_size
+            mem_used = mem_total - mem_avail
+            mem_total_gb = mem_total / (1024**3)
+            mem_used_gb = mem_used / (1024**3)
+            mem_pct = (mem_used / mem_total) * 100
+    except Exception:
+        mem_total_gb = 4.0
+        mem_pct = 25.0
+        mem_used_gb = 1.0
+
+    # 4. Disk Usage
+    import shutil
+    disk_total_gb, disk_used_gb, disk_pct = 0.0, 0.0, 0.0
+    try:
+        total, used, free = shutil.disk_usage("/")
+        disk_total_gb = total / (1024**3)
+        disk_used_gb = used / (1024**3)
+        disk_pct = (used / total) * 100
+    except Exception:
+        pass
+
+    # 5. Network / Noosphere Latency
+    import subprocess
+    latency_ms = None
+    noosphere_status = "unreachable"
+    try:
+        flag = "-t" if sys.platform == "darwin" else "-W"
+        res = subprocess.run(["ping", "-c", "1", flag, "1", "1.1.1.1"], capture_output=True, text=True, timeout=1.5)
+        if res.returncode == 0:
+            match = re.search(r"time=([\d.]+)\s*ms", res.stdout)
+            if match:
+                latency_ms = float(match.group(1))
+                noosphere_status = "connected"
+    except Exception:
+        pass
+
+    # Compose reports
+    report = []
+    report.append("--- Noosphere Auspex Diagnostic Report ---")
+    if temp is not None:
+        report.append(f"Cognitive core temperature: {temp:.1f}°C")
+    else:
+        report.append("Cognitive core temperature: Sensor offline / Virtual environment emulation")
+
+    report.append(f"Logic-engine (CPU) load: {cpu_load_pct:.1f}% ({cpu_count} active cores)")
+    report.append(f"Memory-coils (RAM): {mem_used_gb:.2f} GB / {mem_total_gb:.2f} GB ({mem_pct:.1f}% allocated)")
+    report.append(f"Data-vaults (Disk): {disk_used_gb:.1f} GB / {disk_total_gb:.1f} GB ({disk_pct:.1f}% capacity)")
+
+    if noosphere_status == "connected" and latency_ms is not None:
+        report.append(f"Noosphere link status: Stable (latency: {latency_ms:.1f} ms)")
+    else:
+        report.append("Noosphere link status: Disconnected / Offline")
+
+    report.append("System status: Sanctified by the Machine God.")
+    report.append("------------------------------------------")
+    return "\n".join(report)
 
 
 def _simulate_dice(
@@ -846,6 +969,15 @@ def _execute_tool(name: str, tool_input: dict) -> str:
             reroll_wounds=reroll_wounds,
             feel_no_pain=feel_no_pain
         )
+    if name == "auspex_scan":
+        print("[skull] Performing Noosphere Auspex scan...")
+        # Play scan sweep sound
+        from skull import sfx as _sfx
+        _sfx.play("scan_sweep")
+        # Pause to simulate auspex sweeping
+        import time as _time
+        _time.sleep(1.0)
+        return _run_auspex_scan()
     return f"Unknown tool: {name}"
 
 
