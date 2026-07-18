@@ -665,6 +665,14 @@ _TOOLS = [
             "type": "object",
             "properties": {}
         }
+    },
+    {
+        "name": "reboot_system",
+        "description": "Reboot the physical Host operating system (the Raspberry Pi hardware).",
+        "input_schema": {
+            "type": "object",
+            "properties": {}
+        }
     }
 ]
 
@@ -1563,11 +1571,16 @@ def _execute_tool(name: str, tool_input: dict) -> str:
         if _SELF_UPDATE_CB:
             return _SELF_UPDATE_CB()
         return "Self update callback not registered."
+    if name == "reboot_system":
+        if _REBOOT_CB:
+            return _REBOOT_CB()
+        return "Reboot callback not registered."
     return f"Unknown tool: {name}"
 
 
 _RELOAD_VOICE_CACHE_CB = None
 _SELF_UPDATE_CB = None
+_REBOOT_CB = None
 
 
 def register_reload_cb(cb):
@@ -1578,6 +1591,11 @@ def register_reload_cb(cb):
 def register_update_cb(cb):
     global _SELF_UPDATE_CB
     _SELF_UPDATE_CB = cb
+
+
+def register_reboot_cb(cb):
+    global _REBOOT_CB
+    _REBOOT_CB = cb
 
 
 def respond(user_text: str, on_tool_use=None) -> tuple[str, list[tuple]]:

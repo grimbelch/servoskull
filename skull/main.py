@@ -378,6 +378,17 @@ def self_update() -> str:
         return f"System update encountered an error: {e}"
 
 
+def reboot_system() -> str:
+    import subprocess
+    try:
+        print("[skull] Initiating full system reboot...")
+        subprocess.Popen("sleep 1 && sudo reboot", shell=True)
+        return "Initiating full system reboot. Power cycles will commence."
+    except Exception as e:
+        print(f"[skull] Reboot error: {e}")
+        return f"Failed to reboot system: {e}"
+
+
 def _preload_phrases() -> None:
     global _wake_wavs, _cogitation_wavs, _search_wavs, _ack_wavs, _silence_wavs
     wake, cog, search, ack, silence = [], [], [], [], []
@@ -583,6 +594,7 @@ def _spotify_poller_loop():
 def main():
     brain.register_reload_cb(refresh_voice_cache)
     brain.register_update_cb(self_update)
+    brain.register_reboot_cb(reboot_system)
     eyes.setup(config.LED_PIN_LEFT, config.LED_PIN_CENTER, config.LED_PIN_RIGHT)
     candles.setup(config.CANDLE_PIN)
     candles.on()  # ambient — flicker for as long as the skull is powered
@@ -1052,6 +1064,16 @@ def main():
             except Exception:
                 pass
             self_update()
+            maintenance_handled = True
+        elif any(p in _t for p in ("reboot", "reboot system", "reboot yourself", "restart system", "restart yourself", "reboot the system")):
+            print("[skull] Local reboot intent detected.")
+            try:
+                speech_wav = tts.synthesize("Initiating system reboot. Power cycles will commence shortly.")
+                eyes.on()
+                _speak_interruptible(speech_wav, on_wake)
+            except Exception:
+                pass
+            reboot_system()
             maintenance_handled = True
             
         if maintenance_handled:
