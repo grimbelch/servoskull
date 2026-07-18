@@ -649,6 +649,22 @@ _TOOLS = [
             },
             "required": ["change"]
         }
+    },
+    {
+        "name": "refresh_voice_cache",
+        "description": "Refresh the pre-compiled and cached ElevenLabs voice files by clearing the cache and regenerating them in the background.",
+        "input_schema": {
+            "type": "object",
+            "properties": {}
+        }
+    },
+    {
+        "name": "self_update",
+        "description": "Trigger a self-update by pulling the latest code from GitHub, installing new dependencies, and restarting the service.",
+        "input_schema": {
+            "type": "object",
+            "properties": {}
+        }
     }
 ]
 
@@ -1539,7 +1555,29 @@ def _execute_tool(name: str, tool_input: dict) -> str:
         change = int(tool_input.get("change", 0))
         from skull import spotify_ctrl
         return spotify_ctrl.adjust_volume(change)
+    if name == "refresh_voice_cache":
+        if _RELOAD_VOICE_CACHE_CB:
+            return _RELOAD_VOICE_CACHE_CB()
+        return "Voice refresh callback not registered."
+    if name == "self_update":
+        if _SELF_UPDATE_CB:
+            return _SELF_UPDATE_CB()
+        return "Self update callback not registered."
     return f"Unknown tool: {name}"
+
+
+_RELOAD_VOICE_CACHE_CB = None
+_SELF_UPDATE_CB = None
+
+
+def register_reload_cb(cb):
+    global _RELOAD_VOICE_CACHE_CB
+    _RELOAD_VOICE_CACHE_CB = cb
+
+
+def register_update_cb(cb):
+    global _SELF_UPDATE_CB
+    _SELF_UPDATE_CB = cb
 
 
 def respond(user_text: str, on_tool_use=None) -> tuple[str, list[tuple]]:
