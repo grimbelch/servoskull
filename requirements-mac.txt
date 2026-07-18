@@ -18,6 +18,6 @@ numpy>=1.24.0
 python-dotenv>=1.0.0
 spotipy>=2.23.0
 ddgs>=0.1.0
-pychromecast>=14.0.0
+pychromecast>=13.0.0
 opencv-python>=4.8.0
 pydub>=0.25.1          # only needed to run generate_sounds.py (also requires: brew install ffmpeg)
