@@ -862,7 +862,9 @@ def main():
             "enough music", "silence the music", "stop the music"
         )
         _RESUME_MUSIC_PHRASES = (
-            "resume music", "resume spotify", "continue music", "unpause music", "unpause spotify", "start music"
+            "resume music", "resume spotify", "continue music", "unpause music", "unpause spotify",
+            "start music", "start playing", "play music", "play spotify", "continue playing",
+            "resume", "unpause"
         )
         _SKIP_MUSIC_PHRASES = (
             "skip music", "skip song", "next song", "next track", "skip track"
