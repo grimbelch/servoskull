@@ -619,6 +619,36 @@ _TOOLS = [
             },
             "required": ["roll_type", "count"]
         }
+    },
+    {
+        "name": "set_spotify_volume",
+        "description": "Set the volume of Spotify Connect playback as a percentage (0-100).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "level": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100,
+                    "description": "Volume percentage level (0-100)."
+                }
+            },
+            "required": ["level"]
+        }
+    },
+    {
+        "name": "adjust_spotify_volume",
+        "description": "Increase or decrease Spotify Connect volume level by a relative percentage (e.g. +10 or -15).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "change": {
+                    "type": "integer",
+                    "description": "Relative volume adjustment percentage."
+                }
+            },
+            "required": ["change"]
+        }
     }
 ]
 
@@ -1501,6 +1531,14 @@ def _execute_tool(name: str, tool_input: dict) -> str:
             morales=morales,
             opponent_count=opponent_count,
         )
+    if name == "set_spotify_volume":
+        level = int(tool_input.get("level", 50))
+        from skull import spotify_ctrl
+        return spotify_ctrl.set_volume(level)
+    if name == "adjust_spotify_volume":
+        change = int(tool_input.get("change", 0))
+        from skull import spotify_ctrl
+        return spotify_ctrl.adjust_volume(change)
     return f"Unknown tool: {name}"
 
 

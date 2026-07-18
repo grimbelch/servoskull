@@ -883,6 +883,101 @@ def main():
             if spotify_ctrl.is_configured():
                 spotify_ctrl.skip()
 
+        # ── 3a-3. Detect Spotify volume control commands ──────────────
+        _VOLUME_UP_PHRASES = (
+            "turn up music", "turn up the music", "make music louder", "make the music louder",
+            "louder music", "louder spotify", "increase music volume", "increase spotify volume",
+            "crank the music", "crank the tunes", "volume up"
+        )
+        _VOLUME_DOWN_PHRASES = (
+            "turn down music", "turn down the music", "make music quieter", "make the music quieter",
+            "quieter music", "quieter spotify", "decrease music volume", "decrease spotify volume",
+            "lower music volume", "lower spotify volume", "volume down"
+        )
+        
+        vol_handled = False
+        if any(p in _t for p in _VOLUME_UP_PHRASES):
+            print("[skull] Local Spotify volume up detected.")
+            if spotify_ctrl.is_configured():
+                spotify_ctrl.adjust_volume(15)
+                try:
+                    speech_wav = tts.synthesize("Turning the volume up.")
+                    eyes.on()
+                    _speak_interruptible(speech_wav, on_wake)
+                except Exception:
+                    pass
+                vol_handled = True
+        elif any(p in _t for p in _VOLUME_DOWN_PHRASES):
+            print("[skull] Local Spotify volume down detected.")
+            if spotify_ctrl.is_configured():
+                spotify_ctrl.adjust_volume(-15)
+                try:
+                    speech_wav = tts.synthesize("Lowering the volume.")
+                    eyes.on()
+                    _speak_interruptible(speech_wav, on_wake)
+                except Exception:
+                    pass
+                vol_handled = True
+        else:
+            import re
+            m = re.search(r"(?:set\s+)?(?:music|spotify)?\s*volume\s*(?:to\s+)?(\d+)", _t)
+            if m:
+                level = int(m.group(1))
+                if 0 <= level <= 100:
+                    print(f"[skull] Local Spotify absolute volume set detected: {level}%")
+                    if spotify_ctrl.is_configured():
+                        spotify_ctrl.set_volume(level)
+                        try:
+                            speech_wav = tts.synthesize(f"Setting volume to {level} percent.")
+                            eyes.on()
+                            _speak_interruptible(speech_wav, on_wake)
+                        except Exception:
+                            pass
+                        vol_handled = True
+        if vol_handled:
+            continue
+
+        # ── 3a-4. Detect Instant Dice Roll commands ──────────────
+        import re
+        dice_handled = False
+        
+        # 1. Necromunda specialized dice
+        m_necro = re.search(r"roll\s+(?:a\s+|an\s+)?(\d+)?\s*(firepower|injury|scatter|hit\s+location|location)\s*d(?:ice|ie)?", _t)
+        if m_necro:
+            count = int(m_necro.group(1)) if m_necro.group(1) else 1
+            dice_type = m_necro.group(2).lower().strip()
+            if "location" in dice_type:
+                dice_type = "location"
+            print(f"[skull] Instant Necromunda roll detected: {count}x {dice_type}")
+            res = brain._execute_tool("roll_necromunda_dice", {"count": count, "dice_type": dice_type})
+            try:
+                speech_wav = tts.synthesize(res)
+                eyes.on()
+                _speak_interruptible(speech_wav, on_wake)
+            except Exception:
+                pass
+            dice_handled = True
+            
+        # 2. Standard multi-sided dice
+        if not dice_handled:
+            m_std = re.search(r"roll\s+(?:a\s+|an\s+)?(\d+)?\s*d\s*(\d+)(?:\s*(?:needing|target|against)\s+(\d+))?", _t)
+            if m_std:
+                count = int(m_std.group(1)) if m_std.group(1) else 1
+                sides = int(m_std.group(2))
+                target = int(m_std.group(3)) if m_std.group(3) else None
+                print(f"[skull] Instant standard roll detected: {count}d{sides} (target: {target})")
+                res = brain._execute_tool("roll_standard_dice", {"count": count, "sides": sides, "target": target})
+                try:
+                    speech_wav = tts.synthesize(res)
+                    eyes.on()
+                    _speak_interruptible(speech_wav, on_wake)
+                except Exception:
+                    pass
+                dice_handled = True
+                
+        if dice_handled:
+            continue
+
         # ── 3b. Detect explicit voice-switch requests ──────────────────────────
         # Unambiguous phrases match on their own (they name a backend or contain "voice").
         _ELEVENLABS_PHRASES = (
