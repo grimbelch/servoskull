@@ -194,3 +194,14 @@ def skip() -> None:
 
 def is_configured() -> bool:
     return bool(config.SPOTIFY_CLIENT_ID and config.SPOTIFY_CLIENT_SECRET)
+
+
+def is_playing() -> bool:
+    if _sp is None:
+        return False
+    try:
+        pb = _sp.current_playback()
+        return bool(pb and pb.get("is_playing"))
+    except Exception:
+        return False
+

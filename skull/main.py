@@ -528,6 +528,17 @@ def _speak_interruptible(wav_bytes: bytes, on_wake) -> bool:
     return False
 
 
+def _spotify_poller_loop():
+    while True:
+        try:
+            if spotify_ctrl.is_configured():
+                playing = spotify_ctrl.is_playing()
+                display.set_music_playing(playing)
+        except Exception as e:
+            print(f"[main] Spotify status check failed: {e}")
+        time.sleep(4.0)
+
+
 def main():
     eyes.setup(config.LED_PIN_LEFT, config.LED_PIN_CENTER, config.LED_PIN_RIGHT)
     candles.setup(config.CANDLE_PIN)
@@ -536,6 +547,7 @@ def main():
     display.set_mood(mood.get())
     camera.start()
     temperature.start()
+    threading.Thread(target=_spotify_poller_loop, daemon=True).start()
     print(f"[skull] {config.SKULL_NAME} online. Awaiting the Emperor's commands.")
     try:
         import sounddevice as sd

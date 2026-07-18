@@ -851,15 +851,20 @@ def _execute_tool(name: str, tool_input: dict) -> str:
             return f"Volume adjustment failed: {e}"
     if name == "bluetooth_scan":
         from skull import bluetooth_ctrl
-        print("[skull] Scanning for Bluetooth devices...")
-        devices = bluetooth_ctrl.scan()
-        if not devices:
-            result = "No Bluetooth devices found nearby."
-        else:
-            lines = [f"{i + 1}. {d['name']}" for i, d in enumerate(devices)]
-            result = "Nearby Bluetooth devices:\n" + "\n".join(lines)
-        print(f"[skull] {result}")
-        return result
+        from skull import display as _display
+        _display.start_noosphere_scan()
+        try:
+            print("[skull] Scanning for Bluetooth devices...")
+            devices = bluetooth_ctrl.scan()
+            if not devices:
+                result = "No Bluetooth devices found nearby."
+            else:
+                lines = [f"{i + 1}. {d['name']}" for i, d in enumerate(devices)]
+                result = "Nearby Bluetooth devices:\n" + "\n".join(lines)
+            print(f"[skull] {result}")
+            return result
+        finally:
+            _display.stop_noosphere_scan()
     if name == "bluetooth_connect":
         from skull import bluetooth_ctrl
         identifier = str(tool_input.get("identifier", "")).strip()
@@ -971,13 +976,18 @@ def _execute_tool(name: str, tool_input: dict) -> str:
         )
     if name == "auspex_scan":
         print("[skull] Performing Noosphere Auspex scan...")
-        # Play scan sweep sound
-        from skull import sfx as _sfx
-        _sfx.play("scan_sweep")
-        # Pause to simulate auspex sweeping
-        import time as _time
-        _time.sleep(1.0)
-        return _run_auspex_scan()
+        from skull import display as _display
+        _display.start_auspex_scan()
+        try:
+            # Play scan sweep sound
+            from skull import sfx as _sfx
+            _sfx.play("scan_sweep")
+            # Pause to simulate auspex sweeping
+            import time as _time
+            _time.sleep(1.0)
+            return _run_auspex_scan()
+        finally:
+            _display.stop_auspex_scan()
     return f"Unknown tool: {name}"
 
 

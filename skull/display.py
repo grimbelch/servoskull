@@ -33,6 +33,11 @@ _mood_rgb = (255, 40, 30)  # base iris colour; default Imperial red
 _rolling_die = False
 _die_start_time = 0.0
 _die_result = 0
+_scanning_auspex = False
+_scanning_noosphere = False
+_targeting = False
+_visualizing_music = False
+
 
 _SPIN_DEG_PER_SEC = 80.0   # cog rotation speed while thinking
 
@@ -281,6 +286,24 @@ def _render_frame(bezel, mask, amp: float, angle: float = 0.0, blink: float = 0.
     disc(iris_r * 0.55, _scale(base, min(1.0, intensity * 1.4)))  # hot core
     disc(iris_r * 0.26, (8, 0, 0))                       # pupil
 
+    if _thinking:
+        # Draw falling vector binary matrix columns
+        cols = [-40, -24, -8, 8, 24, 40]
+        # Speed: 80 pixels per second
+        t_shift = (time.monotonic() * 80) % 200
+        for c_idx, dx in enumerate(cols):
+            x = _CX + dx
+            phase = c_idx * 37
+            for y_offset in range(-60, 60, 20):
+                y = _CY + ((y_offset + t_shift + phase) % 120) - 60
+                # Draw only inside the circular aperture (radius 70)
+                if dx*dx + (y - _CY)*(y - _CY) < 70*70:
+                    is_one = ((int(y) // 20) + c_idx) % 2 == 0
+                    if is_one:
+                        d.line([x, y - 5, x, y + 5], fill=_scale(base, 0.65), width=2)
+                    else:
+                        d.ellipse([x - 3, y - 5, x + 3, y + 5], outline=_scale(base, 0.65), width=1)
+
     if blink > 0.0:
         # Squash the iris layer vertically about centre — an eyelid closing to a
         # slit. Rebuild on black so the closed band reads as a dark lid.
@@ -290,6 +313,119 @@ def _render_frame(bezel, mask, amp: float, angle: float = 0.0, blink: float = 0.
         iris.paste(squashed, (0, (H - open_h) // 2))
 
     img.paste(iris, (0, 0), mask)
+    return img
+
+
+def _render_auspex_frame(bezel, mask, now: float):
+    img = bezel.copy()
+    base = _mood_rgb
+    overlay = Image.new("RGB", (W, H), (0, 0, 0))
+    d = ImageDraw.Draw(overlay)
+    sweep_deg = (now * 240) % 360
+    rad = math.radians(sweep_deg)
+    x_end = _CX + 70 * math.cos(rad)
+    y_end = _CY + 70 * math.sin(rad)
+    d.line([(_CX, _CY), (x_end, y_end)], fill=base, width=3)
+    for offset in range(5, 45, 10):
+        trail_rad = math.radians(sweep_deg - offset)
+        tx = _CX + 70 * math.cos(trail_rad)
+        ty = _CY + 70 * math.sin(trail_rad)
+        k = 1.0 - (offset / 45.0)
+        d.line([(_CX, _CY), (tx, ty)], fill=_scale(base, k * 0.4), width=1)
+    targets = [
+        (-35, -25, 45),
+        (40, -15, 340),
+        (-20, 35, 120),
+        (30, 30, 45),
+    ]
+    for tx, ty, trigger_ang in targets:
+        ang_diff = (sweep_deg - trigger_ang) % 360
+        if ang_diff < 90:
+            intensity = 1.0 - (ang_diff / 90.0)
+        else:
+            intensity = 0.15
+        cx, cy = _CX + tx, _CY + ty
+        d.ellipse([cx - 3, cy - 3, cx + 3, cy + 3], fill=_scale(base, intensity))
+        if intensity > 0.6:
+            d.rectangle([cx - 6, cy - 6, cx + 6, cy + 6], outline=_scale(base, intensity * 0.6), width=1)
+    d.ellipse([_CX - 60, _CY - 60, _CX + 60, _CY + 60], outline=_scale(base, 0.35), width=1)
+    d.line([(_CX - 65, _CY), (_CX + 65, _CY)], fill=_scale(base, 0.2), width=1)
+    d.line([(_CX, _CY - 65), (_CX, _CY + 65)], fill=_scale(base, 0.2), width=1)
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
+def _render_noosphere_frame(bezel, mask, now: float):
+    img = bezel.copy()
+    base = _mood_rgb
+    overlay = Image.new("RGB", (W, H), (0, 0, 0))
+    d = ImageDraw.Draw(overlay)
+    cycle_dur = 1.2
+    num_rings = 3
+    for i in range(num_rings):
+        t = (now / cycle_dur + i / num_rings) % 1.0
+        r = int(10 + t * 60)
+        opacity = 1.0 - t
+        d.ellipse([_CX - r, _CY - r, _CX + r, _CY + r], outline=_scale(base, opacity), width=2)
+    core_pulsing = 0.6 + 0.4 * math.sin(now * 12)
+    d.ellipse([_CX - 8, _CY - 8, _CX + 8, _CY + 8], fill=_scale(base, core_pulsing))
+    offset = 48
+    d.line([_CX - offset, _CY - offset, _CX - offset + 8, _CY - offset], fill=base, width=2)
+    d.line([_CX - offset, _CY - offset, _CX - offset, _CY - offset + 8], fill=base, width=2)
+    d.line([_CX + offset, _CY - offset, _CX + offset - 8, _CY - offset], fill=base, width=2)
+    d.line([_CX + offset, _CY - offset, _CX + offset, _CY - offset + 8], fill=base, width=2)
+    d.line([_CX - offset, _CY + offset, _CX - offset + 8, _CY + offset], fill=base, width=2)
+    d.line([_CX - offset, _CY + offset, _CX - offset, _CY + offset - 8], fill=base, width=2)
+    d.line([_CX + offset, _CY + offset, _CX + offset - 8, _CY + offset], fill=base, width=2)
+    d.line([_CX + offset, _CY + offset, _CX + offset, _CY + offset - 8], fill=base, width=2)
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
+def _render_targeting_frame(bezel, mask, now: float):
+    img = bezel.copy()
+    base = _mood_rgb
+    overlay = Image.new("RGB", (W, H), (0, 0, 0))
+    d = ImageDraw.Draw(overlay)
+    dx = int(2.5 * math.sin(now * 18))
+    dy = int(1.5 * math.cos(now * 22))
+    cx, cy = _CX + dx, _CY + dy
+    size = 38
+    d.rectangle([cx - size, cy - size, cx + size, cy + size], outline=base, width=2)
+    d.line([(cx - 15, cy), (cx - 5, cy)], fill=base, width=1.5)
+    d.line([(cx + 5, cy), (cx + 15, cy)], fill=base, width=1.5)
+    d.line([(cx, cy - 15), (cx, cy - 5)], fill=base, width=1.5)
+    d.line([(cx, cy + 5), (cx, cy + 15)], fill=base, width=1.5)
+    flash = int(now * 6) % 2 == 0
+    if flash:
+        offset = 45
+        d.polygon([(cx - offset, cy), (cx - offset + 6, cy - 4), (cx - offset + 6, cy + 4)], fill=base)
+        d.polygon([(cx + offset, cy), (cx + offset - 6, cy - 4), (cx + offset - 6, cy + 4)], fill=base)
+    d.ellipse([cx - 2, cy - 2, cx + 2, cy + 2], fill=base)
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
+def _render_music_frame(bezel, mask, now: float):
+    img = bezel.copy()
+    base = _mood_rgb
+    overlay = Image.new("RGB", (W, H), (0, 0, 0))
+    d = ImageDraw.Draw(overlay)
+    num_bars = 8
+    bar_width = 6
+    spacing = 4
+    total_width = num_bars * bar_width + (num_bars - 1) * spacing
+    start_x = _CX - total_width // 2
+    for i in range(num_bars):
+        h_factor = 0.3 + 0.7 * (0.5 + 0.25 * math.sin(now * 8 + i * 2.3) + 0.25 * math.sin(now * 15 - i * 1.7))
+        h = int(h_factor * 50)
+        bx0 = start_x + i * (bar_width + spacing)
+        by0 = _CY - h // 2
+        bx1 = bx0 + bar_width
+        by1 = _CY + h // 2
+        d.rectangle([bx0, by0, bx1, by1], fill=base)
+    d.ellipse([_CX - 55, _CY - 55, _CX + 55, _CY + 55], outline=_scale(base, 0.4), width=1)
+    img.paste(overlay, (0, 0), mask)
     return img
 
 
@@ -419,6 +555,38 @@ def _loop():
                     print(f"[display] die render error: {e}")
                 time.sleep(1 / 30)
                 continue
+
+        if _scanning_auspex:
+            try:
+                _blit(_render_auspex_frame(bezel, mask, now))
+            except Exception as e:
+                print(f"[display] auspex render error: {e}")
+            time.sleep(1 / 30)
+            continue
+
+        if _scanning_noosphere:
+            try:
+                _blit(_render_noosphere_frame(bezel, mask, now))
+            except Exception as e:
+                print(f"[display] noosphere render error: {e}")
+            time.sleep(1 / 30)
+            continue
+
+        if _targeting:
+            try:
+                _blit(_render_targeting_frame(bezel, mask, now))
+            except Exception as e:
+                print(f"[display] targeting render error: {e}")
+            time.sleep(1 / 30)
+            continue
+
+        if _visualizing_music and not _speaking and not _thinking:
+            try:
+                _blit(_render_music_frame(bezel, mask, now))
+            except Exception as e:
+                print(f"[display] music render error: {e}")
+            time.sleep(1 / 30)
+            continue
 
         if _speaking:
             target = _target_amp
@@ -550,6 +718,36 @@ def idle() -> None:
 
 # Alias so call sites that mirror eyes.off() read naturally.
 off = idle
+
+
+def start_auspex_scan() -> None:
+    global _scanning_auspex
+    _scanning_auspex = True
+
+
+def stop_auspex_scan() -> None:
+    global _scanning_auspex
+    _scanning_auspex = False
+
+
+def start_noosphere_scan() -> None:
+    global _scanning_noosphere
+    _scanning_noosphere = True
+
+
+def stop_noosphere_scan() -> None:
+    global _scanning_noosphere
+    _scanning_noosphere = False
+
+
+def set_targeting(active: bool) -> None:
+    global _targeting
+    _targeting = active
+
+
+def set_music_playing(active: bool) -> None:
+    global _visualizing_music
+    _visualizing_music = active
 
 
 def cleanup() -> None:
