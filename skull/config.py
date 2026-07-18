@@ -76,7 +76,7 @@ CLAUDE_MODEL = _cfg("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
 
 # ── Text-to-speech ───────────────────────────────────────────────────────────────
 # "piper" (local, free) or "elevenlabs" (cloud, quota-limited)
-TTS_BACKEND = _cfg("TTS_BACKEND", "piper")
+TTS_BACKEND = _cfg("TTS_BACKEND", "elevenlabs")
 PIPER_MODEL_PATH = _cfg("PIPER_MODEL_PATH", "models/servoskull.onnx")
 # Wipe cached canned-phrase audio for one run after changing the ElevenLabs voice.
 RESET_VOICE_CACHE = _cfg("RESET_VOICE_CACHE", "false").lower() == "true"
