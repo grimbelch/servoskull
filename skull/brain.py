@@ -1417,7 +1417,7 @@ def _execute_tool(name: str, tool_input: dict) -> str:
     if name == "auspex_scan":
         print("[skull] Performing Noosphere Auspex scan...")
         from skull import display as _display
-        _display.start_auspex_scan()
+        _display.start_noosphere_scan()
         try:
             # Play scan sweep sound
             from skull import sfx as _sfx
@@ -1426,8 +1426,9 @@ def _execute_tool(name: str, tool_input: dict) -> str:
             import time as _time
             _time.sleep(1.0)
             return _run_auspex_scan()
-        finally:
-            _display.stop_auspex_scan()
+        except Exception as e:
+            _display.stop_noosphere_scan()
+            raise e
     if name == "set_active_game":
         game = str(tool_input.get("game", "Warhammer 40k")).strip()
         set_current_game(game)

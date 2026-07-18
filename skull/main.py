@@ -1000,12 +1000,18 @@ def main():
             except Exception as fe:
                 print(f"[skull] System TTS error: {fe}")
             display.idle()  # stop the thinking spin; no amplitude path ran
+            display.stop_noosphere_scan()
+            display.stop_auspex_scan()
             continue
 
         # ── 6. Play audio with barge-in (same path as idle observations) ─────────
-        if _speak_interruptible(speech_wav, on_wake):
-            # Wake word already heard; go straight to recording next iteration.
-            skip_wake_word = True
+        try:
+            if _speak_interruptible(speech_wav, on_wake):
+                # Wake word already heard; go straight to recording next iteration.
+                skip_wake_word = True
+        finally:
+            display.stop_noosphere_scan()
+            display.stop_auspex_scan()
 
 
 
