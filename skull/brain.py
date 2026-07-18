@@ -486,6 +486,72 @@ _TOOLS = [
             "required": [],
         },
     },
+    {
+        "name": "set_active_game",
+        "description": "Configure which tabletop game is currently being played (e.g. 'Warhammer 40k' or 'Necromunda') so that dice rolls default to that game context.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "game": {
+                    "type": "string",
+                    "enum": ["Warhammer 40k", "Necromunda"],
+                    "description": "The name of the game being played."
+                }
+            },
+            "required": ["game"]
+        }
+    },
+    {
+        "name": "roll_necromunda_dice",
+        "description": "Roll specialized Necromunda dice (Firepower/Ammo checks, Injury dice, Scatter dice, Location dice, or standard D6 checks).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "dice_type": {
+                    "type": "string",
+                    "enum": ["firepower", "injury", "scatter", "location", "d6"],
+                    "description": "The type of specialized Necromunda die to roll."
+                },
+                "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "The number of dice to roll."
+                },
+                "target": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 6,
+                    "description": "Optional: For D6 checks, the target number required (e.g. 4 for 4+)."
+                }
+            },
+            "required": ["dice_type"]
+        }
+    },
+    {
+        "name": "roll_standard_dice",
+        "description": "Roll standard multi-sided dice (e.g. D6, D10, D20, D100) and return the individual results and sum.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "The number of dice to roll."
+                },
+                "sides": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "description": "The number of sides per die (e.g. 6 for D6, 20 for D20)."
+                },
+                "target": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Optional: target number to succeed (e.g. roll >= target)."
+                }
+            },
+            "required": ["count", "sides"]
+        }
+    }
 ]
 
 _ORDINALS = {
@@ -792,6 +858,145 @@ def _simulate_dice(
     return "\n".join(details)
 
 
+def get_current_game() -> str:
+    path = config.data_path("current_game.json")
+    if not path.exists():
+        return "Warhammer 40k"
+    try:
+        return json.loads(path.read_text()).get("game", "Warhammer 40k")
+    except Exception:
+        return "Warhammer 40k"
+
+
+def set_current_game(game: str) -> None:
+    path = config.data_path("current_game.json")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"game": game}))
+    except Exception as e:
+        print(f"[brain] Error saving current game: {e}")
+
+
+def _trigger_dice_effects(display_val: int | None = None) -> None:
+    try:
+        from skull import sfx as _sfx
+        _sfx.play("dice_roll")
+    except Exception as e:
+        print(f"[brain] SFX play failed: {e}")
+
+    try:
+        import random as _rand
+        val = display_val if display_val is not None else _rand.randint(1, 6)
+        from skull import display as _display
+        _display.start_die_roll(val)
+    except Exception as e:
+        print(f"[brain] Display roll failed: {e}")
+
+    import time as _time
+    _time.sleep(1.5)
+
+
+def _simulate_necromunda(dice_type: str, count: int, target: int | None = None) -> str:
+    import random
+    details = []
+    
+    if dice_type == "firepower":
+        total_hits = 0
+        ammo_checks = 0
+        rolls = []
+        for _ in range(count):
+            r = random.randint(1, 6)
+            if r == 1:
+                rolls.append("1 (Ammo Symbol)")
+                total_hits += 1
+                ammo_checks += 1
+            elif r in (2, 3):
+                rolls.append("1")
+                total_hits += 1
+            elif r in (4, 5):
+                rolls.append("2")
+                total_hits += 2
+            else:
+                rolls.append("3")
+                total_hits += 3
+        
+        details.append(f"Necromunda Firepower Roll ({count} dice):")
+        details.append(f"Individual rolls: {', '.join(rolls)}")
+        details.append(f"Total Hits: {total_hits}")
+        if ammo_checks > 0:
+            details.append(f"WARNING: {ammo_checks} Ammo Check(s) triggered! Weapons may jam or run out of ammunition.")
+        else:
+            details.append("No Ammo Checks triggered.")
+            
+    elif dice_type == "injury":
+        flesh = 0
+        serious = 0
+        out_of_action = 0
+        rolls = []
+        for _ in range(count):
+            r = random.randint(1, 6)
+            if r in (1, 2):
+                rolls.append("Flesh Wound")
+                flesh += 1
+            elif r in (3, 4, 5):
+                rolls.append("Serious Injury")
+                serious += 1
+            else:
+                rolls.append("Out of Action")
+                out_of_action += 1
+        
+        details.append(f"Necromunda Injury Roll ({count} dice):")
+        details.append(f"Individual rolls: {', '.join(rolls)}")
+        details.append(f"Summary: {flesh}x Flesh Wound, {serious}x Serious Injury, {out_of_action}x Out of Action")
+        
+    elif dice_type == "scatter":
+        hits = 0
+        arrows = []
+        directions = ["North (12 o'clock)", "East (3 o'clock)", "South (6 o'clock)", "West (9 o'clock)"]
+        for _ in range(count):
+            r = random.randint(1, 6)
+            if r in (1, 2):
+                arrows.append("Direct Hit")
+                hits += 1
+            else:
+                dir_str = directions[r - 3]
+                arrows.append(f"Scatter {dir_str}")
+        
+        details.append(f"Necromunda Scatter Roll ({count} dice):")
+        details.append(f"Individual rolls: {', '.join(arrows)}")
+        details.append(f"Summary: {hits}x Direct Hit, {count - hits}x Scatter")
+        
+    elif dice_type == "location":
+        locations = ["Head", "Body", "Left Arm", "Right Arm", "Left Leg", "Right Leg"]
+        rolls = []
+        for _ in range(count):
+            r = random.randint(1, 6)
+            rolls.append(locations[r - 1])
+        
+        details.append(f"Necromunda Hit Location Roll ({count} dice):")
+        details.append(f"Individual rolls: {', '.join(rolls)}")
+        
+    elif dice_type == "d6":
+        rolls = [random.randint(1, 6) for _ in range(count)]
+        details.append(f"Standard D6 Roll ({count} dice): {', '.join(map(str, rolls))}")
+        if target is not None:
+            successes = sum(1 for r in rolls if r >= target)
+            details.append(f"Successes ({target}+): {successes} passed, {count - successes} failed")
+            
+    return "\n".join(details)
+
+
+def _simulate_standard_dice(count: int, sides: int, target: int | None = None) -> str:
+    import random
+    rolls = [random.randint(1, sides) for _ in range(count)]
+    total = sum(rolls)
+    details = [f"Rolled {count}d{sides}: {', '.join(map(str, rolls))} (Total: {total})"]
+    if target is not None:
+        successes = sum(1 for r in rolls if r >= target)
+        details.append(f"Successes ({target}+): {successes} passed, {count - successes} failed")
+    return "\n".join(details)
+
+
 def _execute_tool(name: str, tool_input: dict) -> str:
     """Run a single tool call and return its result string. Called by the llm
     tool-use loop."""
@@ -946,23 +1151,7 @@ def _execute_tool(name: str, tool_input: dict) -> str:
         feel_no_pain = tool_input.get("feel_no_pain")
         feel_no_pain = int(feel_no_pain) if feel_no_pain is not None else None
         print(f"[skull] Rolling {num_dice} dice (hits: {hit_on}+, wounds: {wound_on}+)")
-        
-        # Play the dice rolling sound effect
-        from skull import sfx as _sfx
-        _sfx.play("dice_roll")
-
-        # Select a random result from 1-6 for the display roll
-        import random as _rand
-        display_result = _rand.randint(1, 6)
-        
-        # Trigger the 3D die display roll animation
-        from skull import display as _display
-        _display.start_die_roll(display_result)
-
-        # Pause to let the physical/emulated die settle before finishing cogitation
-        import time as _time
-        _time.sleep(1.5)
-
+        _trigger_dice_effects()
         return _simulate_dice(
             num_dice=num_dice,
             hit_on=hit_on,
@@ -988,6 +1177,27 @@ def _execute_tool(name: str, tool_input: dict) -> str:
             return _run_auspex_scan()
         finally:
             _display.stop_auspex_scan()
+    if name == "set_active_game":
+        game = str(tool_input.get("game", "Warhammer 40k")).strip()
+        set_current_game(game)
+        print(f"[brain] Active game set to {game}")
+        return f"Active game is now set to {game}."
+    if name == "roll_necromunda_dice":
+        dice_type = str(tool_input.get("dice_type", "d6")).strip()
+        count = int(tool_input.get("count", 1))
+        target = tool_input.get("target")
+        target = int(target) if target is not None else None
+        print(f"[brain] Rolling {count} Necromunda {dice_type} dice...")
+        _trigger_dice_effects()
+        return _simulate_necromunda(dice_type, count, target)
+    if name == "roll_standard_dice":
+        count = int(tool_input.get("count", 1))
+        sides = int(tool_input.get("sides", 6))
+        target = tool_input.get("target")
+        target = int(target) if target is not None else None
+        print(f"[brain] Rolling {count}d{sides}...")
+        _trigger_dice_effects()
+        return _simulate_standard_dice(count, sides, target)
     return f"Unknown tool: {name}"
 
 
@@ -1007,7 +1217,9 @@ def respond(user_text: str, on_tool_use=None) -> tuple[str, list[tuple]]:
     # system_suffix, which the LLM layer places AFTER the cache breakpoint. Same content
     # and order as before; this just stops the per-minute timestamp from busting the cache.
     system = SYSTEM_PROMPT
-    system_suffix = (date_ctx + _memory.longterm_prompt(longterm)
+    active_game = get_current_game()
+    game_ctx = f"\n\nCURRENT ACTIVE TABLETOP GAME: {active_game}. Please default all dice rolling requests to this game unless the user specifies otherwise."
+    system_suffix = (date_ctx + game_ctx + _memory.longterm_prompt(longterm)
                      + _memory.facts_prompt(facts) + _mood.system_addendum())
 
     # Record which tools fired so we can reconcile silent mode afterwards.
