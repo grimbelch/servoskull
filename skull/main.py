@@ -337,6 +337,47 @@ def reset_voice_cache_if_requested() -> None:
         print(f"[skull] Voice cache reset error: {e}")
 
 
+def refresh_voice_cache() -> str:
+    import shutil
+    try:
+        if _VOICE_CACHE_DIR.exists():
+            shutil.rmtree(_VOICE_CACHE_DIR)
+        legacy = pathlib.Path(_BOOT_CACHE)
+        if legacy.exists():
+            legacy.unlink()
+        
+        threading.Thread(target=_preload_phrases, daemon=True).start()
+        print("[skull] Voice cache refresh triggered.")
+        return "Voice cache cleared and background synthesis initiated successfully."
+    except Exception as e:
+        print(f"[skull] Voice cache refresh error: {e}")
+        return f"Failed to refresh voice cache: {e}"
+
+
+def self_update() -> str:
+    import subprocess
+    import sys
+    try:
+        print("[skull] Initiating system self-update...")
+        pull_res = subprocess.run(["git", "pull"], capture_output=True, text=True, check=True)
+        print(f"[update] Git Pull Output: {pull_res.stdout}")
+        
+        venv_pip = pathlib.Path(sys.prefix) / "bin" / "pip"
+        if venv_pip.exists():
+            req_file = pathlib.Path(__file__).resolve().parent.parent / "requirements.txt"
+            if req_file.exists():
+                subprocess.run([str(venv_pip), "install", "-r", str(req_file)], check=True)
+        
+        subprocess.Popen("sleep 1 && sudo systemctl restart omega7", shell=True)
+        return "System update downloaded successfully. Restarting the machine spirit now."
+    except subprocess.CalledProcessError as ce:
+        print(f"[skull] Update failed: {ce.stderr or ce}")
+        return f"System update failed during command execution: {ce.stderr or ce}"
+    except Exception as e:
+        print(f"[skull] Update error: {e}")
+        return f"System update encountered an error: {e}"
+
+
 def _preload_phrases() -> None:
     global _wake_wavs, _cogitation_wavs, _search_wavs, _ack_wavs, _silence_wavs
     wake, cog, search, ack, silence = [], [], [], [], []
@@ -540,6 +581,8 @@ def _spotify_poller_loop():
 
 
 def main():
+    brain.register_reload_cb(refresh_voice_cache)
+    brain.register_update_cb(self_update)
     eyes.setup(config.LED_PIN_LEFT, config.LED_PIN_CENTER, config.LED_PIN_RIGHT)
     candles.setup(config.CANDLE_PIN)
     candles.on()  # ambient — flicker for as long as the skull is powered
@@ -976,6 +1019,42 @@ def main():
                 dice_handled = True
                 
         if dice_handled:
+            continue
+
+        # ── 3a-5. Detect Voice Cache Refresh and Self-Update ──────────
+        _REFRESH_VOICE_PHRASES = (
+            "refresh your voice", "refresh voice", "reload your voice", "reload voice",
+            "refresh voice cache", "refresh your voice cache", "clear your voice cache",
+            "update voice cache", "update your voice cache"
+        )
+        _SELF_UPDATE_PHRASES = (
+            "self update", "system update", "update your software", "update yourself",
+            "run self update", "pull updates", "update your system"
+        )
+        
+        maintenance_handled = False
+        if any(p in _t for p in _REFRESH_VOICE_PHRASES):
+            print("[skull] Local voice cache refresh intent detected.")
+            refresh_voice_cache()
+            try:
+                speech_wav = tts.synthesize("Understood. I am purging my auditory cache and initiating voice regeneration.")
+                eyes.on()
+                _speak_interruptible(speech_wav, on_wake)
+            except Exception:
+                pass
+            maintenance_handled = True
+        elif any(p in _t for p in _SELF_UPDATE_PHRASES):
+            print("[skull] Local self-update intent detected.")
+            try:
+                speech_wav = tts.synthesize("Initiating system update from the git archives. I will reboot the machine spirit shortly.")
+                eyes.on()
+                _speak_interruptible(speech_wav, on_wake)
+            except Exception:
+                pass
+            self_update()
+            maintenance_handled = True
+            
+        if maintenance_handled:
             continue
 
         # ── 3b. Detect explicit voice-switch requests ──────────────────────────
