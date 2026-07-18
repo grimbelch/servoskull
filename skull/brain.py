@@ -488,13 +488,13 @@ _TOOLS = [
     },
     {
         "name": "set_active_game",
-        "description": "Configure which tabletop game is currently being played (e.g. 'Warhammer 40k' or 'Necromunda') so that dice rolls default to that game context.",
+        "description": "Configure which tabletop game is currently being played (e.g. 'Warhammer 40k', 'Necromunda', 'NetEpic', or 'NetEpic Armageddon') so that dice rolls default to that game context.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "game": {
                     "type": "string",
-                    "enum": ["Warhammer 40k", "Necromunda"],
+                    "enum": ["Warhammer 40k", "Necromunda", "NetEpic", "NetEpic Armageddon"],
                     "description": "The name of the game being played."
                 }
             },
@@ -550,6 +550,74 @@ _TOOLS = [
                 }
             },
             "required": ["count", "sides"]
+        }
+    },
+    {
+        "name": "roll_epic_dice",
+        "description": "Roll dice for NetEpic (2nd edition) or NetEpic Armageddon (NetEA/3rd edition) shooting or close combat/assault resolution.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "system": {
+                    "type": "string",
+                    "enum": ["NetEpic", "NetEA"],
+                    "description": "Optional: The Epic rules system to use. Defaults to the active game if not specified."
+                },
+                "roll_type": {
+                    "type": "string",
+                    "enum": ["shooting", "combat_resolution", "save", "morale"],
+                    "description": "The type of roll: shooting attacks, close combat/assault resolution, armor saves, or morale tests."
+                },
+                "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "The number of dice to roll."
+                },
+                "to_hit": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "maximum": 6,
+                    "description": "Optional: The target number required to hit (e.g. 4 for 4+)."
+                },
+                "save_on": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 6,
+                    "description": "Optional: The required save value (e.g. 5 for 5+)."
+                },
+                "tsm": {
+                    "type": "integer",
+                    "description": "Optional (NetEpic only): Target Save Modifier (negative value, e.g. -2). Modifies the save roll."
+                },
+                "macro_weapon": {
+                    "type": "boolean",
+                    "description": "Optional (NetEA only): If true, the attack is from a macro-weapon (MW), negating standard and cover saves."
+                },
+                "reinforced_armour": {
+                    "type": "boolean",
+                    "description": "Optional (NetEA only): If true, the target has reinforced armour (allows save reroll against non-macro hits, or normal save against macro hits)."
+                },
+                "caf": {
+                    "type": "integer",
+                    "description": "Optional (NetEpic close combat only): Close Assault Factor of the combatant."
+                },
+                "opponent_caf": {
+                    "type": "integer",
+                    "description": "Optional (NetEpic close combat only): Close Assault Factor of the opponent."
+                },
+                "opponent_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Optional: For NetEpic close combat or NetEA assaults, the number of dice rolled by the opponent."
+                },
+                "morales": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 6,
+                    "description": "Optional (Morale test only): Morale threshold required."
+                }
+            },
+            "required": ["roll_type", "count"]
         }
     }
 ]
@@ -997,6 +1065,189 @@ def _simulate_standard_dice(count: int, sides: int, target: int | None = None) -
     return "\n".join(details)
 
 
+def _simulate_epic_dice(
+    system: str,
+    roll_type: str,
+    count: int,
+    to_hit: int | None = None,
+    save_on: int | None = None,
+    tsm: int = 0,
+    macro_weapon: bool = False,
+    reinforced_armour: bool = False,
+    caf: int = 0,
+    opponent_caf: int = 0,
+    morales: int | None = None,
+    opponent_count: int | None = None,
+) -> str:
+    import random
+    details = []
+
+    def roll_d6(n: int) -> list[int]:
+        return [random.randint(1, 6) for _ in range(n)]
+
+    if roll_type == "shooting":
+        rolls = roll_d6(count)
+        details.append(f"{system} Shooting Roll ({count} dice): {', '.join(map(str, rolls))}")
+        
+        hit_count = 0
+        hit_rolls = []
+        if to_hit is not None:
+            for r in rolls:
+                if system == "NetEpic" and r == 1:
+                    hit_rolls.append(f"{r} (Miss)")
+                elif r >= to_hit:
+                    hit_rolls.append(f"{r} (Hit)")
+                    hit_count += 1
+                else:
+                    hit_rolls.append(str(r))
+            details.append(f"To-Hit rolls: {', '.join(hit_rolls)} -> {hit_count} Hit(s) scored (needing {to_hit}+)")
+        else:
+            hit_count = count
+            details.append(f"Assuming all {count} attack(s) hit.")
+
+        if hit_count == 0:
+            return "\n".join(details)
+
+        if save_on is not None:
+            details.append(f"\nResolving {hit_count} Save(s) (needing {save_on}+):")
+            
+            if system == "NetEpic":
+                save_rolls = roll_d6(hit_count)
+                save_results = []
+                passed = 0
+                for r in save_rolls:
+                    mod_roll = r + tsm
+                    if mod_roll >= save_on:
+                        save_results.append(f"{r} modified to {mod_roll} (Pass)")
+                        passed += 1
+                    else:
+                        save_results.append(f"{r} modified to {mod_roll} (Fail)")
+                tsm_str = f" with TSM {tsm}" if tsm != 0 else ""
+                details.append(f"Save rolls{tsm_str}: {', '.join(save_results)}")
+                details.append(f"Summary: {passed} passed, {hit_count - passed} failed.")
+                
+            elif system == "NetEA":
+                if macro_weapon:
+                    if reinforced_armour:
+                        save_rolls = roll_d6(hit_count)
+                        passed = sum(1 for r in save_rolls if r >= save_on)
+                        details.append(f"Macro-Weapon vs Reinforced Armour (no rerolls allowed): {', '.join(map(str, save_rolls))}")
+                        details.append(f"Summary: {passed} passed, {hit_count - passed} failed.")
+                    else:
+                        details.append("Macro-Weapon hits target without Reinforced Armour -> No saves allowed! Target takes full damage.")
+                else:
+                    save_rolls = roll_d6(hit_count)
+                    passed = 0
+                    failed_rolls = []
+                    save_results = []
+                    
+                    for r in save_rolls:
+                        if r >= save_on:
+                            save_results.append(f"{r} (Pass)")
+                            passed += 1
+                        else:
+                            save_results.append(f"{r} (Fail)")
+                            failed_rolls.append(r)
+                            
+                    details.append(f"Initial Save rolls: {', '.join(save_results)}")
+                    
+                    if reinforced_armour and failed_rolls:
+                        rerolls = roll_d6(len(failed_rolls))
+                        new_passed = sum(1 for r in rerolls if r >= save_on)
+                        passed += new_passed
+                        reroll_results = [f"{r} (Pass)" if r >= save_on else f"{r} (Fail)" for r in rerolls]
+                        details.append(f"Reinforced Armour Rerolls: {', '.join(reroll_results)}")
+                    
+                    details.append(f"Summary: {passed} passed, {hit_count - passed} failed.")
+
+    elif roll_type == "combat_resolution":
+        if system == "NetEpic":
+            rolls_a = roll_d6(count if count > 1 else 2)
+            score_a = sum(rolls_a) + caf
+            opp_d = opponent_count if opponent_count is not None else 2
+            rolls_b = roll_d6(opp_d)
+            score_b = sum(rolls_b) + opponent_caf
+            
+            details.append("NetEpic Close Combat Resolution:")
+            details.append(f"- Attacker rolled {len(rolls_a)}D6: {', '.join(map(str, rolls_a))} + CAF {caf} = Total {score_a}")
+            details.append(f"- Defender rolled {opp_d}D6: {', '.join(map(str, rolls_b))} + CAF {opponent_caf} = Total {score_b}")
+            
+            if score_a > score_b:
+                details.append("Result: Attacker wins! Defender stand is automatically removed (no saves allowed).")
+            elif score_b > score_a:
+                details.append("Result: Defender wins! Attacker stand is automatically removed (no saves allowed).")
+            else:
+                details.append("Result: Tie! Both stands remain engaged until the next round.")
+                
+        elif system == "NetEA":
+            details.append("NetEA Assault Result Roll Resolution:")
+            rolls_a = roll_d6(count)
+            details.append(f"Attacker attacks ({count} dice): {', '.join(map(str, rolls_a))}")
+            if to_hit is not None:
+                hits_a = sum(1 for r in rolls_a if r >= to_hit)
+                details.append(f"Attacker hits ({to_hit}+): {hits_a}")
+            if opponent_count is not None:
+                rolls_b = roll_d6(opponent_count)
+                details.append(f"Defender attacks ({opponent_count} dice): {', '.join(map(str, rolls_b))}")
+                if to_hit is not None:
+                    hits_b = sum(1 for r in rolls_b if r >= to_hit)
+                    details.append(f"Defender hits ({to_hit}+): {hits_b}")
+
+    elif roll_type == "save":
+        save_rolls = roll_d6(count)
+        details.append(f"{system} Save Roll ({count} dice): {', '.join(map(str, save_rolls))}")
+        passed = 0
+        if save_on is not None:
+            if system == "NetEpic":
+                save_results = []
+                for r in save_rolls:
+                    mod_roll = r + tsm
+                    if mod_roll >= save_on:
+                        save_results.append(f"{r} modified to {mod_roll} (Pass)")
+                        passed += 1
+                    else:
+                        save_results.append(f"{r} modified to {mod_roll} (Fail)")
+                tsm_str = f" with TSM {tsm}" if tsm != 0 else ""
+                details.append(f"Results{tsm_str}: {', '.join(save_results)}")
+            elif system == "NetEA":
+                failed_rolls = []
+                save_results = []
+                for r in save_rolls:
+                    if r >= save_on:
+                        save_results.append(f"{r} (Pass)")
+                        passed += 1
+                    else:
+                        save_results.append(f"{r} (Fail)")
+                        failed_rolls.append(r)
+                details.append(f"Initial results: {', '.join(save_results)}")
+                if reinforced_armour and not macro_weapon and failed_rolls:
+                    rerolls = roll_d6(len(failed_rolls))
+                    new_passed = sum(1 for r in rerolls if r >= save_on)
+                    passed += new_passed
+                    reroll_results = [f"{r} (Pass)" if r >= save_on else f"{r} (Fail)" for r in rerolls]
+                    details.append(f"Reinforced Armour Rerolls: {', '.join(reroll_results)}")
+            details.append(f"Summary: {passed} passed, {count - passed} failed.")
+
+    elif roll_type == "morale":
+        rolls = roll_d6(count)
+        details.append(f"{system} Morale Test ({count} dice): {', '.join(map(str, rolls))}")
+        if morales is not None:
+            passed = 0
+            results = []
+            for r in rolls:
+                if system == "NetEpic" and r == 1:
+                    results.append(f"{r} (Fail)")
+                elif r >= morales:
+                    results.append(f"{r} (Pass)")
+                    passed += 1
+                else:
+                    results.append(f"{r} (Fail)")
+            details.append(f"Results (needing {morales}+): {', '.join(results)}")
+            details.append(f"Summary: {passed} passed, {count - passed} failed.")
+
+    return "\n".join(details)
+
+
 def _execute_tool(name: str, tool_input: dict) -> str:
     """Run a single tool call and return its result string. Called by the llm
     tool-use loop."""
@@ -1198,6 +1449,57 @@ def _execute_tool(name: str, tool_input: dict) -> str:
         print(f"[brain] Rolling {count}d{sides}...")
         _trigger_dice_effects()
         return _simulate_standard_dice(count, sides, target)
+    if name == "roll_epic_dice":
+        roll_type = str(tool_input.get("roll_type", "shooting")).strip()
+        count = int(tool_input.get("count", 1))
+        
+        system = tool_input.get("system")
+        if system is None:
+            active = get_current_game()
+            if active == "NetEpic Armageddon":
+                system = "NetEA"
+            elif active == "NetEpic":
+                system = "NetEpic"
+            else:
+                system = "NetEpic"
+        else:
+            system = str(system).strip()
+
+        to_hit = tool_input.get("to_hit")
+        to_hit = int(to_hit) if to_hit is not None else None
+        
+        save_on = tool_input.get("save_on")
+        save_on = int(save_on) if save_on is not None else None
+        
+        tsm = int(tool_input.get("tsm", 0))
+        macro_weapon = bool(tool_input.get("macro_weapon", False))
+        reinforced_armour = bool(tool_input.get("reinforced_armour", False))
+        
+        caf = int(tool_input.get("caf", 0))
+        opponent_caf = int(tool_input.get("opponent_caf", 0))
+        
+        opponent_count = tool_input.get("opponent_count")
+        opponent_count = int(opponent_count) if opponent_count is not None else None
+        
+        morales = tool_input.get("morales")
+        morales = int(morales) if morales is not None else None
+
+        print(f"[brain] Rolling {count} Epic {system} dice for {roll_type}...")
+        _trigger_dice_effects()
+        return _simulate_epic_dice(
+            system=system,
+            roll_type=roll_type,
+            count=count,
+            to_hit=to_hit,
+            save_on=save_on,
+            tsm=tsm,
+            macro_weapon=macro_weapon,
+            reinforced_armour=reinforced_armour,
+            caf=caf,
+            opponent_caf=opponent_caf,
+            morales=morales,
+            opponent_count=opponent_count,
+        )
     return f"Unknown tool: {name}"
 
 
