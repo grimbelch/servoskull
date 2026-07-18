@@ -211,3 +211,42 @@ def is_playing() -> bool:
     except Exception:
         return False
 
+
+def set_volume(level: int) -> str:
+    try:
+        sp = _client()
+        pb = sp.current_playback()
+        dev_id = None
+        if pb and pb.get("device"):
+            dev_id = pb["device"].get("id")
+        if not dev_id:
+            dev_id = _device_id()
+        if dev_id:
+            sp.volume(level, device_id=dev_id)
+            print(f"[spotify] Set volume to {level}%")
+            return f"Set Spotify volume to {level}%."
+        return "No active Spotify Connect device found to set volume."
+    except Exception as e:
+        return f"Failed to set Spotify volume: {e}"
+
+
+def adjust_volume(change: int) -> str:
+    try:
+        sp = _client()
+        pb = sp.current_playback()
+        dev_id = None
+        curr_vol = 50
+        if pb and pb.get("device"):
+            dev_id = pb["device"].get("id")
+            curr_vol = pb["device"].get("volume_percent") or 50
+        if not dev_id:
+            dev_id = _device_id()
+        if dev_id:
+            target = max(0, min(100, curr_vol + change))
+            sp.volume(target, device_id=dev_id)
+            print(f"[spotify] Adjusted volume from {curr_vol}% to {target}%")
+            return f"Adjusted Spotify volume from {curr_vol}% to {target}%."
+        return "No active Spotify Connect device found to adjust volume."
+    except Exception as e:
+        return f"Failed to adjust Spotify volume: {e}"
+
