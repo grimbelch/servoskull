@@ -112,7 +112,8 @@ def _open_backend():
 
     def read():
         rgb = picam2.capture_array()
-        return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+        bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+        return cv2.rotate(bgr, cv2.ROTATE_90_COUNTERCLOCKWISE)
 
     def close():
         picam2.stop()
@@ -130,7 +131,9 @@ def _open_cv2_backend():
 
     def read():
         ret, frame = cap.read()
-        return frame if ret else None
+        if not ret or frame is None:
+            return None
+        return cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
 
     def close():
         cap.release()
