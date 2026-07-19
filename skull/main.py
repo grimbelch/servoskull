@@ -7,11 +7,17 @@ import random
 
 from skull import config
 from skull import audio, wake_word, transcribe, brain, tts, eyes, sfx, reminders, mood
-from skull import spotify_ctrl, cast_audio, camera, quiet, display, temperature, candles
+from skull import spotify_ctrl, cast_audio, camera, quiet, display, temperature, candles, bambu_ctrl
 
 
 def shutdown(sig=None, frame=None):
     print("\n[skull] Powering down. The Emperor protects.")
+    try:
+        monitor = bambu_ctrl.get_monitor()
+        if monitor:
+            monitor.stop()
+    except Exception:
+        pass
     display.cleanup()
     eyes.cleanup()
     candles.cleanup()
@@ -426,6 +432,27 @@ def _preload_phrases() -> None:
     print("[skull] Phrases preloaded (elevenlabs voice, cached)")
 
 
+def _speak_bambu_notification(event_type: str, text: str) -> None:
+    """Announce a Bambu 3D printer event verbally."""
+    print(f"[skull] Bambu notification ({event_type}): {text}")
+    try:
+        wav_bytes = tts.synthesize(text)
+        with _speech_lock:
+            try:
+                sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
+            except Exception:
+                pass
+            eyes.on()
+            display.on()
+            try:
+                audio.play_wav_bytes(wav_bytes, output_device=config.VOICE_OUTPUT_DEVICE)
+            finally:
+                eyes.off()
+                display.idle()
+    except Exception as e:
+        print(f"[skull] Bambu notification error: {e}")
+
+
 def _announce_search(tool_names) -> None:
     """Immediate spoken 'stand by' before a slow tool call. Called from brain.respond()."""
     print(f"[skull] Slow tool starting ({', '.join(tool_names)}) — announcing.")
@@ -602,6 +629,8 @@ def main():
     display.set_mood(mood.get())
     camera.start()
     temperature.start()
+    bambu_ctrl.init(_speak_bambu_notification)
+    bambu_ctrl.get_monitor().start()
     threading.Thread(target=_spotify_poller_loop, daemon=True).start()
     print(f"[skull] {config.SKULL_NAME} online. Awaiting the Emperor's commands.")
     try:

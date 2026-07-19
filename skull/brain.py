@@ -237,6 +237,19 @@ _TOOLS = [
         },
     },
     {
+        "name": "get_bambu_status",
+        "description": (
+            "Retrieve the current status of the Bambu 3D printer, including print state, "
+            "percentage complete, remaining time, nozzle/bed temperatures, active errors, "
+            "and file name."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
         "name": "remember_fact",
         "description": (
             "Permanently store a fact the user has explicitly asked to be remembered. "
@@ -1498,6 +1511,34 @@ def _execute_tool(name: str, tool_input: dict) -> str:
             f"Connected to {device['name']}. Music routes through the speaker via system audio; vocalizations remain on {config.SKULL_NAME}'s own output."
             if success
             else f"Failed to connect to {device['name']}. It may be out of range or need pairing."
+        )
+    if name == "get_bambu_status":
+        from skull import bambu_ctrl
+        if not bambu_ctrl.get_monitor() or not bambu_ctrl.get_monitor().is_configured():
+            return "The Bambu H2S printer is not configured. Ask the user to configure BAMBU_PRINTER_IP, BAMBU_PRINTER_SERIAL, and BAMBU_PRINTER_ACCESS_CODE in their .env file."
+        
+        report = bambu_ctrl.get_status_report()
+        if report is None:
+            return "The Bambu H2S printer is currently offline or unreachable. The skull is attempting to establish a background connection."
+            
+        gcode_state = report.get("gcode_state", "UNKNOWN")
+        percent = report.get("percent", 0)
+        remaining = report.get("remaining_minutes", 0)
+        nozzle = report.get("nozzle_temp", 0.0)
+        bed = report.get("bed_temp", 0.0)
+        file = report.get("gcode_file", "")
+        hms = report.get("hms", [])
+        
+        errs = f"Active HMS codes: {', '.join(hms)}" if hms else "No active errors."
+        return (
+            f"Bambu H2S 3D Printer Status:\n"
+            f"- State: {gcode_state}\n"
+            f"- Progress: {percent}%\n"
+            f"- Remaining Time: {remaining} minutes\n"
+            f"- Nozzle Temperature: {nozzle}°C\n"
+            f"- Bed Temperature: {bed}°C\n"
+            f"- Active File: {file}\n"
+            f"- Diagnostic: {errs}"
         )
     if name == "remember_fact":
         return _memory.remember(str(tool_input.get("fact", "")).strip())

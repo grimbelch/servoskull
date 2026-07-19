@@ -71,6 +71,11 @@ OPENAI_API_KEY = _cfg("OPENAI_API_KEY", "")
 ELEVENLABS_API_KEY = _cfg("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID = _cfg("ELEVENLABS_VOICE_ID", "")
 
+# ── Bambu 3D Printer ─────────────────────────────────────────────────────────────
+BAMBU_PRINTER_IP = _cfg("BAMBU_PRINTER_IP", "")
+BAMBU_PRINTER_SERIAL = _cfg("BAMBU_PRINTER_SERIAL", "")
+BAMBU_PRINTER_ACCESS_CODE = _cfg("BAMBU_PRINTER_ACCESS_CODE", "")
+
 # Claude (Anthropic) powers the brain, idle utterances, memory extraction, and vision.
 CLAUDE_MODEL = _cfg("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
 
