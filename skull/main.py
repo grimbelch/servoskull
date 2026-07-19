@@ -487,7 +487,7 @@ def _cogitation_loop(cancel: threading.Event) -> None:
         wav = _cogitation_wavs[indices[i % len(indices)]]
         try:
             with _speech_lock:
-                audio.play_wav_bytes(wav, stop_event=cancel, output_device=config.VOICE_OUTPUT_DEVICE)
+                audio.play_wav_bytes(wav, output_device=config.VOICE_OUTPUT_DEVICE)
         except Exception:
             pass
         i += 1
@@ -1146,7 +1146,7 @@ def main():
             continue
         finally:
             _cancel_cog.set()
-            cog_thread.join(timeout=2.0)
+            cog_thread.join()
 
         print(f"[skull] {config.SKULL_NAME}: {reply}")
 
