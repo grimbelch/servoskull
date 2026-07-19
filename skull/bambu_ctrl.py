@@ -61,6 +61,14 @@ class BambuMonitor:
         global _current_status
         while self.running:
             if not self.connected:
+                if self.client:
+                    try:
+                        self.client.loop_stop()
+                        self.client.disconnect()
+                    except Exception:
+                        pass
+                    self.client = None
+
                 try:
                     # paho-mqtt v2.0+ compatibility
                     try:
@@ -84,13 +92,23 @@ class BambuMonitor:
                     self.client.connect(self.ip, 8883, keepalive=60)
                     self.client.loop_start()
 
+                    # Wait up to 10 seconds for connection to succeed
+                    for _ in range(10):
+                        if self.connected or not self.running:
+                            break
+                        time.sleep(1)
+
+                    if not self.connected:
+                        print("[bambu] Connection timed out. Retrying in 30 seconds...")
+                        time.sleep(30)
+                        continue
+
                     # Keep checking connection health
                     while self.running and self.connected:
                         time.sleep(1)
 
                 except Exception as e:
                     print(f"[bambu] Connection failed: {e}. Retrying in 30 seconds...")
-                    # Set status to offline/unknown
                     with _status_lock:
                         _current_status = None
                     time.sleep(30)
@@ -173,8 +191,7 @@ class BambuMonitor:
         if gcode_state in ("RUNNING", "PREPARE") and self.last_state not in ("RUNNING", "PREPARE", "PAUSE"):
             now = time.time()
             if now - self.last_start_time > 120.0:
-                print(f"[bambu] Print started: {gcode_state}")
-                self.notify_start()
+                print(f"[bambu] Print started: {gcode_state} (notification suppressed by request)")
                 self.last_start_time = now
 
         # ── Detect print completion ──────────────────────────────────────────────
