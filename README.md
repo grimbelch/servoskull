@@ -2,7 +2,7 @@
 
 > *"This unit serves the Omnissiah, and, in its infinite mercy, you."*
 
-An AI-powered **Warhammer 40,000 servo skull** that floats on your shelf, glares at you with glowing red optics, lights its own candles when it wakes, and answers you out loud — in character as an ancient, Emperor-devoted machine-spirit. It runs entirely on a **Raspberry Pi 5**, sees you through a camera, hears you through a mic, and speaks through a real voice. It knows the 40k rulebook cold, plays your music, and remembers who you are.
+An AI-powered **Warhammer 40,000 servo skull** that floats on your shelf, glares at you with glowing red optics, lights its own candles when it wakes, and answers you out loud — in character as an ancient, Emperor-devoted machine-spirit. It runs entirely on a **Raspberry Pi 5**, sees you through a camera, hears you through a mic, and speaks through a real voice. It knows the 40k rulebook cold, plays your music, monitors your 3D printer, simulates tabletop battles, and remembers who you are.
 
 Point a wake word at it — *"Servitor"* — and it wakes, ignites its candle LEDs, pulses its iris in time with its speech, and responds.
 
@@ -16,10 +16,18 @@ Point a wake word at it — *"Servitor"* — and it wakes, ignites its candle LE
 
 Omega-7 is a self-contained voice assistant with a very specific soul. Everything runs **on the Pi itself** — the only things that leave the device are the API calls you opt into (Claude for the brain, optionally OpenAI Whisper for transcription, optionally ElevenLabs for the voice).
 
-- **🗣️ Talks back, in character.** Wake it with *"Servitor"* and it listens, thinks (Anthropic Claude), and replies aloud through a text-to-speech voice — formal, archaic, ominous, devoted to the Emperor and the Machine God. It calls itself "this unit."
+- **🗣️ Talks back, in character.** Wake it with *"Servitor"* and it listens, thinks (Anthropic Claude), and replies aloud through a text-to-speech voice — formal, archaic, ominous, devoted to the Emperor and the Machine God. It refers to itself as "this unit" and speaks with serialized, uninterrupted canned response playback.
 - **👁️ Sees you.** An Arducam IMX708 camera lets it describe the scene on demand — *"What do you see, Omega-7?"* — and, with the optional time-of-flight proximity sensor, it can wake and greet you when you physically approach, even in the dark.
-- **💡 Physically reacts.** Three red LEDs behind the eye lenses and a GC9A01 round display "machine-spirit eye" pulse in time with its speech. Candle LEDs atop the skull light when it wakes and snuff on shutdown.
+- **💡 Physical reactions & AdMech Eye HUD.** Three red LEDs behind the eye lenses and a circular GC9A01 IPS panel "machine-spirit eye" pulse in time with its speech. Candle LEDs atop the skull light when it wakes and snuff on shutdown. The display features 6 dynamic HUD animation states:
+  * **Praise the Omnissiah Logo**: Off-white bone and machine grey AdMech skull-cog vector rendering expanding on boot/update.
+  * **Auspex Scan**: Concentric Noosphere beacon pulsing waves mapping surroundings.
+  * **Targeting lock-on**: A floating crosshair tracking target focus during vision queries.
+  * **Equalizer visualizer**: Dynamic frequency bars bouncing to Spotify Connect streams.
+  * **Cogitation gear**: Rotating bezel cog wheel spinning at 80 deg/sec during brain processing.
+  * **Vector Digit projector**: High-tech segment lines drawing actual dice values.
 - **📖 Knows the rules.** A built-in, offline rules library lets it answer questions about **Warhammer 40,000 (11th ed.)**, **Necromunda**, **NetEpic (Epic 2nd ed.)**, and **Net Epic Armageddon (Epic 3rd ed.)** — datasheets, stratagems, weapons, points, formations, tournament rules — quoting the actual rulebooks rather than guessing.
+- **🎲 Tabletop Game Context & specialized dice simulator.** Persistent memory tracks what game is active (**Necromunda**, **NetEpic**, **NetEA**, **Warhammer 40k**). Zero-latency regex intercepts roll specialized dice (firepower, injury, scatter, combat resolution, macro-weapons, saving throws) instantly, playing rolling dice sound effects and projecting vector-drawn alphanumeric outcomes directly on the eye screen.
+- **🖨️ Bambu Lab 3D Printer Monitor.** Subscribes to local secure MQTT broker telemetry. Verbally reports print start/completion, reads temperature stats, and issues warning announcements if the printer hits a Health Management System (HMS) diagnostic fault code.
 - **🎵 Plays your music.** Spotify voice control — "play the Imperial march" — with pause/resume/skip, routed through its own speaker or a Bluetooth speaker it can discover and pair with.
 - **🧠 Remembers you.** Short- and long-term memory, a drifting mood/personality state, timers & reminders, and a proactive daily briefing (weather + news) the first time you wake it each morning.
 - **🌡️ Looks after itself.** Monitors its own core temperature and warns you if it runs hot. Volume control and a "silent mode" for its unprompted idle observations round it out.
@@ -105,6 +113,7 @@ skull/                 The application (Python package)
   display.py           GC9A01 round "machine-spirit eye"
   candles.py           Candle LEDs (transistor-switched GPIO)
   spotify_ctrl.py      Music control
+  bambu_ctrl.py        Bambu Lab 3D printer secure MQTT client
   bluetooth_ctrl.py    Bluetooth speaker pairing
   search.py            Weather / news / rules lookups
   memory.py mood.py    Persistent memory & personality state
