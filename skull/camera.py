@@ -335,6 +335,10 @@ def register_face(name: str) -> str:
     
     # Create directory for name
     target_dir = face_rec.FACES_DIR / name
+    if target_dir.exists():
+        import shutil
+        # Clear existing images for re-registration
+        shutil.rmtree(target_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
     
     print(f"[camera] Visage calibration started for: {name}")
