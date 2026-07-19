@@ -38,6 +38,14 @@ _scanning_noosphere = False
 _targeting = False
 _visualizing_music = False
 
+_showing_omnissiah_glyph = False
+_omnissiah_start_time = 0.0
+_omnissiah_duration = 0.0
+
+_showing_custom_image = False
+_custom_image = None
+_custom_image_expiry = 0.0
+
 
 _SPIN_DEG_PER_SEC = 80.0   # cog rotation speed while thinking
 
@@ -663,7 +671,7 @@ def _render_omnissiah_frame(bezel, mask, now: float) -> Image.Image:
 # ── render loop ────────────────────────────────────────────────────────────────────
 
 def _loop():
-    global _rolling_die, _showing_omnissiah_glyph
+    global _rolling_die, _showing_omnissiah_glyph, _showing_custom_image, _custom_image, _custom_image_expiry
     bezel = _make_bezel()
     mask = _make_iris_mask()
     shown = -1.0          # last amplitude actually drawn
@@ -731,6 +739,20 @@ def _loop():
             time.sleep(1 / 30)
             continue
 
+        if _showing_custom_image:
+            if now >= _custom_image_expiry:
+                _showing_custom_image = False
+                _custom_image = None
+            else:
+                try:
+                    img = bezel.copy()
+                    img.paste(_custom_image, (0, 0), mask)
+                    _blit(img)
+                except Exception as e:
+                    print(f"[display] custom image render error: {e}")
+                time.sleep(1 / 30)
+                continue
+
         if _speaking:
             target = _target_amp
         else:
@@ -780,6 +802,28 @@ def start_omnissiah_glyph(duration: float = 4.0) -> None:
     _omnissiah_duration = duration
     _omnissiah_start_time = time.monotonic()
     _showing_omnissiah_glyph = True
+
+
+def display_pil_image(pil_img, duration: float = 10.0) -> None:
+    global _showing_custom_image, _custom_image, _custom_image_expiry
+    if not _available:
+        return
+    try:
+        from PIL import Image
+        w, h = pil_img.size
+        min_side = min(w, h)
+        left = (w - min_side) // 2
+        top = (h - min_side) // 2
+        right = left + min_side
+        bottom = top + min_side
+        cropped = pil_img.crop((left, top, right, bottom))
+        resized = cropped.resize((240, 240), resample=Image.BICUBIC)
+        
+        _custom_image = resized
+        _custom_image_expiry = time.monotonic() + duration
+        _showing_custom_image = True
+    except Exception as e:
+        print(f"[display] display_pil_image error: {e}")
 
 
 # ── public API (mirrors eyes.py) ─────────────────────────────────────────────────

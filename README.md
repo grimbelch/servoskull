@@ -25,6 +25,7 @@ Omega-7 is a self-contained voice assistant with a very specific soul. Everythin
   * **Equalizer visualizer**: Dynamic frequency bars bouncing to Spotify Connect streams.
   * **Cogitation gear**: Rotating bezel cog wheel spinning at 80 deg/sec during brain processing.
   * **Vector Digit projector**: High-tech segment lines drawing actual dice values.
+  * **Artwork Projector**: Direct DeviantArt RSS search fetching and displaying 40k or Necromunda fan art inside the mechanical lens aperture.
 - **📖 Knows the rules.** A built-in, offline rules library lets it answer questions about **Warhammer 40,000 (11th ed.)**, **Necromunda**, **NetEpic (Epic 2nd ed.)**, and **Net Epic Armageddon (Epic 3rd ed.)** — datasheets, stratagems, weapons, points, formations, tournament rules — quoting the actual rulebooks rather than guessing.
 - **🎲 Tabletop Game Context & specialized dice simulator.** Persistent memory tracks what game is active (**Necromunda**, **NetEpic**, **NetEA**, **Warhammer 40k**). Zero-latency regex intercepts roll specialized dice (firepower, injury, scatter, combat resolution, macro-weapons, saving throws) instantly, playing rolling dice sound effects and projecting vector-drawn alphanumeric outcomes directly on the eye screen.
 - **🖨️ Bambu Lab 3D Printer Monitor.** Subscribes to local secure MQTT broker telemetry. Verbally reports print start/completion, reads temperature stats, and issues warning announcements if the printer hits a Health Management System (HMS) diagnostic fault code.
