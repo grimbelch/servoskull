@@ -18,3 +18,4 @@ spidev>=3.5
 # camera.py no-ops the sensor on the Mac/Windows emulator, so it's absent from
 # requirements-mac.txt / requirements-windows.txt.
 VL53L1X>=0.0.5
+paho-mqtt>=2.1.0
