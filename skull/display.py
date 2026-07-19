@@ -444,10 +444,10 @@ def _render_targeting_frame(bezel, mask, now: float):
     cx, cy = _CX + dx, _CY + dy
     size = 38
     d.rectangle([cx - size, cy - size, cx + size, cy + size], outline=base, width=2)
-    d.line([(cx - 15, cy), (cx - 5, cy)], fill=base, width=1.5)
-    d.line([(cx + 5, cy), (cx + 15, cy)], fill=base, width=1.5)
-    d.line([(cx, cy - 15), (cx, cy - 5)], fill=base, width=1.5)
-    d.line([(cx, cy + 5), (cx, cy + 15)], fill=base, width=1.5)
+    d.line([(cx - 15, cy), (cx - 5, cy)], fill=base, width=2)
+    d.line([(cx + 5, cy), (cx + 15, cy)], fill=base, width=2)
+    d.line([(cx, cy - 15), (cx, cy - 5)], fill=base, width=2)
+    d.line([(cx, cy + 5), (cx, cy + 15)], fill=base, width=2)
     flash = int(now * 6) % 2 == 0
     if flash:
         offset = 45
@@ -1507,6 +1507,7 @@ def _loop():
         else:
             if now >= _custom_idle_expiry:
                 _requested_idle_anim = None
+                _active_idle_anim = None
 
             # If idle and timeout reached or forced, run screensaver animation
             if (now - _last_activity_time >= config.DISPLAY_IDLE_TIMEOUT) or (now < _custom_idle_expiry):
@@ -1720,10 +1721,11 @@ def display_pil_image(pil_img, duration: float = 10.0) -> None:
 
 
 def trigger_idle_animation(duration: float = 60.0, animation_name: str | None = None) -> None:
-    global _custom_idle_expiry, _last_activity_time, _requested_idle_anim
+    global _custom_idle_expiry, _last_activity_time, _requested_idle_anim, _active_idle_anim
     if not _available:
         return
     _custom_idle_expiry = time.monotonic() + duration
+    _active_idle_anim = None
     if animation_name and animation_name in _screensaver_anims:
         _requested_idle_anim = animation_name
     else:
