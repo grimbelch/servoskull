@@ -19,7 +19,7 @@ _history: list[dict] = []
 
 # Tools that hit the network/hardware and can take a noticeable moment. Omega-7
 # speaks a short "stand by" before running any of these so the user gets feedback.
-_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art"}
+_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings"}
 _HISTORY_PATH = config.data_path(config.HISTORY_FILE)
 
 
@@ -707,6 +707,14 @@ _TOOLS = [
                 }
             },
             "required": ["search_query"]
+        }
+    },
+    {
+        "name": "capture_and_describe_surroundings",
+        "description": "Capture a live image from the physical camera sensor on demand and use the Vision LLM to analyze and describe what is currently in front of the skull.",
+        "input_schema": {
+            "type": "object",
+            "properties": {}
         }
     }
 ]
@@ -1759,6 +1767,9 @@ def _execute_tool(name: str, tool_input: dict) -> str:
     if name == "display_art":
         search_query = tool_input.get("search_query", "")
         return _execute_display_art(search_query)
+    if name == "capture_and_describe_surroundings":
+        from skull import camera
+        return camera.capture_on_demand()
     return f"Unknown tool: {name}"
 
 
