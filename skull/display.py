@@ -1275,11 +1275,30 @@ def display_pil_image(pil_img, duration: float = 10.0) -> None:
         print(f"[display] display_pil_image error: {e}")
 
 
-def trigger_idle_animation(duration: float = 60.0) -> None:
-    global _custom_idle_expiry, _last_activity_time
+def trigger_idle_animation(duration: float = 60.0, animation_name: str | None = None) -> None:
+    global _custom_idle_expiry, _last_activity_time, _active_idle_anim
     if not _available:
         return
     _custom_idle_expiry = time.monotonic() + duration
+    if animation_name and animation_name in _screensaver_anims:
+        _active_idle_anim = animation_name
+        if _active_idle_anim == "pong":
+            global _pong_ball_x, _pong_ball_y, _pong_ball_dx, _pong_ball_dy
+            global _pong_score_l, _pong_score_r
+            _pong_ball_x = 120.0
+            _pong_ball_y = 120.0
+            _pong_ball_dx = 2.0 if random.choice([True, False]) else -2.0
+            _pong_ball_dy = random.uniform(-1.0, 1.0)
+            _pong_score_l = 0
+            _pong_score_r = 0
+        elif _active_idle_anim == "canticle_rain":
+            _init_canticle_rain()
+        elif _active_idle_anim == "starfield":
+            _init_starfield()
+        elif _active_idle_anim == "game_of_life":
+            _init_game_of_life()
+        elif _active_idle_anim == "radar":
+            _init_radar()
 
 
 # ── public API (mirrors eyes.py) ─────────────────────────────────────────────────
