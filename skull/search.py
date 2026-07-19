@@ -202,64 +202,94 @@ def _fetch_guardian_rss(max_items: int = 3) -> str:
 # paragraphs out of a page's full text.
 
 
+def _block_is_heading(block: str) -> bool:
+    """A Markdown heading (``### Paired``) or a bold-only line (``**ENEMY WITHIN**``).
+
+    Rule names are ingested as headings, so heading boundaries are where one rule's
+    section ends and the next begins."""
+    s = block.strip()
+    if "\n" in s:  # a multi-line block is a body, never a heading
+        return False
+    return s.startswith("#") or (s.startswith("**") and s.endswith("**"))
+
+
 def _extract_relevant(full_text: str, query: str, max_chars: int = 3000) -> str:
-    """Return the most query-relevant paragraphs from a large text block."""
-    query_words = [w for w in re.findall(r"\w+", query.lower()) if len(w) > 1]
-    words = [w for w in query_words if w not in _RULES_STOPWORDS]
-    if not words:
-        words = query_words
-    phrase = " ".join(words)
+    """Return the most query-relevant SECTIONS from a large page.
 
-    raw_paras = full_text.split("\n\n")
-    paragraphs = [p.strip() for p in raw_paras if p.strip()]
+    Rules pages are Markdown: each rule is a heading (its name) followed by a source
+    citation and a description that is hard-wrapped across many physical lines. We
+    parse the page into blank-line blocks, group the blocks into sections at heading
+    boundaries, then rank whole sections and return them intact.
 
-    # Score each paragraph by query relevance
+    This replaces a line-based version that split on every newline, scored each
+    wrapped line on its own, and kept only matching lines plus a little context —
+    which silently dropped the connective lines of a description and truncated rules
+    mid-sentence (e.g. 'Paired' was cut off before '...their Attacks characteristic
+    is doubled'). Returning the matched section whole guarantees the LLM sees the
+    complete rule."""
+    words = [w for w in query.lower().split()
+             if len(w) > 2 and w not in _RULES_STOPWORDS]
+    if not words:  # query was all stopwords/short — fall back to the raw terms
+        words = [w for w in query.lower().split() if len(w) > 2] or query.lower().split()
+
+    # Blocks = runs of non-blank lines separated by blank lines. Drop blocks that are
+    # only Markdown table separators / empty cells (just |, -, spaces): they carry no
+    # rules text and otherwise fill excerpts with rows of "| --- | --- |".
+    blocks = []
+    for b in re.split(r"\n[ \t]*\n", full_text):
+        b = b.strip("\n")
+        if b.strip() and set(b) - set("|- \n\t"):
+            blocks.append(b)
+    if not blocks:
+        return ""
+
+    # Group blocks into sections: a heading block starts a new section and pulls the
+    # following body blocks in with it. Blocks before the first heading form a section
+    # with no heading. Each section = (heading_text_or_"", [blocks]).
+    sections: list = []
+    for b in blocks:
+        if _block_is_heading(b) or not sections:
+            sections.append((b if _block_is_heading(b) else "", [b]))
+        else:
+            sections[-1][1].append(b)
+
+    # Within-page rarity: a word found in few sections is more discriminating, so the
+    # rare term that names a rule ('paired') outweighs generic filler that recurs
+    # across the page ('weapon', 'trait'). Without this a query like "Paired weapon
+    # trait" drifts to whichever section mentions the common words most.
+    sec_text = [(h.lower(), "\n".join(bl).lower()) for h, bl in sections]
+    n = len(sections)
+    sf = {w: sum(1 for _, body in sec_text if w in body) for w in words}
+    idf = {w: math.log(n / (sf[w] + 1)) + 1.0 for w in words}
+    # Whole-word heading test: a query word must match a heading TOKEN, so "fire"
+    # does not spuriously fire the "Firestorm" section's heading bonus.
+    word_re = {w: re.compile(rf"\b{re.escape(w)}\b") for w in words}
+
     scored = []
-    for i, para in enumerate(paragraphs):
-        pl = para.lower()
-        score = sum(pl.count(w) * 5.0 for w in words)
-        lines = para.splitlines()
-        first_line = lines[0] if lines else ""
-        if first_line.startswith("#"):
-            fl_lower = first_line.lower()
-            if phrase and phrase in fl_lower:
-                score += 500.0
-            elif all(w in fl_lower for w in words):
-                score += 400.0
-            elif any(w in fl_lower for w in words):
-                score += 150.0
-        if para.startswith("|"):
-            score *= 0.01
-
+    for i, (hl, body) in enumerate(sec_text):
+        # Body coverage plus a strong heading bonus: a section whose heading contains
+        # a query word IS the rule being asked about, so it must outrank sections that
+        # merely mention the common words many times in passing.
+        score = sum(idf[w] * body.count(w) for w in words)
+        score += sum(idf[w] * 20 for w in words if word_re[w].search(hl))
         if score > 0:
-            scored.append((score, i, para))
-
+            scored.append((score, i))
     if not scored:
         return ""
 
-    # Pick highest scoring paragraphs first to fill character budget!
+    # Emit whole top-ranked sections BEST-FIRST up to the char budget, so the most
+    # relevant rule leads and is never the one clipped by the final length cap.
     scored.sort(key=lambda x: -x[0])
-    selected_indices: set = set()
+    parts = []
     total = 0
-
-    for score, idx, _ in scored:
+    for _, i in scored:
         if total >= max_chars:
             break
-        # Grab heading + next 10 paragraphs (body text & special rules under unit headings)
-        start = idx
-        end = min(len(paragraphs), idx + 10)
-        for j in range(start, end):
-            # stop if we hit the next heading
-            if j > idx and paragraphs[j].startswith("#"):
-                break
-            if j not in selected_indices:
-                p_len = len(paragraphs[j])
-                if total + p_len <= max_chars:
-                    selected_indices.add(j)
-                    total += p_len + 2
+        section = "\n\n".join(sections[i][1])
+        parts.append(section)
+        total += len(section)
 
-    sorted_indices = sorted(selected_indices)
-    return "\n\n".join(paragraphs[j] for j in sorted_indices)
+    return "\n\n".join(parts)[:max_chars]
 
 
 # ── Generic offline rules library ──────────────────────────────────────────────
