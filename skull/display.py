@@ -584,18 +584,6 @@ def _render_omnissiah_frame(bezel, mask, now: float) -> Image.Image:
     
     age = now - _omnissiah_start_time
     
-    # ── 1. Binary Data Rain Background ─────────────────────────────────────────
-    for col in range(8):
-        x = _CX - 70 + col * 20
-        for row in range(12):
-            y = (row * 16 + int(now * 80)) % 220 + 10
-            char_seed = int((row + int(now * 5)) / 2)
-            val = "1" if (char_seed % (col + 2)) == 0 else "0"
-            
-            dist = math.sqrt((x - _CX) ** 2 + (y - _CY) ** 2)
-            if dist < 70:
-                d.text((x, y), val, fill=(0, 220, 60))
-                
     # ── 2. Adeptus Mechanicus Skull-Cog ──────────────────────────────────────
     scale = min(1.0, age / 1.5)
     scale = scale * scale * (3.0 - 2.0 * scale)
