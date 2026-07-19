@@ -641,20 +641,19 @@ def _render_die_frame(bezel, mask, elapsed: float, result: str):
 
 
 def _render_omnissiah_frame(bezel, mask, now: float) -> Image.Image:
-    img = bezel.copy()
     overlay = Image.new("RGB", (W, H), (0, 0, 0))
     d = ImageDraw.Draw(overlay)
     
     age = now - _omnissiah_start_time
     
-    # ── 2. Adeptus Mechanicus Skull-Cog ──────────────────────────────────────
+    # ── 2. Adeptus Mechanicus Skull-Cog (Scaled to Full-Screen 240x240) ──
     scale = min(1.0, age / 1.5)
     scale = scale * scale * (3.0 - 2.0 * scale)
     
     if scale > 0.01:
         gear_angle = (age * 60.0) % 360
-        r_outer = 65.0 * scale
-        r_inner = 50.0 * scale
+        r_outer = 110.0 * scale
+        r_inner = 85.0 * scale
         num_teeth = 12
         
         points = []
@@ -673,54 +672,53 @@ def _render_omnissiah_frame(bezel, mask, now: float) -> Image.Image:
             
         d.polygon(points, fill=(235, 230, 215))
         
-        r_center = 40.0 * scale
+        r_center = 68.0 * scale
         d.ellipse([_CX - r_center, _CY - r_center, _CX + r_center, _CY + r_center], fill=(0, 0, 0))
         
         # Left cranium (bone)
-        d.pieslice([_CX - 16 * scale, _CY - 20 * scale, _CX + 16 * scale, _CY + 12 * scale], 90, 270, fill=(235, 230, 215))
+        d.pieslice([_CX - 27 * scale, _CY - 34 * scale, _CX + 27 * scale, _CY + 20 * scale], 90, 270, fill=(235, 230, 215))
         # Right cranium (machine)
-        d.pieslice([_CX - 16 * scale, _CY - 20 * scale, _CX + 16 * scale, _CY + 12 * scale], 270, 90, fill=(80, 85, 95))
+        d.pieslice([_CX - 27 * scale, _CY - 34 * scale, _CX + 27 * scale, _CY + 20 * scale], 270, 90, fill=(80, 85, 95))
         
         # Left jaw
         d.polygon([
-            (_CX - 9 * scale, _CY + 12 * scale),
-            (_CX, _CY + 12 * scale),
-            (_CX, _CY + 22 * scale),
-            (_CX - 7 * scale, _CY + 22 * scale)
+            (_CX - 15 * scale, _CY + 20 * scale),
+            (_CX, _CY + 20 * scale),
+            (_CX, _CY + 37 * scale),
+            (_CX - 12 * scale, _CY + 37 * scale)
         ], fill=(235, 230, 215))
         # Right jaw
         d.polygon([
-            (_CX, _CY + 12 * scale),
-            (_CX + 9 * scale, _CY + 12 * scale),
-            (_CX + 7 * scale, _CY + 22 * scale),
-            (_CX, _CY + 22 * scale)
+            (_CX, _CY + 20 * scale),
+            (_CX + 15 * scale, _CY + 20 * scale),
+            (_CX + 12 * scale, _CY + 37 * scale),
+            (_CX, _CY + 37 * scale)
         ], fill=(80, 85, 95))
         
         # Cheekbones
-        d.ellipse([_CX - 18 * scale, _CY - 2 * scale, _CX - 10 * scale, _CY + 6 * scale], fill=(235, 230, 215))
-        d.ellipse([_CX + 10 * scale, _CY - 2 * scale, _CX + 18 * scale, _CY + 6 * scale], fill=(80, 85, 95))
+        d.ellipse([_CX - 31 * scale, _CY - 3 * scale, _CX - 17 * scale, _CY + 10 * scale], fill=(235, 230, 215))
+        d.ellipse([_CX + 17 * scale, _CY - 3 * scale, _CX + 31 * scale, _CY + 10 * scale], fill=(80, 85, 95))
         
         # Left eye
-        d.ellipse([_CX - 9 * scale, _CY - 4 * scale, _CX - 3 * scale, _CY + 2 * scale], fill=(0, 0, 0))
+        d.ellipse([_CX - 15 * scale, _CY - 7 * scale, _CX - 5 * scale, _CY + 3 * scale], fill=(0, 0, 0))
         # Right eye
-        d.ellipse([_CX + 3 * scale, _CY - 4 * scale, _CX + 9 * scale, _CY + 2 * scale], fill=(0, 230, 80))
+        d.ellipse([_CX + 5 * scale, _CY - 7 * scale, _CX + 15 * scale, _CY + 3 * scale], fill=(0, 230, 80))
         
         # Nose
         d.polygon([
-            (_CX - 2 * scale, _CY + 8 * scale),
-            (_CX, _CY + 4 * scale),
-            (_CX + 2 * scale, _CY + 8 * scale)
+            (_CX - 3 * scale, _CY + 14 * scale),
+            (_CX, _CY + 7 * scale),
+            (_CX + 3 * scale, _CY + 14 * scale)
         ], fill=(0, 0, 0))
         
         # Teeth slits
-        for offset in (-5, -2):
-            d.line([(_CX + offset * scale, _CY + 12 * scale), (_CX + offset * scale, _CY + 20 * scale)], fill=(0, 0, 0), width=1)
-        for offset in (2, 5):
-            d.line([(_CX + offset * scale, _CY + 12 * scale), (_CX + offset * scale, _CY + 20 * scale)], fill=(0, 0, 0), width=1)
-        d.line([(_CX, _CY + 12 * scale), (_CX, _CY + 22 * scale)], fill=(0, 0, 0), width=1)
+        for offset in (-8, -3):
+            d.line([(_CX + offset * scale, _CY + 20 * scale), (_CX + offset * scale, _CY + 34 * scale)], fill=(0, 0, 0), width=1)
+        for offset in (3, 8):
+            d.line([(_CX + offset * scale, _CY + 20 * scale), (_CX + offset * scale, _CY + 34 * scale)], fill=(0, 0, 0), width=1)
+        d.line([(_CX, _CY + 20 * scale), (_CX, _CY + 37 * scale)], fill=(0, 0, 0), width=1)
 
-    img.paste(overlay, (0, 0), mask)
-    return img
+    return overlay
 
 
 # ── render loop ────────────────────────────────────────────────────────────────────
