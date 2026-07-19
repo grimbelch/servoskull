@@ -31,6 +31,8 @@ class BambuMonitor:
         self.connected = False
         self.thread = None
         self.running = False
+        self.last_start_time = 0.0
+        self.last_completion_time = 0.0
 
     def is_configured(self) -> bool:
         return bool(self.ip and self.serial and self.access_code)
@@ -169,13 +171,19 @@ class BambuMonitor:
 
         # ── Detect print start ───────────────────────────────────────────────────
         if gcode_state in ("RUNNING", "PREPARE") and self.last_state not in ("RUNNING", "PREPARE", "PAUSE"):
-            print(f"[bambu] Print started: {gcode_state}")
-            self.notify_start()
+            now = time.time()
+            if now - self.last_start_time > 120.0:
+                print(f"[bambu] Print started: {gcode_state}")
+                self.notify_start()
+                self.last_start_time = now
 
         # ── Detect print completion ──────────────────────────────────────────────
         elif gcode_state in ("FINISH", "SUCCESS") or (gcode_state == "IDLE" and self.last_state in ("RUNNING", "FINISH") and self.last_percent >= 98):
-            print("[bambu] Print finished!")
-            self.notify_completion()
+            now = time.time()
+            if now - self.last_completion_time > 120.0:
+                print("[bambu] Print finished!")
+                self.notify_completion()
+                self.last_completion_time = now
 
         # ── Detect HMS errors ────────────────────────────────────────────────────
         new_errors = []
