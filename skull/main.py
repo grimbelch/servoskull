@@ -288,7 +288,7 @@ _silence_wavs: list = []
 
 # Serialises filler speech (search announcement + cogitation) so two threads never
 # open the output device at once. The final reply plays after these are done.
-_speech_lock = threading.Lock()
+_speech_lock = threading.RLock()
 
 
 # ── ElevenLabs voice cache for the canned phrases ──────────────────────────────
@@ -545,66 +545,67 @@ def _speak_interruptible(wav_bytes: bytes, on_wake) -> bool:
     skip_wake_word so the next loop records the new command immediately. When not
     interrupted, the eyes are turned off and the display returned to idle here.
     """
-    _stop_play = threading.Event()
-    _interrupted = threading.Event()
-    _cancel_listener = threading.Event()
+    with _speech_lock:
+        _stop_play = threading.Event()
+        _interrupted = threading.Event()
+        _cancel_listener = threading.Event()
 
-    def _interrupt_listener():
-        if wake_word.wait_for_wake_word(cancel=_cancel_listener):
-            print("[skull] Interrupted — new command incoming.")
-            _stop_play.set()
-            _interrupted.set()
-            if on_wake:
-                on_wake()
+        def _interrupt_listener():
+            if wake_word.wait_for_wake_word(cancel=_cancel_listener):
+                print("[skull] Interrupted — new command incoming.")
+                _stop_play.set()
+                _interrupted.set()
+                if on_wake:
+                    on_wake()
 
-    int_thread = threading.Thread(target=_interrupt_listener, daemon=True)
-    int_thread.start()
+        int_thread = threading.Thread(target=_interrupt_listener, daemon=True)
+        int_thread.start()
 
-    def _drive_visuals(amp: float) -> None:
-        eyes.set_amplitude(amp)
-        display.set_amplitude(amp)
+        def _drive_visuals(amp: float) -> None:
+            eyes.set_amplitude(amp)
+            display.set_amplitude(amp)
 
-    # Route to the same output the main reply path uses: cast to the Google Home
-    # when configured, otherwise the local speaker. Either way the eyes/display
-    # track amplitude and stop_event provides barge-in.
-    if cast_audio.is_configured():
-        cast_audio.play(wav_bytes, amplitude_fn_setter=lambda fn: _drive_visuals(fn()), stop_event=_stop_play)
-    else:
-        amp_ref = [None]
-        play_done = threading.Event()
+        # Route to the same output the main reply path uses: cast to the Google Home
+        # when configured, otherwise the local speaker. Either way the eyes/display
+        # track amplitude and stop_event provides barge-in.
+        if cast_audio.is_configured():
+            cast_audio.play(wav_bytes, amplitude_fn_setter=lambda fn: _drive_visuals(fn()), stop_event=_stop_play)
+        else:
+            amp_ref = [None]
+            play_done = threading.Event()
 
-        def receive_amp(fn):
-            amp_ref[0] = fn
+            def receive_amp(fn):
+                amp_ref[0] = fn
 
-        def eye_loop():
-            time.sleep(0.05)
-            while not play_done.is_set():
-                amp = amp_ref[0]() if amp_ref[0] else 0.0
-                _drive_visuals(amp)
-                time.sleep(0.025)
+            def eye_loop():
+                time.sleep(0.05)
+                while not play_done.is_set():
+                    amp = amp_ref[0]() if amp_ref[0] else 0.0
+                    _drive_visuals(amp)
+                    time.sleep(0.025)
 
-        eye_thread = threading.Thread(target=eye_loop, daemon=True)
-        eye_thread.start()
+            eye_thread = threading.Thread(target=eye_loop, daemon=True)
+            eye_thread.start()
 
-        try:
-            audio.play_wav_bytes(
-                wav_bytes,
-                amplitude_cb=receive_amp,
-                stop_event=_stop_play,
-                output_device=config.VOICE_OUTPUT_DEVICE,
-            )
-        finally:
-            play_done.set()
-            eye_thread.join(timeout=1.0)
+            try:
+                audio.play_wav_bytes(
+                    wav_bytes,
+                    amplitude_cb=receive_amp,
+                    stop_event=_stop_play,
+                    output_device=config.VOICE_OUTPUT_DEVICE,
+                )
+            finally:
+                play_done.set()
+                eye_thread.join(timeout=1.0)
 
-    if _interrupted.is_set():
-        # Leave the eyes lit — on_wake() already turned them on for the next command.
-        return True
-    eyes.off()
-    display.idle()
-    _cancel_listener.set()
-    int_thread.join(timeout=1.0)
-    return False
+        if _interrupted.is_set():
+            # Leave the eyes lit — on_wake() already turned them on for the next command.
+            return True
+        eyes.off()
+        display.idle()
+        _cancel_listener.set()
+        int_thread.join(timeout=1.0)
+        return False
 
 
 def _spotify_poller_loop():
@@ -702,10 +703,11 @@ def main():
             print(f"[skull] Reminder firing: {_rem['message']}")
             try:
                 spotify_ctrl.duck()
-                sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
-                eyes.on()
-                rem_wav = tts.synthesize(_rem["message"])
-                audio.play_wav_bytes(rem_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+                with _speech_lock:
+                    sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
+                    eyes.on()
+                    rem_wav = tts.synthesize(_rem["message"])
+                    audio.play_wav_bytes(rem_wav, output_device=config.VOICE_OUTPUT_DEVICE)
             except Exception as _e:
                 print(f"[skull] Reminder TTS error: {_e}")
             finally:
@@ -785,10 +787,11 @@ def main():
                     print(f"[skull] Reminder firing: {_rem['message']}")
                     try:
                         spotify_ctrl.duck()  # restored at the loop top after the `continue` below
-                        sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
-                        eyes.on()
-                        rem_wav = tts.synthesize(_rem["message"])
-                        audio.play_wav_bytes(rem_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+                        with _speech_lock:
+                            sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
+                            eyes.on()
+                            rem_wav = tts.synthesize(_rem["message"])
+                            audio.play_wav_bytes(rem_wav, output_device=config.VOICE_OUTPUT_DEVICE)
                     except Exception as _e:
                         print(f"[skull] Reminder TTS error: {_e}")
                     finally:
