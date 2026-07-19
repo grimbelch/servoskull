@@ -50,6 +50,9 @@ _last_activity_time = 0.0
 _active_idle_anim = None
 _custom_idle_expiry = 0.0
 
+# Screensaver pools
+_screensaver_anims = ["pong", "canticle_rain", "starfield", "oscilloscope", "game_of_life", "radar"]
+
 # Pong state variables
 _pong_ball_x = 120.0
 _pong_ball_y = 120.0
@@ -59,6 +62,19 @@ _pong_paddle_l_y = 120.0
 _pong_paddle_r_y = 120.0
 _pong_score_l = 0
 _pong_score_r = 0
+
+# Canticle Rain state
+_rain_cols = []
+
+# Starfield state
+_starfield_stars = []
+
+# Game of Life state
+_gol_grid = None
+_gol_last_grids = []
+
+# Radar state
+_radar_blips = []
 
 
 
@@ -685,6 +701,265 @@ def _render_omnissiah_frame(bezel, mask, now: float) -> Image.Image:
 
 # ── render loop ────────────────────────────────────────────────────────────────────
 
+def _init_canticle_rain():
+    global _rain_cols
+    _rain_cols = []
+    for x in range(72, 169, 10):
+        _rain_cols.append({
+            "x": x,
+            "y": random.uniform(70, 170),
+            "speed": random.uniform(1.5, 3.5),
+            "chars": [random.choice(["0", "1"]) for _ in range(8)]
+        })
+
+
+def _init_starfield():
+    global _starfield_stars
+    _starfield_stars = []
+    for _ in range(40):
+        _starfield_stars.append({
+            "x": random.uniform(-100, 100),
+            "y": random.uniform(-100, 100),
+            "z": random.uniform(1, 200)
+        })
+
+
+def _init_game_of_life():
+    global _gol_grid, _gol_last_grids
+    _gol_grid = [[1 if random.random() < 0.25 else 0 for _ in range(20)] for _ in range(20)]
+    _gol_last_grids = []
+
+
+def _init_radar():
+    global _radar_blips
+    _radar_blips = []
+    for _ in range(4):
+        _radar_blips.append({
+            "angle": random.uniform(0, 2 * math.pi),
+            "dist": random.uniform(15, 48),
+            "intensity": 0.0,
+            "type": random.choice(["dot", "cross"])
+        })
+
+
+def _render_canticle_rain_frame(bezel, mask, now):
+    global _rain_cols
+    if not _rain_cols:
+        _init_canticle_rain()
+        
+    from PIL import Image, ImageDraw, ImageFont
+    img = bezel.copy()
+    overlay = Image.new("RGB", (240, 240), (0, 8, 3))
+    d = ImageDraw.Draw(overlay)
+    
+    min_y, max_y = 70, 170
+    try:
+        font = ImageFont.load_default()
+    except Exception:
+        font = None
+        
+    for col in _rain_cols:
+        col["y"] += col["speed"]
+        if col["y"] > max_y + 40:
+            col["y"] = min_y
+            col["speed"] = random.uniform(1.5, 3.5)
+            
+        y_pos = col["y"]
+        for idx, char in enumerate(col["chars"]):
+            cy = y_pos - idx * 10
+            if min_y <= cy <= max_y:
+                if idx == 0:
+                    fill = (100, 255, 150)
+                else:
+                    alpha = max(0, 255 - idx * 30)
+                    fill = (0, int(alpha * 0.8), int(alpha * 0.2))
+                    
+                if random.random() < 0.05:
+                    col["chars"][idx] = random.choice(["0", "1"])
+                    
+                if font:
+                    d.text((col["x"], cy), char, fill=fill, font=font)
+                else:
+                    d.rectangle([col["x"], cy, col["x"] + 4, cy + 6], fill=fill)
+                    
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
+def _render_starfield_frame(bezel, mask, now):
+    global _starfield_stars
+    if not _starfield_stars:
+        _init_starfield()
+        
+    from PIL import Image, ImageDraw
+    img = bezel.copy()
+    overlay = Image.new("RGB", (240, 240), (0, 5, 2))
+    d = ImageDraw.Draw(overlay)
+    
+    for star in _starfield_stars:
+        star["z"] -= 3.0
+        if star["z"] <= 1.0:
+            star["x"] = random.uniform(-100, 100)
+            star["y"] = random.uniform(-100, 100)
+            star["z"] = 200.0
+            
+        f_scale = 75.0
+        px = (star["x"] / star["z"]) * f_scale + 120.0
+        py = (star["y"] / star["z"]) * f_scale + 120.0
+        
+        dist = math.hypot(px - 120.0, py - 120.0)
+        if dist < 70.0:
+            brightness = int(255 * (1.0 - star["z"] / 200.0))
+            r = 1 if star["z"] > 100 else (2 if star["z"] > 40 else 3)
+            d.ellipse([px - r, py - r, px + r, py + r], fill=(0, brightness, int(brightness * 0.4)))
+            
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
+def _render_oscilloscope_frame(bezel, mask, now):
+    from PIL import Image, ImageDraw
+    img = bezel.copy()
+    overlay = Image.new("RGB", (240, 240), (0, 10, 5))
+    d = ImageDraw.Draw(overlay)
+    
+    min_x, max_x = 70, 170
+    d.line([(min_x, 120), (max_x, 120)], fill=(0, 60, 20), width=1)
+    
+    pts = []
+    pts_bg1 = []
+    pts_bg2 = []
+    
+    for x in range(min_x, max_x + 1):
+        t = (x - min_x) * 0.08
+        y = 120.0 + 22.0 * math.sin(t + now * 6.0) * math.cos(now * 1.5)
+        y += 4.0 * math.sin(t * 5.0 - now * 12.0)
+        pts.append((x, int(y)))
+        
+        y_bg1 = 120.0 + 15.0 * math.sin(t * 1.5 - now * 3.0)
+        pts_bg1.append((x, int(y_bg1)))
+        
+        y_bg2 = 120.0 + 10.0 * math.cos(t * 2.5 + now * 4.5)
+        pts_bg2.append((x, int(y_bg2)))
+        
+    d.line(pts_bg1, fill=(0, 70, 25), width=1)
+    d.line(pts_bg2, fill=(0, 60, 20), width=1)
+    d.line(pts, fill=(0, 240, 90), width=2)
+    
+    for tick_x in range(min_x + 10, max_x, 20):
+        d.line([(tick_x, 117), (tick_x, 123)], fill=(0, 100, 35), width=1)
+        
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
+def _render_game_of_life_frame(bezel, mask, now):
+    global _gol_grid, _gol_last_grids
+    if _gol_grid is None:
+        _init_game_of_life()
+        
+    frame_step = int(now * 8)
+    if not hasattr(_render_game_of_life_frame, "last_step"):
+        _render_game_of_life_frame.last_step = 0
+        
+    if frame_step != _render_game_of_life_frame.last_step:
+        _render_game_of_life_frame.last_step = frame_step
+        
+        next_grid = [[0 for _ in range(20)] for _ in range(20)]
+        for r in range(20):
+            for c in range(20):
+                neighbors = 0
+                for dr in (-1, 0, 1):
+                    for dc in (-1, 0, 1):
+                        if dr == 0 and dc == 0:
+                            continue
+                        nr, nc = (r + dr) % 20, (c + dc) % 20
+                        neighbors += _gol_grid[nr][nc]
+                        
+                if _gol_grid[r][c] == 1:
+                    next_grid[r][c] = 1 if neighbors in (2, 3) else 0
+                else:
+                    next_grid[r][c] = 1 if neighbors == 3 else 0
+                    
+        grid_flat = [cell for row in next_grid for cell in row]
+        if sum(grid_flat) < 5 or next_grid in _gol_last_grids:
+            _init_game_of_life()
+        else:
+            _gol_last_grids.append(_gol_grid)
+            if len(_gol_last_grids) > 6:
+                _gol_last_grids.pop(0)
+            _gol_grid = next_grid
+
+    from PIL import Image, ImageDraw
+    img = bezel.copy()
+    overlay = Image.new("RGB", (240, 240), (0, 8, 3))
+    d = ImageDraw.Draw(overlay)
+    
+    for r in range(20):
+        for c in range(20):
+            if _gol_grid[r][c] == 1:
+                cx = 70 + c * 5
+                cy = 70 + r * 5
+                d.rectangle([cx, cy, cx + 4, cy + 4], fill=(0, 220, 70))
+                
+    d.rectangle([70, 70, 170, 170], outline=(0, 80, 30), width=1)
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
+def _render_radar_frame(bezel, mask, now):
+    global _radar_blips
+    if not _radar_blips:
+        _init_radar()
+        
+    from PIL import Image, ImageDraw
+    img = bezel.copy()
+    overlay = Image.new("RGB", (240, 240), (0, 12, 4))
+    d = ImageDraw.Draw(overlay)
+    
+    sweep_angle = (now * 2.2) % (2 * math.pi)
+    
+    for r in (15, 30, 45):
+        d.ellipse([120 - r, 120 - r, 120 + r, 120 + r], outline=(0, 80, 25), width=1)
+        
+    d.line([(120 - 48, 120), (120 + 48, 120)], fill=(0, 60, 20), width=1)
+    d.line([(120, 120 - 48), (120, 120 + 48)], fill=(0, 60, 20), width=1)
+    
+    for blip in _radar_blips:
+        angle_diff = (sweep_angle - blip["angle"]) % (2 * math.pi)
+        if angle_diff < 0.08:
+            blip["intensity"] = 1.0
+        else:
+            blip["intensity"] = max(0.0, blip["intensity"] - 0.015)
+            
+        if blip["intensity"] > 0.01:
+            bx = 120 + blip["dist"] * math.cos(blip["angle"])
+            by = 120 + blip["dist"] * math.sin(blip["angle"])
+            color_val = int(255 * blip["intensity"])
+            
+            if blip["type"] == "cross":
+                d.line([(bx - 3, by), (bx + 3, by)], fill=(0, color_val, int(color_val * 0.3)), width=1)
+                d.line([(bx, by - 3), (bx, by + 3)], fill=(0, color_val, int(color_val * 0.3)), width=1)
+            else:
+                d.ellipse([bx - 2, by - 2, bx + 2, by + 2], fill=(0, color_val, int(color_val * 0.4)))
+                
+        if random.random() < 0.002:
+            blip["angle"] = random.uniform(0, 2 * math.pi)
+            blip["dist"] = random.uniform(15, 48)
+            blip["intensity"] = 0.0
+            
+    for trail in range(8):
+        alpha_factor = (8 - trail) / 8.0
+        sa = sweep_angle - trail * 0.04
+        sx = 120 + 48 * math.cos(sa)
+        sy = 120 + 48 * math.sin(sa)
+        color = (0, int(220 * alpha_factor), int(80 * alpha_factor))
+        d.line([(120, 120), (sx, sy)], fill=color, width=1 if trail > 0 else 2)
+        
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
 def _render_pong_frame(bezel, mask, now):
     global _pong_ball_x, _pong_ball_y, _pong_ball_dx, _pong_ball_dy
     global _pong_paddle_l_y, _pong_paddle_r_y, _pong_score_l, _pong_score_r
@@ -823,23 +1098,42 @@ def _loop():
             # If idle and timeout reached or forced, run screensaver animation
             if (now - _last_activity_time >= config.DISPLAY_IDLE_TIMEOUT) or (now < _custom_idle_expiry):
                 if _active_idle_anim is None:
-                    _active_idle_anim = "pong"
-                    global _pong_ball_x, _pong_ball_y, _pong_ball_dx, _pong_ball_dy
-                    global _pong_score_l, _pong_score_r
-                    _pong_ball_x = 120.0
-                    _pong_ball_y = 120.0
-                    _pong_ball_dx = 2.0 if random.choice([True, False]) else -2.0
-                    _pong_ball_dy = random.uniform(-1.0, 1.0)
-                    _pong_score_l = 0
-                    _pong_score_r = 0
+                    _active_idle_anim = random.choice(_screensaver_anims)
+                    if _active_idle_anim == "pong":
+                        global _pong_ball_x, _pong_ball_y, _pong_ball_dx, _pong_ball_dy
+                        global _pong_score_l, _pong_score_r
+                        _pong_ball_x = 120.0
+                        _pong_ball_y = 120.0
+                        _pong_ball_dx = 2.0 if random.choice([True, False]) else -2.0
+                        _pong_ball_dy = random.uniform(-1.0, 1.0)
+                        _pong_score_l = 0
+                        _pong_score_r = 0
+                    elif _active_idle_anim == "canticle_rain":
+                        _init_canticle_rain()
+                    elif _active_idle_anim == "starfield":
+                        _init_starfield()
+                    elif _active_idle_anim == "game_of_life":
+                        _init_game_of_life()
+                    elif _active_idle_anim == "radar":
+                        _init_radar()
 
-                if _active_idle_anim == "pong":
-                    try:
+                try:
+                    if _active_idle_anim == "pong":
                         _blit(_render_pong_frame(bezel, mask, now))
-                    except Exception as e:
-                        print(f"[display] pong render error: {e}")
-                    time.sleep(1 / 30)
-                    continue
+                    elif _active_idle_anim == "canticle_rain":
+                        _blit(_render_canticle_rain_frame(bezel, mask, now))
+                    elif _active_idle_anim == "starfield":
+                        _blit(_render_starfield_frame(bezel, mask, now))
+                    elif _active_idle_anim == "oscilloscope":
+                        _blit(_render_oscilloscope_frame(bezel, mask, now))
+                    elif _active_idle_anim == "game_of_life":
+                        _blit(_render_game_of_life_frame(bezel, mask, now))
+                    elif _active_idle_anim == "radar":
+                        _blit(_render_radar_frame(bezel, mask, now))
+                except Exception as e:
+                    print(f"[display] screensaver render error ({_active_idle_anim}): {e}")
+                time.sleep(1 / 30)
+                continue
         if _showing_omnissiah_glyph:
             glyph_elapsed = now - _omnissiah_start_time
             if glyph_elapsed >= _omnissiah_duration:
