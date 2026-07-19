@@ -73,10 +73,14 @@ _MOOD_COLOURS = {
 }
 
 try:
-    import spidev
-    import RPi.GPIO as GPIO
     from PIL import Image, ImageDraw
     import numpy as np
+except ImportError:
+    pass
+
+try:
+    import spidev
+    import RPi.GPIO as GPIO
     _GPIO = GPIO
 except (ImportError, RuntimeError):
     pass
@@ -573,10 +577,105 @@ def _render_die_frame(bezel, mask, elapsed: float, result: str):
     return img
 
 
+def _render_omnissiah_frame(bezel, mask, now: float) -> Image.Image:
+    img = bezel.copy()
+    overlay = Image.new("RGB", (W, H), (0, 0, 0))
+    d = ImageDraw.Draw(overlay)
+    
+    age = now - _omnissiah_start_time
+    
+    # ── 1. Binary Data Rain Background ─────────────────────────────────────────
+    for col in range(8):
+        x = _CX - 70 + col * 20
+        for row in range(12):
+            y = (row * 16 + int(now * 80)) % 220 + 10
+            char_seed = int((row + int(now * 5)) / 2)
+            val = "1" if (char_seed % (col + 2)) == 0 else "0"
+            
+            dist = math.sqrt((x - _CX) ** 2 + (y - _CY) ** 2)
+            if dist < 70:
+                d.text((x, y), val, fill=(0, 220, 60))
+                
+    # ── 2. Adeptus Mechanicus Skull-Cog ──────────────────────────────────────
+    scale = min(1.0, age / 1.5)
+    scale = scale * scale * (3.0 - 2.0 * scale)
+    
+    if scale > 0.01:
+        gear_angle = (age * 60.0) % 360
+        r_outer = 65.0 * scale
+        r_inner = 50.0 * scale
+        num_teeth = 12
+        
+        points = []
+        for i in range(num_teeth):
+            t_start = i * (360.0 / num_teeth)
+            cycle_deg = 360.0 / num_teeth
+            a1 = gear_angle + t_start
+            a2 = gear_angle + t_start + cycle_deg * 0.4
+            a3 = gear_angle + t_start + cycle_deg * 0.5
+            a4 = gear_angle + t_start + cycle_deg * 0.9
+            
+            points.append((_CX + r_outer * math.cos(math.radians(a1)), _CY + r_outer * math.sin(math.radians(a1))))
+            points.append((_CX + r_outer * math.cos(math.radians(a2)), _CY + r_outer * math.sin(math.radians(a2))))
+            points.append((_CX + r_inner * math.cos(math.radians(a3)), _CY + r_inner * math.sin(math.radians(a3))))
+            points.append((_CX + r_inner * math.cos(math.radians(a4)), _CY + r_inner * math.sin(math.radians(a4))))
+            
+        d.polygon(points, fill=(235, 230, 215))
+        
+        r_center = 40.0 * scale
+        d.ellipse([_CX - r_center, _CY - r_center, _CX + r_center, _CY + r_center], fill=(0, 0, 0))
+        
+        # Left cranium (bone)
+        d.pieslice([_CX - 16 * scale, _CY - 20 * scale, _CX + 16 * scale, _CY + 12 * scale], 90, 270, fill=(235, 230, 215))
+        # Right cranium (machine)
+        d.pieslice([_CX - 16 * scale, _CY - 20 * scale, _CX + 16 * scale, _CY + 12 * scale], 270, 90, fill=(80, 85, 95))
+        
+        # Left jaw
+        d.polygon([
+            (_CX - 9 * scale, _CY + 12 * scale),
+            (_CX, _CY + 12 * scale),
+            (_CX, _CY + 22 * scale),
+            (_CX - 7 * scale, _CY + 22 * scale)
+        ], fill=(235, 230, 215))
+        # Right jaw
+        d.polygon([
+            (_CX, _CY + 12 * scale),
+            (_CX + 9 * scale, _CY + 12 * scale),
+            (_CX + 7 * scale, _CY + 22 * scale),
+            (_CX, _CY + 22 * scale)
+        ], fill=(80, 85, 95))
+        
+        # Cheekbones
+        d.ellipse([_CX - 18 * scale, _CY - 2 * scale, _CX - 10 * scale, _CY + 6 * scale], fill=(235, 230, 215))
+        d.ellipse([_CX + 10 * scale, _CY - 2 * scale, _CX + 18 * scale, _CY + 6 * scale], fill=(80, 85, 95))
+        
+        # Left eye
+        d.ellipse([_CX - 9 * scale, _CY - 4 * scale, _CX - 3 * scale, _CY + 2 * scale], fill=(0, 0, 0))
+        # Right eye
+        d.ellipse([_CX + 3 * scale, _CY - 4 * scale, _CX + 9 * scale, _CY + 2 * scale], fill=(0, 230, 80))
+        
+        # Nose
+        d.polygon([
+            (_CX - 2 * scale, _CY + 8 * scale),
+            (_CX, _CY + 4 * scale),
+            (_CX + 2 * scale, _CY + 8 * scale)
+        ], fill=(0, 0, 0))
+        
+        # Teeth slits
+        for offset in (-5, -2):
+            d.line([(_CX + offset * scale, _CY + 12 * scale), (_CX + offset * scale, _CY + 20 * scale)], fill=(0, 0, 0), width=1)
+        for offset in (2, 5):
+            d.line([(_CX + offset * scale, _CY + 12 * scale), (_CX + offset * scale, _CY + 20 * scale)], fill=(0, 0, 0), width=1)
+        d.line([(_CX, _CY + 12 * scale), (_CX, _CY + 22 * scale)], fill=(0, 0, 0), width=1)
+
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
 # ── render loop ────────────────────────────────────────────────────────────────────
 
 def _loop():
-    global _rolling_die
+    global _rolling_die, _showing_omnissiah_glyph
     bezel = _make_bezel()
     mask = _make_iris_mask()
     shown = -1.0          # last amplitude actually drawn
@@ -588,6 +687,18 @@ def _loop():
     while not _stop.is_set():
         now = time.monotonic()
         dt, last = now - last, now
+        if _showing_omnissiah_glyph:
+            glyph_elapsed = now - _omnissiah_start_time
+            if glyph_elapsed >= _omnissiah_duration:
+                _showing_omnissiah_glyph = False
+            else:
+                try:
+                    _blit(_render_omnissiah_frame(bezel, mask, now))
+                except Exception as e:
+                    print(f"[display] omnissiah render error: {e}")
+                time.sleep(1 / 30)
+                continue
+
         if _rolling_die:
             roll_elapsed = now - _die_start_time
             if roll_elapsed >= 3.5:
@@ -672,6 +783,15 @@ def start_die_roll(result: int | str) -> None:
     _die_result = str(result)
     _die_start_time = time.monotonic()
     _rolling_die = True
+
+
+def start_omnissiah_glyph(duration: float = 4.0) -> None:
+    global _showing_omnissiah_glyph, _omnissiah_start_time, _omnissiah_duration
+    if not _available:
+        return
+    _omnissiah_duration = duration
+    _omnissiah_start_time = time.monotonic()
+    _showing_omnissiah_glyph = True
 
 
 # ── public API (mirrors eyes.py) ─────────────────────────────────────────────────

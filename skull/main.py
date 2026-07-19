@@ -374,7 +374,8 @@ def self_update() -> str:
             if req_file.exists():
                 subprocess.run([str(venv_pip), "install", "-r", str(req_file)], check=True)
         
-        subprocess.Popen("sleep 1 && sudo systemctl restart omega7", shell=True)
+        display.start_omnissiah_glyph(6.0)
+        subprocess.Popen("sleep 7 && sudo systemctl restart omega7", shell=True)
         return "System update downloaded successfully. Restarting the machine spirit now."
     except subprocess.CalledProcessError as ce:
         print(f"[skull] Update failed: {ce.stderr or ce}")
@@ -627,6 +628,7 @@ def main():
     candles.setup(config.CANDLE_PIN)
     candles.on()  # ambient — flicker for as long as the skull is powered
     display.setup()
+    display.start_omnissiah_glyph(4.0)
     display.set_mood(mood.get())
     camera.start()
     temperature.start()
