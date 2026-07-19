@@ -216,6 +216,8 @@ DISPLAY_RST_PIN = int(os.getenv("DISPLAY_RST_PIN", "24"))
 DISPLAY_BL_PIN = int(os.getenv("DISPLAY_BL_PIN", "12"))        # -1 if BLK tied to 3V3
 DISPLAY_ROTATION = int(os.getenv("DISPLAY_ROTATION", "0"))     # 0/90/180/270
 DISPLAY_FINE_ROTATION = float(os.getenv("DISPLAY_FINE_ROTATION", "0.0"))  # software rotation offset (degrees, positive = clockwise)
+DISPLAY_IDLE_TIMEOUT = float(os.getenv("DISPLAY_IDLE_TIMEOUT", "300.0"))  # seconds before showing idle animations (default: 5 minutes)
+
 
 # ── Internal temperature monitoring (Raspberry Pi only) ──────────────────────────
 # The skull watches its SoC temperature and speaks a warning when it climbs too high.

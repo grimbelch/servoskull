@@ -46,6 +46,20 @@ _showing_custom_image = False
 _custom_image = None
 _custom_image_expiry = 0.0
 
+_last_activity_time = 0.0
+_active_idle_anim = None
+
+# Pong state variables
+_pong_ball_x = 120.0
+_pong_ball_y = 120.0
+_pong_ball_dx = 2.5
+_pong_ball_dy = 1.2
+_pong_paddle_l_y = 120.0
+_pong_paddle_r_y = 120.0
+_pong_score_l = 0
+_pong_score_r = 0
+
+
 
 _SPIN_DEG_PER_SEC = 80.0   # cog rotation speed while thinking
 
@@ -670,19 +684,161 @@ def _render_omnissiah_frame(bezel, mask, now: float) -> Image.Image:
 
 # ── render loop ────────────────────────────────────────────────────────────────────
 
+def _render_pong_frame(bezel, mask, now):
+    global _pong_ball_x, _pong_ball_y, _pong_ball_dx, _pong_ball_dy
+    global _pong_paddle_l_y, _pong_paddle_r_y, _pong_score_l, _pong_score_r
+    
+    # Bounding box inside the 73-radius circular pupil area (100x100 square)
+    min_x, max_x = 70, 170
+    min_y, max_y = 70, 170
+    
+    # Move ball
+    _pong_ball_x += _pong_ball_dx
+    _pong_ball_y += _pong_ball_dy
+    
+    # Ball vertical bounce (top/bottom walls)
+    if _pong_ball_y <= min_y + 3:
+        _pong_ball_y = min_y + 3
+        _pong_ball_dy = -_pong_ball_dy
+    elif _pong_ball_y >= max_y - 3:
+        _pong_ball_y = max_y - 3
+        _pong_ball_dy = -_pong_ball_dy
+        
+    # AI Paddle movement (chase ball Y with speed limit)
+    # Left Paddle
+    paddle_speed = 1.8
+    if _pong_paddle_l_y < _pong_ball_y:
+        _pong_paddle_l_y = min(max_y - 12, _pong_paddle_l_y + paddle_speed)
+    elif _pong_paddle_l_y > _pong_ball_y:
+        _pong_paddle_l_y = max(min_y + 12, _pong_paddle_l_y - paddle_speed)
+        
+    # Right Paddle (make it slightly imperfect to allow scoring/dynamic games)
+    if _pong_paddle_r_y < _pong_ball_y:
+        _pong_paddle_r_y = min(max_y - 12, _pong_paddle_r_y + paddle_speed)
+    elif _pong_paddle_r_y > _pong_ball_y:
+        _pong_paddle_r_y = max(min_y + 12, _pong_paddle_r_y - paddle_speed)
+        
+    # Check left paddle bounce
+    # Left paddle is at X = 78, width = 2, height = 24
+    if _pong_ball_x <= 81:
+        if _pong_paddle_l_y - 14 <= _pong_ball_y <= _pong_paddle_l_y + 14:
+            _pong_ball_x = 81
+            _pong_ball_dx = -_pong_ball_dx
+            # Adjust bounce angle depending on hit location
+            offset = (_pong_ball_y - _pong_paddle_l_y) / 14.0
+            _pong_ball_dy = offset * 2.0 + random.uniform(-0.2, 0.2)
+        elif _pong_ball_x < min_x:
+            # Score for Right
+            _pong_score_r += 1
+            # Reset ball
+            _pong_ball_x = 120.0
+            _pong_ball_y = 120.0
+            _pong_ball_dx = 2.0 if random.choice([True, False]) else -2.0
+            _pong_ball_dy = random.uniform(-1.0, 1.0)
+            
+    # Check right paddle bounce
+    # Right paddle is at X = 160, width = 2, height = 24
+    elif _pong_ball_x >= 159:
+        if _pong_paddle_r_y - 14 <= _pong_ball_y <= _pong_paddle_r_y + 14:
+            _pong_ball_x = 159
+            _pong_ball_dx = -_pong_ball_dx
+            offset = (_pong_ball_y - _pong_paddle_r_y) / 14.0
+            _pong_ball_dy = offset * 2.0 + random.uniform(-0.2, 0.2)
+        elif _pong_ball_x > max_x:
+            # Score for Left
+            _pong_score_l += 1
+            # Reset ball
+            _pong_ball_x = 120.0
+            _pong_ball_y = 120.0
+            _pong_ball_dx = -2.0 if random.choice([True, False]) else 2.0
+            _pong_ball_dy = random.uniform(-1.0, 1.0)
+
+    # Render image
+    from PIL import Image, ImageDraw, ImageFont
+    img = bezel.copy()
+    overlay = Image.new("RGB", (240, 240), (0, 10, 5))  # deep tactical green background
+    d = ImageDraw.Draw(overlay)
+    
+    # Draw field boundary box
+    d.rectangle([min_x, min_y, max_x, max_y], outline=(0, 120, 40), width=1)
+    
+    # Draw center line (dotted)
+    for y_coord in range(min_y + 4, max_y, 8):
+        d.line([(120, y_coord), (120, y_coord + 4)], fill=(0, 120, 40), width=1)
+        
+    # Draw scores - offset them inside the box!
+    # Bounding box is [70, 170]. Let's draw scores at Y = 80!
+    try:
+        font = ImageFont.load_default()
+        d.text((105, 80), str(_pong_score_l), fill=(0, 200, 70), font=font)
+        d.text((128, 80), str(_pong_score_r), fill=(0, 200, 70), font=font)
+    except Exception:
+        pass
+        
+    # Draw paddles
+    d.rectangle([78, _pong_paddle_l_y - 12, 80, _pong_paddle_l_y + 12], fill=(0, 230, 80))
+    d.rectangle([160, _pong_paddle_r_y - 12, 162, _pong_paddle_r_y + 12], fill=(0, 230, 80))
+    
+    # Draw ball (circle size 6)
+    d.ellipse([_pong_ball_x - 3, _pong_ball_y - 3, _pong_ball_x + 3, _pong_ball_y + 3], fill=(0, 255, 100))
+    
+    # Paste overlay inside the pupil area
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
 def _loop():
     global _rolling_die, _showing_omnissiah_glyph, _showing_custom_image, _custom_image, _custom_image_expiry
+    global _last_activity_time, _active_idle_anim
     bezel = _make_bezel()
     mask = _make_iris_mask()
     shown = -1.0          # last amplitude actually drawn
     angle = 0.0           # current cog rotation (degrees), advanced while thinking
     t0 = time.monotonic()
+    _last_activity_time = t0
     last = t0
     next_blink = t0 + random.uniform(*_BLINK_GAP)  # when the next blink starts
     blink_t0 = None       # start time of the in-progress blink, else None
     while not _stop.is_set():
         now = time.monotonic()
         dt, last = now - last, now
+
+        # Update last activity time if active
+        is_active = (
+            _showing_omnissiah_glyph
+            or _rolling_die
+            or _scanning_auspex
+            or _scanning_noosphere
+            or _targeting
+            or _visualizing_music
+            or _showing_custom_image
+            or _speaking
+            or _thinking
+        )
+        if is_active:
+            _last_activity_time = now
+            _active_idle_anim = None
+        else:
+            # If idle and timeout reached, run screensaver animation
+            if now - _last_activity_time >= config.DISPLAY_IDLE_TIMEOUT:
+                if _active_idle_anim is None:
+                    _active_idle_anim = "pong"
+                    global _pong_ball_x, _pong_ball_y, _pong_ball_dx, _pong_ball_dy
+                    global _pong_score_l, _pong_score_r
+                    _pong_ball_x = 120.0
+                    _pong_ball_y = 120.0
+                    _pong_ball_dx = 2.0 if random.choice([True, False]) else -2.0
+                    _pong_ball_dy = random.uniform(-1.0, 1.0)
+                    _pong_score_l = 0
+                    _pong_score_r = 0
+
+                if _active_idle_anim == "pong":
+                    try:
+                        _blit(_render_pong_frame(bezel, mask, now))
+                    except Exception as e:
+                        print(f"[display] pong render error: {e}")
+                    time.sleep(1 / 30)
+                    continue
         if _showing_omnissiah_glyph:
             glyph_elapsed = now - _omnissiah_start_time
             if glyph_elapsed >= _omnissiah_duration:
