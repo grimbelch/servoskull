@@ -733,10 +733,15 @@ _TOOLS = [
     },
     {
         "name": "play_idle_animation",
-        "description": "Trigger an idle/screensaver animation (like Pong) on the eye display immediately for a specified duration.",
+        "description": "Trigger an idle/screensaver animation on the eye display immediately for a specified duration. Available animations: 'pong', 'canticle_rain', 'starfield', 'oscilloscope', 'game_of_life', 'radar'.",
         "input_schema": {
             "type": "object",
             "properties": {
+                "animation_name": {
+                    "type": "string",
+                    "description": "Specific screensaver animation to play. Options: 'pong', 'canticle_rain', 'starfield', 'oscilloscope', 'game_of_life', 'radar'. If omitted, selects one randomly.",
+                    "enum": ["pong", "canticle_rain", "starfield", "oscilloscope", "game_of_life", "radar"]
+                },
                 "duration_seconds": {
                     "type": "number",
                     "description": "Duration to run the animation in seconds (default: 60)."
@@ -1803,9 +1808,11 @@ def _execute_tool(name: str, tool_input: dict) -> str:
         return camera.register_face(name_val)
     if name == "play_idle_animation":
         dur = float(tool_input.get("duration_seconds", 60.0))
+        anim = tool_input.get("animation_name")
         from skull import display
-        display.trigger_idle_animation(dur)
-        return f"Initiating cogitator screensaver sequence for {dur} seconds."
+        display.trigger_idle_animation(dur, anim)
+        anim_str = anim if anim else "random"
+        return f"Initiating cogitator screensaver sequence ({anim_str}) for {dur} seconds."
     return f"Unknown tool: {name}"
 
 
