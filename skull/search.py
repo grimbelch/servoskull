@@ -38,9 +38,9 @@ _WMO_CODES: dict[int, str] = {
 # "Conditions"), the matching page's score is boosted via its URL path.
 _NECRO_ROUTES = [
     ("gang-fighters-and-their-weaponry/weapon-traits", [
-        "trait", "weapon trait", "blaze", "rapid fire", "blast", "template",
+        "trait", "weapon trait", "paired", "blaze", "rapid fire", "blast", "template",
         "knockback", "rending", "plentiful", "scarce", "unwieldy", "grenade",
-        "melee", "versatile", "shock", "gas", "toxin", "rad",
+        "melee", "versatile", "shock", "gas", "toxin", "rad", "web",
     ]),
     ("general-principles/conditions", [
         "condition", "on fire", "blind", "broken", "flesh wound",
@@ -179,7 +179,9 @@ def _extract_relevant(full_text: str, query: str, max_chars: int = 3000) -> str:
         for j in range(start, end):
             if j not in seen_indices:
                 seen_indices.add(j)
-                result_parts.append((j, paragraphs[j]))
+                p_text = paragraphs[j]
+                result_parts.append((j, p_text))
+                total += len(p_text) + 1
 
     result_parts.sort(key=lambda x: x[0])
     return "\n".join(p for _, p in result_parts)[:max_chars]
