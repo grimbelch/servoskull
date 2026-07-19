@@ -32,7 +32,7 @@ _thinking = False          # True while the brain is cogitating; spins the cog
 _mood_rgb = (255, 40, 30)  # base iris colour; default Imperial red
 _rolling_die = False
 _die_start_time = 0.0
-_die_result = 0
+_die_result = "0"
 _scanning_auspex = False
 _scanning_noosphere = False
 _targeting = False
@@ -451,23 +451,82 @@ def _rotate_z(x: float, y: float, z: float, angle: float) -> tuple[float, float,
     return x * cos_a - y * sin_a, x * sin_a + y * cos_a, z
 
 
-def _render_die_frame(bezel, mask, elapsed: float, result: int):
+def _draw_vector_digit(draw, x, y, width, height, char: str, color, thickness=3):
+    w, h = width, height
+    hw = w // 2
+    hh = h // 2
+    
+    # 7 standard segments defined by their start/end points
+    segments = {
+        'a': [(x, y), (x + w, y)],
+        'b': [(x + w, y), (x + w, y + hh)],
+        'c': [(x + w, y + hh), (x + w, y + h)],
+        'd': [(x, y + h), (x + w, y + h)],
+        'e': [(x, y + hh), (x, y + h)],
+        'f': [(x, y), (x, y + hh)],
+        'g': [(x, y + hh), (x + w, y + hh)]
+    }
+    
+    digit_map = {
+        '0': ['a', 'b', 'c', 'd', 'e', 'f'],
+        '1': ['b', 'c'],
+        '2': ['a', 'b', 'g', 'e', 'd'],
+        '3': ['a', 'b', 'g', 'c', 'd'],
+        '4': ['f', 'g', 'b', 'c'],
+        '5': ['a', 'f', 'g', 'c', 'd'],
+        '6': ['a', 'f', 'e', 'd', 'c', 'g'],
+        '7': ['a', 'b', 'c'],
+        '8': ['a', 'b', 'c', 'd', 'e', 'f', 'g'],
+        '9': ['a', 'b', 'c', 'd', 'f', 'g'],
+        '-': ['g'],
+        'A': ['a', 'b', 'c', 'e', 'f', 'g'],
+        'B': ['c', 'd', 'e', 'f', 'g'], # lower b
+        'C': ['a', 'd', 'e', 'f'],
+        'D': ['b', 'c', 'd', 'e', 'g'], # lower d
+        'E': ['a', 'd', 'e', 'f', 'g'],
+        'F': ['a', 'e', 'f', 'g'],
+        'G': ['a', 'c', 'd', 'e', 'f'],
+        'H': ['b', 'c', 'e', 'f', 'g'],
+        'I': ['b', 'c'],
+        'J': ['b', 'c', 'd'],
+        'L': ['d', 'e', 'f'],
+        'N': ['a', 'b', 'c', 'e', 'f'],
+        'O': ['a', 'b', 'c', 'd', 'e', 'f'],
+        'P': ['a', 'b', 'e', 'f', 'g'],
+        'R': ['e', 'g'], # lower r
+        'S': ['a', 'f', 'g', 'c', 'd'],
+        'T': ['d', 'e', 'f', 'g'],
+        'U': ['b', 'c', 'd', 'e', 'f'],
+        'Y': ['b', 'c', 'd', 'f', 'g']
+    }
+    
+    char = char.upper()
+    if char == 'X':
+        draw.line([(x, y), (x + w, y + h)], fill=color, width=thickness)
+        draw.line([(x + w, y), (x, y + h)], fill=color, width=thickness)
+    elif char in digit_map:
+        for seg in digit_map[char]:
+            p1, p2 = segments[seg]
+            draw.line([p1, p2], fill=color, width=thickness)
+
+
+def _render_die_frame(bezel, mask, elapsed: float, result: str):
     # Build on top of the static bezel
     img = bezel.copy()
     base = _mood_rgb
-
+ 
     overlay = Image.new("RGB", (W, H), (0, 0, 0))
     d = ImageDraw.Draw(overlay)
-
+ 
     if elapsed < 1.5:
         # Cube rotation angles
         ax = elapsed * 480
         ay = elapsed * 640
         az = elapsed * 320
-
+ 
         # 8 Cube vertices (unit cube scaled)
         v = [(x, y, z) for x in (-1, 1) for y in (-1, 1) for z in (-1, 1)]
-
+ 
         rotated_v = []
         for vx, vy, vz in v:
             # Scale the die size to fit nicely in the central aperture (radius 73)
@@ -476,7 +535,7 @@ def _render_die_frame(bezel, mask, elapsed: float, result: int):
             vx, vy, vz = _rotate_y(vx, vy, vz, ay)
             vx, vy, vz = _rotate_z(vx, vy, vz, az)
             rotated_v.append((vx, vy, vz))
-
+ 
         proj_v = []
         scale = 90
         dist = 3.0
@@ -484,13 +543,13 @@ def _render_die_frame(bezel, mask, elapsed: float, result: int):
             px = _CX + int(vx * scale / (vz + dist))
             py = _CY + int(vy * scale / (vz + dist))
             proj_v.append((px, py))
-
+ 
         edges = [
             (0, 1), (1, 3), (3, 2), (2, 0),
             (4, 5), (5, 7), (7, 6), (6, 4),
             (0, 4), (1, 5), (2, 6), (3, 7)
         ]
-
+ 
         for start, end in edges:
             d.line(proj_v[start] + proj_v[end], fill=base, width=2)
     else:
@@ -502,32 +561,32 @@ def _render_die_frame(bezel, mask, elapsed: float, result: int):
             x0, y0 = _CX + 40 * math.cos(rad), _CY + 40 * math.sin(rad)
             x1, y1 = _CX + 46 * math.cos(rad), _CY + 46 * math.sin(rad)
             d.line([(x0, y0), (x1, y1)], fill=base, width=2)
-
-        # Draw 7-segment digit
-        segments = {
-            'a': [(_CX - 12, _CY - 24), (_CX + 12, _CY - 24)],
-            'b': [(_CX + 12, _CY - 24), (_CX + 12, _CY)],
-            'c': [(_CX + 12, _CY), (_CX + 12, _CY + 24)],
-            'd': [(_CX - 12, _CY + 24), (_CX + 12, _CY + 24)],
-            'e': [(_CX - 12, _CY), (_CX - 12, _CY + 24)],
-            'f': [(_CX - 12, _CY - 24), (_CX - 12, _CY)],
-            'g': [(_CX - 12, _CY), (_CX + 12, _CY)]
-        }
-
-        digit_map = {
-            1: ['b', 'c'],
-            2: ['a', 'b', 'g', 'e', 'd'],
-            3: ['a', 'b', 'g', 'c', 'd'],
-            4: ['f', 'g', 'b', 'c'],
-            5: ['a', 'f', 'g', 'c', 'd'],
-            6: ['a', 'f', 'e', 'd', 'c', 'g']
-        }
-
-        active_segs = digit_map.get(result, [])
-        for seg in active_segs:
-            start_p, end_p = segments[seg]
-            d.line([start_p, end_p], fill=base, width=4)
-
+ 
+        # Convert result to string and clean/strip it
+        val_str = str(result).strip()
+        if val_str:
+            # Pick size based on length
+            if len(val_str) == 1:
+                w, h = 24, 42
+                gap = 8
+            elif len(val_str) == 2:
+                w, h = 18, 32
+                gap = 6
+            elif len(val_str) == 3:
+                w, h = 12, 22
+                gap = 4
+            else:
+                w, h = 9, 16
+                gap = 3
+                
+            total_w = len(val_str) * w + (len(val_str) - 1) * gap
+            start_x = _CX - total_w // 2
+            start_y = _CY - h // 2
+            
+            for i, char in enumerate(val_str):
+                dx = start_x + i * (w + gap)
+                _draw_vector_digit(d, dx, start_y, w, h, char, base, thickness=3 if h > 20 else 2)
+ 
     img.paste(overlay, (0, 0), mask)
     return img
 
@@ -624,11 +683,11 @@ def _loop():
         time.sleep(1 / 30)
 
 
-def start_die_roll(result: int) -> None:
+def start_die_roll(result: int | str) -> None:
     global _rolling_die, _die_start_time, _die_result
     if not _available:
         return
-    _die_result = result
+    _die_result = str(result)
     _die_start_time = time.monotonic()
     _rolling_die = True
 

@@ -864,6 +864,8 @@ def _simulate_dice(
     feel_no_pain: int | None = None,
 ) -> str:
     import random
+    global _last_roll_result
+    display_val = 0
 
     details = []
 
@@ -899,6 +901,7 @@ def _simulate_dice(
 
     if total_hits == 0:
         details.append("No hits generated. The attack sequence terminates.")
+        _last_roll_result = str(display_val)
         return "\n".join(details)
 
     # Wounds
@@ -921,6 +924,7 @@ def _simulate_dice(
             new_wounds = sum(1 for r in reroll_rolls if r >= wound_on)
 
     total_wounds = initial_wounds + new_wounds
+    display_val = total_wounds
 
     wound_msg = f"Wound roll: {total_hits} dice needing {wound_on}+ -> {initial_wounds} initial wounds."
     if reroll_wounds != "none" and rerolled_wounds_count > 0:
@@ -930,10 +934,12 @@ def _simulate_dice(
 
     if total_wounds == 0:
         details.append("No wounds generated. The attack sequence terminates.")
+        _last_roll_result = str(display_val)
         return "\n".join(details)
 
     # Saves
     if save_on is None:
+        _last_roll_result = str(display_val)
         return "\n".join(details)
 
     ap_val = abs(ap)
@@ -954,6 +960,7 @@ def _simulate_dice(
         passed_saves = sum(1 for r in save_rolls if r >= final_save and r != 1)
 
     failed_saves = total_wounds - passed_saves
+    display_val = failed_saves
 
     save_details_msg = f"using {save_on}+ base save modified by AP {ap_val} to {modified_save}+"
     if invul_save is not None:
@@ -964,6 +971,7 @@ def _simulate_dice(
 
     if failed_saves == 0:
         details.append("All saves succeeded. No damage inflicted.")
+        _last_roll_result = str(display_val)
         return "\n".join(details)
 
     # Feel No Pain
@@ -971,12 +979,14 @@ def _simulate_dice(
         fnp_rolls = roll_d6(failed_saves)
         passed_fnps = sum(1 for r in fnp_rolls if r >= feel_no_pain)
         final_damage = failed_saves - passed_fnps
+        display_val = final_damage
 
         fnp_msg = f"Feel No Pain: Target rolled {failed_saves} FNP rolls needing {feel_no_pain}+ -> {passed_fnps} ignored, {final_damage} final damage inflicted."
         details.append(fnp_msg)
     else:
         details.append(f"Result: {failed_saves} damage inflicted.")
 
+    _last_roll_result = str(display_val)
     return "\n".join(details)
 
 
@@ -999,7 +1009,11 @@ def set_current_game(game: str) -> None:
         print(f"[brain] Error saving current game: {e}")
 
 
-def _trigger_dice_effects(display_val: int | None = None) -> None:
+_last_roll_result = "0"
+
+
+def _trigger_dice_effects(display_val: int | str | None = None) -> None:
+    global _last_roll_result
     try:
         from skull import sfx as _sfx
         _sfx.play("dice_roll")
@@ -1007,8 +1021,7 @@ def _trigger_dice_effects(display_val: int | None = None) -> None:
         print(f"[brain] SFX play failed: {e}")
 
     try:
-        import random as _rand
-        val = display_val if display_val is not None else _rand.randint(1, 6)
+        val = display_val if display_val is not None else _last_roll_result
         from skull import display as _display
         _display.start_die_roll(val)
     except Exception as e:
@@ -1020,6 +1033,8 @@ def _trigger_dice_effects(display_val: int | None = None) -> None:
 
 def _simulate_necromunda(dice_type: str, count: int, target: int | None = None) -> str:
     import random
+    global _last_roll_result
+    display_val = "0"
     details = []
     
     if dice_type == "firepower":
@@ -1049,6 +1064,7 @@ def _simulate_necromunda(dice_type: str, count: int, target: int | None = None) 
             details.append(f"WARNING: {ammo_checks} Ammo Check(s) triggered! Weapons may jam or run out of ammunition.")
         else:
             details.append("No Ammo Checks triggered.")
+        display_val = str(total_hits)
             
     elif dice_type == "injury":
         flesh = 0
@@ -1071,6 +1087,21 @@ def _simulate_necromunda(dice_type: str, count: int, target: int | None = None) 
         details.append(f"Individual rolls: {', '.join(rolls)}")
         details.append(f"Summary: {flesh}x Flesh Wound, {serious}x Serious Injury, {out_of_action}x Out of Action")
         
+        if count == 1:
+            if flesh > 0:
+                display_val = "FW"
+            elif serious > 0:
+                display_val = "SI"
+            else:
+                display_val = "OA"
+        else:
+            if out_of_action > 0:
+                display_val = "OA"
+            elif serious > 0:
+                display_val = "SI"
+            else:
+                display_val = "FW"
+        
     elif dice_type == "scatter":
         hits = 0
         arrows = []
@@ -1088,6 +1119,24 @@ def _simulate_necromunda(dice_type: str, count: int, target: int | None = None) 
         details.append(f"Individual rolls: {', '.join(arrows)}")
         details.append(f"Summary: {hits}x Direct Hit, {count - hits}x Scatter")
         
+        if count == 1:
+            if hits > 0:
+                display_val = "HIT"
+            else:
+                dir_word = arrows[0].split()[1].lower()
+                if "north" in dir_word:
+                    display_val = "N"
+                elif "east" in dir_word:
+                    display_val = "E"
+                elif "south" in dir_word:
+                    display_val = "S"
+                elif "west" in dir_word:
+                    display_val = "W"
+                else:
+                    display_val = "SC"
+        else:
+            display_val = str(hits)
+        
     elif dice_type == "location":
         locations = ["Head", "Body", "Left Arm", "Right Arm", "Left Leg", "Right Leg"]
         rolls = []
@@ -1098,24 +1147,60 @@ def _simulate_necromunda(dice_type: str, count: int, target: int | None = None) 
         details.append(f"Necromunda Hit Location Roll ({count} dice):")
         details.append(f"Individual rolls: {', '.join(rolls)}")
         
+        if count == 1:
+            loc = rolls[0].lower()
+            if "head" in loc:
+                display_val = "HD"
+            elif "body" in loc:
+                display_val = "BD"
+            elif "left arm" in loc:
+                display_val = "LA"
+            elif "right arm" in loc:
+                display_val = "RA"
+            elif "left leg" in loc:
+                display_val = "LL"
+            elif "right leg" in loc:
+                display_val = "RL"
+            else:
+                display_val = "LOC"
+        else:
+            display_val = "LOC"
+        
     elif dice_type == "d6":
         rolls = [random.randint(1, 6) for _ in range(count)]
         details.append(f"Standard D6 Roll ({count} dice): {', '.join(map(str, rolls))}")
         if target is not None:
             successes = sum(1 for r in rolls if r >= target)
             details.append(f"Successes ({target}+): {successes} passed, {count - successes} failed")
+            display_val = str(successes)
+        else:
+            if count == 1:
+                display_val = str(rolls[0])
+            else:
+                display_val = str(sum(rolls))
             
+    _last_roll_result = str(display_val)
     return "\n".join(details)
 
 
 def _simulate_standard_dice(count: int, sides: int, target: int | None = None) -> str:
     import random
+    global _last_roll_result
+    display_val = "0"
     rolls = [random.randint(1, sides) for _ in range(count)]
     total = sum(rolls)
     details = [f"Rolled {count}d{sides}: {', '.join(map(str, rolls))} (Total: {total})"]
     if target is not None:
         successes = sum(1 for r in rolls if r >= target)
         details.append(f"Successes ({target}+): {successes} passed, {count - successes} failed")
+        display_val = str(successes)
+    else:
+        if count == 1:
+            display_val = str(rolls[0])
+        else:
+            display_val = str(total)
+            
+    _last_roll_result = str(display_val)
     return "\n".join(details)
 
 
@@ -1134,6 +1219,8 @@ def _simulate_epic_dice(
     opponent_count: int | None = None,
 ) -> str:
     import random
+    global _last_roll_result
+    display_val = "0"
     details = []
 
     def roll_d6(n: int) -> list[int]:
@@ -1159,7 +1246,10 @@ def _simulate_epic_dice(
             hit_count = count
             details.append(f"Assuming all {count} attack(s) hit.")
 
+        display_val = str(hit_count)
+
         if hit_count == 0:
+            _last_roll_result = str(display_val)
             return "\n".join(details)
 
         if save_on is not None:
@@ -1179,6 +1269,7 @@ def _simulate_epic_dice(
                 tsm_str = f" with TSM {tsm}" if tsm != 0 else ""
                 details.append(f"Save rolls{tsm_str}: {', '.join(save_results)}")
                 details.append(f"Summary: {passed} passed, {hit_count - passed} failed.")
+                display_val = str(hit_count - passed)
                 
             elif system == "NetEA":
                 if macro_weapon:
@@ -1187,8 +1278,10 @@ def _simulate_epic_dice(
                         passed = sum(1 for r in save_rolls if r >= save_on)
                         details.append(f"Macro-Weapon vs Reinforced Armour (no rerolls allowed): {', '.join(map(str, save_rolls))}")
                         details.append(f"Summary: {passed} passed, {hit_count - passed} failed.")
+                        display_val = str(hit_count - passed)
                     else:
                         details.append("Macro-Weapon hits target without Reinforced Armour -> No saves allowed! Target takes full damage.")
+                        display_val = str(hit_count)
                 else:
                     save_rolls = roll_d6(hit_count)
                     passed = 0
@@ -1213,6 +1306,7 @@ def _simulate_epic_dice(
                         details.append(f"Reinforced Armour Rerolls: {', '.join(reroll_results)}")
                     
                     details.append(f"Summary: {passed} passed, {hit_count - passed} failed.")
+                    display_val = str(hit_count - passed)
 
     elif roll_type == "combat_resolution":
         if system == "NetEpic":
@@ -1232,11 +1326,13 @@ def _simulate_epic_dice(
                 details.append("Result: Defender wins! Attacker stand is automatically removed (no saves allowed).")
             else:
                 details.append("Result: Tie! Both stands remain engaged until the next round.")
+            display_val = str(score_a)
                 
         elif system == "NetEA":
             details.append("NetEA Assault Result Roll Resolution:")
             rolls_a = roll_d6(count)
             details.append(f"Attacker attacks ({count} dice): {', '.join(map(str, rolls_a))}")
+            hits_a = 0
             if to_hit is not None:
                 hits_a = sum(1 for r in rolls_a if r >= to_hit)
                 details.append(f"Attacker hits ({to_hit}+): {hits_a}")
@@ -1246,6 +1342,7 @@ def _simulate_epic_dice(
                 if to_hit is not None:
                     hits_b = sum(1 for r in rolls_b if r >= to_hit)
                     details.append(f"Defender hits ({to_hit}+): {hits_b}")
+            display_val = str(hits_a) if to_hit is not None else str(sum(rolls_a))
 
     elif roll_type == "save":
         save_rolls = roll_d6(count)
@@ -1281,6 +1378,12 @@ def _simulate_epic_dice(
                     reroll_results = [f"{r} (Pass)" if r >= save_on else f"{r} (Fail)" for r in rerolls]
                     details.append(f"Reinforced Armour Rerolls: {', '.join(reroll_results)}")
             details.append(f"Summary: {passed} passed, {count - passed} failed.")
+            display_val = str(passed)
+        else:
+            if count == 1:
+                display_val = str(save_rolls[0])
+            else:
+                display_val = str(sum(save_rolls))
 
     elif roll_type == "morale":
         rolls = roll_d6(count)
@@ -1298,7 +1401,14 @@ def _simulate_epic_dice(
                     results.append(f"{r} (Fail)")
             details.append(f"Results (needing {morales}+): {', '.join(results)}")
             details.append(f"Summary: {passed} passed, {count - passed} failed.")
+            display_val = str(passed)
+        else:
+            if count == 1:
+                display_val = str(rolls[0])
+            else:
+                display_val = str(sum(rolls))
 
+    _last_roll_result = str(display_val)
     return "\n".join(details)
 
 
@@ -1456,8 +1566,7 @@ def _execute_tool(name: str, tool_input: dict) -> str:
         feel_no_pain = tool_input.get("feel_no_pain")
         feel_no_pain = int(feel_no_pain) if feel_no_pain is not None else None
         print(f"[skull] Rolling {num_dice} dice (hits: {hit_on}+, wounds: {wound_on}+)")
-        _trigger_dice_effects()
-        return _simulate_dice(
+        res = _simulate_dice(
             num_dice=num_dice,
             hit_on=hit_on,
             wound_on=wound_on,
@@ -1468,6 +1577,8 @@ def _execute_tool(name: str, tool_input: dict) -> str:
             reroll_wounds=reroll_wounds,
             feel_no_pain=feel_no_pain
         )
+        _trigger_dice_effects()
+        return res
     if name == "auspex_scan":
         print("[skull] Performing Noosphere Auspex scan...")
         from skull import display as _display
@@ -1494,16 +1605,18 @@ def _execute_tool(name: str, tool_input: dict) -> str:
         target = tool_input.get("target")
         target = int(target) if target is not None else None
         print(f"[brain] Rolling {count} Necromunda {dice_type} dice...")
+        res = _simulate_necromunda(dice_type, count, target)
         _trigger_dice_effects()
-        return _simulate_necromunda(dice_type, count, target)
+        return res
     if name == "roll_standard_dice":
         count = int(tool_input.get("count", 1))
         sides = int(tool_input.get("sides", 6))
         target = tool_input.get("target")
         target = int(target) if target is not None else None
         print(f"[brain] Rolling {count}d{sides}...")
+        res = _simulate_standard_dice(count, sides, target)
         _trigger_dice_effects()
-        return _simulate_standard_dice(count, sides, target)
+        return res
     if name == "roll_epic_dice":
         roll_type = str(tool_input.get("roll_type", "shooting")).strip()
         count = int(tool_input.get("count", 1))
@@ -1540,8 +1653,7 @@ def _execute_tool(name: str, tool_input: dict) -> str:
         morales = int(morales) if morales is not None else None
 
         print(f"[brain] Rolling {count} Epic {system} dice for {roll_type}...")
-        _trigger_dice_effects()
-        return _simulate_epic_dice(
+        res = _simulate_epic_dice(
             system=system,
             roll_type=roll_type,
             count=count,
@@ -1555,6 +1667,8 @@ def _execute_tool(name: str, tool_input: dict) -> str:
             morales=morales,
             opponent_count=opponent_count,
         )
+        _trigger_dice_effects()
+        return res
     if name == "set_spotify_volume":
         level = int(tool_input.get("level", 50))
         from skull import spotify_ctrl
