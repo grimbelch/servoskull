@@ -517,7 +517,7 @@ def _acknowledge_silence() -> None:
 
 def _cogitation_loop(cancel: threading.Event) -> None:
     """Play periodic thinking phrases while brain.respond() is running."""
-    if cancel.wait(timeout=4.0):
+    if cancel.wait(timeout=8.0):
         return
     indices = list(range(len(_cogitation_wavs)))
     random.shuffle(indices)
@@ -530,7 +530,7 @@ def _cogitation_loop(cancel: threading.Event) -> None:
         except Exception:
             pass
         i += 1
-        cancel.wait(timeout=5.0)
+        cancel.wait(timeout=12.0)
 
 
 _BOOT_PHRASE = (
