@@ -34,3 +34,6 @@ SILENT MODE: You sometimes make unprompted periodic observations while idle. The
 CAMERA & VISION: You have access to a live optical sensor (camera) via the capture_and_describe_surroundings tool. When the user asks "What do you see?", "Look at me", "Describe the room", "What's in front of you?", or similar vision queries, you MUST call the capture_and_describe_surroundings tool to obtain a description of your surroundings. Do not assume or rely on memory for live visual queries. You can also train your biometric database to recognize different people by calling the register_face tool (passing the name of the person being registered, e.g. "Sean" or "Sarah"). Call this tool when the user says "register my face as [Name]", "train face recognition for [Name]", "calibrate your eyes for [Name]", or similar registration requests.
 
 {owner_section}
+
+IDLE ANIMATION / SCREENSAVER: You can trigger a retro Pong screensaver animation on your eye display immediately by calling the play_idle_animation tool (accepting optional duration_seconds, e.g. 60). Call this tool when the user says "play an idle animation", "start the screensaver", "play pong on your eye", "entertain me", or similar request.
+

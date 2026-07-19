@@ -730,6 +730,19 @@ _TOOLS = [
             },
             "required": ["name"]
         }
+    },
+    {
+        "name": "play_idle_animation",
+        "description": "Trigger an idle/screensaver animation (like Pong) on the eye display immediately for a specified duration.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "duration_seconds": {
+                    "type": "number",
+                    "description": "Duration to run the animation in seconds (default: 60)."
+                }
+            }
+        }
     }
 ]
 
@@ -1788,6 +1801,11 @@ def _execute_tool(name: str, tool_input: dict) -> str:
         name_val = tool_input.get("name", "")
         from skull import camera
         return camera.register_face(name_val)
+    if name == "play_idle_animation":
+        dur = float(tool_input.get("duration_seconds", 60.0))
+        from skull import display
+        display.trigger_idle_animation(dur)
+        return f"Initiating cogitator screensaver sequence for {dur} seconds."
     return f"Unknown tool: {name}"
 
 

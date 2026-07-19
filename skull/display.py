@@ -48,6 +48,7 @@ _custom_image_expiry = 0.0
 
 _last_activity_time = 0.0
 _active_idle_anim = None
+_custom_idle_expiry = 0.0
 
 # Pong state variables
 _pong_ball_x = 120.0
@@ -789,7 +790,7 @@ def _render_pong_frame(bezel, mask, now):
 
 def _loop():
     global _rolling_die, _showing_omnissiah_glyph, _showing_custom_image, _custom_image, _custom_image_expiry
-    global _last_activity_time, _active_idle_anim
+    global _last_activity_time, _active_idle_anim, _custom_idle_expiry
     bezel = _make_bezel()
     mask = _make_iris_mask()
     shown = -1.0          # last amplitude actually drawn
@@ -819,8 +820,8 @@ def _loop():
             _last_activity_time = now
             _active_idle_anim = None
         else:
-            # If idle and timeout reached, run screensaver animation
-            if now - _last_activity_time >= config.DISPLAY_IDLE_TIMEOUT:
+            # If idle and timeout reached or forced, run screensaver animation
+            if (now - _last_activity_time >= config.DISPLAY_IDLE_TIMEOUT) or (now < _custom_idle_expiry):
                 if _active_idle_anim is None:
                     _active_idle_anim = "pong"
                     global _pong_ball_x, _pong_ball_y, _pong_ball_dx, _pong_ball_dy
@@ -978,6 +979,13 @@ def display_pil_image(pil_img, duration: float = 10.0) -> None:
         _showing_custom_image = True
     except Exception as e:
         print(f"[display] display_pil_image error: {e}")
+
+
+def trigger_idle_animation(duration: float = 60.0) -> None:
+    global _custom_idle_expiry, _last_activity_time
+    if not _available:
+        return
+    _custom_idle_expiry = time.monotonic() + duration
 
 
 # ── public API (mirrors eyes.py) ─────────────────────────────────────────────────
