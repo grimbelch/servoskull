@@ -1,10 +1,16 @@
 import io
+import re
 import sys
 import wave
 import subprocess
 from skull import config
 
 # ── ElevenLabs (cloud, quota-limited) ─────────────────────────────────────────
+
+def _preprocess_text(text: str) -> str:
+    """Preprocess text to adjust pronunciation of common Warhammer 40k words."""
+    # Note: User preferred the natural pronunciation of the original spelling "Omnissiah"
+    return text
 
 def _elevenlabs_client():
     from elevenlabs.client import ElevenLabs
@@ -14,6 +20,7 @@ _el_client = None
 
 def _synthesize_elevenlabs(text: str) -> bytes:
     global _el_client
+    text = _preprocess_text(text)
     if _el_client is None:
         _el_client = _elevenlabs_client()
     audio_iter = _el_client.text_to_speech.convert(
@@ -39,6 +46,7 @@ def _get_piper_voice():
 
 def _synthesize_piper(text: str) -> bytes:
     import wave as _wave
+    text = _preprocess_text(text)
     voice = _get_piper_voice()
     buf = io.BytesIO()
     with _wave.open(buf, "wb") as wf:
