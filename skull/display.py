@@ -52,7 +52,11 @@ _custom_idle_expiry = 0.0
 _requested_idle_anim = None
 
 # Screensaver pools
-_screensaver_anims = ["pong", "canticle_rain", "starfield", "oscilloscope", "game_of_life", "radar"]
+_screensaver_anims = [
+    "pong", "canticle_rain", "starfield", "oscilloscope", "game_of_life", "radar",
+    "warp_core", "circuit_maze", "double_helix", "spinning_rings", "wireframe_cube",
+    "bouncing_cog", "fractal_tree", "hud_status", "orbitals", "spectrum_bars"
+]
 
 # Pong state variables
 _pong_ball_x = 120.0
@@ -76,6 +80,25 @@ _gol_last_grids = []
 
 # Radar state
 _radar_blips = []
+
+# Circuit Maze state
+_maze_grid = []
+_maze_last_flip = 0.0
+
+# Bouncing Cog state
+_bc_x = 120.0
+_bc_y = 120.0
+_bc_dx = 1.8
+_bc_dy = 1.3
+_bc_angle = 0.0
+
+# Orbitals state
+_orbital_particles = []
+
+# Spectrum Bars state
+_spectrum_heights = [0.0] * 8
+_spectrum_targets = [0.0] * 8
+_spectrum_last_update = 0.0
 
 
 
@@ -702,6 +725,392 @@ def _render_omnissiah_frame(bezel, mask, now: float) -> Image.Image:
 
 # ── render loop ────────────────────────────────────────────────────────────────────
 
+def _init_circuit_maze():
+    global _maze_grid, _maze_last_flip
+    _maze_grid = [[random.choice([0, 1]) for _ in range(10)] for _ in range(10)]
+    _maze_last_flip = 0.0
+
+
+def _init_bouncing_cog():
+    global _bc_x, _bc_y, _bc_dx, _bc_dy, _bc_angle
+    _bc_x = 120.0
+    _bc_y = 120.0
+    _bc_dx = random.choice([-1.8, 1.8])
+    _bc_dy = random.uniform(-1.5, 1.5)
+    _bc_angle = 0.0
+
+
+def _init_orbitals():
+    global _orbital_particles
+    _orbital_particles = []
+    for i in range(3):
+        _orbital_particles.append({
+            "speed": random.uniform(1.5, 3.5),
+            "radius_x": random.uniform(20, 45),
+            "radius_y": random.uniform(10, 25),
+            "rot": random.uniform(0, math.pi * 2)
+        })
+
+
+def _init_spectrum_bars():
+    global _spectrum_heights, _spectrum_targets, _spectrum_last_update
+    _spectrum_heights = [random.uniform(5, 40) for _ in range(8)]
+    _spectrum_targets = [random.uniform(5, 40) for _ in range(8)]
+    _spectrum_last_update = 0.0
+
+
+def _render_warp_core_frame(bezel, mask, now):
+    from PIL import Image, ImageDraw
+    img = bezel.copy()
+    overlay = Image.new("RGB", (240, 240), (0, 10, 5))
+    d = ImageDraw.Draw(overlay)
+    
+    core_r = 10.0 + 3.0 * math.sin(now * 8.0)
+    d.ellipse([120 - core_r, 120 - core_r, 120 + core_r, 120 + core_r], fill=(0, 255, 120))
+    d.ellipse([120 - core_r + 3, 120 - core_r + 3, 120 + core_r - 3, 120 + core_r - 3], fill=(150, 255, 200))
+    
+    for i in range(3):
+        t = (now * 25.0 + i * 15.0) % 45.0
+        r = core_r + t
+        if r < 48.0:
+            alpha = int(255 * (1.0 - r / 48.0))
+            d.ellipse([120 - r, 120 - r, 120 + r, 120 + r], outline=(0, alpha, int(alpha * 0.4)), width=1)
+            
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
+def _render_circuit_maze_frame(bezel, mask, now):
+    global _maze_grid, _maze_last_flip
+    if not _maze_grid:
+        _init_circuit_maze()
+        
+    if now - _maze_last_flip > 0.4:
+        _maze_last_flip = now
+        r = random.randint(0, 9)
+        c = random.randint(0, 9)
+        _maze_grid[r][c] = 1 - _maze_grid[r][c]
+        
+    from PIL import Image, ImageDraw
+    img = bezel.copy()
+    overlay = Image.new("RGB", (240, 240), (0, 10, 4))
+    d = ImageDraw.Draw(overlay)
+    
+    for r in range(10):
+        for c in range(10):
+            x1 = 70 + c * 10
+            y1 = 70 + r * 10
+            x2 = x1 + 10
+            y2 = y1 + 10
+            if _maze_grid[r][c] == 0:
+                d.line([(x1, y1), (x2, y2)], fill=(0, 180, 60), width=1)
+            else:
+                d.line([(x2, y1), (x1, y2)], fill=(0, 180, 60), width=1)
+                
+    d.rectangle([70, 70, 170, 170], outline=(0, 60, 20), width=1)
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
+def _render_double_helix_frame(bezel, mask, now):
+    from PIL import Image, ImageDraw
+    img = bezel.copy()
+    overlay = Image.new("RGB", (240, 240), (0, 8, 3))
+    d = ImageDraw.Draw(overlay)
+    
+    min_y, max_y = 70, 170
+    helix_w = 20.0
+    
+    for y in range(min_y, max_y + 1, 5):
+        phase = (y * 0.15) - (now * 4.0)
+        x_offset1 = helix_w * math.sin(phase)
+        x_offset2 = helix_w * math.sin(phase + math.pi)
+        
+        x1 = 120 + x_offset1
+        x2 = 120 + x_offset2
+        
+        z1 = math.cos(phase)
+        z2 = math.cos(phase + math.pi)
+        
+        d.line([(x1, y), (x2, y)], fill=(0, 80, 30), width=1)
+        
+        b1 = int(140 + 115 * z1)
+        b2 = int(140 + 115 * z2)
+        
+        d.ellipse([x1 - 2, y - 2, x1 + 2, y + 2], fill=(0, b1, int(b1 * 0.4)))
+        d.ellipse([x2 - 2, y - 2, x2 + 2, y + 2], fill=(0, b2, int(b2 * 0.4)))
+        
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
+def _render_spinning_rings_frame(bezel, mask, now):
+    from PIL import Image, ImageDraw
+    img = bezel.copy()
+    overlay = Image.new("RGB", (240, 240), (0, 10, 4))
+    d = ImageDraw.Draw(overlay)
+    
+    angle_offset = now * 120.0
+    d.arc([75, 75, 165, 165], start=angle_offset, end=angle_offset + 140, fill=(0, 200, 70), width=1)
+    d.arc([75, 75, 165, 165], start=angle_offset + 180, end=angle_offset + 320, fill=(0, 200, 70), width=1)
+    
+    angle_offset_mid = -now * 180.0
+    d.arc([90, 90, 150, 150], start=angle_offset_mid, end=angle_offset_mid + 200, fill=(0, 160, 50), width=1)
+    
+    angle_offset_inner = now * 300.0
+    d.arc([105, 105, 135, 135], start=angle_offset_inner, end=angle_offset_inner + 100, fill=(0, 240, 80), width=2)
+    d.arc([105, 105, 135, 135], start=angle_offset_inner + 180, end=angle_offset_inner + 280, fill=(0, 240, 80), width=2)
+    
+    d.ellipse([118, 118, 122, 122], fill=(0, 255, 100))
+    
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
+def _render_wireframe_cube_frame(bezel, mask, now):
+    from PIL import Image, ImageDraw
+    img = bezel.copy()
+    overlay = Image.new("RGB", (240, 240), (0, 8, 3))
+    d = ImageDraw.Draw(overlay)
+    
+    size = 22.0
+    vertices = [
+        [-size, -size, -size],
+        [size, -size, -size],
+        [size, size, -size],
+        [-size, size, -size],
+        [-size, -size, size],
+        [size, -size, size],
+        [size, size, size],
+        [-size, size, size]
+    ]
+    
+    edges = [
+        (0, 1), (1, 2), (2, 3), (3, 0),
+        (4, 5), (5, 6), (6, 7), (7, 4),
+        (0, 4), (1, 5), (2, 6), (3, 7)
+    ]
+    
+    rx = now * 1.0
+    ry = now * 1.5
+    rz = now * 0.7
+    
+    projected = []
+    for vert in vertices:
+        x, y, z = vert
+        cos_y, sin_y = math.cos(ry), math.sin(ry)
+        x, z = x * cos_y - z * sin_y, x * sin_y + z * cos_y
+        cos_x, sin_x = math.cos(rx), math.sin(rx)
+        y, z = y * cos_x - z * sin_x, y * sin_x + z * cos_x
+        cos_z, sin_z = math.cos(rz), math.sin(rz)
+        x, y = x * cos_z - y * sin_z, x * sin_z + y * cos_z
+        
+        px = x + 120.0
+        py = y + 120.0
+        projected.append((px, py))
+        
+    for edge in edges:
+        p1 = projected[edge[0]]
+        p2 = projected[edge[1]]
+        d.line([p1, p2], fill=(0, 200, 70), width=1)
+        
+    for p in projected:
+        d.ellipse([p[0] - 2, p[1] - 2, p[0] + 2, p[1] + 2], fill=(0, 255, 120))
+        
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
+def _render_bouncing_cog_frame(bezel, mask, now):
+    global _bc_x, _bc_y, _bc_dx, _bc_dy, _bc_angle
+    if not _bc_dx:
+        _init_bouncing_cog()
+        
+    min_x, max_x = 70, 170
+    min_y, max_y = 70, 170
+    
+    _bc_x += _bc_dx
+    _bc_y += _bc_dy
+    _bc_angle = (_bc_angle + 3.0) % 360
+    
+    r_cog = 10
+    if _bc_x <= min_x + r_cog:
+        _bc_x = min_x + r_cog
+        _bc_dx = -_bc_dx
+    elif _bc_x >= max_x - r_cog:
+        _bc_x = max_x - r_cog
+        _bc_dx = -_bc_dx
+        
+    if _bc_y <= min_y + r_cog:
+        _bc_y = min_y + r_cog
+        _bc_dy = -_bc_dy
+    elif _bc_y >= max_y - r_cog:
+        _bc_y = max_y - r_cog
+        _bc_dy = -_bc_dy
+
+    from PIL import Image, ImageDraw
+    img = bezel.copy()
+    overlay = Image.new("RGB", (240, 240), (0, 10, 5))
+    d = ImageDraw.Draw(overlay)
+    
+    d.rectangle([min_x, min_y, max_x, max_y], outline=(0, 60, 20), width=1)
+    
+    cx, cy = _bc_x, _bc_y
+    num_teeth = 8
+    teeth_r = r_cog + 3
+    for i in range(num_teeth):
+        a = math.radians(_bc_angle + i * (360 / num_teeth))
+        tx = cx + teeth_r * math.cos(a)
+        ty = cy + teeth_r * math.sin(a)
+        d.line([(cx, cy), (tx, ty)], fill=(0, 220, 80), width=2)
+        
+    d.ellipse([cx - r_cog, cy - r_cog, cx + r_cog, cy + r_cog], fill=(0, 220, 80))
+    d.ellipse([cx - r_cog + 3, cy - r_cog + 3, cx + r_cog - 3, cy + r_cog - 3], fill=(0, 10, 5))
+    
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
+def _render_fractal_tree_frame(bezel, mask, now):
+    from PIL import Image, ImageDraw
+    img = bezel.copy()
+    overlay = Image.new("RGB", (240, 240), (0, 10, 4))
+    d = ImageDraw.Draw(overlay)
+    
+    max_depth = 5
+    branch_angle = 15.0 + 10.0 * math.sin(now * 2.0)
+    
+    def draw_branch(x1, y1, angle_deg, length, depth):
+        if depth > max_depth:
+            return
+        rad = math.radians(angle_deg)
+        x2 = x1 + length * math.cos(rad)
+        y2 = y1 - length * math.sin(rad)
+        
+        green_val = int(240 - depth * 35)
+        d.line([(x1, y1), (x2, y2)], fill=(0, green_val, 40), width=max(1, 4 - depth))
+        
+        next_len = length * 0.75
+        draw_branch(x2, y2, angle_deg - branch_angle, next_len, depth + 1)
+        draw_branch(x2, y2, angle_deg + branch_angle, next_len, depth + 1)
+        
+    d.rectangle([70, 70, 170, 170], outline=(0, 60, 20), width=1)
+    draw_branch(120, 160, 90.0, 24.0, 1)
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
+def _render_hud_status_frame(bezel, mask, now):
+    from PIL import Image, ImageDraw, ImageFont
+    img = bezel.copy()
+    overlay = Image.new("RGB", (240, 240), (0, 10, 5))
+    d = ImageDraw.Draw(overlay)
+    
+    d.rectangle([70, 70, 170, 170], outline=(0, 80, 30), width=1)
+    
+    import datetime
+    t_str = datetime.datetime.now().strftime("%H:%M:%S")
+    
+    try:
+        font = ImageFont.load_default()
+    except Exception:
+        font = None
+        
+    if font:
+        d.text((88, 78), t_str, fill=(0, 240, 80), font=font)
+        d.text((78, 102), "CPU LOAD", fill=(0, 150, 50), font=font)
+        d.text((78, 122), "MEM COG", fill=(0, 150, 50), font=font)
+        d.text((78, 142), "VOX NET", fill=(0, 150, 50), font=font)
+        
+    cpu_w = 40.0 * (0.5 + 0.3 * math.sin(now * 3.0) + 0.2 * math.cos(now * 7.5))
+    mem_w = 40.0 * (0.7 + 0.1 * math.sin(now * 0.5))
+    vox_w = 40.0 * (0.4 + 0.4 * math.sin(now * 12.0) * math.sin(now * 1.5))
+    
+    d.rectangle([130, 104, 130 + int(cpu_w), 108], fill=(0, 200, 70))
+    d.rectangle([130, 124, 130 + int(mem_w), 128], fill=(0, 200, 70))
+    d.rectangle([130, 144, 130 + int(vox_w), 148], fill=(0, 200, 70))
+    
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
+def _render_orbitals_frame(bezel, mask, now):
+    global _orbital_particles
+    if not _orbital_particles:
+        _init_orbitals()
+        
+    from PIL import Image, ImageDraw
+    img = bezel.copy()
+    overlay = Image.new("RGB", (240, 240), (0, 10, 4))
+    d = ImageDraw.Draw(overlay)
+    
+    d.ellipse([117, 117, 123, 123], fill=(0, 255, 120))
+    d.rectangle([70, 70, 170, 170], outline=(0, 60, 20), width=1)
+    
+    for blip in _orbital_particles:
+        rx, ry = blip["radius_x"], blip["radius_y"]
+        angle = now * blip["speed"]
+        
+        x_local = rx * math.cos(angle)
+        y_local = ry * math.sin(angle)
+        
+        cos_r = math.cos(blip["rot"])
+        sin_r = math.sin(blip["rot"])
+        x_rot = x_local * cos_r - y_local * sin_r
+        y_rot = x_local * sin_r + y_local * cos_r
+        
+        px = 120.0 + x_rot
+        py = 120.0 + y_rot
+        
+        orbit_pts = []
+        for a_step in range(0, 360, 15):
+            rad = math.radians(a_step)
+            xl = rx * math.cos(rad)
+            yl = ry * math.sin(rad)
+            xr = xl * cos_r - yl * sin_r + 120.0
+            yr = xl * sin_r + yl * cos_r + 120.0
+            orbit_pts.append((xr, yr))
+        d.polygon(orbit_pts, outline=(0, 60, 20), width=1)
+        
+        d.ellipse([px - 3, py - 3, px + 3, py + 3], fill=(0, 240, 90))
+        
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
+def _render_spectrum_bars_frame(bezel, mask, now):
+    global _spectrum_heights, _spectrum_targets, _spectrum_last_update
+    if not _spectrum_heights:
+        _init_spectrum_bars()
+        
+    if now - _spectrum_last_update > 0.15:
+        _spectrum_last_update = now
+        _spectrum_targets = [random.uniform(3, 40) for _ in range(8)]
+        
+    for i in range(8):
+        _spectrum_heights[i] += (_spectrum_targets[i] - _spectrum_heights[i]) * 0.35
+        
+    from PIL import Image, ImageDraw
+    img = bezel.copy()
+    overlay = Image.new("RGB", (240, 240), (0, 10, 4))
+    d = ImageDraw.Draw(overlay)
+    
+    start_x = 78
+    for i in range(8):
+        h = int(_spectrum_heights[i])
+        bx1 = start_x + i * 11
+        bx2 = bx1 + 8
+        by2 = 165
+        by1 = by2 - h
+        
+        for sy in range(by2, by1 - 1, -4):
+            d.rectangle([bx1, sy - 2, bx2, sy], fill=(0, 230, 80))
+            
+    d.rectangle([70, 70, 170, 170], outline=(0, 60, 20), width=1)
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
 def _init_canticle_rain():
     global _rain_cols
     _rain_cols = []
@@ -1123,6 +1532,14 @@ def _loop():
                         _init_game_of_life()
                     elif _active_idle_anim == "radar":
                         _init_radar()
+                    elif _active_idle_anim == "circuit_maze":
+                        _init_circuit_maze()
+                    elif _active_idle_anim == "bouncing_cog":
+                        _init_bouncing_cog()
+                    elif _active_idle_anim == "orbitals":
+                        _init_orbitals()
+                    elif _active_idle_anim == "spectrum_bars":
+                        _init_spectrum_bars()
 
                 try:
                     if _active_idle_anim == "pong":
@@ -1137,6 +1554,26 @@ def _loop():
                         _blit(_render_game_of_life_frame(bezel, mask, now))
                     elif _active_idle_anim == "radar":
                         _blit(_render_radar_frame(bezel, mask, now))
+                    elif _active_idle_anim == "warp_core":
+                        _blit(_render_warp_core_frame(bezel, mask, now))
+                    elif _active_idle_anim == "circuit_maze":
+                        _blit(_render_circuit_maze_frame(bezel, mask, now))
+                    elif _active_idle_anim == "double_helix":
+                        _blit(_render_double_helix_frame(bezel, mask, now))
+                    elif _active_idle_anim == "spinning_rings":
+                        _blit(_render_spinning_rings_frame(bezel, mask, now))
+                    elif _active_idle_anim == "wireframe_cube":
+                        _blit(_render_wireframe_cube_frame(bezel, mask, now))
+                    elif _active_idle_anim == "bouncing_cog":
+                        _blit(_render_bouncing_cog_frame(bezel, mask, now))
+                    elif _active_idle_anim == "fractal_tree":
+                        _blit(_render_fractal_tree_frame(bezel, mask, now))
+                    elif _active_idle_anim == "hud_status":
+                        _blit(_render_hud_status_frame(bezel, mask, now))
+                    elif _active_idle_anim == "orbitals":
+                        _blit(_render_orbitals_frame(bezel, mask, now))
+                    elif _active_idle_anim == "spectrum_bars":
+                        _blit(_render_spectrum_bars_frame(bezel, mask, now))
                 except Exception as e:
                     print(f"[display] screensaver render error ({_active_idle_anim}): {e}")
                 time.sleep(1 / 30)
