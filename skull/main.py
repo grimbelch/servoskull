@@ -682,6 +682,8 @@ def main():
     skip_ack = False
     _IDLE_MIN, _IDLE_MAX = 5 * 60, 10 * 60  # seconds
 
+    is_answering_question = False
+
     while True:
         # Back at idle — undo any music ducking from the previous interaction.
         spotify_ctrl.restore()
@@ -754,10 +756,12 @@ def main():
             skip_wake_word = False
             on_wake()
             if skip_ack:
+                is_answering_question = True
                 skip_ack = False
                 _barge_wav = None
                 play_ack_sound = False
             else:
+                is_answering_question = False
                 ack = random.choice([
                     "Ah, yes?",
                     "Speak.",
@@ -776,6 +780,7 @@ def main():
                     pass
                 play_ack_sound = True
         else:
+            is_answering_question = False
             play_ack_sound = True
             _idle_cancel = threading.Event()
             _idle_fired = threading.Event()
@@ -874,13 +879,19 @@ def main():
         _rec_exc: list = [None]
         _rec_done = threading.Event()
 
+        # Answering a question allows for a longer reply window (25s max) and a more
+        # patient silence threshold timeout (3.0s) so the user can pause to think.
+        rec_secs = 25 if is_answering_question else config.RECORD_SECONDS
+        silence_dur = 3.0 if is_answering_question else config.SILENCE_DURATION
+
         def _do_record():
             try:
+                print(f"[skull] Recording settings: max_secs={rec_secs}, silence_dur={silence_dur}")
                 _rec_pcm[0] = audio.record(
-                    seconds=config.RECORD_SECONDS,
+                    seconds=rec_secs,
                     device_index=config.MIC_DEVICE_INDEX,
                     silence_threshold=config.SILENCE_THRESHOLD,
-                    silence_duration=config.SILENCE_DURATION,
+                    silence_duration=silence_dur,
                 )
             except Exception as e:
                 _rec_exc[0] = e
@@ -889,7 +900,7 @@ def main():
 
         threading.Thread(target=_do_record, daemon=True).start()
         print("[skull] Recording... (speak now)")
-        if not _rec_done.wait(timeout=config.RECORD_SECONDS + 15.0):
+        if not _rec_done.wait(timeout=rec_secs + 15.0):
             print("[skull] Recording hung — forcing recovery")
             try:
                 import sounddevice as _sd_recovery
