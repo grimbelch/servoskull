@@ -724,10 +724,9 @@ def _render_omnissiah_frame(bezel, mask, now: float) -> Image.Image:
 
 
 # ── render loop ────────────────────────────────────────────────────────────────────
-
 def _init_circuit_maze():
     global _maze_grid, _maze_last_flip
-    _maze_grid = [[random.choice([0, 1]) for _ in range(10)] for _ in range(10)]
+    _maze_grid = [[random.choice([0, 1]) for _ in range(24)] for _ in range(24)]
     _maze_last_flip = 0.0
 
 
@@ -754,52 +753,347 @@ def _init_orbitals():
 
 def _init_spectrum_bars():
     global _spectrum_heights, _spectrum_targets, _spectrum_last_update
-    _spectrum_heights = [random.uniform(5, 40) for _ in range(8)]
-    _spectrum_targets = [random.uniform(5, 40) for _ in range(8)]
+    _spectrum_heights = [random.uniform(5, 160) for _ in range(12)]
+    _spectrum_targets = [random.uniform(5, 160) for _ in range(12)]
     _spectrum_last_update = 0.0
+
+
+def _init_canticle_rain():
+    global _rain_cols
+    _rain_cols = []
+    for x in range(8, 233, 12):
+        _rain_cols.append({
+            "x": x,
+            "y": random.uniform(-100, 240),
+            "speed": random.uniform(2.0, 5.0),
+            "chars": [random.choice(["0", "1"]) for _ in range(12)]
+        })
+
+
+def _init_starfield():
+    global _starfield_stars
+    _starfield_stars = []
+    for _ in range(60):
+        _starfield_stars.append({
+            "x": random.uniform(-120, 120),
+            "y": random.uniform(-120, 120),
+            "z": random.uniform(1.0, 120.0),
+            "speed": random.uniform(1.5, 3.5)
+        })
+
+
+def _init_game_of_life():
+    global _gol_grid, _gol_last_grids
+    _gol_grid = [[random.choice([0, 1]) for _ in range(24)] for _ in range(24)]
+    _gol_last_grids = []
+
+
+def _init_radar():
+    global _radar_blips
+    _radar_blips = []
+    for _ in range(4):
+        dist = random.uniform(30, 105)
+        angle = random.uniform(0, math.pi * 2)
+        _radar_blips.append({
+            "x": 120.0 + dist * math.cos(angle),
+            "y": 120.0 + dist * math.sin(angle),
+            "brightness": 0.0,
+            "angle": angle
+        })
+
+
+def _render_pong_frame(bezel, mask, now):
+    global _pong_ball_x, _pong_ball_y, _pong_ball_dx, _pong_ball_dy
+    global _pong_paddle_l_y, _pong_paddle_r_y, _pong_score_l, _pong_score_r
+    min_x, max_x = 10, 230
+    min_y, max_y = 10, 230
+    
+    _pong_ball_x += _pong_ball_dx
+    _pong_ball_y += _pong_ball_dy
+    
+    if _pong_ball_y <= min_y + 3:
+        _pong_ball_y = min_y + 3
+        _pong_ball_dy = -_pong_ball_dy
+    elif _pong_ball_y >= max_y - 3:
+        _pong_ball_y = max_y - 3
+        _pong_ball_dy = -_pong_ball_dy
+        
+    l_target = _pong_ball_y
+    _pong_paddle_l_y += (l_target - _pong_paddle_l_y) * 0.12
+    _pong_paddle_l_y = max(min_y + 15, min(max_y - 15, _pong_paddle_l_y))
+    
+    r_target = _pong_ball_y
+    _pong_paddle_r_y += (r_target - _pong_paddle_r_y) * 0.12
+    _pong_paddle_r_y = max(min_y + 15, min(max_y - 15, _pong_paddle_r_y))
+    
+    if _pong_ball_dx < 0 and _pong_ball_x <= min_x + 8:
+        if abs(_pong_ball_y - _pong_paddle_l_y) <= 18:
+            _pong_ball_x = min_x + 8
+            _pong_ball_dx = -_pong_ball_dx
+            _pong_ball_dy += (_pong_ball_y - _pong_paddle_l_y) * 0.15
+        else:
+            _pong_score_r += 1
+            _pong_ball_x, _pong_ball_y = 120.0, 120.0
+            _pong_ball_dx = 2.0
+            _pong_ball_dy = random.uniform(-1.0, 1.0)
+    elif _pong_ball_dx > 0 and _pong_ball_x >= max_x - 8:
+        if abs(_pong_ball_y - _pong_paddle_r_y) <= 18:
+            _pong_ball_x = max_x - 8
+            _pong_ball_dx = -_pong_ball_dx
+            _pong_ball_dy += (_pong_ball_y - _pong_paddle_r_y) * 0.15
+        else:
+            _pong_score_l += 1
+            _pong_ball_x, _pong_ball_y = 120.0, 120.0
+            _pong_ball_dx = -2.0
+            _pong_ball_dy = random.uniform(-1.0, 1.0)
+            
+    from PIL import Image, ImageDraw, ImageFont
+    img = Image.new("RGB", (240, 240), (0, 10, 5))
+    d = ImageDraw.Draw(img)
+    
+    for y in range(min_y, max_y, 10):
+        d.line([(120, y), (120, y + 5)], fill=(0, 100, 40), width=1)
+        
+    try:
+        font = ImageFont.load_default()
+    except Exception:
+        font = None
+    if font:
+        d.text((95, 20), str(_pong_score_l), fill=(0, 200, 70), font=font)
+        d.text((135, 20), str(_pong_score_r), fill=(0, 200, 70), font=font)
+        
+    d.rectangle([min_x, _pong_paddle_l_y - 15, min_x + 3, _pong_paddle_l_y + 15], fill=(0, 220, 80))
+    d.rectangle([max_x - 3, _pong_paddle_r_y - 15, max_x, _pong_paddle_r_y + 15], fill=(0, 220, 80))
+    d.ellipse([_pong_ball_x - 3, _pong_ball_y - 3, _pong_ball_x + 3, _pong_ball_y + 3], fill=(0, 255, 100))
+    return img
+
+
+def _render_canticle_rain_frame(bezel, mask, now):
+    global _rain_cols
+    if not _rain_cols:
+        _init_canticle_rain()
+        
+    from PIL import Image, ImageDraw, ImageFont
+    img = Image.new("RGB", (240, 240), (0, 8, 3))
+    d = ImageDraw.Draw(img)
+    
+    try:
+        font = ImageFont.load_default()
+    except Exception:
+        font = None
+        
+    for col in _rain_cols:
+        col["y"] += col["speed"]
+        if col["y"] > 240:
+            col["y"] = -100
+            col["speed"] = random.uniform(2.0, 5.0)
+            
+        y = col["y"]
+        for idx, char in enumerate(col["chars"]):
+            cy = y + idx * 10
+            if -10 < cy < 250:
+                alpha = int(255 * ((idx + 1) / len(col["chars"])))
+                color = (0, alpha, int(alpha * 0.3))
+                if font:
+                    d.text((col["x"], cy), char, fill=color, font=font)
+                else:
+                    d.rectangle([col["x"], cy, col["x"] + 5, cy + 5], fill=color)
+                    
+            if random.random() < 0.05:
+                col["chars"][idx] = random.choice(["0", "1"])
+                
+    return img
+
+
+def _render_starfield_frame(bezel, mask, now):
+    global _starfield_stars
+    if not _starfield_stars:
+        _init_starfield()
+        
+    from PIL import Image, ImageDraw
+    img = Image.new("RGB", (240, 240), (0, 5, 2))
+    d = ImageDraw.Draw(img)
+    
+    for star in _starfield_stars:
+        star["z"] -= star["speed"]
+        if star["z"] <= 1.0:
+            star["x"] = random.uniform(-120, 120)
+            star["y"] = random.uniform(-120, 120)
+            star["z"] = 120.0
+            
+        k = 100.0 / star["z"]
+        px = int(120.0 + star["x"] * k)
+        py = int(120.0 + star["y"] * k)
+        
+        if 0 <= px < 240 and 0 <= py < 240:
+            size = max(1, int(3 * (1.0 - star["z"] / 120.0)))
+            brightness = int(255 * (1.0 - star["z"] / 120.0))
+            d.ellipse([px - size, py - size, px + size, py + size], fill=(0, brightness, int(brightness * 0.4)))
+            
+    return img
+
+
+def _render_oscilloscope_frame(bezel, mask, now):
+    from PIL import Image, ImageDraw
+    img = Image.new("RGB", (240, 240), (0, 10, 4))
+    d = ImageDraw.Draw(img)
+    
+    for x in range(20, 240, 40):
+        d.line([(x, 0), (x, 240)], fill=(0, 25, 10), width=1)
+    for y in range(20, 240, 40):
+        d.line([(0, y), (240, y)], fill=(0, 25, 10), width=1)
+        
+    pts1 = []
+    pts2 = []
+    for x in range(0, 241, 4):
+        y1 = 120.0 + 35.0 * math.sin(x * 0.05 + now * 5.0) + 10.0 * math.sin(x * 0.12 - now * 2.0)
+        y2 = 120.0 + 20.0 * math.cos(x * 0.08 - now * 4.0) + 8.0 * math.sin(x * 0.03 + now * 3.0)
+        pts1.append((x, y1))
+        pts2.append((x, y2))
+        
+    d.line(pts1, fill=(0, 180, 50), width=2)
+    d.line(pts2, fill=(0, 240, 100), width=1)
+    return img
+
+
+def _render_game_of_life_frame(bezel, mask, now):
+    global _gol_grid, _gol_last_grids
+    if _gol_grid is None:
+        _init_game_of_life()
+        
+    if not hasattr(_render_game_of_life_frame, "last_step"):
+        _render_game_of_life_frame.last_step = 0.0
+        
+    if now - _render_game_of_life_frame.last_step > 0.1:
+        _render_game_of_life_frame.last_step = now
+        
+        grid_tuple = tuple(tuple(row) for row in _gol_grid)
+        _gol_last_grids.append(grid_tuple)
+        if len(_gol_last_grids) > 6:
+            _gol_last_grids.pop(0)
+            
+        is_static = len(_gol_last_grids) >= 6 and (
+            _gol_last_grids[-1] == _gol_last_grids[-2] or
+            _gol_last_grids[-1] == _gol_last_grids[-3] or
+            _gol_last_grids[-1] == _gol_last_grids[-4]
+        )
+        total_cells = sum(sum(row) for row in _gol_grid)
+        if total_cells < 5 or is_static:
+            _init_game_of_life()
+            
+        new_grid = [[0 for _ in range(24)] for _ in range(24)]
+        for r in range(24):
+            for c in range(24):
+                neighbors = 0
+                for dr in [-1, 0, 1]:
+                    for dc in [-1, 0, 1]:
+                        if dr == 0 and dc == 0:
+                            continue
+                        nr, nc = (r + dr) % 24, (c + dc) % 24
+                        neighbors += _gol_grid[nr][nc]
+                if _gol_grid[r][c] == 1:
+                    new_grid[r][c] = 1 if neighbors in [2, 3] else 0
+                else:
+                    new_grid[r][c] = 1 if neighbors == 3 else 0
+        _gol_grid = new_grid
+        
+    from PIL import Image, ImageDraw
+    img = Image.new("RGB", (240, 240), (0, 8, 3))
+    d = ImageDraw.Draw(img)
+    
+    for r in range(24):
+        for c in range(24):
+            if _gol_grid[r][c] == 1:
+                d.rectangle([c * 10 + 1, r * 10 + 1, c * 10 + 9, r * 10 + 9], fill=(0, 220, 80))
+            else:
+                d.rectangle([c * 10, r * 10, c * 10 + 10, r * 10 + 10], outline=(0, 20, 5), width=1)
+                
+    return img
+
+
+def _render_radar_frame(bezel, mask, now):
+    global _radar_blips
+    if not _radar_blips:
+        _init_radar()
+        
+    from PIL import Image, ImageDraw
+    img = Image.new("RGB", (240, 240), (0, 10, 4))
+    d = ImageDraw.Draw(img)
+    
+    sweep_angle = (now * 150.0) % 360.0
+    sweep_rad = math.radians(sweep_angle)
+    
+    for r in range(30, 120, 30):
+        d.ellipse([120 - r, 120 - r, 120 + r, 120 + r], outline=(0, 45, 15), width=1)
+        
+    d.line([(10, 120), (230, 120)], fill=(0, 45, 15), width=1)
+    d.line([(120, 10), (120, 230)], fill=(0, 45, 15), width=1)
+    
+    sx = 120.0 + 110.0 * math.cos(sweep_rad)
+    sy = 120.0 + 110.0 * math.sin(sweep_rad)
+    d.line([(120, 120), (sx, sy)], fill=(0, 255, 100), width=2)
+    
+    for step in range(1, 15):
+        a_trail = math.radians(sweep_angle - step * 2)
+        tx = 120.0 + 110.0 * math.cos(a_trail)
+        ty = 120.0 + 110.0 * math.sin(a_trail)
+        val = int(200 * (1.0 - step / 15.0))
+        d.line([(120, 120), (tx, ty)], fill=(0, val, int(val * 0.3)), width=1)
+        
+    for blip in _radar_blips:
+        diff = abs(sweep_rad - blip["angle"]) % (math.pi * 2)
+        if diff < 0.05:
+            blip["brightness"] = 255.0
+        else:
+            blip["brightness"] = max(0.0, blip["brightness"] - 2.5)
+            
+        if blip["brightness"] > 0:
+            val = int(blip["brightness"])
+            d.ellipse([blip["x"] - 4, blip["y"] - 4, blip["x"] + 4, blip["y"] + 4], fill=(0, val, int(val * 0.4)))
+            d.ellipse([blip["x"] - 7, blip["y"] - 7, blip["x"] + 7, blip["y"] + 7], outline=(0, int(val * 0.6), 0), width=1)
+            
+    return img
 
 
 def _render_warp_core_frame(bezel, mask, now):
     from PIL import Image, ImageDraw
-    img = bezel.copy()
-    overlay = Image.new("RGB", (240, 240), (0, 10, 5))
-    d = ImageDraw.Draw(overlay)
+    img = Image.new("RGB", (240, 240), (0, 10, 5))
+    d = ImageDraw.Draw(img)
     
-    core_r = 10.0 + 3.0 * math.sin(now * 8.0)
+    core_r = 15.0 + 4.0 * math.sin(now * 8.0)
     d.ellipse([120 - core_r, 120 - core_r, 120 + core_r, 120 + core_r], fill=(0, 255, 120))
-    d.ellipse([120 - core_r + 3, 120 - core_r + 3, 120 + core_r - 3, 120 + core_r - 3], fill=(150, 255, 200))
+    d.ellipse([120 - core_r + 4, 120 - core_r + 4, 120 + core_r - 4, 120 + core_r - 4], fill=(150, 255, 200))
     
-    for i in range(3):
-        t = (now * 25.0 + i * 15.0) % 45.0
+    for i in range(5):
+        t = (now * 45.0 + i * 25.0) % 110.0
         r = core_r + t
-        if r < 48.0:
-            alpha = int(255 * (1.0 - r / 48.0))
+        if r < 115.0:
+            alpha = int(255 * (1.0 - r / 115.0))
             d.ellipse([120 - r, 120 - r, 120 + r, 120 + r], outline=(0, alpha, int(alpha * 0.4)), width=1)
             
-    img.paste(overlay, (0, 0), mask)
     return img
 
 
 def _render_circuit_maze_frame(bezel, mask, now):
     global _maze_grid, _maze_last_flip
-    if not _maze_grid:
+    if not _maze_grid or len(_maze_grid) != 24:
         _init_circuit_maze()
         
-    if now - _maze_last_flip > 0.4:
+    if now - _maze_last_flip > 0.2:
         _maze_last_flip = now
-        r = random.randint(0, 9)
-        c = random.randint(0, 9)
-        _maze_grid[r][c] = 1 - _maze_grid[r][c]
+        for _ in range(2):
+            r = random.randint(0, 23)
+            c = random.randint(0, 23)
+            _maze_grid[r][c] = 1 - _maze_grid[r][c]
         
     from PIL import Image, ImageDraw
-    img = bezel.copy()
-    overlay = Image.new("RGB", (240, 240), (0, 10, 4))
-    d = ImageDraw.Draw(overlay)
+    img = Image.new("RGB", (240, 240), (0, 10, 4))
+    d = ImageDraw.Draw(img)
     
-    for r in range(10):
-        for c in range(10):
-            x1 = 70 + c * 10
-            y1 = 70 + r * 10
+    for r in range(24):
+        for c in range(24):
+            x1 = c * 10
+            y1 = r * 10
             x2 = x1 + 10
             y2 = y1 + 10
             if _maze_grid[r][c] == 0:
@@ -807,22 +1101,19 @@ def _render_circuit_maze_frame(bezel, mask, now):
             else:
                 d.line([(x2, y1), (x1, y2)], fill=(0, 180, 60), width=1)
                 
-    d.rectangle([70, 70, 170, 170], outline=(0, 60, 20), width=1)
-    img.paste(overlay, (0, 0), mask)
     return img
 
 
 def _render_double_helix_frame(bezel, mask, now):
     from PIL import Image, ImageDraw
-    img = bezel.copy()
-    overlay = Image.new("RGB", (240, 240), (0, 8, 3))
-    d = ImageDraw.Draw(overlay)
+    img = Image.new("RGB", (240, 240), (0, 8, 3))
+    d = ImageDraw.Draw(img)
     
-    min_y, max_y = 70, 170
-    helix_w = 20.0
+    min_y, max_y = 10, 230
+    helix_w = 45.0
     
-    for y in range(min_y, max_y + 1, 5):
-        phase = (y * 0.15) - (now * 4.0)
+    for y in range(min_y, max_y + 1, 6):
+        phase = (y * 0.08) - (now * 4.0)
         x_offset1 = helix_w * math.sin(phase)
         x_offset2 = helix_w * math.sin(phase + math.pi)
         
@@ -837,43 +1128,43 @@ def _render_double_helix_frame(bezel, mask, now):
         b1 = int(140 + 115 * z1)
         b2 = int(140 + 115 * z2)
         
-        d.ellipse([x1 - 2, y - 2, x1 + 2, y + 2], fill=(0, b1, int(b1 * 0.4)))
-        d.ellipse([x2 - 2, y - 2, x2 + 2, y + 2], fill=(0, b2, int(b2 * 0.4)))
+        d.ellipse([x1 - 3, y - 3, x1 + 3, y + 3], fill=(0, b1, int(b1 * 0.4)))
+        d.ellipse([x2 - 3, y - 3, x2 + 3, y + 3], fill=(0, b2, int(b2 * 0.4)))
         
-    img.paste(overlay, (0, 0), mask)
     return img
 
 
 def _render_spinning_rings_frame(bezel, mask, now):
     from PIL import Image, ImageDraw
-    img = bezel.copy()
-    overlay = Image.new("RGB", (240, 240), (0, 10, 4))
-    d = ImageDraw.Draw(overlay)
+    img = Image.new("RGB", (240, 240), (0, 10, 4))
+    d = ImageDraw.Draw(img)
     
     angle_offset = now * 120.0
-    d.arc([75, 75, 165, 165], start=angle_offset, end=angle_offset + 140, fill=(0, 200, 70), width=1)
-    d.arc([75, 75, 165, 165], start=angle_offset + 180, end=angle_offset + 320, fill=(0, 200, 70), width=1)
+    d.arc([10, 10, 230, 230], start=angle_offset, end=angle_offset + 140, fill=(0, 200, 70), width=2)
+    d.arc([10, 10, 230, 230], start=angle_offset + 180, end=angle_offset + 320, fill=(0, 200, 70), width=2)
     
-    angle_offset_mid = -now * 180.0
-    d.arc([90, 90, 150, 150], start=angle_offset_mid, end=angle_offset_mid + 200, fill=(0, 160, 50), width=1)
+    angle_offset_mid1 = -now * 150.0
+    d.arc([40, 40, 200, 200], start=angle_offset_mid1, end=angle_offset_mid1 + 200, fill=(0, 160, 50), width=1)
+    d.arc([40, 40, 200, 200], start=angle_offset_mid1 + 240, end=angle_offset_mid1 + 330, fill=(0, 160, 50), width=1)
     
-    angle_offset_inner = now * 300.0
-    d.arc([105, 105, 135, 135], start=angle_offset_inner, end=angle_offset_inner + 100, fill=(0, 240, 80), width=2)
-    d.arc([105, 105, 135, 135], start=angle_offset_inner + 180, end=angle_offset_inner + 280, fill=(0, 240, 80), width=2)
+    angle_offset_mid2 = now * 220.0
+    d.arc([70, 70, 170, 170], start=angle_offset_mid2, end=angle_offset_mid2 + 100, fill=(0, 180, 60), width=1)
+    d.arc([70, 70, 170, 170], start=angle_offset_mid2 + 150, end=angle_offset_mid2 + 300, fill=(0, 180, 60), width=1)
     
-    d.ellipse([118, 118, 122, 122], fill=(0, 255, 100))
+    angle_offset_inner = -now * 300.0
+    d.arc([100, 100, 140, 140], start=angle_offset_inner, end=angle_offset_inner + 120, fill=(0, 240, 80), width=2)
+    d.arc([100, 100, 140, 140], start=angle_offset_inner + 180, end=angle_offset_inner + 300, fill=(0, 240, 80), width=2)
     
-    img.paste(overlay, (0, 0), mask)
+    d.ellipse([117, 117, 123, 123], fill=(0, 255, 100))
     return img
 
 
 def _render_wireframe_cube_frame(bezel, mask, now):
     from PIL import Image, ImageDraw
-    img = bezel.copy()
-    overlay = Image.new("RGB", (240, 240), (0, 8, 3))
-    d = ImageDraw.Draw(overlay)
+    img = Image.new("RGB", (240, 240), (0, 8, 3))
+    d = ImageDraw.Draw(img)
     
-    size = 22.0
+    size = 55.0
     vertices = [
         [-size, -size, -size],
         [size, -size, -size],
@@ -912,12 +1203,11 @@ def _render_wireframe_cube_frame(bezel, mask, now):
     for edge in edges:
         p1 = projected[edge[0]]
         p2 = projected[edge[1]]
-        d.line([p1, p2], fill=(0, 200, 70), width=1)
+        d.line([p1, p2], fill=(0, 200, 70), width=2)
         
     for p in projected:
-        d.ellipse([p[0] - 2, p[1] - 2, p[0] + 2, p[1] + 2], fill=(0, 255, 120))
+        d.ellipse([p[0] - 4, p[1] - 4, p[0] + 4, p[1] + 4], fill=(0, 255, 120))
         
-    img.paste(overlay, (0, 0), mask)
     return img
 
 
@@ -926,14 +1216,14 @@ def _render_bouncing_cog_frame(bezel, mask, now):
     if not _bc_dx:
         _init_bouncing_cog()
         
-    min_x, max_x = 70, 170
-    min_y, max_y = 70, 170
+    min_x, max_x = 10, 230
+    min_y, max_y = 10, 230
     
     _bc_x += _bc_dx
     _bc_y += _bc_dy
-    _bc_angle = (_bc_angle + 3.0) % 360
+    _bc_angle = (_bc_angle + 2.0) % 360
     
-    r_cog = 10
+    r_cog = 25
     if _bc_x <= min_x + r_cog:
         _bc_x = min_x + r_cog
         _bc_dx = -_bc_dx
@@ -949,36 +1239,32 @@ def _render_bouncing_cog_frame(bezel, mask, now):
         _bc_dy = -_bc_dy
 
     from PIL import Image, ImageDraw
-    img = bezel.copy()
-    overlay = Image.new("RGB", (240, 240), (0, 10, 5))
-    d = ImageDraw.Draw(overlay)
+    img = Image.new("RGB", (240, 240), (0, 10, 5))
+    d = ImageDraw.Draw(img)
     
-    d.rectangle([min_x, min_y, max_x, max_y], outline=(0, 60, 20), width=1)
+    d.rectangle([min_x, min_y, max_x, max_y], outline=(0, 45, 15), width=1)
     
     cx, cy = _bc_x, _bc_y
-    num_teeth = 8
-    teeth_r = r_cog + 3
+    num_teeth = 10
+    teeth_r = r_cog + 6
     for i in range(num_teeth):
         a = math.radians(_bc_angle + i * (360 / num_teeth))
         tx = cx + teeth_r * math.cos(a)
         ty = cy + teeth_r * math.sin(a)
-        d.line([(cx, cy), (tx, ty)], fill=(0, 220, 80), width=2)
+        d.line([(cx, cy), (tx, ty)], fill=(0, 220, 80), width=3)
         
     d.ellipse([cx - r_cog, cy - r_cog, cx + r_cog, cy + r_cog], fill=(0, 220, 80))
-    d.ellipse([cx - r_cog + 3, cy - r_cog + 3, cx + r_cog - 3, cy + r_cog - 3], fill=(0, 10, 5))
-    
-    img.paste(overlay, (0, 0), mask)
+    d.ellipse([cx - r_cog + 8, cy - r_cog + 8, cx + r_cog - 8, cy + r_cog - 8], fill=(0, 10, 5))
     return img
 
 
 def _render_fractal_tree_frame(bezel, mask, now):
     from PIL import Image, ImageDraw
-    img = bezel.copy()
-    overlay = Image.new("RGB", (240, 240), (0, 10, 4))
-    d = ImageDraw.Draw(overlay)
+    img = Image.new("RGB", (240, 240), (0, 10, 4))
+    d = ImageDraw.Draw(img)
     
-    max_depth = 5
-    branch_angle = 15.0 + 10.0 * math.sin(now * 2.0)
+    max_depth = 6
+    branch_angle = 18.0 + 8.0 * math.sin(now * 2.0)
     
     def draw_branch(x1, y1, angle_deg, length, depth):
         if depth > max_depth:
@@ -987,26 +1273,23 @@ def _render_fractal_tree_frame(bezel, mask, now):
         x2 = x1 + length * math.cos(rad)
         y2 = y1 - length * math.sin(rad)
         
-        green_val = int(240 - depth * 35)
-        d.line([(x1, y1), (x2, y2)], fill=(0, green_val, 40), width=max(1, 4 - depth))
+        green_val = int(255 - depth * 30)
+        d.line([(x1, y1), (x2, y2)], fill=(0, green_val, 40), width=max(1, 6 - depth))
         
-        next_len = length * 0.75
+        next_len = length * 0.76
         draw_branch(x2, y2, angle_deg - branch_angle, next_len, depth + 1)
         draw_branch(x2, y2, angle_deg + branch_angle, next_len, depth + 1)
         
-    d.rectangle([70, 70, 170, 170], outline=(0, 60, 20), width=1)
-    draw_branch(120, 160, 90.0, 24.0, 1)
-    img.paste(overlay, (0, 0), mask)
+    draw_branch(120, 230, 90.0, 50.0, 1)
     return img
 
 
 def _render_hud_status_frame(bezel, mask, now):
     from PIL import Image, ImageDraw, ImageFont
-    img = bezel.copy()
-    overlay = Image.new("RGB", (240, 240), (0, 10, 5))
-    d = ImageDraw.Draw(overlay)
+    img = Image.new("RGB", (240, 240), (0, 10, 5))
+    d = ImageDraw.Draw(img)
     
-    d.rectangle([70, 70, 170, 170], outline=(0, 80, 30), width=1)
+    d.rectangle([10, 10, 230, 230], outline=(0, 80, 30), width=2)
     
     import datetime
     t_str = datetime.datetime.now().strftime("%H:%M:%S")
@@ -1017,20 +1300,18 @@ def _render_hud_status_frame(bezel, mask, now):
         font = None
         
     if font:
-        d.text((88, 78), t_str, fill=(0, 240, 80), font=font)
-        d.text((78, 102), "CPU LOAD", fill=(0, 150, 50), font=font)
-        d.text((78, 122), "MEM COG", fill=(0, 150, 50), font=font)
-        d.text((78, 142), "VOX NET", fill=(0, 150, 50), font=font)
+        d.text((88, 30), t_str, fill=(0, 255, 100), font=font)
+        d.text((35, 80), "CPU LOAD", fill=(0, 160, 50), font=font)
+        d.text((35, 120), "MEM COG", fill=(0, 160, 50), font=font)
+        d.text((35, 160), "VOX NET", fill=(0, 160, 50), font=font)
         
-    cpu_w = 40.0 * (0.5 + 0.3 * math.sin(now * 3.0) + 0.2 * math.cos(now * 7.5))
-    mem_w = 40.0 * (0.7 + 0.1 * math.sin(now * 0.5))
-    vox_w = 40.0 * (0.4 + 0.4 * math.sin(now * 12.0) * math.sin(now * 1.5))
+    cpu_w = 90.0 * (0.5 + 0.3 * math.sin(now * 3.0) + 0.2 * math.cos(now * 7.5))
+    mem_w = 90.0 * (0.7 + 0.1 * math.sin(now * 0.5))
+    vox_w = 90.0 * (0.4 + 0.4 * math.sin(now * 12.0) * math.sin(now * 1.5))
     
-    d.rectangle([130, 104, 130 + int(cpu_w), 108], fill=(0, 200, 70))
-    d.rectangle([130, 124, 130 + int(mem_w), 128], fill=(0, 200, 70))
-    d.rectangle([130, 144, 130 + int(vox_w), 148], fill=(0, 200, 70))
-    
-    img.paste(overlay, (0, 0), mask)
+    d.rectangle([110, 82, 110 + int(cpu_w), 90], fill=(0, 220, 80))
+    d.rectangle([110, 122, 110 + int(mem_w), 130], fill=(0, 220, 80))
+    d.rectangle([110, 162, 110 + int(vox_w), 170], fill=(0, 220, 80))
     return img
 
 
@@ -1040,15 +1321,14 @@ def _render_orbitals_frame(bezel, mask, now):
         _init_orbitals()
         
     from PIL import Image, ImageDraw
-    img = bezel.copy()
-    overlay = Image.new("RGB", (240, 240), (0, 10, 4))
-    d = ImageDraw.Draw(overlay)
+    img = Image.new("RGB", (240, 240), (0, 10, 4))
+    d = ImageDraw.Draw(img)
     
-    d.ellipse([117, 117, 123, 123], fill=(0, 255, 120))
-    d.rectangle([70, 70, 170, 170], outline=(0, 60, 20), width=1)
+    d.ellipse([115, 115, 125, 125], fill=(0, 255, 120))
     
     for blip in _orbital_particles:
-        rx, ry = blip["radius_x"], blip["radius_y"]
+        rx = blip["radius_x"] * 2.2
+        ry = blip["radius_y"] * 2.2
         angle = now * blip["speed"]
         
         x_local = rx * math.cos(angle)
@@ -1063,7 +1343,7 @@ def _render_orbitals_frame(bezel, mask, now):
         py = 120.0 + y_rot
         
         orbit_pts = []
-        for a_step in range(0, 360, 15):
+        for a_step in range(0, 360, 10):
             rad = math.radians(a_step)
             xl = rx * math.cos(rad)
             yl = ry * math.sin(rad)
@@ -1072,9 +1352,8 @@ def _render_orbitals_frame(bezel, mask, now):
             orbit_pts.append((xr, yr))
         d.polygon(orbit_pts, outline=(0, 60, 20), width=1)
         
-        d.ellipse([px - 3, py - 3, px + 3, py + 3], fill=(0, 240, 90))
+        d.ellipse([px - 4, py - 4, px + 4, py + 4], fill=(0, 240, 90))
         
-    img.paste(overlay, (0, 0), mask)
     return img
 
 
@@ -1085,392 +1364,32 @@ def _render_spectrum_bars_frame(bezel, mask, now):
         
     if now - _spectrum_last_update > 0.15:
         _spectrum_last_update = now
-        _spectrum_targets = [random.uniform(3, 40) for _ in range(8)]
+        _spectrum_targets = [random.uniform(10, 160) for _ in range(12)]
         
-    for i in range(8):
+    if len(_spectrum_heights) != 12:
+        _spectrum_heights = [random.uniform(10, 160) for _ in range(12)]
+        
+    for i in range(12):
         _spectrum_heights[i] += (_spectrum_targets[i] - _spectrum_heights[i]) * 0.35
         
     from PIL import Image, ImageDraw
-    img = bezel.copy()
-    overlay = Image.new("RGB", (240, 240), (0, 10, 4))
-    d = ImageDraw.Draw(overlay)
+    img = Image.new("RGB", (240, 240), (0, 10, 4))
+    d = ImageDraw.Draw(img)
     
-    start_x = 78
-    for i in range(8):
+    start_x = 14
+    for i in range(12):
         h = int(_spectrum_heights[i])
-        bx1 = start_x + i * 11
-        bx2 = bx1 + 8
-        by2 = 165
+        bx1 = start_x + i * 18
+        bx2 = bx1 + 14
+        by2 = 220
         by1 = by2 - h
         
-        for sy in range(by2, by1 - 1, -4):
-            d.rectangle([bx1, sy - 2, bx2, sy], fill=(0, 230, 80))
+        for sy in range(by2, by1 - 1, -6):
+            d.rectangle([bx1, sy - 4, bx2, sy], fill=(0, 230, 80))
             
-    d.rectangle([70, 70, 170, 170], outline=(0, 60, 20), width=1)
-    img.paste(overlay, (0, 0), mask)
     return img
 
 
-def _init_canticle_rain():
-    global _rain_cols
-    _rain_cols = []
-    for x in range(72, 169, 10):
-        _rain_cols.append({
-            "x": x,
-            "y": random.uniform(70, 170),
-            "speed": random.uniform(1.5, 3.5),
-            "chars": [random.choice(["0", "1"]) for _ in range(8)]
-        })
-
-
-def _init_starfield():
-    global _starfield_stars
-    _starfield_stars = []
-    for _ in range(40):
-        _starfield_stars.append({
-            "x": random.uniform(-100, 100),
-            "y": random.uniform(-100, 100),
-            "z": random.uniform(1, 200)
-        })
-
-
-def _init_game_of_life():
-    global _gol_grid, _gol_last_grids
-    _gol_grid = [[1 if random.random() < 0.25 else 0 for _ in range(20)] for _ in range(20)]
-    _gol_last_grids = []
-
-
-def _init_radar():
-    global _radar_blips
-    _radar_blips = []
-    for _ in range(4):
-        _radar_blips.append({
-            "angle": random.uniform(0, 2 * math.pi),
-            "dist": random.uniform(15, 48),
-            "intensity": 0.0,
-            "type": random.choice(["dot", "cross"])
-        })
-
-
-def _render_canticle_rain_frame(bezel, mask, now):
-    global _rain_cols
-    if not _rain_cols:
-        _init_canticle_rain()
-        
-    from PIL import Image, ImageDraw, ImageFont
-    img = bezel.copy()
-    overlay = Image.new("RGB", (240, 240), (0, 8, 3))
-    d = ImageDraw.Draw(overlay)
-    
-    min_y, max_y = 70, 170
-    try:
-        font = ImageFont.load_default()
-    except Exception:
-        font = None
-        
-    for col in _rain_cols:
-        col["y"] += col["speed"]
-        if col["y"] > max_y + 40:
-            col["y"] = min_y
-            col["speed"] = random.uniform(1.5, 3.5)
-            
-        y_pos = col["y"]
-        for idx, char in enumerate(col["chars"]):
-            cy = y_pos - idx * 10
-            if min_y <= cy <= max_y:
-                if idx == 0:
-                    fill = (100, 255, 150)
-                else:
-                    alpha = max(0, 255 - idx * 30)
-                    fill = (0, int(alpha * 0.8), int(alpha * 0.2))
-                    
-                if random.random() < 0.05:
-                    col["chars"][idx] = random.choice(["0", "1"])
-                    
-                if font:
-                    d.text((col["x"], cy), char, fill=fill, font=font)
-                else:
-                    d.rectangle([col["x"], cy, col["x"] + 4, cy + 6], fill=fill)
-                    
-    img.paste(overlay, (0, 0), mask)
-    return img
-
-
-def _render_starfield_frame(bezel, mask, now):
-    global _starfield_stars
-    if not _starfield_stars:
-        _init_starfield()
-        
-    from PIL import Image, ImageDraw
-    img = bezel.copy()
-    overlay = Image.new("RGB", (240, 240), (0, 5, 2))
-    d = ImageDraw.Draw(overlay)
-    
-    for star in _starfield_stars:
-        star["z"] -= 3.0
-        if star["z"] <= 1.0:
-            star["x"] = random.uniform(-100, 100)
-            star["y"] = random.uniform(-100, 100)
-            star["z"] = 200.0
-            
-        f_scale = 75.0
-        px = (star["x"] / star["z"]) * f_scale + 120.0
-        py = (star["y"] / star["z"]) * f_scale + 120.0
-        
-        dist = math.hypot(px - 120.0, py - 120.0)
-        if dist < 70.0:
-            brightness = int(255 * (1.0 - star["z"] / 200.0))
-            r = 1 if star["z"] > 100 else (2 if star["z"] > 40 else 3)
-            d.ellipse([px - r, py - r, px + r, py + r], fill=(0, brightness, int(brightness * 0.4)))
-            
-    img.paste(overlay, (0, 0), mask)
-    return img
-
-
-def _render_oscilloscope_frame(bezel, mask, now):
-    from PIL import Image, ImageDraw
-    img = bezel.copy()
-    overlay = Image.new("RGB", (240, 240), (0, 10, 5))
-    d = ImageDraw.Draw(overlay)
-    
-    min_x, max_x = 70, 170
-    d.line([(min_x, 120), (max_x, 120)], fill=(0, 60, 20), width=1)
-    
-    pts = []
-    pts_bg1 = []
-    pts_bg2 = []
-    
-    for x in range(min_x, max_x + 1):
-        t = (x - min_x) * 0.08
-        y = 120.0 + 22.0 * math.sin(t + now * 6.0) * math.cos(now * 1.5)
-        y += 4.0 * math.sin(t * 5.0 - now * 12.0)
-        pts.append((x, int(y)))
-        
-        y_bg1 = 120.0 + 15.0 * math.sin(t * 1.5 - now * 3.0)
-        pts_bg1.append((x, int(y_bg1)))
-        
-        y_bg2 = 120.0 + 10.0 * math.cos(t * 2.5 + now * 4.5)
-        pts_bg2.append((x, int(y_bg2)))
-        
-    d.line(pts_bg1, fill=(0, 70, 25), width=1)
-    d.line(pts_bg2, fill=(0, 60, 20), width=1)
-    d.line(pts, fill=(0, 240, 90), width=2)
-    
-    for tick_x in range(min_x + 10, max_x, 20):
-        d.line([(tick_x, 117), (tick_x, 123)], fill=(0, 100, 35), width=1)
-        
-    img.paste(overlay, (0, 0), mask)
-    return img
-
-
-def _render_game_of_life_frame(bezel, mask, now):
-    global _gol_grid, _gol_last_grids
-    if _gol_grid is None:
-        _init_game_of_life()
-        
-    frame_step = int(now * 8)
-    if not hasattr(_render_game_of_life_frame, "last_step"):
-        _render_game_of_life_frame.last_step = 0
-        
-    if frame_step != _render_game_of_life_frame.last_step:
-        _render_game_of_life_frame.last_step = frame_step
-        
-        next_grid = [[0 for _ in range(20)] for _ in range(20)]
-        for r in range(20):
-            for c in range(20):
-                neighbors = 0
-                for dr in (-1, 0, 1):
-                    for dc in (-1, 0, 1):
-                        if dr == 0 and dc == 0:
-                            continue
-                        nr, nc = (r + dr) % 20, (c + dc) % 20
-                        neighbors += _gol_grid[nr][nc]
-                        
-                if _gol_grid[r][c] == 1:
-                    next_grid[r][c] = 1 if neighbors in (2, 3) else 0
-                else:
-                    next_grid[r][c] = 1 if neighbors == 3 else 0
-                    
-        grid_flat = [cell for row in next_grid for cell in row]
-        if sum(grid_flat) < 5 or next_grid in _gol_last_grids:
-            _init_game_of_life()
-        else:
-            _gol_last_grids.append(_gol_grid)
-            if len(_gol_last_grids) > 6:
-                _gol_last_grids.pop(0)
-            _gol_grid = next_grid
-
-    from PIL import Image, ImageDraw
-    img = bezel.copy()
-    overlay = Image.new("RGB", (240, 240), (0, 8, 3))
-    d = ImageDraw.Draw(overlay)
-    
-    for r in range(20):
-        for c in range(20):
-            if _gol_grid[r][c] == 1:
-                cx = 70 + c * 5
-                cy = 70 + r * 5
-                d.rectangle([cx, cy, cx + 4, cy + 4], fill=(0, 220, 70))
-                
-    d.rectangle([70, 70, 170, 170], outline=(0, 80, 30), width=1)
-    img.paste(overlay, (0, 0), mask)
-    return img
-
-
-def _render_radar_frame(bezel, mask, now):
-    global _radar_blips
-    if not _radar_blips:
-        _init_radar()
-        
-    from PIL import Image, ImageDraw
-    img = bezel.copy()
-    overlay = Image.new("RGB", (240, 240), (0, 12, 4))
-    d = ImageDraw.Draw(overlay)
-    
-    sweep_angle = (now * 2.2) % (2 * math.pi)
-    
-    for r in (15, 30, 45):
-        d.ellipse([120 - r, 120 - r, 120 + r, 120 + r], outline=(0, 80, 25), width=1)
-        
-    d.line([(120 - 48, 120), (120 + 48, 120)], fill=(0, 60, 20), width=1)
-    d.line([(120, 120 - 48), (120, 120 + 48)], fill=(0, 60, 20), width=1)
-    
-    for blip in _radar_blips:
-        angle_diff = (sweep_angle - blip["angle"]) % (2 * math.pi)
-        if angle_diff < 0.08:
-            blip["intensity"] = 1.0
-        else:
-            blip["intensity"] = max(0.0, blip["intensity"] - 0.015)
-            
-        if blip["intensity"] > 0.01:
-            bx = 120 + blip["dist"] * math.cos(blip["angle"])
-            by = 120 + blip["dist"] * math.sin(blip["angle"])
-            color_val = int(255 * blip["intensity"])
-            
-            if blip["type"] == "cross":
-                d.line([(bx - 3, by), (bx + 3, by)], fill=(0, color_val, int(color_val * 0.3)), width=1)
-                d.line([(bx, by - 3), (bx, by + 3)], fill=(0, color_val, int(color_val * 0.3)), width=1)
-            else:
-                d.ellipse([bx - 2, by - 2, bx + 2, by + 2], fill=(0, color_val, int(color_val * 0.4)))
-                
-        if random.random() < 0.002:
-            blip["angle"] = random.uniform(0, 2 * math.pi)
-            blip["dist"] = random.uniform(15, 48)
-            blip["intensity"] = 0.0
-            
-    for trail in range(8):
-        alpha_factor = (8 - trail) / 8.0
-        sa = sweep_angle - trail * 0.04
-        sx = 120 + 48 * math.cos(sa)
-        sy = 120 + 48 * math.sin(sa)
-        color = (0, int(220 * alpha_factor), int(80 * alpha_factor))
-        d.line([(120, 120), (sx, sy)], fill=color, width=1 if trail > 0 else 2)
-        
-    img.paste(overlay, (0, 0), mask)
-    return img
-
-
-def _render_pong_frame(bezel, mask, now):
-    global _pong_ball_x, _pong_ball_y, _pong_ball_dx, _pong_ball_dy
-    global _pong_paddle_l_y, _pong_paddle_r_y, _pong_score_l, _pong_score_r
-    
-    # Bounding box inside the 73-radius circular pupil area (100x100 square)
-    min_x, max_x = 70, 170
-    min_y, max_y = 70, 170
-    
-    # Move ball
-    _pong_ball_x += _pong_ball_dx
-    _pong_ball_y += _pong_ball_dy
-    
-    # Ball vertical bounce (top/bottom walls)
-    if _pong_ball_y <= min_y + 3:
-        _pong_ball_y = min_y + 3
-        _pong_ball_dy = -_pong_ball_dy
-    elif _pong_ball_y >= max_y - 3:
-        _pong_ball_y = max_y - 3
-        _pong_ball_dy = -_pong_ball_dy
-        
-    # AI Paddle movement (chase ball Y with speed limit)
-    # Left Paddle
-    paddle_speed = 1.8
-    if _pong_paddle_l_y < _pong_ball_y:
-        _pong_paddle_l_y = min(max_y - 12, _pong_paddle_l_y + paddle_speed)
-    elif _pong_paddle_l_y > _pong_ball_y:
-        _pong_paddle_l_y = max(min_y + 12, _pong_paddle_l_y - paddle_speed)
-        
-    # Right Paddle (make it slightly imperfect to allow scoring/dynamic games)
-    if _pong_paddle_r_y < _pong_ball_y:
-        _pong_paddle_r_y = min(max_y - 12, _pong_paddle_r_y + paddle_speed)
-    elif _pong_paddle_r_y > _pong_ball_y:
-        _pong_paddle_r_y = max(min_y + 12, _pong_paddle_r_y - paddle_speed)
-        
-    # Check left paddle bounce
-    # Left paddle is at X = 78, width = 2, height = 24
-    if _pong_ball_x <= 81:
-        if _pong_paddle_l_y - 14 <= _pong_ball_y <= _pong_paddle_l_y + 14:
-            _pong_ball_x = 81
-            _pong_ball_dx = -_pong_ball_dx
-            # Adjust bounce angle depending on hit location
-            offset = (_pong_ball_y - _pong_paddle_l_y) / 14.0
-            _pong_ball_dy = offset * 2.0 + random.uniform(-0.2, 0.2)
-        elif _pong_ball_x < min_x:
-            # Score for Right
-            _pong_score_r += 1
-            # Reset ball
-            _pong_ball_x = 120.0
-            _pong_ball_y = 120.0
-            _pong_ball_dx = 2.0 if random.choice([True, False]) else -2.0
-            _pong_ball_dy = random.uniform(-1.0, 1.0)
-            
-    # Check right paddle bounce
-    # Right paddle is at X = 160, width = 2, height = 24
-    elif _pong_ball_x >= 159:
-        if _pong_paddle_r_y - 14 <= _pong_ball_y <= _pong_paddle_r_y + 14:
-            _pong_ball_x = 159
-            _pong_ball_dx = -_pong_ball_dx
-            offset = (_pong_ball_y - _pong_paddle_r_y) / 14.0
-            _pong_ball_dy = offset * 2.0 + random.uniform(-0.2, 0.2)
-        elif _pong_ball_x > max_x:
-            # Score for Left
-            _pong_score_l += 1
-            # Reset ball
-            _pong_ball_x = 120.0
-            _pong_ball_y = 120.0
-            _pong_ball_dx = -2.0 if random.choice([True, False]) else 2.0
-            _pong_ball_dy = random.uniform(-1.0, 1.0)
-
-    # Render image
-    from PIL import Image, ImageDraw, ImageFont
-    img = bezel.copy()
-    overlay = Image.new("RGB", (240, 240), (0, 10, 5))  # deep tactical green background
-    d = ImageDraw.Draw(overlay)
-    
-    # Draw field boundary box
-    d.rectangle([min_x, min_y, max_x, max_y], outline=(0, 120, 40), width=1)
-    
-    # Draw center line (dotted)
-    for y_coord in range(min_y + 4, max_y, 8):
-        d.line([(120, y_coord), (120, y_coord + 4)], fill=(0, 120, 40), width=1)
-        
-    # Draw scores - offset them inside the box!
-    # Bounding box is [70, 170]. Let's draw scores at Y = 80!
-    try:
-        font = ImageFont.load_default()
-        d.text((105, 80), str(_pong_score_l), fill=(0, 200, 70), font=font)
-        d.text((128, 80), str(_pong_score_r), fill=(0, 200, 70), font=font)
-    except Exception:
-        pass
-        
-    # Draw paddles
-    d.rectangle([78, _pong_paddle_l_y - 12, 80, _pong_paddle_l_y + 12], fill=(0, 230, 80))
-    d.rectangle([160, _pong_paddle_r_y - 12, 162, _pong_paddle_r_y + 12], fill=(0, 230, 80))
-    
-    # Draw ball (circle size 6)
-    d.ellipse([_pong_ball_x - 3, _pong_ball_y - 3, _pong_ball_x + 3, _pong_ball_y + 3], fill=(0, 255, 100))
-    
-    # Paste overlay inside the pupil area
-    img.paste(overlay, (0, 0), mask)
-    return img
 
 
 def _loop():
