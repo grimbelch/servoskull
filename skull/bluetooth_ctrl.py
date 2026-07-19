@@ -103,9 +103,9 @@ def connect(mac: str) -> bool:
             stderr=subprocess.DEVNULL,
             text=True,
         )
-        proc.stdin.write(f"power on\nconnect {mac}\n")
+        proc.stdin.write(f"power on\nagent on\ndefault-agent\nunblock {mac}\ntrust {mac}\npair {mac}\nconnect {mac}\n")
         proc.stdin.flush()
-        time.sleep(8)
+        time.sleep(10)
         proc.stdin.write("quit\n")
         proc.stdin.flush()
 
@@ -140,7 +140,7 @@ def _route_audio(mac: str, local_device_idx: int) -> None:
     """
     time.sleep(2)  # give the sink a moment to register
 
-    mac_under = mac.replace(":", "_")
+    mac_under = mac.replace(":", "_").lower()
     try:
         sinks = subprocess.run(
             ["pactl", "list", "short", "sinks"],
@@ -148,7 +148,8 @@ def _route_audio(mac: str, local_device_idx: int) -> None:
         ).stdout
         sink_name = None
         for line in sinks.splitlines():
-            if mac_under in line or "bluez" in line.lower():
+            line_lower = line.lower()
+            if mac_under in line_lower or "bluez" in line_lower:
                 sink_name = line.split()[1]
                 break
 
