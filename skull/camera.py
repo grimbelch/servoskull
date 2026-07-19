@@ -27,6 +27,9 @@ _observation_queue: queue.Queue = queue.Queue()
 _last_observation_time: float = 0.0
 _call_times: list[float] = []  # timestamps of recent vision calls (rolling hour)
 
+_read_frame_fn = None
+_camera_lock = threading.Lock()
+
 
 def _is_blank(gray) -> bool:
     """True if the frame is too dark or too uniform to be worth describing.
@@ -54,6 +57,7 @@ def _rate_limited() -> bool:
         return True
     _call_times.append(now)
     return False
+
 
 _VISION_PROMPT = (
     "You have just sensed someone or something nearby and captured this image. "
@@ -137,7 +141,8 @@ def _capture_and_observe(read, reason: str) -> None:
     blank/rate-limited trigger still resets it and we don't hammer the sensor.
     """
     import cv2
-    frame = read()
+    with _camera_lock:
+        frame = read()
     if frame is None:
         return
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -175,14 +180,16 @@ def _motion_trigger_loop(read) -> None:
     import numpy as np
 
     print("[camera] Motion-triggered vision active (frame differencing)")
-    frame = read()
+    with _camera_lock:
+        frame = read()
     if frame is None:
         return
     prev_gray = cv2.GaussianBlur(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), (21, 21), 0)
 
     while True:
         time.sleep(0.1)
-        frame = read()
+        with _camera_lock:
+            frame = read()
         if frame is None:
             continue
 
@@ -200,16 +207,19 @@ def _motion_trigger_loop(read) -> None:
 
 
 def _vision_loop() -> None:
+    global _read_frame_fn
     backend = _open_backend()
     if backend is None:
         return
     read, close = backend
+    _read_frame_fn = read
     try:
         if proximity.start():
             _proximity_trigger_loop(read)
         else:
             _motion_trigger_loop(read)
     finally:
+        _read_frame_fn = None
         close()
         proximity.stop()
 
@@ -227,3 +237,48 @@ def get_observation() -> str | None:
         return _observation_queue.get_nowait()
     except queue.Empty:
         return None
+
+
+def capture_on_demand() -> str:
+    """Capture a single frame using the active camera backend and describe it."""
+    if not config.CAMERA_ENABLED:
+        return "Camera interface is disabled in configuration."
+    
+    # If the background loop is not running, open/close the backend on-demand
+    if _read_frame_fn is None:
+        backend = _open_backend()
+        if backend is None:
+            return "No camera backend could be initialized."
+        read, close = backend
+        try:
+            import cv2
+            from skull import display as _display
+            _display.set_targeting(True)
+            frame = read()
+            if frame is None:
+                return "Failed to capture frame from camera."
+            _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
+            desc = _ask_vision(buf.tobytes())
+            return desc
+        except Exception as e:
+            return f"Failed to capture or describe image: {e}"
+        finally:
+            _display.set_targeting(False)
+            close()
+            
+    # If the background loop is already running, share its reader using the lock
+    import cv2
+    from skull import display as _display
+    _display.set_targeting(True)
+    try:
+        with _camera_lock:
+            frame = _read_frame_fn()
+        if frame is None:
+            return "Failed to capture frame from camera."
+        _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
+        desc = _ask_vision(buf.tobytes())
+        return desc
+    except Exception as e:
+        return f"Failed to capture or describe image: {e}"
+    finally:
+        _display.set_targeting(False)
