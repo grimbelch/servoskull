@@ -19,7 +19,7 @@ _history: list[dict] = []
 
 # Tools that hit the network/hardware and can take a noticeable moment. Omega-7
 # speaks a short "stand by" before running any of these so the user gets feedback.
-_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan"}
+_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art"}
 _HISTORY_PATH = config.data_path(config.HISTORY_FILE)
 
 
@@ -693,6 +693,20 @@ _TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {}
+        }
+    },
+    {
+        "name": "display_art",
+        "description": "Search the web for Warhammer 40k or Necromunda artwork matching the query, download it, and project/display it on the skull's eye display screen.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "search_query": {
+                    "type": "string",
+                    "description": "Specific search query for the artwork, e.g. 'Space Marine', 'Sister of Battle', 'Necromunda Escher gang'."
+                }
+            },
+            "required": ["search_query"]
         }
     }
 ]
@@ -1742,7 +1756,64 @@ def _execute_tool(name: str, tool_input: dict) -> str:
         if _SHUTDOWN_CB:
             return _SHUTDOWN_CB()
         return "Shutdown callback not registered."
+    if name == "display_art":
+        search_query = tool_input.get("search_query", "")
+        return _execute_display_art(search_query)
     return f"Unknown tool: {name}"
+
+
+def _execute_display_art(search_query: str) -> str:
+    try:
+        import requests
+        import xml.etree.ElementTree as ET
+        import random
+        from io import BytesIO
+        from PIL import Image
+        from skull import display
+        
+        # 1. Search DeviantArt RSS feed
+        url = f"https://backend.deviantart.com/rss.xml?q={requests.utils.quote(search_query)}"
+        r = requests.get(url, timeout=5.0)
+        if r.status_code != 200:
+            return f"Failed to query DeviantArt RSS API: status code {r.status_code}"
+            
+        root = ET.fromstring(r.content)
+        ns = {'media': 'http://search.yahoo.com/mrss/'}
+        items = root.findall('.//item')
+        if not items:
+            return f"No artwork found matching query: {search_query}"
+            
+        # Select one of the first 5 items to give some variety
+        choices = items[:5]
+        item = random.choice(choices)
+        
+        title = item.find('title').text
+        media = item.find('.//media:content', ns)
+        if media is None:
+            for alt_item in items:
+                media = alt_item.find('.//media:content', ns)
+                if media is not None:
+                    title = alt_item.find('title').text
+                    break
+                    
+        if media is None:
+            return "No image media links found in the search results."
+            
+        img_url = media.get('url')
+        
+        # 2. Download the image
+        img_res = requests.get(img_url, timeout=5.0)
+        if img_res.status_code != 200:
+            return f"Failed to download image from {img_url}"
+            
+        # 3. Load and display
+        img = Image.open(BytesIO(img_res.content))
+        display.display_pil_image(img, duration=15.0)
+        return f"Successfully projected artwork: '{title}' on the eye display."
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return f"Error displaying artwork: {e}"
 
 
 _RELOAD_VOICE_CACHE_CB = None
