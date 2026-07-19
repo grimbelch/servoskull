@@ -686,6 +686,14 @@ _TOOLS = [
             "type": "object",
             "properties": {}
         }
+    },
+    {
+        "name": "shutdown_system",
+        "description": "Shutdown and power off the physical Host operating system (the Raspberry Pi hardware).",
+        "input_schema": {
+            "type": "object",
+            "properties": {}
+        }
     }
 ]
 
@@ -1730,12 +1738,17 @@ def _execute_tool(name: str, tool_input: dict) -> str:
         if _REBOOT_CB:
             return _REBOOT_CB()
         return "Reboot callback not registered."
+    if name == "shutdown_system":
+        if _SHUTDOWN_CB:
+            return _SHUTDOWN_CB()
+        return "Shutdown callback not registered."
     return f"Unknown tool: {name}"
 
 
 _RELOAD_VOICE_CACHE_CB = None
 _SELF_UPDATE_CB = None
 _REBOOT_CB = None
+_SHUTDOWN_CB = None
 
 
 def register_reload_cb(cb):
@@ -1751,6 +1764,11 @@ def register_update_cb(cb):
 def register_reboot_cb(cb):
     global _REBOOT_CB
     _REBOOT_CB = cb
+
+
+def register_shutdown_cb(cb):
+    global _SHUTDOWN_CB
+    _SHUTDOWN_CB = cb
 
 
 def respond(user_text: str, on_tool_use=None) -> tuple[str, list[tuple]]:

@@ -396,6 +396,17 @@ def reboot_system() -> str:
         return f"Failed to reboot system: {e}"
 
 
+def shutdown_system() -> str:
+    import subprocess
+    try:
+        print("[skull] Initiating full system shutdown...")
+        subprocess.Popen("sleep 1 && sudo poweroff", shell=True)
+        return "Initiating full system shutdown. Powering down all machine spirits."
+    except Exception as e:
+        print(f"[skull] Shutdown error: {e}")
+        return f"Failed to shutdown system: {e}"
+
+
 def _preload_phrases() -> None:
     global _wake_wavs, _cogitation_wavs, _search_wavs, _ack_wavs, _silence_wavs
     wake, cog, search, ack, silence = [], [], [], [], []
@@ -624,6 +635,7 @@ def main():
     brain.register_reload_cb(refresh_voice_cache)
     brain.register_update_cb(self_update)
     brain.register_reboot_cb(reboot_system)
+    brain.register_shutdown_cb(shutdown_system)
     eyes.setup(config.LED_PIN_LEFT, config.LED_PIN_CENTER, config.LED_PIN_RIGHT)
     candles.setup(config.CANDLE_PIN)
     candles.on()  # ambient — flicker for as long as the skull is powered
@@ -1108,6 +1120,16 @@ def main():
             except Exception:
                 pass
             reboot_system()
+            maintenance_handled = True
+        elif any(p in _t for p in ("shutdown", "shutdown system", "power down", "power off", "turn off", "shutdown yourself")):
+            print("[skull] Local shutdown intent detected.")
+            try:
+                speech_wav = tts.synthesize("Initiating system shutdown. Powering down all machine spirits.")
+                eyes.on()
+                _speak_interruptible(speech_wav, on_wake)
+            except Exception:
+                pass
+            shutdown_system()
             maintenance_handled = True
             
         if maintenance_handled:
