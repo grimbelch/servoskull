@@ -745,9 +745,7 @@ def _loop():
                 _custom_image = None
             else:
                 try:
-                    img = bezel.copy()
-                    img.paste(_custom_image, (0, 0), mask)
-                    _blit(img)
+                    _blit(_custom_image)
                 except Exception as e:
                     print(f"[display] custom image render error: {e}")
                 time.sleep(1 / 30)
