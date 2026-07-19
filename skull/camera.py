@@ -66,12 +66,16 @@ _VISION_PROMPT = (
 )
 
 
-def _ask_vision(jpeg_bytes: bytes) -> str:
+def _ask_vision(jpeg_bytes: bytes, detected_name: str | None = None) -> str:
     from skull import llm
-    return llm.vision(config.SYSTEM_PROMPT, jpeg_bytes, _VISION_PROMPT, max_tokens=150)
+    prompt = _VISION_PROMPT
+    if detected_name:
+        prompt = f"[Biometric Scanner: Detected visage of user '{detected_name}'] " + prompt
+    return llm.vision(config.SYSTEM_PROMPT, jpeg_bytes, prompt, max_tokens=150)
 
 
 def _run_observation(jpeg_bytes: bytes) -> None:
+    # Deprecated fallback since observations now run face_rec in main thread
     from skull import display as _display
     _display.set_targeting(True)
     try:
@@ -152,9 +156,25 @@ def _capture_and_observe(read, reason: str) -> None:
     if _rate_limited():
         print("[camera] Per-hour vision-call limit reached — skipping")
         return
-    print(f"[camera] {reason} — querying vision")
+
+    # Check biometrics
+    from skull import face_rec
+    detected_name = face_rec.recognize(frame)
+
+    print(f"[camera] {reason} — querying vision (biometrics: {detected_name})")
     _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
-    _run_observation(buf.tobytes())
+    
+    # Run vision
+    from skull import display as _display
+    _display.set_targeting(True)
+    try:
+        text = _ask_vision(buf.tobytes(), detected_name)
+        print(f"[camera] {text}")
+        _observation_queue.put(text)
+    except Exception as e:
+        print(f"[camera] Vision error: {e}")
+    finally:
+        _display.set_targeting(False)
 
 
 def _proximity_trigger_loop(read) -> None:
@@ -253,12 +273,15 @@ def capture_on_demand() -> str:
         try:
             import cv2
             from skull import display as _display
+            from skull import face_rec
             _display.set_targeting(True)
             frame = read()
             if frame is None:
                 return "Failed to capture frame from camera."
+            
+            detected_name = face_rec.recognize(frame)
             _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
-            desc = _ask_vision(buf.tobytes())
+            desc = _ask_vision(buf.tobytes(), detected_name)
             return desc
         except Exception as e:
             return f"Failed to capture or describe image: {e}"
@@ -269,16 +292,84 @@ def capture_on_demand() -> str:
     # If the background loop is already running, share its reader using the lock
     import cv2
     from skull import display as _display
+    from skull import face_rec
     _display.set_targeting(True)
     try:
         with _camera_lock:
             frame = _read_frame_fn()
         if frame is None:
             return "Failed to capture frame from camera."
+        
+        detected_name = face_rec.recognize(frame)
         _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
-        desc = _ask_vision(buf.tobytes())
+        desc = _ask_vision(buf.tobytes(), detected_name)
         return desc
     except Exception as e:
         return f"Failed to capture or describe image: {e}"
     finally:
         _display.set_targeting(False)
+
+
+def register_face(name: str) -> str:
+    """Capture a series of face images over 5 seconds to train face recognition."""
+    if not config.CAMERA_ENABLED:
+        return "Camera interface is disabled in configuration."
+    
+    # Check if reader is available
+    if _read_frame_fn is None:
+        backend = _open_backend()
+        if backend is None:
+            return "No camera backend could be initialized for visage calibration."
+        read, close = backend
+    else:
+        read = _read_frame_fn
+        close = None
+        
+    import cv2
+    from skull import display as _display
+    from skull import sfx
+    from skull import face_rec
+    
+    # Create directory for name
+    target_dir = face_rec.FACES_DIR / name
+    target_dir.mkdir(parents=True, exist_ok=True)
+    
+    print(f"[camera] Visage calibration started for: {name}")
+    captured_count = 0
+    
+    _display.set_targeting(True)
+    try:
+        # Capture 10 frames with 0.5s interval
+        for i in range(10):
+            time.sleep(0.5)
+            with _camera_lock:
+                frame = read()
+            if frame is None:
+                continue
+                
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            face_rect = face_rec.detect_face(gray)
+            if face_rect:
+                x, y_coord, w, h = face_rect
+                cropped = frame[y_coord : y_coord + h, x : x + w]
+                # Save cropped BGR face
+                face_path = target_dir / f"face_{captured_count}_{int(time.time())}.jpg"
+                cv2.imwrite(str(face_path), cropped)
+                captured_count += 1
+                
+                # Play audio indicator
+                sfx.play("servo_whir")
+                
+        if captured_count >= 5:
+            # Run training pipeline
+            train_msg = face_rec.train()
+            return f"Visage registered successfully. Captured {captured_count} facial frames. {train_msg}"
+        else:
+            return f"Visage calibration failed. Only captured {captured_count}/10 valid facial frames. Please ensure adequate lighting and align your face in front of my ocular sensor."
+            
+    except Exception as e:
+        return f"Visage registration failed due to error: {e}"
+    finally:
+        _display.set_targeting(False)
+        if close:
+            close()

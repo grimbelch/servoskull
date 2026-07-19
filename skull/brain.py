@@ -19,7 +19,7 @@ _history: list[dict] = []
 
 # Tools that hit the network/hardware and can take a noticeable moment. Omega-7
 # speaks a short "stand by" before running any of these so the user gets feedback.
-_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings"}
+_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings", "register_face"}
 _HISTORY_PATH = config.data_path(config.HISTORY_FILE)
 
 
@@ -715,6 +715,20 @@ _TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {}
+        }
+    },
+    {
+        "name": "register_face",
+        "description": "Capture a series of facial images over 5 seconds to train or update the local face recognition database for a specific user.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Name of the person being registered (e.g. 'Sean', 'Sarah')."
+                }
+            },
+            "required": ["name"]
         }
     }
 ]
@@ -1770,6 +1784,10 @@ def _execute_tool(name: str, tool_input: dict) -> str:
     if name == "capture_and_describe_surroundings":
         from skull import camera
         return camera.capture_on_demand()
+    if name == "register_face":
+        name_val = tool_input.get("name", "")
+        from skull import camera
+        return camera.register_face(name_val)
     return f"Unknown tool: {name}"
 
 
