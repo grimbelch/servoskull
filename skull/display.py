@@ -49,6 +49,7 @@ _custom_image_expiry = 0.0
 _last_activity_time = 0.0
 _active_idle_anim = None
 _custom_idle_expiry = 0.0
+_requested_idle_anim = None
 
 # Screensaver pools
 _screensaver_anims = ["pong", "canticle_rain", "starfield", "oscilloscope", "game_of_life", "radar"]
@@ -1065,7 +1066,7 @@ def _render_pong_frame(bezel, mask, now):
 
 def _loop():
     global _rolling_die, _showing_omnissiah_glyph, _showing_custom_image, _custom_image, _custom_image_expiry
-    global _last_activity_time, _active_idle_anim, _custom_idle_expiry
+    global _last_activity_time, _active_idle_anim, _custom_idle_expiry, _requested_idle_anim
     bezel = _make_bezel()
     mask = _make_iris_mask()
     shown = -1.0          # last amplitude actually drawn
@@ -1095,10 +1096,16 @@ def _loop():
             _last_activity_time = now
             _active_idle_anim = None
         else:
+            if now >= _custom_idle_expiry:
+                _requested_idle_anim = None
+
             # If idle and timeout reached or forced, run screensaver animation
             if (now - _last_activity_time >= config.DISPLAY_IDLE_TIMEOUT) or (now < _custom_idle_expiry):
                 if _active_idle_anim is None:
-                    _active_idle_anim = random.choice(_screensaver_anims)
+                    if _requested_idle_anim is not None:
+                        _active_idle_anim = _requested_idle_anim
+                    else:
+                        _active_idle_anim = random.choice(_screensaver_anims)
                     if _active_idle_anim == "pong":
                         global _pong_ball_x, _pong_ball_y, _pong_ball_dx, _pong_ball_dy
                         global _pong_score_l, _pong_score_r
