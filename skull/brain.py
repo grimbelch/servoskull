@@ -21,6 +21,11 @@ _history: list[dict] = []
 # speaks a short "stand by" before running any of these so the user gets feedback.
 _SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings", "register_face"}
 _HISTORY_PATH = config.data_path(config.HISTORY_FILE)
+_last_turn_tools: list[str] = []
+
+
+def last_turn_tools() -> list[str]:
+    return _last_turn_tools
 
 
 def _save_history() -> None:
@@ -1907,6 +1912,7 @@ def respond(user_text: str, on_tool_use=None) -> tuple[str, list[tuple]]:
     (see _SLOW_TOOLS) the instant Omega-7 is about to run them, so the caller can
     give the user immediate "stand by" feedback before the call blocks.
     """
+    global _last_turn_tools
     facts = _memory.load()
     longterm = _memory.load_longterm()
     now = datetime.now()
@@ -1939,6 +1945,7 @@ def respond(user_text: str, on_tool_use=None) -> tuple[str, list[tuple]]:
         slow_tools=_SLOW_TOOLS,
         max_tokens=800,
     )
+    _last_turn_tools = tools_called
 
     # Safety net: if the user clearly asked to enter/leave silent mode but the
     # model only acknowledged it verbally (haiku often skips the tool call),
