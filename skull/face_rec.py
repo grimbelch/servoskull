@@ -98,6 +98,10 @@ def train() -> str:
                         cropped = gray[y_coord : y_coord + h, x : x + w]
                         resized = cv2.resize(cropped, (64, 64))
                         face_images.append(resized)
+                    elif gray.shape[0] < 150 and gray.shape[1] < 150:
+                        # If image is already small, assume it is already a cropped face
+                        resized = cv2.resize(gray, (64, 64))
+                        face_images.append(resized)
 
         if face_images:
             labels.append(name)
