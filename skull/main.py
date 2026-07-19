@@ -1238,6 +1238,14 @@ def main():
             except Exception as e:
                 print(f"[skull] Command error: {e}")
 
+        # If play_idle_animation was called, suppress speaking response
+        if "play_idle_animation" in brain.last_turn_tools():
+            print("[skull] Suppressing verbal response for play_idle_animation command")
+            display.idle()
+            display.stop_noosphere_scan()
+            display.stop_auspex_scan()
+            continue
+
         # ── 5. Synthesize speech ───────────────────────────────────────────────
         tts_text = reply[:1200]  # cap chars (Piper is unlimited; guards ElevenLabs quota)
         try:
