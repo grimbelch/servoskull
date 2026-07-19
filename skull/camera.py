@@ -111,8 +111,7 @@ def _open_backend():
     print("[camera] Frame source: picamera2 / IMX708")
 
     def read():
-        rgb = picam2.capture_array()
-        bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+        bgr = picam2.capture_array()
         return cv2.rotate(bgr, cv2.ROTATE_90_COUNTERCLOCKWISE)
 
     def close():
