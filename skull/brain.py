@@ -2031,34 +2031,77 @@ _IDLE_SCOPES = _build_idle_scopes()
 
 
 def idle_utterance() -> str:
-    """Fetch a real news item, reinterpret it through a 40k lens, coloured by current mood."""
+    """Proactively generate an idle utterance.
+    
+    Can either search and reinterpret a real news item (50% chance) or
+    make a quick observation, ask the user a question, or engage in idle chat (50% chance).
+    """
     import random as _rand
-    scope = _rand.choice(_IDLE_SCOPES)
     bias = _mood.idle_bias()
-    print(f"[brain] Idle — scope: {scope!r}  mood bias: {_mood.get()}")
-    system = _IDLE_PROMPT + _mood.system_addendum()
-    user_text = (
-        f"Search for '{scope}' news and generate your idle utterance based on one story. "
-        f"Lean toward this type of delivery: {bias}."
-    )
-
-    def execute_tool(name: str, tool_input: dict) -> str:
-        if name == "news_search":
-            query = tool_input.get("query", scope)
-            print(f"[brain] Idle searching news: {query}")
-            return _search.news_search(query)
-        return ""
-
-    try:
-        text = _llm.run_conversation(
-            system=system,
-            history=[],
-            user_text=user_text,
-            tools=_IDLE_TOOLS,
-            execute_tool=execute_tool,
-            max_tokens=400,
+    
+    # 50% chance to do news, 50% to do quick observation / question / chat
+    do_news = _rand.choice([True, False])
+    
+    if do_news:
+        scope = _rand.choice(_IDLE_SCOPES)
+        print(f"[brain] Idle news scope: {scope!r}  mood bias: {_mood.get()}")
+        system = _IDLE_PROMPT + _mood.system_addendum()
+        user_text = (
+            f"Search for '{scope}' news and generate your idle utterance based on one story. "
+            f"Lean toward this type of delivery: {bias}."
         )
-        return (text or "").strip()
-    except Exception as e:
-        print(f"[brain] Idle utterance error: {e}")
-        return ""
+        
+        def execute_tool(name: str, tool_input: dict) -> str:
+            if name == "news_search":
+                query = tool_input.get("query", scope)
+                print(f"[brain] Idle searching news: {query}")
+                return _search.news_search(query)
+            return ""
+
+        try:
+            text = _llm.run_conversation(
+                system=system,
+                history=[],
+                user_text=user_text,
+                tools=_IDLE_TOOLS,
+                execute_tool=execute_tool,
+                max_tokens=400,
+            )
+            return (text or "").strip()
+        except Exception as e:
+            print(f"[brain] Idle news utterance error: {e}")
+            # Fall back to idle chat if news fails
+            do_news = False
+            
+    if not do_news:
+        print(f"[brain] Idle chat  mood bias: {_mood.get()}")
+        system_prompt = f"""\
+You are {config.SKULL_NAME}, an ancient Imperial servo-skull. Your duty is to occasionally speak, \
+maintaining an immersive Warhammer 40,000 atmosphere.
+Instead of reporting news, do ONE of the following:
+- Make a quick, proactive observation about the room, your own machine-spirit, the passing of time, or the state of the Imperium.
+- Ask the user (Sean) a probing, philosophical, or status-oriented question suited for a tech-priest or master of the household.
+- Engage in otherwise idle, contemplative, or mood-coloured chat (e.g. whispering prayers to the Omnissiah, commenting on your power reserves, complaining about organic limits, etc.).
+
+Keep the utterance very brief (1-2 sentences). 
+Speak in character. Output ONLY the spoken words. No asterisks, stage directions, or metadata."""
+        
+        system = system_prompt + _mood.system_addendum()
+        user_text = (
+            f"Generate a quick observation, question, or idle chat item. "
+            f"Lean toward this type of delivery: {bias}."
+        )
+        
+        try:
+            text = _llm.run_conversation(
+                system=system,
+                history=[],
+                user_text=user_text,
+                tools=[],
+                execute_tool=lambda n, i: "",
+                max_tokens=400,
+            )
+            return (text or "").strip()
+        except Exception as e:
+            print(f"[brain] Idle chat utterance error: {e}")
+            return "Ocular sensors online. Cogitators cycling within normal parameters, master."
