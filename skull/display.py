@@ -289,24 +289,6 @@ def _render_frame(bezel, mask, amp: float, angle: float = 0.0, blink: float = 0.
     disc(iris_r * 0.55, _scale(base, min(1.0, intensity * 1.4)))  # hot core
     disc(iris_r * 0.26, (8, 0, 0))                       # pupil
 
-    if _thinking:
-        # Draw falling vector binary matrix columns
-        cols = [-40, -24, -8, 8, 24, 40]
-        # Speed: 80 pixels per second
-        t_shift = (time.monotonic() * 80) % 200
-        for c_idx, dx in enumerate(cols):
-            x = _CX + dx
-            phase = c_idx * 37
-            for y_offset in range(-60, 60, 20):
-                y = _CY + ((y_offset + t_shift + phase) % 120) - 60
-                # Draw only inside the circular aperture (radius 70)
-                if dx*dx + (y - _CY)*(y - _CY) < 70*70:
-                    is_one = ((int(y) // 20) + c_idx) % 2 == 0
-                    if is_one:
-                        d.line([x, y - 5, x, y + 5], fill=_scale(base, 0.65), width=2)
-                    else:
-                        d.ellipse([x - 3, y - 5, x + 3, y + 5], outline=_scale(base, 0.65), width=1)
-
     if blink > 0.0:
         # Squash the iris layer vertically about centre — an eyelid closing to a
         # slit. Rebuild on black so the closed band reads as a dark lid.
