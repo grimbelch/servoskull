@@ -679,6 +679,7 @@ def main():
         display.idle()
 
     skip_wake_word = False
+    skip_ack = False
     _IDLE_MIN, _IDLE_MAX = 5 * 60, 10 * 60  # seconds
 
     while True:
@@ -752,23 +753,30 @@ def main():
         if skip_wake_word:
             skip_wake_word = False
             on_wake()
-            ack = random.choice([
-                "Ah, yes?",
-                "Speak.",
-                "Yes?",
-                "Proceed.",
-                "Command me.",
-                "Why must you interrupt me?",
-                f"Again you interrupt {config.SKULL_NAME}?",
-                "This had better be important.",
-                "Insufferable. What is it?",
-            ])
-            _barge_wav = None
-            try:
-                _barge_wav = tts.synthesize(ack)
-            except Exception:
-                pass
+            if skip_ack:
+                skip_ack = False
+                _barge_wav = None
+                play_ack_sound = False
+            else:
+                ack = random.choice([
+                    "Ah, yes?",
+                    "Speak.",
+                    "Yes?",
+                    "Proceed.",
+                    "Command me.",
+                    "Why must you interrupt me?",
+                    f"Again you interrupt {config.SKULL_NAME}?",
+                    "This had better be important.",
+                    "Insufferable. What is it?",
+                ])
+                _barge_wav = None
+                try:
+                    _barge_wav = tts.synthesize(ack)
+                except Exception:
+                    pass
+                play_ack_sound = True
         else:
+            play_ack_sound = True
             _idle_cancel = threading.Event()
             _idle_fired = threading.Event()
             _due_reminders: list = []
@@ -847,19 +855,20 @@ def main():
         # ── 2. Play wake ack, then record ────────────────────────────────────────
         # Wake phrase plays first (blocking) so the mic doesn't pick up the skull's
         # own speaker output. Recording starts after playback finishes.
-        if _barge_wav is not None:
-            try:
-                audio.play_wav_bytes(_barge_wav, output_device=config.VOICE_OUTPUT_DEVICE)
-            except Exception:
-                pass
-        elif _wake_wavs:
-            try:
-                audio.play_wav_bytes(
-                    random.choice(_wake_wavs),
-                    output_device=config.VOICE_OUTPUT_DEVICE,
-                )
-            except Exception:
-                pass
+        if play_ack_sound:
+            if _barge_wav is not None:
+                try:
+                    audio.play_wav_bytes(_barge_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+                except Exception:
+                    pass
+            elif _wake_wavs:
+                try:
+                    audio.play_wav_bytes(
+                        random.choice(_wake_wavs),
+                        output_device=config.VOICE_OUTPUT_DEVICE,
+                    )
+                except Exception:
+                    pass
 
         _rec_pcm: list = [None]
         _rec_exc: list = [None]
@@ -1266,9 +1275,13 @@ def main():
 
         # ── 6. Play audio with barge-in (same path as idle observations) ─────────
         try:
-            if _speak_interruptible(speech_wav, on_wake):
-                # Wake word already heard; go straight to recording next iteration.
+            interrupted = _speak_interruptible(speech_wav, on_wake)
+            if interrupted or "?" in reply:
+                # Wake word already heard or question asked; go straight to recording next iteration.
                 skip_wake_word = True
+                if not interrupted and "?" in reply:
+                    print("[skull] Question detected in reply — auto-listening enabled.")
+                    skip_ack = True
         finally:
             display.stop_noosphere_scan()
             display.stop_auspex_scan()
