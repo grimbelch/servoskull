@@ -733,14 +733,18 @@ _TOOLS = [
     },
     {
         "name": "play_idle_animation",
-        "description": "Trigger an idle/screensaver animation on the eye display immediately for a specified duration. Available animations: 'pong', 'canticle_rain', 'starfield', 'oscilloscope', 'game_of_life', 'radar'.",
+        "description": "Trigger an idle/screensaver animation on the eye display immediately for a specified duration. Available animations: 'pong', 'canticle_rain', 'starfield', 'oscilloscope', 'game_of_life', 'radar', 'warp_core', 'circuit_maze', 'double_helix', 'spinning_rings', 'wireframe_cube', 'bouncing_cog', 'fractal_tree', 'hud_status', 'orbitals', 'spectrum_bars'.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "animation_name": {
                     "type": "string",
-                    "description": "Specific screensaver animation to play. Options: 'pong', 'canticle_rain', 'starfield', 'oscilloscope', 'game_of_life', 'radar'. If omitted, selects one randomly.",
-                    "enum": ["pong", "canticle_rain", "starfield", "oscilloscope", "game_of_life", "radar"]
+                    "description": "Specific screensaver animation to play. Options: 'pong', 'canticle_rain', 'starfield', 'oscilloscope', 'game_of_life', 'radar', 'warp_core', 'circuit_maze', 'double_helix', 'spinning_rings', 'wireframe_cube', 'bouncing_cog', 'fractal_tree', 'hud_status', 'orbitals', 'spectrum_bars'. If omitted, selects one randomly.",
+                    "enum": [
+                        "pong", "canticle_rain", "starfield", "oscilloscope", "game_of_life", "radar",
+                        "warp_core", "circuit_maze", "double_helix", "spinning_rings", "wireframe_cube",
+                        "bouncing_cog", "fractal_tree", "hud_status", "orbitals", "spectrum_bars"
+                    ]
                 },
                 "duration_seconds": {
                     "type": "number",

@@ -31,7 +31,11 @@ def main():
     import time
     now = time.monotonic()
     
-    anims = ["pong", "canticle_rain", "starfield", "oscilloscope", "game_of_life", "radar"]
+    anims = [
+        "pong", "canticle_rain", "starfield", "oscilloscope", "game_of_life", "radar",
+        "warp_core", "circuit_maze", "double_helix", "spinning_rings", "wireframe_cube",
+        "bouncing_cog", "fractal_tree", "hud_status", "orbitals", "spectrum_bars"
+    ]
     
     for anim in anims:
         print(f"Rendering: {anim}...")
@@ -46,6 +50,14 @@ def main():
             display._init_game_of_life()
         elif anim == "radar":
             display._init_radar()
+        elif anim == "circuit_maze":
+            display._init_circuit_maze()
+        elif anim == "bouncing_cog":
+            display._init_bouncing_cog()
+        elif anim == "orbitals":
+            display._init_orbitals()
+        elif anim == "spectrum_bars":
+            display._init_spectrum_bars()
             
         # Render
         if anim == "pong":
@@ -60,6 +72,26 @@ def main():
             img = display._render_game_of_life_frame(bezel, mask, now)
         elif anim == "radar":
             img = display._render_radar_frame(bezel, mask, now)
+        elif anim == "warp_core":
+            img = display._render_warp_core_frame(bezel, mask, now)
+        elif anim == "circuit_maze":
+            img = display._render_circuit_maze_frame(bezel, mask, now)
+        elif anim == "double_helix":
+            img = display._render_double_helix_frame(bezel, mask, now)
+        elif anim == "spinning_rings":
+            img = display._render_spinning_rings_frame(bezel, mask, now)
+        elif anim == "wireframe_cube":
+            img = display._render_wireframe_cube_frame(bezel, mask, now)
+        elif anim == "bouncing_cog":
+            img = display._render_bouncing_cog_frame(bezel, mask, now)
+        elif anim == "fractal_tree":
+            img = display._render_fractal_tree_frame(bezel, mask, now)
+        elif anim == "hud_status":
+            img = display._render_hud_status_frame(bezel, mask, now)
+        elif anim == "orbitals":
+            img = display._render_orbitals_frame(bezel, mask, now)
+        elif anim == "spectrum_bars":
+            img = display._render_spectrum_bars_frame(bezel, mask, now)
             
         # Save output
         output_path = pathlib.Path(__file__).parent / f"test_{anim}.png"
