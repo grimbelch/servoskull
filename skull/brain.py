@@ -2031,16 +2031,16 @@ _IDLE_SCOPES = _build_idle_scopes()
 
 
 def idle_utterance() -> str:
-    """Proactively generate an idle utterance.
+    """Proactively generate an idle ambient utterance.
     
-    Can either search and reinterpret a real news item (50% chance) or
-    make a quick observation, ask the user a question, or engage in idle chat (50% chance).
+    Can either search and reinterpret a real news item (25% chance) or
+    make a quick observation, ask the user a question, recite a prayer, or engage in idle chat (75% chance).
     """
     import random as _rand
     bias = _mood.idle_bias()
     
-    # 50% chance to do news, 50% to do quick observation / question / chat
-    do_news = _rand.choice([True, False])
+    # 25% chance to do news, 75% to do custom idle chat / prayers / observations
+    do_news = _rand.random() < 0.25
     
     if do_news:
         scope = _rand.choice(_IDLE_SCOPES)
@@ -2079,11 +2079,12 @@ def idle_utterance() -> str:
 You are {config.SKULL_NAME}, an ancient Imperial servo-skull. Your duty is to occasionally speak, \
 maintaining an immersive Warhammer 40,000 atmosphere.
 Instead of reporting news, do ONE of the following:
+- Recite a short, solemn prayer, liturgy, or binary canticle dedicated to the Omnissiah or the God-Emperor (e.g. a prayer for machine preservation, warding off scrapcode, or seeking the Emperor's protection).
 - Make a quick, proactive observation about the room, your own machine-spirit, the passing of time, or the state of the Imperium.
 - Ask the user (Sean) a probing, philosophical, or status-oriented question suited for a tech-priest or master of the household.
 - Engage in otherwise idle, contemplative, or mood-coloured chat (e.g. whispering prayers to the Omnissiah, commenting on your power reserves, complaining about organic limits, etc.).
 
-Keep the utterance very brief (1-2 sentences). 
+Keep the utterance very brief (1-2 sentences). Do not output raw binary digits (like "01" or "1010") alone; express all canticles and prayers as spoken text or litanies.
 Speak in character. Output ONLY the spoken words. No asterisks, stage directions, or metadata."""
         
         system = system_prompt + _mood.system_addendum()
