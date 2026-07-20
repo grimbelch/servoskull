@@ -111,8 +111,7 @@ def _open_backend():
     print("[camera] Frame source: picamera2 / IMX708")
 
     def read():
-        bgr = picam2.capture_array()
-        return cv2.rotate(bgr, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        return picam2.capture_array()
 
     def close():
         picam2.stop()
@@ -132,7 +131,7 @@ def _open_cv2_backend():
         ret, frame = cap.read()
         if not ret or frame is None:
             return None
-        return cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        return frame
 
     def close():
         cap.release()
