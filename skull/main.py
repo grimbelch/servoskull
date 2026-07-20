@@ -291,6 +291,9 @@ def _cogitation_loop(cancel: threading.Event) -> None:
     random.shuffle(indices)
     i = 0
     while not cancel.is_set() and _cogitation_wavs:
+        if getattr(config, "COGITATION_SUSPENDED", False):
+            cancel.wait(timeout=0.5)
+            continue
         wav = _cogitation_wavs[indices[i % len(indices)]]
         try:
             with _speech_lock:
