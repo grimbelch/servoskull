@@ -55,6 +55,14 @@ _NECRO_ROUTES = [
         "action", "activate", "move", "shoot", "charge", "fight",
         "coup de grace", "coup", "stand up", "crawl",
     ]),
+    ("the-rules/game-structure/the-action-phase/close-combat", [
+        "close combat", "determine attack dice", "attack dice", "reaction attacks",
+        "combat sequence", "fight action", "attacks", "melee attack",
+    ]),
+    ("the-rules/game-structure/the-action-phase/shooting", [
+        "shooting", "ranged attack", "firepower", "hit roll", "wound roll",
+        "shooting sequence",
+    ]),
     ("gang-fighters-and-their-weaponry/index", [
         "characteristic", "strength", "toughness", "wounds", "attacks",
         "initiative", "leadership", "cool", "willpower", "intelligence",
@@ -148,10 +156,18 @@ def news_search(query: str, max_results: int = 7) -> str:
 def _extract_relevant(full_text: str, query: str, max_chars: int = 3000) -> str:
     """Return the most query-relevant paragraphs from a large text block."""
     words = [w for w in query.lower().split() if len(w) > 2]
-    # Drop Markdown table-separator / empty-cell rows (just |, -, spaces): they carry
-    # no rules text and otherwise fill excerpts with rows of "| --- | --- |".
-    paragraphs = [p.strip() for p in full_text.split("\n")
-                  if p.strip() and set(p.strip()) - set("|- ")]
+    # Split into double-newline paragraphs, merging bulleted lists/numbered lists with their intro
+    raw_paras = full_text.split("\n\n")
+    paragraphs = []
+    for p in raw_paras:
+        p_clean = p.strip()
+        if not p_clean:
+            continue
+        if set(p_clean) - set("|- "):
+            if paragraphs and (p_clean.startswith("-") or p_clean.startswith("*") or re.match(r"^\d+\.", p_clean)):
+                paragraphs[-1] = paragraphs[-1] + "\n\n" + p_clean
+            else:
+                paragraphs.append(p_clean)
 
     # Score each paragraph by how many query words it contains
     scored = []
@@ -164,7 +180,7 @@ def _extract_relevant(full_text: str, query: str, max_chars: int = 3000) -> str:
     if not scored:
         return ""
 
-    # Pick top paragraphs by score; include a line of context before each match
+    # Pick top paragraphs by score; include 1 paragraph of context before/after
     scored.sort(key=lambda x: -x[0])
     seen_indices: set = set()
     result_parts: list = []
@@ -173,18 +189,18 @@ def _extract_relevant(full_text: str, query: str, max_chars: int = 3000) -> str:
     for _, idx, _ in scored:
         if total >= max_chars:
             break
-        # grab up to 3 lines of context around the match
+        # grab 1 paragraph before and 1 after the match
         start = max(0, idx - 1)
-        end = min(len(paragraphs), idx + 3)
+        end = min(len(paragraphs), idx + 2)
         for j in range(start, end):
             if j not in seen_indices:
                 seen_indices.add(j)
                 p_text = paragraphs[j]
                 result_parts.append((j, p_text))
-                total += len(p_text) + 1
+                total += len(p_text) + 2
 
     result_parts.sort(key=lambda x: x[0])
-    return "\n".join(p for _, p in result_parts)[:max_chars]
+    return "\n\n".join(p for _, p in result_parts)[:max_chars]
 
 
 # ── Generic offline rules library ──────────────────────────────────────────────
