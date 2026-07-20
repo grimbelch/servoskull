@@ -33,6 +33,8 @@ class BambuMonitor:
         self.running = False
         self.last_start_time = 0.0
         self.last_completion_time = 0.0
+        self.repeater_thread = None
+        self.repeater_cancel = None
 
     def is_configured(self) -> bool:
         return bool(self.ip and self.serial and self.access_code)
@@ -193,6 +195,7 @@ class BambuMonitor:
             if now - self.last_start_time > 120.0:
                 print(f"[bambu] Print started: {gcode_state} (notification suppressed by request)")
                 self.last_start_time = now
+                self.cancel_repeater()
 
         # ── Detect print completion ──────────────────────────────────────────────
         elif gcode_state in ("FINISH", "SUCCESS") or (gcode_state == "IDLE" and self.last_state in ("RUNNING", "FINISH") and self.last_percent >= 98):
@@ -228,23 +231,60 @@ class BambuMonitor:
                 self.notify_error(code_str, severity)
             self.last_hms = [item.get("detail", "") for item in hms_list if "detail" in item]
         elif not hms_list:
+            if self.last_hms:
+                print("[bambu] Errors cleared. Canceling repeating notifications.")
+                self.cancel_repeater()
             self.last_hms = []
 
         self.last_state = gcode_state
         self.last_percent = mc_percent
+
+    def cancel_repeater(self):
+        if self.repeater_cancel:
+            self.repeater_cancel.set()
+        if self.repeater_thread:
+            self.repeater_thread.join(timeout=0.1)
+        self.repeater_thread = None
+        self.repeater_cancel = None
+
+    def start_repeating_notification(self, event_type: str, text: str):
+        self.cancel_repeater()
+        self.repeater_cancel = threading.Event()
+        self.repeater_thread = threading.Thread(
+            target=self._run_repeater,
+            args=(event_type, text, self.repeater_cancel),
+            daemon=True
+        )
+        self.repeater_thread.start()
+
+    def _run_repeater(self, event_type: str, text: str, cancel_event: threading.Event):
+        for i in range(3):
+            if cancel_event.is_set():
+                break
+            print(f"[bambu] Triggering repeating notification {i+1}/3 ({event_type}): {text}")
+            if self.on_status_change_cb:
+                try:
+                    self.on_status_change_cb(event_type, text)
+                except Exception as e:
+                    print(f"[bambu] Repeating notification callback error: {e}")
+            if i == 2:
+                break
+            for _ in range(300):
+                if cancel_event.is_set():
+                    break
+                time.sleep(1.0)
 
     def notify_start(self):
         if self.on_status_change_cb:
             self.on_status_change_cb("start", "The machine spirit has initiated a new 3D printing fabrication task.")
 
     def notify_completion(self):
-        if self.on_status_change_cb:
-            self.on_status_change_cb("finish", "Praise the Omnissiah! The 3D printing task is complete. Your physical artifact is ready for extraction.")
+        text = "Praise the Omnissiah! The 3D printing task is complete. Your physical artifact is ready for extraction."
+        self.start_repeating_notification("finish", text)
 
     def notify_error(self, code_str: str, severity: str):
-        if self.on_status_change_cb:
-            msg = f"Alert: The Bambu printer reports a {severity} status code {code_str}. Fabrication is halted."
-            self.on_status_change_cb("error", msg)
+        msg = f"Alert: The Bambu printer reports a {severity} status code {code_str}. Fabrication is halted."
+        self.start_repeating_notification("error", msg)
 
 
 def init(on_status_change_cb=None) -> BambuMonitor:
