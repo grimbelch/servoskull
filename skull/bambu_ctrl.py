@@ -35,6 +35,7 @@ class BambuMonitor:
         self.last_completion_time = 0.0
         self.repeater_thread = None
         self.repeater_cancel = None
+        self.completion_notified = False
 
     def is_configured(self) -> bool:
         return bool(self.ip and self.serial and self.access_code)
@@ -196,14 +197,16 @@ class BambuMonitor:
                 print(f"[bambu] Print started: {gcode_state} (notification suppressed by request)")
                 self.last_start_time = now
                 self.cancel_repeater()
+                self.completion_notified = False
 
         # ── Detect print completion ──────────────────────────────────────────────
         elif gcode_state in ("FINISH", "SUCCESS") or (gcode_state == "IDLE" and self.last_state in ("RUNNING", "FINISH") and self.last_percent >= 98):
             now = time.time()
-            if now - self.last_completion_time > 120.0:
+            if not self.completion_notified:
                 print("[bambu] Print finished!")
                 self.notify_completion()
                 self.last_completion_time = now
+                self.completion_notified = True
 
         # ── Detect HMS errors ────────────────────────────────────────────────────
         new_errors = []
@@ -273,6 +276,9 @@ class BambuMonitor:
                 if cancel_event.is_set():
                     break
                 time.sleep(1.0)
+        if self.repeater_cancel is cancel_event:
+            self.repeater_thread = None
+            self.repeater_cancel = None
 
     def notify_start(self):
         if self.on_status_change_cb:
