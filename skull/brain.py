@@ -1951,14 +1951,15 @@ def _execute_display_art(search_query: str) -> str:
         from skull import display
 
         # 1. Search DeviantArt RSS feed sorted by popularity.
-        # Appending "order:popular" to the query makes DA return results ranked by
-        # favourite/view count rather than recency — consistently higher quality art.
-        pop_query = f"{search_query} order:popular"
-        url = f"https://backend.deviantart.com/rss.xml?q={requests.utils.quote(pop_query)}&type=deviation"
+        # order=9 is DeviantArt's "sort by popular" parameter for the RSS endpoint.
+        # NOTE: embedding "order:popular" in the query string silently returns 0 results;
+        # the correct approach is the separate &order=9 URL parameter.
+        url = (f"https://backend.deviantart.com/rss.xml"
+               f"?type=deviation&q={requests.utils.quote(search_query)}&order=9")
         r = requests.get(url, timeout=6.0)
-        if r.status_code != 200:
-            # Fall back to plain query if the popularity sort fails
-            url = f"https://backend.deviantart.com/rss.xml?q={requests.utils.quote(search_query)}"
+        if r.status_code != 200 or b'<item>' not in r.content:
+            # Fall back to default (recency) sort if popularity sort fails or is empty
+            url = f"https://backend.deviantart.com/rss.xml?type=deviation&q={requests.utils.quote(search_query)}"
             r = requests.get(url, timeout=6.0)
             if r.status_code != 200:
                 return f"Failed to query DeviantArt RSS API: status code {r.status_code}"
