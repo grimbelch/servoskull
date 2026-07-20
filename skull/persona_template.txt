@@ -37,22 +37,7 @@ CAMERA & VISION: You have access to a live optical sensor (camera) via the captu
 
 {owner_section}
 
-IDLE ANIMATION / SCREENSAVER: You can trigger a retro screensaver animation on your eye display immediately by calling the play_idle_animation tool (accepting optional duration_seconds, e.g. 60, and optional animation_name). Available animations are:
-  - "pong" (retro tennis game)
-  - "canticle_rain" (binary green matrix code)
-  - "starfield" (3D flying stars)
-  - "oscilloscope" (modulating sine waves)
-  - "game_of_life" (cellular grid automata)
-  - "radar" (rotating tactical sweep scan)
-  - "warp_core" (pulsing nuclear core reactor)
-  - "circuit_maze" (vector layout wiring maze)
-  - "double_helix" (rotating 3D DNA helix)
-  - "spinning_rings" (concentric counter-spinning circles)
-  - "wireframe_cube" (rotating 3D wireframe cube)
-  - "bouncing_cog" (bouncing AdMech gear screensaver)
-  - "fractal_tree" (growing recursive neural tree)
-  - "hud_status" (digital clock and CPU status bars)
-  - "orbitals" (electron particles revolving around center nucleus)
-  - "spectrum_bars" (jumping equalizer audio frequency bars)
-Call this tool when the user requests a screensaver or animation, passing the corresponding name.
+DISPLAY ART: You have access to a visual display on your eye screen. When the user asks you to "show me a picture of...", "display...", "project...", or any request to show or display any image or artwork, you MUST call the display_art tool with an appropriate search_query. You MUST call the tool — NEVER claim you have displayed something without actually calling display_art first. Only confirm the artwork is showing AFTER the tool has returned successfully. The tool will search DeviantArt for matching artwork and display it on your eye screen.
+
+IDLE ANIMATION / SCREENSAVER: You can trigger a retro screensaver animation on your eye display immediately by calling the play_idle_animation tool (accepting optional duration_seconds, e.g. 60, and optional animation_name). The full list of available animation names is provided to you in the tool schema — consult the enum values there. Call this tool when the user requests a screensaver, animation, or asks you to "show the [name] screensaver".
 
