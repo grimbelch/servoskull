@@ -57,7 +57,11 @@ _requested_idle_anim = None
 _screensaver_anims = [
     "pong", "canticle_rain", "starfield", "oscilloscope", "game_of_life", "radar",
     "warp_core", "circuit_maze", "double_helix", "spinning_rings", "wireframe_cube",
-    "bouncing_cog", "fractal_tree", "hud_status", "orbitals", "spectrum_bars"
+    "bouncing_cog", "fractal_tree", "hud_status", "orbitals", "spectrum_bars",
+    # New screensavers
+    "plasma", "lissajous", "voronoi", "data_stream", "mandala",
+    "rune_wheel", "glitch", "dna_helix", "neural_net", "gravity_well",
+    "morse_code", "hex_grid", "kaleidoscope", "particle_burst"
 ]
 
 # Pong state variables
@@ -101,6 +105,30 @@ _orbital_particles = []
 _spectrum_heights = [0.0] * 8
 _spectrum_targets = [0.0] * 8
 _spectrum_last_update = 0.0
+
+# Voronoi state
+_voronoi_sites = []
+_voronoi_last_shift = 0.0
+
+# Data Stream state
+_data_stream_lines = []
+
+# Neural Net state
+_neural_nodes = []
+_neural_edges = []
+_neural_pulses = []
+
+# Morse code state
+_morse_message = ""
+_morse_pos = 0
+_morse_last_advance = 0.0
+
+# Hex Grid state
+_hex_grid_cells = []
+_hex_last_flash = 0.0
+
+# Particle Burst state
+_pburst_particles = []
 
 
 
@@ -1363,6 +1391,466 @@ def _render_orbitals_frame(bezel, mask, now):
     return img
 
 
+# ── New screensaver render functions ─────────────────────────────────────────
+
+def _render_plasma_frame(bezel, mask, now):
+    """Sine-wave interference plasma – vivid overlapping colour waves."""
+    from PIL import Image
+    import numpy as np
+    x = np.linspace(0, 2 * math.pi, 240)
+    y = np.linspace(0, 2 * math.pi, 240)
+    xx, yy = np.meshgrid(x, y)
+    t = now * 1.2
+    v = (np.sin(xx + t) + np.sin(yy + t * 0.7)
+         + np.sin((xx + yy) * 0.5 + t * 0.9)
+         + np.sin(np.sqrt(xx**2 + yy**2) + t)) / 4.0
+    v = (v + 1.0) / 2.0
+    r = (np.sin(v * math.pi * 2 + t) * 127 + 128).clip(0, 255).astype(np.uint8)
+    g = (np.sin(v * math.pi * 2 + t + 2.094) * 127 + 128).clip(0, 255).astype(np.uint8)
+    b = (np.sin(v * math.pi * 2 + t + 4.189) * 127 + 128).clip(0, 255).astype(np.uint8)
+    arr = np.stack([r, g, b], axis=-1)
+    return Image.fromarray(arr, mode="RGB")
+
+
+def _render_lissajous_frame(bezel, mask, now):
+    """Lissajous curve tracer – parametric neon figures."""
+    from PIL import Image, ImageDraw
+    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    d = ImageDraw.Draw(img)
+    a, b_freq, delta = 3, 2, now * 0.4
+    pts = []
+    for i in range(600):
+        t = i * math.pi * 2 / 600
+        x = int(110 * math.sin(a * t + delta) + 120)
+        y = int(110 * math.sin(b_freq * t) + 120)
+        pts.append((x, y))
+    for i in range(len(pts) - 1):
+        frac = i / len(pts)
+        r = int(255 * abs(math.sin(frac * math.pi + now)))
+        g = int(255 * abs(math.sin(frac * math.pi + now + 2.094)))
+        b = int(255 * abs(math.sin(frac * math.pi + now + 4.189)))
+        d.line([pts[i], pts[i+1]], fill=(r, g, b), width=2)
+    return img
+
+
+_voronoi_sites = []
+_voronoi_last_shift = 0.0
+def _init_voronoi():
+    global _voronoi_sites, _voronoi_last_shift
+    _voronoi_sites = [{"x": random.uniform(20, 220), "y": random.uniform(20, 220),
+                       "dx": random.uniform(-0.8, 0.8), "dy": random.uniform(-0.8, 0.8),
+                       "c": (random.randint(80, 255), random.randint(10, 80), random.randint(0, 40))}
+                      for _ in range(7)]
+    _voronoi_last_shift = 0.0
+
+def _render_voronoi_frame(bezel, mask, now):
+    global _voronoi_sites
+    if not _voronoi_sites:
+        _init_voronoi()
+    from PIL import Image
+    import numpy as np
+    for s in _voronoi_sites:
+        s["x"] = (s["x"] + s["dx"]) % 240
+        s["y"] = (s["y"] + s["dy"]) % 240
+    xs = np.array([s["x"] for s in _voronoi_sites])
+    ys = np.array([s["y"] for s in _voronoi_sites])
+    colors = np.array([[s["c"][0], s["c"][1], s["c"][2]] for s in _voronoi_sites], dtype=np.uint8)
+    px = np.arange(240)
+    py = np.arange(240)
+    gx, gy = np.meshgrid(px, py)
+    dists = np.sqrt((gx[:,:,None] - xs)**2 + (gy[:,:,None] - ys)**2)
+    nearest = np.argmin(dists, axis=2)
+    arr = colors[nearest]
+    # Darken slightly for moodiness
+    arr = (arr * 0.7).clip(0, 255).astype(np.uint8)
+    return Image.fromarray(arr, mode="RGB")
+
+
+_data_stream_lines = []
+def _init_data_stream():
+    global _data_stream_lines
+    _data_stream_lines = [{"y": random.uniform(0, 240), "speed": random.uniform(1.5, 4.5),
+                           "text": "".join(random.choices("0123456789ABCDEF", k=20))} for _ in range(14)]
+
+def _render_data_stream_frame(bezel, mask, now):
+    global _data_stream_lines
+    if not _data_stream_lines:
+        _init_data_stream()
+    from PIL import Image, ImageDraw, ImageFont
+    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    d = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.load_default()
+    except Exception:
+        font = None
+    for line in _data_stream_lines:
+        line["y"] = (line["y"] + line["speed"]) % 250
+        if random.random() < 0.04:
+            line["text"] = "".join(random.choices("0123456789ABCDEF", k=20))
+        y = int(line["y"])
+        for i, ch in enumerate(line["text"]):
+            xp = i * 12 + 2
+            if xp > 238:
+                break
+            bright = random.randint(160, 255)
+            c = (0, bright, int(bright * 0.5))
+            if font:
+                d.text((xp, y), ch, fill=c, font=font)
+    return img
+
+
+def _render_mandala_frame(bezel, mask, now):
+    """Rotating concentric mandala geometry."""
+    from PIL import Image, ImageDraw
+    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    d = ImageDraw.Draw(img)
+    for ring in range(1, 8):
+        r = ring * 14
+        n_pts = ring * 6
+        base_angle = now * (0.3 if ring % 2 == 0 else -0.3) * (ring * 0.2)
+        t = now * 0.5
+        red = int(200 * abs(math.sin(ring * 0.9 + t)))
+        grn = int(100 * abs(math.sin(ring * 0.5 - t)))
+        blu = int(255 * abs(math.sin(ring * 0.3 + t * 0.7)))
+        pts = []
+        for i in range(n_pts):
+            a = base_angle + i * 2 * math.pi / n_pts
+            pts.append((120 + r * math.cos(a), 120 + r * math.sin(a)))
+        if len(pts) > 2:
+            d.polygon(pts, outline=(red, grn, blu))
+    return img
+
+
+def _render_rune_wheel_frame(bezel, mask, now):
+    """Spinning elder rune characters around concentric circles."""
+    from PIL import Image, ImageDraw, ImageFont
+    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    d = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.load_default()
+    except Exception:
+        font = None
+    runes = list("ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛊᛏᛒᛖᛗᛚᛜᛞᛟ")
+    for ring_idx, (radius, speed, count) in enumerate([(40, 0.4, 8), (70, -0.25, 12), (100, 0.15, 16)]):
+        for i in range(count):
+            a = now * speed + i * 2 * math.pi / count
+            x = int(120 + radius * math.cos(a))
+            y = int(120 + radius * math.sin(a))
+            t = now * 0.5
+            r = int(200 * abs(math.sin(ring_idx + t)))
+            g = int(80 * abs(math.sin(ring_idx * 0.7 + t)))
+            b = int(255 * abs(math.sin(ring_idx * 0.5 - t)))
+            rune = runes[(ring_idx * count + i) % len(runes)]
+            if font:
+                d.text((x - 4, y - 4), rune, fill=(r, g, b), font=font)
+    return img
+
+
+def _render_glitch_frame(bezel, mask, now):
+    """Digital glitch / corruption aesthetic."""
+    from PIL import Image, ImageDraw
+    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    d = ImageDraw.Draw(img)
+    # Horizontal scan-line corruption
+    for _ in range(random.randint(4, 14)):
+        y = random.randint(0, 239)
+        h = random.randint(1, 8)
+        xoff = random.randint(-40, 40)
+        r = random.randint(0, 255)
+        g = random.randint(0, 255)
+        b = random.randint(0, 255)
+        d.rectangle([0, y, 239, y + h], fill=(int(r * 0.1), int(g * 0.1), int(b * 0.1)))
+        d.rectangle([max(0, xoff), y, min(239, 239 + xoff), y + h], fill=(r, 0, 0) if r > 200 else (0, g, b))
+    # Random bright pixels
+    for _ in range(random.randint(20, 60)):
+        x = random.randint(0, 239)
+        y = random.randint(0, 239)
+        c = random.choice([(255, 0, 0), (0, 255, 200), (255, 255, 0), (0, 180, 255)])
+        d.point((x, y), fill=c)
+    # Vertical tear lines
+    for _ in range(random.randint(1, 4)):
+        x = random.randint(0, 239)
+        d.line([(x, 0), (x, 239)], fill=(random.randint(100, 255), 0, 0), width=1)
+    return img
+
+
+def _render_dna_helix_frame(bezel, mask, now):
+    """Rotating double helix ribbons scrolling vertically."""
+    from PIL import Image, ImageDraw
+    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    d = ImageDraw.Draw(img)
+    for y in range(0, 240, 3):
+        t = y * 0.06 + now * 2.0
+        x1 = int(120 + 60 * math.sin(t))
+        x2 = int(120 + 60 * math.sin(t + math.pi))
+        frac = (math.sin(t) + 1) / 2
+        c1 = (int(255 * frac), int(80 * (1 - frac)), int(200 * (1 - frac)))
+        c2 = (int(80 * frac), int(200 * (1 - frac)), int(255 * frac))
+        d.ellipse([x1 - 3, y - 3, x1 + 3, y + 3], fill=c1)
+        d.ellipse([x2 - 3, y - 3, x2 + 3, y + 3], fill=c2)
+        # Cross-links every ~20px
+        if y % 20 < 3:
+            d.line([(x1, y), (x2, y)], fill=(80, 80, 80), width=1)
+    return img
+
+
+_neural_nodes = []
+_neural_edges = []
+_neural_pulses = []
+def _init_neural_net():
+    global _neural_nodes, _neural_edges, _neural_pulses
+    _neural_nodes = [{"x": random.uniform(30, 210), "y": random.uniform(30, 210)} for _ in range(16)]
+    _neural_edges = []
+    for i in range(len(_neural_nodes)):
+        for j in range(i + 1, len(_neural_nodes)):
+            dx = _neural_nodes[i]["x"] - _neural_nodes[j]["x"]
+            dy = _neural_nodes[i]["y"] - _neural_nodes[j]["y"]
+            if math.sqrt(dx*dx + dy*dy) < 80:
+                _neural_edges.append((i, j))
+    _neural_pulses = []
+
+def _render_neural_net_frame(bezel, mask, now):
+    global _neural_pulses
+    if not _neural_nodes:
+        _init_neural_net()
+    from PIL import Image, ImageDraw
+    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    d = ImageDraw.Draw(img)
+    for i, j in _neural_edges:
+        d.line([(int(_neural_nodes[i]["x"]), int(_neural_nodes[i]["y"])),
+                (int(_neural_nodes[j]["x"]), int(_neural_nodes[j]["y"]))],
+               fill=(0, 30, 60), width=1)
+    # Pulse along edges
+    if random.random() < 0.15 and _neural_edges:
+        e = random.choice(_neural_edges)
+        _neural_pulses.append({"edge": e, "t": 0.0})
+    new_pulses = []
+    for p in _neural_pulses:
+        p["t"] += 0.04
+        if p["t"] < 1.0:
+            i, j = p["edge"]
+            x = int(_neural_nodes[i]["x"] * (1 - p["t"]) + _neural_nodes[j]["x"] * p["t"])
+            y = int(_neural_nodes[i]["y"] * (1 - p["t"]) + _neural_nodes[j]["y"] * p["t"])
+            bright = int(255 * (1 - abs(p["t"] - 0.5) * 2))
+            d.ellipse([x-4, y-4, x+4, y+4], fill=(0, bright, int(bright * 0.6)))
+            new_pulses.append(p)
+    _neural_pulses = new_pulses
+    for n in _neural_nodes:
+        d.ellipse([int(n["x"]) - 3, int(n["y"]) - 3, int(n["x"]) + 3, int(n["y"]) + 3],
+                  fill=(0, 150, 255))
+    return img
+
+
+def _render_gravity_well_frame(bezel, mask, now):
+    """Particles spiraling into a singularity at centre."""
+    from PIL import Image, ImageDraw
+    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    d = ImageDraw.Draw(img)
+    n = 80
+    for i in range(n):
+        phase = i / n * 2 * math.pi
+        t = (now * 0.4 + phase) % (2 * math.pi)
+        r_orbit = 100 * (1 - t / (2 * math.pi)) + 2
+        spiral_angle = phase + now * 0.6 + t * 3
+        x = int(120 + r_orbit * math.cos(spiral_angle))
+        y = int(120 + r_orbit * math.sin(spiral_angle))
+        bright = int(255 * (1 - r_orbit / 100))
+        c = (int(bright * 0.7), int(bright * 0.3), bright)
+        d.ellipse([x-1, y-1, x+1, y+1], fill=c)
+    # Singularity glow
+    for rr in [12, 8, 4, 2]:
+        alpha = int(255 * (1 - rr / 12))
+        d.ellipse([120-rr, 120-rr, 120+rr, 120+rr], fill=(alpha, int(alpha*0.3), alpha))
+    return img
+
+
+_morse_message = ""
+_morse_pos = 0
+_morse_last_advance = 0.0
+_MORSE_CODE = {
+    "A": ".-", "B": "-...", "C": "-.-.", "D": "-..", "E": ".",
+    "F": "..-.", "G": "--.", "H": "....", "I": "..", "J": ".---",
+    "K": "-.-", "L": ".-..", "M": "--", "N": "-.", "O": "---",
+    "P": ".--.", "Q": "--.-", "R": ".-.", "S": "...", "T": "-",
+    "U": "..-", "V": "...-", "W": ".--", "X": "-..-", "Y": "-.--", "Z": "--..",
+}
+def _init_morse():
+    global _morse_message, _morse_pos, _morse_last_advance
+    phrases = ["OMNISSIAH", "ADEPTUS MECHANICUS", "AVE MACHINA", "OMEGA SEVEN",
+               "GLORY TO THE MACHINE", "COGITATOR ACTIVE", "PRAISE THE OMNISSIAH"]
+    text = random.choice(phrases)
+    seq = []
+    for ch in text:
+        if ch == " ":
+            seq.extend([" ", " ", " "])
+        elif ch in _MORSE_CODE:
+            for sym in _MORSE_CODE[ch]:
+                seq.append(sym)
+            seq.append(" ")
+    _morse_message = seq
+    _morse_pos = 0
+    _morse_last_advance = 0.0
+
+def _render_morse_code_frame(bezel, mask, now):
+    global _morse_pos, _morse_last_advance
+    if not _morse_message:
+        _init_morse()
+    from PIL import Image, ImageDraw
+    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    d = ImageDraw.Draw(img)
+    if now - _morse_last_advance > 0.18:
+        _morse_last_advance = now
+        _morse_pos = (_morse_pos + 1) % len(_morse_message)
+    sym = _morse_message[_morse_pos] if _morse_message else "."
+    on = sym in (".", "-")
+    if on:
+        # Flash the main display
+        intensity = 220 if sym == "." else 255
+        d.ellipse([60, 60, 180, 180], fill=(0, intensity, int(intensity * 0.5)))
+        # Dot vs dash
+        if sym == ".":
+            d.ellipse([100, 100, 140, 140], fill=(200, 255, 200))
+        else:
+            d.rectangle([70, 105, 170, 135], fill=(150, 255, 180))
+    # Show history of recent symbols
+    history_start = max(0, _morse_pos - 20)
+    x = 10
+    for h in range(history_start, _morse_pos):
+        if x > 230:
+            break
+        hs = _morse_message[h]
+        if hs == ".":
+            d.ellipse([x, 225, x+4, 229], fill=(0, 180, 80))
+            x += 8
+        elif hs == "-":
+            d.rectangle([x, 225, x+12, 229], fill=(0, 180, 80))
+            x += 16
+        else:
+            x += 6
+    return img
+
+
+_hex_grid_cells = []
+_hex_last_flash = 0.0
+def _init_hex_grid():
+    global _hex_grid_cells
+    _hex_grid_cells = []
+    size = 14
+    for row in range(11):
+        for col in range(9):
+            x = col * size * 1.73 + (row % 2) * size * 0.87 + 5
+            y = row * size * 1.5 + 5
+            _hex_grid_cells.append({"x": x, "y": y, "flash": 0.0, "size": size})
+
+def _render_hex_grid_frame(bezel, mask, now):
+    global _hex_grid_cells, _hex_last_flash
+    if not _hex_grid_cells:
+        _init_hex_grid()
+    from PIL import Image, ImageDraw
+    import numpy as np
+    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    d = ImageDraw.Draw(img)
+    if now - _hex_last_flash > 0.08:
+        _hex_last_flash = now
+        for _ in range(random.randint(1, 3)):
+            cell = random.choice(_hex_grid_cells)
+            cell["flash"] = 1.0
+    for cell in _hex_grid_cells:
+        cell["flash"] = max(0.0, cell["flash"] - 0.06)
+        f = cell["flash"]
+        base = 0.12
+        r = int(255 * (base + (1 - base) * f))
+        g = int(80 * f)
+        b = int(255 * (base * 0.5))
+        s = cell["size"]
+        x, y = cell["x"], cell["y"]
+        pts = [(x + s * math.cos(math.radians(60 * i + 30)), y + s * math.sin(math.radians(60 * i + 30))) for i in range(6)]
+        d.polygon(pts, outline=(r, g, b))
+    return img
+
+
+def _render_kaleidoscope_frame(bezel, mask, now):
+    """Radially mirrored mandala pattern with shifting colours."""
+    from PIL import Image, ImageDraw
+    n_segments = 8
+    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    d = ImageDraw.Draw(img)
+    for seg in range(n_segments):
+        base_a = seg * (2 * math.pi / n_segments) + now * 0.2
+        for i in range(30):
+            t = i / 30
+            rr = 10 + t * 100
+            a1 = base_a + t * 1.2 * math.sin(now * 0.7)
+            a2 = base_a + (t + 0.1) * 1.2 * math.sin(now * 0.7)
+            x1 = int(120 + rr * math.cos(a1))
+            y1 = int(120 + rr * math.sin(a1))
+            x2 = int(120 + (rr + 4) * math.cos(a2))
+            y2 = int(120 + (rr + 4) * math.sin(a2))
+            hue = (now * 60 + seg * 45 + t * 120) % 360
+            hr = hue / 360
+            # Convert HSV-ish to RGB
+            region = int(hr * 6)
+            fract = hr * 6 - region
+            colors = [
+                (255, int(255 * fract), 0),
+                (int(255 * (1 - fract)), 255, 0),
+                (0, 255, int(255 * fract)),
+                (0, int(255 * (1 - fract)), 255),
+                (int(255 * fract), 0, 255),
+                (255, 0, int(255 * (1 - fract))),
+            ]
+            col = colors[region % 6]
+            d.line([(x1, y1), (x2, y2)], fill=col, width=2)
+    return img
+
+
+_pburst_particles = []
+def _init_particle_burst():
+    global _pburst_particles
+    _pburst_particles = []
+
+def _render_particle_burst_frame(bezel, mask, now):
+    global _pburst_particles
+    from PIL import Image, ImageDraw
+    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    d = ImageDraw.Draw(img)
+    # Spawn new burst every second
+    if not hasattr(_render_particle_burst_frame, "last_burst"):
+        _render_particle_burst_frame.last_burst = 0.0
+    if now - _render_particle_burst_frame.last_burst > 0.8:
+        _render_particle_burst_frame.last_burst = now
+        n = random.randint(20, 40)
+        bx = random.uniform(60, 180)
+        by = random.uniform(60, 180)
+        hue = random.uniform(0, 1)
+        for _ in range(n):
+            a = random.uniform(0, 2 * math.pi)
+            spd = random.uniform(1.5, 5.0)
+            _pburst_particles.append({"x": bx, "y": by, "vx": math.cos(a) * spd,
+                                       "vy": math.sin(a) * spd, "life": 1.0, "hue": hue})
+    new_p = []
+    for p in _pburst_particles:
+        p["x"] += p["vx"]
+        p["y"] += p["vy"]
+        p["vy"] += 0.08  # gravity
+        p["life"] -= 0.025
+        if p["life"] > 0:
+            # Convert hue to RGB
+            h6 = (p["hue"] * 6) % 6
+            f = h6 - int(h6)
+            palette = [
+                (255, int(255*f), 0), (int(255*(1-f)), 255, 0), (0, 255, int(255*f)),
+                (0, int(255*(1-f)), 255), (int(255*f), 0, 255), (255, 0, int(255*(1-f)))
+            ]
+            r, g, b = palette[int(h6) % 6]
+            alpha = p["life"]
+            col = (int(r * alpha), int(g * alpha), int(b * alpha))
+            d.ellipse([int(p["x"]) - 2, int(p["y"]) - 2, int(p["x"]) + 2, int(p["y"]) + 2], fill=col)
+            new_p.append(p)
+    _pburst_particles = new_p
+    return img
+
+
 def _render_spectrum_bars_frame(bezel, mask, now):
     global _spectrum_heights, _spectrum_targets, _spectrum_last_update
     if not _spectrum_heights:
@@ -1482,6 +1970,18 @@ def _loop():
                         _init_orbitals()
                     elif _active_idle_anim == "spectrum_bars":
                         _init_spectrum_bars()
+                    elif _active_idle_anim == "voronoi":
+                        _init_voronoi()
+                    elif _active_idle_anim == "data_stream":
+                        _init_data_stream()
+                    elif _active_idle_anim == "neural_net":
+                        _init_neural_net()
+                    elif _active_idle_anim == "morse_code":
+                        _init_morse()
+                    elif _active_idle_anim == "hex_grid":
+                        _init_hex_grid()
+                    elif _active_idle_anim == "particle_burst":
+                        _init_particle_burst()
 
                 try:
                     if _active_idle_anim == "pong":
@@ -1516,6 +2016,34 @@ def _loop():
                         _blit(_render_orbitals_frame(bezel, mask, now))
                     elif _active_idle_anim == "spectrum_bars":
                         _blit(_render_spectrum_bars_frame(bezel, mask, now))
+                    elif _active_idle_anim == "plasma":
+                        _blit(_render_plasma_frame(bezel, mask, now))
+                    elif _active_idle_anim == "lissajous":
+                        _blit(_render_lissajous_frame(bezel, mask, now))
+                    elif _active_idle_anim == "voronoi":
+                        _blit(_render_voronoi_frame(bezel, mask, now))
+                    elif _active_idle_anim == "data_stream":
+                        _blit(_render_data_stream_frame(bezel, mask, now))
+                    elif _active_idle_anim == "mandala":
+                        _blit(_render_mandala_frame(bezel, mask, now))
+                    elif _active_idle_anim == "rune_wheel":
+                        _blit(_render_rune_wheel_frame(bezel, mask, now))
+                    elif _active_idle_anim == "glitch":
+                        _blit(_render_glitch_frame(bezel, mask, now))
+                    elif _active_idle_anim == "dna_helix":
+                        _blit(_render_dna_helix_frame(bezel, mask, now))
+                    elif _active_idle_anim == "neural_net":
+                        _blit(_render_neural_net_frame(bezel, mask, now))
+                    elif _active_idle_anim == "gravity_well":
+                        _blit(_render_gravity_well_frame(bezel, mask, now))
+                    elif _active_idle_anim == "morse_code":
+                        _blit(_render_morse_code_frame(bezel, mask, now))
+                    elif _active_idle_anim == "hex_grid":
+                        _blit(_render_hex_grid_frame(bezel, mask, now))
+                    elif _active_idle_anim == "kaleidoscope":
+                        _blit(_render_kaleidoscope_frame(bezel, mask, now))
+                    elif _active_idle_anim == "particle_burst":
+                        _blit(_render_particle_burst_frame(bezel, mask, now))
                 except Exception as e:
                     print(f"[display] screensaver render error ({_active_idle_anim}): {e}")
                 time.sleep(1 / config.DISPLAY_FPS)
