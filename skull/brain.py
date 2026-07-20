@@ -2039,7 +2039,12 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
     if speaker_name:
         speaker_ctx = f"\n\nCURRENT SPEAKER: {speaker_name}."
     else:
-        speaker_ctx = "\n\nCURRENT SPEAKER: Unknown/Unregistered."
+        speaker_ctx = (
+            "\n\nCURRENT SPEAKER: Unknown/Unregistered.\n"
+            "INSTRUCTION: You must greet this unregistered user, ask who they are and what they are doing in this sector, "
+            "and ask if they wish to imprint their voice for future recognition. "
+            "If they agree, execute the 'register_voice' tool with their name."
+        )
         
     system_suffix = (date_ctx + game_ctx + speaker_ctx + _memory.longterm_prompt(longterm)
                      + _memory.facts_prompt(facts) + _mood.system_addendum())
