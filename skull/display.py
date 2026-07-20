@@ -1423,8 +1423,9 @@ def _loop():
             _active_idle_anim = None
         else:
             if now >= _custom_idle_expiry:
-                _requested_idle_anim = None
-                _active_idle_anim = None
+                if _requested_idle_anim is not None:
+                    _requested_idle_anim = None
+                    _active_idle_anim = None
 
             # If idle and timeout reached or forced, run screensaver animation
             if (now - _last_activity_time >= config.DISPLAY_IDLE_TIMEOUT) or (now < _custom_idle_expiry):
