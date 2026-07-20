@@ -38,6 +38,70 @@ It's a **bring-your-own-keys** device: you supply your own Anthropic (and option
 
 ---
 
+## Verbal Commands
+
+Omega-7 supports rich conversational interaction and custom voice commands. He understands and responds to the following requests (phrased naturally):
+
+### 🎵 Music & Audio Control (Spotify & Bluetooth)
+* **Play Music**: *"Play [song/artist/playlist]"*, *"Play some Warhammer soundtrack"* (triggers Spotify Connect playback).
+* **Pause Music**: *"Pause"*, *"Stop the music"*, *"Silence the music"* (pauses Spotify).
+* **Resume Music**: *"Resume"*, *"Keep playing"*, *"Unpause"* (resumes Spotify).
+* **Skip Tracks**: *"Skip"*, *"Next song"*, *"Change the track"* (skips to the next track).
+* **Volume Control**: *"Louder"*, *"Quieter"*, *"Turn it down"*, *"Set volume to 80"* (changes system voice volume).
+* **Spotify Volume Control**: *"Set Spotify volume to 50"*, *"Turn up the music"* (controls music volume independently of system voice).
+* **Scan Bluetooth**: *"Scan for Bluetooth speakers"*, *"Find nearby speakers"* (searches for discoverable Bluetooth devices).
+* **Connect Bluetooth**: *"Connect to speaker [name/number]"*, *"Connect to the first device"* (routes Spotify audio through the selected speaker).
+
+### 🎲 Tabletop Dice Roller
+* **Standard Dice**: *"Roll 2d6"*, *"Roll a d20"*, *"Roll three d10s"* (rolls numeric dice).
+* **Necromunda Special Dice**: *"Roll a Necromunda injury dice"*, *"Roll firepower"*, *"Roll scatter"* (simulates special Necromunda dice with sound effects).
+* **Epic Armageddon Dice**: *"Roll NetEA order dice"*, *"Roll standard epic dice"*.
+* **Active Game Setting**: *"Set active game to Necromunda"*, *"We are playing Warhammer 40k"* (configures default dice system behavior).
+
+### 📚 Tabletop Rules Lookup
+* **Warhammer 40,000**: *"What does the [Ability/Stratagem/Enhancement] do?"*, *"Look up [Unit Name] stats"* (searches the local offline 11th Edition database).
+* **Necromunda**: *"What are the rules for the [Weapon Trait/Skill/Injury]?"*, *"Look up the Trading Post cost of a plasma pistol"* (searches the local offline NecroRAW database).
+* **Net Epic Armageddon**: *"What are the rules for Blast Markers?"*, *"Look up [Unit/Formation] stats for NetEA"*.
+
+### 👁️ Vision & Biometrics (Camera)
+* **Describe Surroundings**: *"What do you see?"*, *"Look at me"*, *"Describe the room"*, *"What's in front of you?"* (takes a live photo and uses Vision LLM to describe what is visible).
+* **Calibrate Biometrics**: *"Register my face as [Name]"*, *"Calibrate your eye for [Name]"* (registers your face in the biometric database to recognize you on sight).
+
+### 🖨️ Bambu 3D Printer Monitor
+* **Check Printer Status**: *"What is the printer doing?"*, *"Check 3D printer status"*, *"Is my print done?"* (reports printing progress, temperature, subtask, or diagnostic codes).
+* **Acknowledge Alerts**: *"Acknowledged. Cancel the alerts."*, *"Silence the printer notifications"* (terminates repeating completed print/error vocal alerts).
+
+### 🖥️ Display Screensavers & Artwork Projection
+* **Run Screensaver**: *"Play the [screensaver name] animation"*, *"Show screensaver"* (displays a retro animation on the eye screen). Available screensavers:
+  * `pong`, `canticle_rain` (Matrix code), `starfield`, `oscilloscope`, `game_of_life`, `radar`, `warp_core`, `circuit_maze`, `double_helix`, `spinning_rings`, `wireframe_cube`, `bouncing_cog`, `fractal_tree`, `hud_status`, `orbitals`, `spectrum_bars`.
+* **Project Artwork**: *"Display artwork of [subject]"*, *"Show me a picture of a [Space Marine/Necromunda Gang]"* (scrapes DeviantArt for matching artwork and blits it full-screen).
+
+### 🕯️ Ambient & Personality Control
+* **Silent Mode**: *"Be quiet"*, *"Silent mode"*, *"Stop observations"* (disables periodic unprompted announcements).
+* **Resume Speech**: *"You may speak"*, *"Talk again"*, *"Resume observations"* (reenables ambient observations).
+* **Toggle Candles**: *"Turn on candles"*, *"Extinguish candles"* (toggles the yellow flicker LED flame effects atop the skull).
+* **Shift Temperament**: *"Be more aggressive"*, *"Adopt a worshipful tone"*, *"Adjust mood to solemn"* (modifies vocabulary, tone, and machine attitude).
+
+### 🧠 Reminders & Memory
+* **Set Reminders**: *"Remind me to check the stove in 20 minutes"*, *"Set a reminder for 8:00 PM"* (triggers a vocal alarm chime and reminder when expired).
+* **List Reminders**: *"What are my reminders?"*, *"List pending tasks"*.
+* **Cancel Reminders**: *"Cancel my reminder to [task]"*, *"Remove all reminders"*.
+* **Acknowledge Alarm**: *"I hear you"*, *"Clear reminders"* (acknowledges and turns off an active chime).
+* **Store Facts**: *"Remember that I play House Van Saar"*, *"Remember my favorite faction is Adeptus Mechanicus"* (saves user preferences to long-term memory).
+* **Forget Facts**: *"Forget that [fact]"*.
+
+### 🌐 System & Utility
+* **Web Search**: *"Search the web for [query]"*, *"Who was the second president of the United States?"* (queries Wikipedia/Google when offline databases don't cover it).
+* **News Search**: *"What's the news today?"*, *"Search news about [topic]"* (queries RSS feeds/headlines).
+* **Weather Query**: *"What is the weather?"*, *"Is it raining outside?"* (retrieves current local conditions).
+* **Auspex Scan**: *"Run an auspex scan"*, *"Scan the local network"* (lists IP/MAC addresses of active devices on your local Wi-Fi).
+* **System Operations**:
+  * *"Reboot the system"*, *"Restart"* (reboots the Raspberry Pi).
+  * *"Shutdown"*, *"Power off"*, *"Turn off"* (powers off the Raspberry Pi safely).
+  * *"Self update"*, *"Update your code"* (pulls the latest software code from GitHub and restarts the service).
+
+---
+
 ## Where it's headed — the productized vision
 
 Today Omega-7 is a builder's project: you wire it, flash a Pi, edit a `.env`, and run it from a terminal. The [**Productization Plan**](PRODUCTIZATION_PLAN.md) turns it into an **unbox-and-go appliance**. When that's done, the experience becomes:
