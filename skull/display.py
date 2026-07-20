@@ -1404,6 +1404,8 @@ def _loop():
     last = t0
     next_blink = t0 + random.uniform(*_BLINK_GAP)  # when the next blink starts
     blink_t0 = None       # start time of the in-progress blink, else None
+    idle_anim_start_time = 0.0
+    last_picked_anim = None
     while not _stop.is_set():
         now = time.monotonic()
         dt, last = now - last, now
@@ -1430,11 +1432,18 @@ def _loop():
 
             # If idle and timeout reached or forced, run screensaver animation
             if (now - _last_activity_time >= config.DISPLAY_IDLE_TIMEOUT) or (now < _custom_idle_expiry):
+                # Cycle to a new screensaver every 5 minutes (300 seconds) if not explicitly locked to a requested animation
+                if _active_idle_anim is not None and (now - idle_anim_start_time >= 300.0) and (_requested_idle_anim is None):
+                    _active_idle_anim = None
+
                 if _active_idle_anim is None:
+                    idle_anim_start_time = now
                     if _requested_idle_anim is not None:
                         _active_idle_anim = _requested_idle_anim
                     else:
-                        _active_idle_anim = random.choice(_screensaver_anims)
+                        choices = [a for a in _screensaver_anims if a != last_picked_anim]
+                        _active_idle_anim = random.choice(choices) if choices else random.choice(_screensaver_anims)
+                    last_picked_anim = _active_idle_anim
                     if _active_idle_anim == "pong":
                         global _pong_ball_x, _pong_ball_y, _pong_ball_dx, _pong_ball_dy
                         global _pong_score_l, _pong_score_r
