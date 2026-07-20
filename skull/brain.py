@@ -1504,339 +1504,414 @@ def _simulate_epic_dice(
     return "\n".join(details)
 
 
+
+def _tool_web_search(i):
+    query = i.get("query", "")
+    print(f"[skull] Searching: {query}")
+    return _search.web_search(query)
+
+def _tool_news_search(i):
+    query = i.get("query", "")
+    print(f"[skull] Searching news: {query}")
+    return _search.news_search(query)
+
+def _tool_necromunda_rules(i):
+    query = i.get("query", "")
+    print(f"[skull] Looking up Necromunda rules: {query}")
+    return _search.necromunda_rules(query)
+
+def _tool_warhammer40k_rules(i):
+    query = i.get("query", "")
+    print(f"[skull] Looking up Warhammer 40k rules: {query}")
+    return _search.warhammer40k_rules(query)
+
+def _tool_netepic_rules(i):
+    query = i.get("query", "")
+    print(f"[skull] Looking up NetEpic rules: {query}")
+    return _search.netepic_rules(query)
+
+def _tool_netea_rules(i):
+    query = i.get("query", "")
+    print(f"[skull] Looking up NetEA rules: {query}")
+    return _search.netea_rules(query)
+
+def _tool_get_weather(i):
+    from skull.config import WEATHER_LAT, WEATHER_LON
+    if WEATHER_LAT == 0.0 and WEATHER_LON == 0.0:
+        return "Weather location not configured. Set WEATHER_LAT and WEATHER_LON in .env"
+    print("[skull] Fetching weather...")
+    return _search.get_weather(WEATHER_LAT, WEATHER_LON)
+
+def _tool_set_volume(i):
+    import re, sys, subprocess
+    level = str(i.get("level", "+10")).strip()
+    if not re.fullmatch(r"[+-]?\d{1,3}%?", level):
+        return f"Invalid volume level: {level!r}. Use '+15', '-15', or an absolute number like '80'."
+    try:
+        if sys.platform == "darwin":
+            if level.startswith("+"):
+                script = f"set volume output volume (output volume of (get volume settings) + {level[1:]})"
+            elif level.startswith("-"):
+                script = f"set volume output volume (output volume of (get volume settings) - {level[1:]})"
+            else:
+                script = f"set volume output volume {level}"
+            subprocess.run(["osascript", "-e", script], capture_output=True)
+        else:
+            pct = f"{level}%" if not level.endswith("%") else level
+            subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", pct], capture_output=True)
+        print(f"[skull] Volume: {level}")
+        return f"Volume set to {level}."
+    except Exception as e:
+        return f"Volume adjustment failed: {e}"
+
+def _tool_bluetooth_scan(i):
+    from skull import bluetooth_ctrl
+    from skull import display as _display
+    _display.start_noosphere_scan()
+    try:
+        print("[skull] Scanning for Bluetooth devices...")
+        devices = bluetooth_ctrl.scan()
+        if not devices:
+            result = "No Bluetooth devices found nearby."
+        else:
+            lines = [f"{idx + 1}. {d['name']}" for idx, d in enumerate(devices)]
+            result = "Nearby Bluetooth devices:\n" + "\n".join(lines)
+        print(f"[skull] {result}")
+        return result
+    finally:
+        _display.stop_noosphere_scan()
+
+def _tool_bluetooth_connect(i):
+    from skull import bluetooth_ctrl
+    identifier = str(i.get("identifier", "")).strip()
+    devices = bluetooth_ctrl.get_last_scan()
+    device = _resolve_bt_device(identifier, devices)
+    if device is None:
+        return f"Could not find '{identifier}' in the last scan."
+    print(f"[skull] Connecting to {device['name']} ({device['mac']})...")
+    success = bluetooth_ctrl.connect(device["mac"])
+    return (
+        f"Connected to {device['name']}. Music routes through the speaker via system audio; vocalizations remain on {config.SKULL_NAME}'s own output."
+        if success
+        else f"Failed to connect to {device['name']}. It may be out of range or need pairing."
+    )
+
+def _tool_get_bambu_status(i):
+    from skull import bambu_ctrl
+    if not bambu_ctrl.get_monitor() or not bambu_ctrl.get_monitor().is_configured():
+        return "The Bambu H2S printer is not configured. Ask the user to configure BAMBU_PRINTER_IP, BAMBU_PRINTER_SERIAL, and BAMBU_PRINTER_ACCESS_CODE in their .env file."
+    
+    report = bambu_ctrl.get_status_report()
+    if report is None:
+        return "The Bambu H2S printer is currently offline or unreachable. The skull is attempting to establish a background connection."
+        
+    gcode_state = report.get("gcode_state", "UNKNOWN")
+    percent = report.get("percent", 0)
+    remaining = report.get("remaining_minutes", 0)
+    nozzle = report.get("nozzle_temp", 0.0)
+    bed = report.get("bed_temp", 0.0)
+    file = report.get("gcode_file", "")
+    hms = report.get("hms", [])
+    
+    errs = f"Active HMS codes: {', '.join(hms)}" if hms else "No active errors."
+    return (
+        f"Bambu H2S 3D Printer Status:\n"
+        f"- State: {gcode_state}\n"
+        f"- Progress: {percent}%\n"
+        f"- Remaining Time: {remaining} minutes\n"
+        f"- Nozzle Temperature: {nozzle}°C\n"
+        f"- Bed Temperature: {bed}°C\n"
+        f"- Active File: {file}\n"
+        f"- Diagnostic: {errs}"
+    )
+
+def _tool_remember_fact(i):
+    return _memory.remember(str(i.get("fact", "")).strip())
+
+def _tool_forget_fact(i):
+    return _memory.forget(str(i.get("query", "")).strip())
+
+def _tool_update_fact(i):
+    return _memory.update(str(i.get("query", "")).strip(), str(i.get("new_fact", "")).strip())
+
+def _tool_set_reminder(i):
+    message = str(i.get("message", "")).strip()
+    delay = int(i.get("delay_seconds", 60))
+    rid = _reminders.add(message, delay)
+    mins, secs = divmod(delay, 60)
+    human = f"{mins}m {secs}s" if mins else f"{secs}s"
+    print(f"[brain] Reminder set: [{rid}] in {human} — {message!r}")
+    return f"Reminder set (ID: {rid}). Will fire in {human}."
+
+def _tool_list_reminders(i):
+    items = _reminders.list_all()
+    if not items:
+        return "No active timers or reminders."
+    return "\n".join(
+        f"[{r['id']}] in {_reminders.format_remaining(r['fire_at'])}: {r['message']}"
+        for r in items
+    )
+
+def _tool_cancel_reminder(i):
+    rid = str(i.get("reminder_id", "")).strip()
+    return f"Reminder [{rid}] cancelled." if _reminders.cancel(rid) else f"No reminder found with ID '{rid}'."
+
+def _tool_acknowledge_reminders(i):
+    count = _reminders.acknowledge_all()
+    print(f"[brain] Acknowledged {count} repeating reminder(s)")
+    return f"Silenced {count} repeating alert(s)." if count else "No repeating alerts were active."
+
+def _tool_set_quiet_mode(i):
+    enabled = bool(i.get("enabled", True))
+    _quiet.set_silent(enabled)
+    return (
+        "Silent mode engaged. This unit will cease unprompted observations."
+        if enabled
+        else "Silent mode lifted. This unit will resume its periodic observations."
+    )
+
+def _tool_shift_mood(i):
+    new_mood = _mood.set_mood(str(i.get("mood", "DUTIFUL")))
+    return f"Disposition updated to {new_mood}."
+
+def _tool_set_candles(i):
+    lit = bool(i.get("lit", True))
+    if lit:
+        _candles.on()
+    else:
+        _candles.off()
+    print(f"[skull] Candles {'lit' if lit else 'extinguished'}")
+    return "The candles are lit; their flame-glow flickers over the skull." if lit else "The candles are extinguished."
+
+def _tool_roll_dice(i):
+    num_dice = int(i.get("num_dice", 1))
+    hit_on = int(i.get("hit_on", 3))
+    wound_on = int(i.get("wound_on", 4))
+    save_on = i.get("save_on")
+    save_on = int(save_on) if save_on is not None else None
+    ap = int(i.get("ap", 0))
+    invul_save = i.get("invul_save")
+    invul_save = int(invul_save) if invul_save is not None else None
+    reroll_hits = str(i.get("reroll_hits", "none"))
+    reroll_wounds = str(i.get("reroll_wounds", "none"))
+    feel_no_pain = i.get("feel_no_pain")
+    feel_no_pain = int(feel_no_pain) if feel_no_pain is not None else None
+    print(f"[skull] Rolling {num_dice} dice (hits: {hit_on}+, wounds: {wound_on}+)")
+    res = _simulate_dice(
+        num_dice=num_dice,
+        hit_on=hit_on,
+        wound_on=wound_on,
+        save_on=save_on,
+        ap=ap,
+        invul_save=invul_save,
+        reroll_hits=reroll_hits,
+        reroll_wounds=reroll_wounds,
+        feel_no_pain=feel_no_pain
+    )
+    _trigger_dice_effects()
+    return res
+
+def _tool_auspex_scan(i):
+    print("[skull] Performing Noosphere Auspex scan...")
+    from skull import display as _display
+    _display.start_noosphere_scan()
+    try:
+        from skull import sfx as _sfx
+        _sfx.play("scan_sweep")
+        import time as _time
+        _time.sleep(1.0)
+        return _run_auspex_scan()
+    except Exception as e:
+        _display.stop_noosphere_scan()
+        raise e
+
+def _tool_set_active_game(i):
+    game = str(i.get("game", "Warhammer 40k")).strip()
+    set_current_game(game)
+    print(f"[brain] Active game set to {game}")
+    return f"Active game is now set to {game}."
+
+def _tool_roll_necromunda_dice(i):
+    dice_type = str(i.get("dice_type", "d6")).strip()
+    count = int(i.get("count", 1))
+    target = i.get("target")
+    target = int(target) if target is not None else None
+    print(f"[brain] Rolling {count} Necromunda {dice_type} dice...")
+    res = _simulate_necromunda(dice_type, count, target)
+    _trigger_dice_effects()
+    return res
+
+def _tool_roll_standard_dice(i):
+    count = int(i.get("count", 1))
+    sides = int(i.get("sides", 6))
+    target = i.get("target")
+    target = int(target) if target is not None else None
+    print(f"[brain] Rolling {count}d{sides}...")
+    res = _simulate_standard_dice(count, sides, target)
+    _trigger_dice_effects()
+    return res
+
+def _tool_roll_epic_dice(i):
+    roll_type = str(i.get("roll_type", "shooting")).strip()
+    count = int(i.get("count", 1))
+    system = i.get("system")
+    if system is None:
+        active = get_current_game()
+        if active == "NetEpic Armageddon":
+            system = "NetEA"
+        elif active == "NetEpic":
+            system = "NetEpic"
+        else:
+            system = "NetEpic"
+    else:
+        system = str(system).strip()
+
+    to_hit = i.get("to_hit")
+    to_hit = int(to_hit) if to_hit is not None else None
+    
+    save_on = i.get("save_on")
+    save_on = int(save_on) if save_on is not None else None
+    
+    tsm = int(i.get("tsm", 0))
+    macro_weapon = bool(i.get("macro_weapon", False))
+    reinforced_armour = bool(i.get("reinforced_armour", False))
+    
+    caf = int(i.get("caf", 0))
+    opponent_caf = int(i.get("opponent_caf", 0))
+    
+    opponent_count = i.get("opponent_count")
+    opponent_count = int(opponent_count) if opponent_count is not None else None
+    
+    morales = i.get("morales")
+    morales = int(morales) if morales is not None else None
+
+    print(f"[brain] Rolling {count} Epic {system} dice for {roll_type}...")
+    res = _simulate_epic_dice(
+        system=system,
+        roll_type=roll_type,
+        count=count,
+        to_hit=to_hit,
+        save_on=save_on,
+        tsm=tsm,
+        macro_weapon=macro_weapon,
+        reinforced_armour=reinforced_armour,
+        caf=caf,
+        opponent_caf=opponent_caf,
+        morales=morales,
+        opponent_count=opponent_count,
+    )
+    _trigger_dice_effects()
+    return res
+
+def _tool_set_spotify_volume(i):
+    level = int(i.get("level", 50))
+    from skull import spotify_ctrl
+    return spotify_ctrl.set_volume(level)
+
+def _tool_adjust_spotify_volume(i):
+    change = int(i.get("change", 0))
+    from skull import spotify_ctrl
+    return spotify_ctrl.adjust_volume(change)
+
+def _tool_refresh_voice_cache(i):
+    if _RELOAD_VOICE_CACHE_CB:
+        return _RELOAD_VOICE_CACHE_CB()
+    return "Voice refresh callback not registered."
+
+def _tool_self_update(i):
+    if _SELF_UPDATE_CB:
+        return _SELF_UPDATE_CB()
+    return "Self update callback not registered."
+
+def _tool_reboot_system(i):
+    if _REBOOT_CB:
+        return _REBOOT_CB()
+    return "Reboot callback not registered."
+
+def _tool_shutdown_system(i):
+    if _SHUTDOWN_CB:
+        return _SHUTDOWN_CB()
+    return "Shutdown callback not registered."
+
+def _tool_cancel_printer_alerts(i):
+    from skull import bambu_ctrl
+    monitor = bambu_ctrl.get_monitor()
+    if monitor:
+        monitor.cancel_repeater()
+        return "Repeating 3D printer alerts have been successfully cancelled."
+    return "Bambu monitor is not currently active."
+
+def _tool_display_art(i):
+    search_query = i.get("search_query", "")
+    return _execute_display_art(search_query)
+
+def _tool_capture_and_describe_surroundings(i):
+    from skull import camera
+    return camera.capture_on_demand()
+
+def _tool_register_face(i):
+    name_val = i.get("name", "")
+    from skull import camera
+    return camera.register_face(name_val)
+
+def _tool_play_idle_animation(i):
+    dur = float(i.get("duration_seconds", 60.0))
+    anim = i.get("animation_name")
+    from skull import display
+    display.trigger_idle_animation(dur, anim)
+    anim_str = anim if anim else "random"
+    return f"Initiating cogitator screensaver sequence ({anim_str}) for {dur} seconds."
+
+_TOOL_REGISTRY = {
+    "web_search": _tool_web_search,
+    "news_search": _tool_news_search,
+    "necromunda_rules": _tool_necromunda_rules,
+    "warhammer40k_rules": _tool_warhammer40k_rules,
+    "netepic_rules": _tool_netepic_rules,
+    "netea_rules": _tool_netea_rules,
+    "get_weather": _tool_get_weather,
+    "set_volume": _tool_set_volume,
+    "bluetooth_scan": _tool_bluetooth_scan,
+    "bluetooth_connect": _tool_bluetooth_connect,
+    "get_bambu_status": _tool_get_bambu_status,
+    "remember_fact": _tool_remember_fact,
+    "forget_fact": _tool_forget_fact,
+    "update_fact": _tool_update_fact,
+    "set_reminder": _tool_set_reminder,
+    "list_reminders": _tool_list_reminders,
+    "cancel_reminder": _tool_cancel_reminder,
+    "acknowledge_reminders": _tool_acknowledge_reminders,
+    "set_quiet_mode": _tool_set_quiet_mode,
+    "shift_mood": _tool_shift_mood,
+    "set_candles": _tool_set_candles,
+    "roll_dice": _tool_roll_dice,
+    "auspex_scan": _tool_auspex_scan,
+    "set_active_game": _tool_set_active_game,
+    "roll_necromunda_dice": _tool_roll_necromunda_dice,
+    "roll_standard_dice": _tool_roll_standard_dice,
+    "roll_epic_dice": _tool_roll_epic_dice,
+    "set_spotify_volume": _tool_set_spotify_volume,
+    "adjust_spotify_volume": _tool_adjust_spotify_volume,
+    "refresh_voice_cache": _tool_refresh_voice_cache,
+    "self_update": _tool_self_update,
+    "reboot_system": _tool_reboot_system,
+    "shutdown_system": _tool_shutdown_system,
+    "cancel_printer_alerts": _tool_cancel_printer_alerts,
+    "display_art": _tool_display_art,
+    "capture_and_describe_surroundings": _tool_capture_and_describe_surroundings,
+    "register_face": _tool_register_face,
+    "play_idle_animation": _tool_play_idle_animation,
+}
+
 def _execute_tool(name: str, tool_input: dict) -> str:
     """Run a single tool call and return its result string. Called by the llm
     tool-use loop."""
-    if name == "web_search":
-        query = tool_input.get("query", "")
-        print(f"[skull] Searching: {query}")
-        return _search.web_search(query)
-    if name == "news_search":
-        query = tool_input.get("query", "")
-        print(f"[skull] Searching news: {query}")
-        return _search.news_search(query)
-    if name == "necromunda_rules":
-        query = tool_input.get("query", "")
-        print(f"[skull] Looking up Necromunda rules: {query}")
-        return _search.necromunda_rules(query)
-    if name == "warhammer40k_rules":
-        query = tool_input.get("query", "")
-        print(f"[skull] Looking up Warhammer 40k rules: {query}")
-        return _search.warhammer40k_rules(query)
-    if name == "netepic_rules":
-        query = tool_input.get("query", "")
-        print(f"[skull] Looking up NetEpic rules: {query}")
-        return _search.netepic_rules(query)
-    if name == "netea_rules":
-        query = tool_input.get("query", "")
-        print(f"[skull] Looking up NetEA rules: {query}")
-        return _search.netea_rules(query)
-    if name == "get_weather":
-        from skull.config import WEATHER_LAT, WEATHER_LON
-        if WEATHER_LAT == 0.0 and WEATHER_LON == 0.0:
-            return "Weather location not configured. Set WEATHER_LAT and WEATHER_LON in .env"
-        print("[skull] Fetching weather...")
-        return _search.get_weather(WEATHER_LAT, WEATHER_LON)
-    if name == "set_volume":
-        level = str(tool_input.get("level", "+10")).strip()
-        # `level` is model-generated and gets interpolated into an osascript -e
-        # string below, so reject anything that isn't a bare (optionally signed,
-        # optionally %-suffixed) integer — otherwise a crafted value could inject
-        # arbitrary AppleScript / shell commands.
-        if not re.fullmatch(r"[+-]?\d{1,3}%?", level):
-            return f"Invalid volume level: {level!r}. Use '+15', '-15', or an absolute number like '80'."
+    if name in _TOOL_REGISTRY:
         try:
-            if sys.platform == "darwin":
-                if level.startswith("+"):
-                    script = f"set volume output volume (output volume of (get volume settings) + {level[1:]})"
-                elif level.startswith("-"):
-                    script = f"set volume output volume (output volume of (get volume settings) - {level[1:]})"
-                else:
-                    script = f"set volume output volume {level}"
-                subprocess.run(["osascript", "-e", script], capture_output=True)
-            else:
-                pct = f"{level}%" if not level.endswith("%") else level
-                subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", pct], capture_output=True)
-            print(f"[skull] Volume: {level}")
-            return f"Volume set to {level}."
+            return _TOOL_REGISTRY[name](tool_input)
         except Exception as e:
-            return f"Volume adjustment failed: {e}"
-    if name == "bluetooth_scan":
-        from skull import bluetooth_ctrl
-        from skull import display as _display
-        _display.start_noosphere_scan()
-        try:
-            print("[skull] Scanning for Bluetooth devices...")
-            devices = bluetooth_ctrl.scan()
-            if not devices:
-                result = "No Bluetooth devices found nearby."
-            else:
-                lines = [f"{i + 1}. {d['name']}" for i, d in enumerate(devices)]
-                result = "Nearby Bluetooth devices:\n" + "\n".join(lines)
-            print(f"[skull] {result}")
-            return result
-        finally:
-            _display.stop_noosphere_scan()
-    if name == "bluetooth_connect":
-        from skull import bluetooth_ctrl
-        identifier = str(tool_input.get("identifier", "")).strip()
-        devices = bluetooth_ctrl.get_last_scan()
-        device = _resolve_bt_device(identifier, devices)
-        if device is None:
-            return f"Could not find '{identifier}' in the last scan."
-        print(f"[skull] Connecting to {device['name']} ({device['mac']})...")
-        success = bluetooth_ctrl.connect(device["mac"])
-        return (
-            f"Connected to {device['name']}. Music routes through the speaker via system audio; vocalizations remain on {config.SKULL_NAME}'s own output."
-            if success
-            else f"Failed to connect to {device['name']}. It may be out of range or need pairing."
-        )
-    if name == "get_bambu_status":
-        from skull import bambu_ctrl
-        if not bambu_ctrl.get_monitor() or not bambu_ctrl.get_monitor().is_configured():
-            return "The Bambu H2S printer is not configured. Ask the user to configure BAMBU_PRINTER_IP, BAMBU_PRINTER_SERIAL, and BAMBU_PRINTER_ACCESS_CODE in their .env file."
-        
-        report = bambu_ctrl.get_status_report()
-        if report is None:
-            return "The Bambu H2S printer is currently offline or unreachable. The skull is attempting to establish a background connection."
-            
-        gcode_state = report.get("gcode_state", "UNKNOWN")
-        percent = report.get("percent", 0)
-        remaining = report.get("remaining_minutes", 0)
-        nozzle = report.get("nozzle_temp", 0.0)
-        bed = report.get("bed_temp", 0.0)
-        file = report.get("gcode_file", "")
-        hms = report.get("hms", [])
-        
-        errs = f"Active HMS codes: {', '.join(hms)}" if hms else "No active errors."
-        return (
-            f"Bambu H2S 3D Printer Status:\n"
-            f"- State: {gcode_state}\n"
-            f"- Progress: {percent}%\n"
-            f"- Remaining Time: {remaining} minutes\n"
-            f"- Nozzle Temperature: {nozzle}°C\n"
-            f"- Bed Temperature: {bed}°C\n"
-            f"- Active File: {file}\n"
-            f"- Diagnostic: {errs}"
-        )
-    if name == "remember_fact":
-        return _memory.remember(str(tool_input.get("fact", "")).strip())
-    if name == "forget_fact":
-        return _memory.forget(str(tool_input.get("query", "")).strip())
-    if name == "update_fact":
-        return _memory.update(str(tool_input.get("query", "")).strip(),
-                              str(tool_input.get("new_fact", "")).strip())
-    if name == "set_reminder":
-        message = str(tool_input.get("message", "")).strip()
-        delay = int(tool_input.get("delay_seconds", 60))
-        rid = _reminders.add(message, delay)
-        mins, secs = divmod(delay, 60)
-        human = f"{mins}m {secs}s" if mins else f"{secs}s"
-        print(f"[brain] Reminder set: [{rid}] in {human} — {message!r}")
-        return f"Reminder set (ID: {rid}). Will fire in {human}."
-    if name == "list_reminders":
-        items = _reminders.list_all()
-        if not items:
-            return "No active timers or reminders."
-        return "\n".join(
-            f"[{r['id']}] in {_reminders.format_remaining(r['fire_at'])}: {r['message']}"
-            for r in items
-        )
-    if name == "cancel_reminder":
-        rid = str(tool_input.get("reminder_id", "")).strip()
-        return f"Reminder [{rid}] cancelled." if _reminders.cancel(rid) else f"No reminder found with ID '{rid}'."
-    if name == "acknowledge_reminders":
-        count = _reminders.acknowledge_all()
-        print(f"[brain] Acknowledged {count} repeating reminder(s)")
-        return f"Silenced {count} repeating alert(s)." if count else "No repeating alerts were active."
-    if name == "set_quiet_mode":
-        enabled = bool(tool_input.get("enabled", True))
-        _quiet.set_silent(enabled)
-        return (
-            "Silent mode engaged. This unit will cease unprompted observations."
-            if enabled
-            else "Silent mode lifted. This unit will resume its periodic observations."
-        )
-    if name == "shift_mood":
-        new_mood = _mood.set_mood(str(tool_input.get("mood", "DUTIFUL")))
-        return f"Disposition updated to {new_mood}."
-    if name == "set_candles":
-        lit = bool(tool_input.get("lit", True))
-        if lit:
-            _candles.on()
-        else:
-            _candles.off()
-        print(f"[skull] Candles {'lit' if lit else 'extinguished'}")
-        return (
-            "The candles are lit; their flame-glow flickers over the skull."
-            if lit
-            else "The candles are extinguished."
-        )
-    if name == "roll_dice":
-        num_dice = int(tool_input.get("num_dice", 1))
-        hit_on = int(tool_input.get("hit_on", 3))
-        wound_on = int(tool_input.get("wound_on", 4))
-        save_on = tool_input.get("save_on")
-        save_on = int(save_on) if save_on is not None else None
-        ap = int(tool_input.get("ap", 0))
-        invul_save = tool_input.get("invul_save")
-        invul_save = int(invul_save) if invul_save is not None else None
-        reroll_hits = str(tool_input.get("reroll_hits", "none"))
-        reroll_wounds = str(tool_input.get("reroll_wounds", "none"))
-        feel_no_pain = tool_input.get("feel_no_pain")
-        feel_no_pain = int(feel_no_pain) if feel_no_pain is not None else None
-        print(f"[skull] Rolling {num_dice} dice (hits: {hit_on}+, wounds: {wound_on}+)")
-        res = _simulate_dice(
-            num_dice=num_dice,
-            hit_on=hit_on,
-            wound_on=wound_on,
-            save_on=save_on,
-            ap=ap,
-            invul_save=invul_save,
-            reroll_hits=reroll_hits,
-            reroll_wounds=reroll_wounds,
-            feel_no_pain=feel_no_pain
-        )
-        _trigger_dice_effects()
-        return res
-    if name == "auspex_scan":
-        print("[skull] Performing Noosphere Auspex scan...")
-        from skull import display as _display
-        _display.start_noosphere_scan()
-        try:
-            # Play scan sweep sound
-            from skull import sfx as _sfx
-            _sfx.play("scan_sweep")
-            # Pause to simulate auspex sweeping
-            import time as _time
-            _time.sleep(1.0)
-            return _run_auspex_scan()
-        except Exception as e:
-            _display.stop_noosphere_scan()
-            raise e
-    if name == "set_active_game":
-        game = str(tool_input.get("game", "Warhammer 40k")).strip()
-        set_current_game(game)
-        print(f"[brain] Active game set to {game}")
-        return f"Active game is now set to {game}."
-    if name == "roll_necromunda_dice":
-        dice_type = str(tool_input.get("dice_type", "d6")).strip()
-        count = int(tool_input.get("count", 1))
-        target = tool_input.get("target")
-        target = int(target) if target is not None else None
-        print(f"[brain] Rolling {count} Necromunda {dice_type} dice...")
-        res = _simulate_necromunda(dice_type, count, target)
-        _trigger_dice_effects()
-        return res
-    if name == "roll_standard_dice":
-        count = int(tool_input.get("count", 1))
-        sides = int(tool_input.get("sides", 6))
-        target = tool_input.get("target")
-        target = int(target) if target is not None else None
-        print(f"[brain] Rolling {count}d{sides}...")
-        res = _simulate_standard_dice(count, sides, target)
-        _trigger_dice_effects()
-        return res
-    if name == "roll_epic_dice":
-        roll_type = str(tool_input.get("roll_type", "shooting")).strip()
-        count = int(tool_input.get("count", 1))
-        
-        system = tool_input.get("system")
-        if system is None:
-            active = get_current_game()
-            if active == "NetEpic Armageddon":
-                system = "NetEA"
-            elif active == "NetEpic":
-                system = "NetEpic"
-            else:
-                system = "NetEpic"
-        else:
-            system = str(system).strip()
-
-        to_hit = tool_input.get("to_hit")
-        to_hit = int(to_hit) if to_hit is not None else None
-        
-        save_on = tool_input.get("save_on")
-        save_on = int(save_on) if save_on is not None else None
-        
-        tsm = int(tool_input.get("tsm", 0))
-        macro_weapon = bool(tool_input.get("macro_weapon", False))
-        reinforced_armour = bool(tool_input.get("reinforced_armour", False))
-        
-        caf = int(tool_input.get("caf", 0))
-        opponent_caf = int(tool_input.get("opponent_caf", 0))
-        
-        opponent_count = tool_input.get("opponent_count")
-        opponent_count = int(opponent_count) if opponent_count is not None else None
-        
-        morales = tool_input.get("morales")
-        morales = int(morales) if morales is not None else None
-
-        print(f"[brain] Rolling {count} Epic {system} dice for {roll_type}...")
-        res = _simulate_epic_dice(
-            system=system,
-            roll_type=roll_type,
-            count=count,
-            to_hit=to_hit,
-            save_on=save_on,
-            tsm=tsm,
-            macro_weapon=macro_weapon,
-            reinforced_armour=reinforced_armour,
-            caf=caf,
-            opponent_caf=opponent_caf,
-            morales=morales,
-            opponent_count=opponent_count,
-        )
-        _trigger_dice_effects()
-        return res
-    if name == "set_spotify_volume":
-        level = int(tool_input.get("level", 50))
-        from skull import spotify_ctrl
-        return spotify_ctrl.set_volume(level)
-    if name == "adjust_spotify_volume":
-        change = int(tool_input.get("change", 0))
-        from skull import spotify_ctrl
-        return spotify_ctrl.adjust_volume(change)
-    if name == "refresh_voice_cache":
-        if _RELOAD_VOICE_CACHE_CB:
-            return _RELOAD_VOICE_CACHE_CB()
-        return "Voice refresh callback not registered."
-    if name == "self_update":
-        if _SELF_UPDATE_CB:
-            return _SELF_UPDATE_CB()
-        return "Self update callback not registered."
-    if name == "reboot_system":
-        if _REBOOT_CB:
-            return _REBOOT_CB()
-        return "Reboot callback not registered."
-    if name == "shutdown_system":
-        if _SHUTDOWN_CB:
-            return _SHUTDOWN_CB()
-        return "Shutdown callback not registered."
-    if name == "cancel_printer_alerts":
-        from skull import bambu_ctrl
-        monitor = bambu_ctrl.get_monitor()
-        if monitor:
-            monitor.cancel_repeater()
-            return "Repeating 3D printer alerts have been successfully cancelled."
-        return "Bambu monitor is not currently active."
-    if name == "display_art":
-        search_query = tool_input.get("search_query", "")
-        return _execute_display_art(search_query)
-    if name == "capture_and_describe_surroundings":
-        from skull import camera
-        return camera.capture_on_demand()
-    if name == "register_face":
-        name_val = tool_input.get("name", "")
-        from skull import camera
-        return camera.register_face(name_val)
-    if name == "play_idle_animation":
-        dur = float(tool_input.get("duration_seconds", 60.0))
-        anim = tool_input.get("animation_name")
-        from skull import display
-        display.trigger_idle_animation(dur, anim)
-        anim_str = anim if anim else "random"
-        return f"Initiating cogitator screensaver sequence ({anim_str}) for {dur} seconds."
+            print(f"[brain] Tool '{name}' crashed: {e}")
+            return f"Error executing tool '{name}': {e}"
     return f"Unknown tool: {name}"
 
 

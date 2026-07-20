@@ -10,6 +10,27 @@ from spotipy.oauth2 import SpotifyOAuth
 
 from skull import config
 
+import time
+import requests
+
+def retry_spotify_call(max_retries=3):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except (spotipy.SpotifyException, requests.exceptions.RequestException) as e:
+                    if attempt == max_retries - 1:
+                        print(f"[spotify] Failed after {max_retries} attempts: {e}")
+                        raise
+                    delay = 2 ** attempt
+                    print(f"[spotify] Transient error ({e}), retrying in {delay}s...")
+                    time.sleep(delay)
+            return None
+        return wrapper
+    return decorator
+
+
 _SCOPES = " ".join([
     "user-read-playback-state",
     "user-modify-playback-state",
@@ -114,6 +135,7 @@ def search_and_play(query: str, device_name: str = None) -> str:
 _pre_duck_volume: int | None = None
 
 
+@retry_spotify_call()
 def duck(level: int = 20) -> None:
     """Lower the music volume while Omega-7 speaks, then restore() afterwards.
 
@@ -143,6 +165,7 @@ def duck(level: int = 20) -> None:
         _pre_duck_volume = None
 
 
+@retry_spotify_call()
 def restore() -> None:
     """Restore the pre-duck music volume. Idempotent; no-op if not ducked."""
     global _pre_duck_volume
@@ -168,6 +191,7 @@ def _active_device_id() -> str | None:
         return None
 
 
+@retry_spotify_call()
 def pause() -> None:
     try:
         _client().pause_playback(device_id=_active_device_id())
@@ -182,6 +206,7 @@ def pause() -> None:
         print(f"[spotify] Pause failed: {e}")
 
 
+@retry_spotify_call()
 def resume() -> None:
     try:
         _client().start_playback(device_id=_active_device_id())
@@ -190,6 +215,7 @@ def resume() -> None:
         print(f"[spotify] Resume failed: {e}")
 
 
+@retry_spotify_call()
 def skip() -> None:
     try:
         _client().next_track(device_id=_active_device_id())
@@ -202,6 +228,7 @@ def is_configured() -> bool:
     return bool(config.SPOTIFY_CLIENT_ID and config.SPOTIFY_CLIENT_SECRET)
 
 
+@retry_spotify_call()
 def is_playing() -> bool:
     if _sp is None:
         return False
@@ -226,7 +253,7 @@ def set_volume(level: int) -> str:
             print(f"[spotify] Set volume to {level}%")
             return f"Set Spotify volume to {level}%."
         return "No active Spotify Connect device found to set volume."
-    except Exception as e:
+    except (spotipy.SpotifyException, requests.exceptions.RequestException) as e:
         return f"Failed to set Spotify volume: {e}"
 
 

@@ -21,7 +21,7 @@ import time
 from skull import config
 
 # Standard SoC thermal sensor on the Raspberry Pi (and most Linux SBCs).
-_SENSOR = "/sys/class/thermal/thermal_zone0/temp"
+_SENSOR = config.THERMAL_SENSOR_PATH
 
 _lock = threading.Lock()
 _pending: str | None = None   # warning text waiting for the main loop to speak

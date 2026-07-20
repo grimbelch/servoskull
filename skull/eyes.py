@@ -11,6 +11,8 @@ import math
 import time
 import threading
 
+_speaking_lock = threading.Lock()
+
 _gpio_available = False
 _pwm_left = None
 _pwm_center = None

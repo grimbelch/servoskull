@@ -33,6 +33,18 @@ def start() -> bool:
     if not config.PROXIMITY_ENABLED:
         return False
     try:
+        # Drive XSHUT pin HIGH to boot up the sensor
+        try:
+            import RPi.GPIO as GPIO
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setwarnings(False)
+            GPIO.setup(config.PROXIMITY_XSHUT_PIN, GPIO.OUT, initial=GPIO.HIGH)
+            import time
+            time.sleep(0.1)  # 100ms to allow VL53L1X to boot up and initialize I2C
+            print(f"[proximity] Driven XSHUT (GPIO {config.PROXIMITY_XSHUT_PIN}) HIGH.")
+        except Exception as ge:
+            print(f"[proximity] GPIO setup warning (XSHUT pin {config.PROXIMITY_XSHUT_PIN}): {ge}")
+
         import VL53L1X
         tof = VL53L1X.VL53L1X(
             i2c_bus=config.PROXIMITY_I2C_BUS,
@@ -88,5 +100,14 @@ def stop() -> None:
             _tof.close()
     except Exception:
         pass
+    
+    # Drive XSHUT low to put sensor back in shutdown/low-power state
+    try:
+        import RPi.GPIO as GPIO
+        GPIO.setup(config.PROXIMITY_XSHUT_PIN, GPIO.OUT)
+        GPIO.output(config.PROXIMITY_XSHUT_PIN, GPIO.LOW)
+    except Exception:
+        pass
+
     _tof = None
     _available = False

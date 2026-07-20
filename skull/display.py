@@ -15,6 +15,8 @@ from __future__ import annotations
 import math
 import random
 import threading
+
+_state_lock = threading.Lock()
 import time
 
 from skull import config
@@ -1494,7 +1496,7 @@ def _loop():
                         _blit(_render_spectrum_bars_frame(bezel, mask, now))
                 except Exception as e:
                     print(f"[display] screensaver render error ({_active_idle_anim}): {e}")
-                time.sleep(1 / 30)
+                time.sleep(1 / config.DISPLAY_FPS)
                 continue
         if _showing_omnissiah_glyph:
             glyph_elapsed = now - _omnissiah_start_time
@@ -1505,7 +1507,7 @@ def _loop():
                     _blit(_render_omnissiah_frame(bezel, mask, now))
                 except Exception as e:
                     print(f"[display] omnissiah render error: {e}")
-                time.sleep(1 / 30)
+                time.sleep(1 / config.DISPLAY_FPS)
                 continue
 
         if _rolling_die:
@@ -1517,7 +1519,7 @@ def _loop():
                     _blit(_render_die_frame(bezel, mask, roll_elapsed, _die_result))
                 except Exception as e:
                     print(f"[display] die render error: {e}")
-                time.sleep(1 / 30)
+                time.sleep(1 / config.DISPLAY_FPS)
                 continue
 
         if _scanning_auspex:
@@ -1525,7 +1527,7 @@ def _loop():
                 _blit(_render_auspex_frame(bezel, mask, now))
             except Exception as e:
                 print(f"[display] auspex render error: {e}")
-            time.sleep(1 / 30)
+            time.sleep(1 / config.DISPLAY_FPS)
             continue
 
         if _scanning_noosphere:
@@ -1533,7 +1535,7 @@ def _loop():
                 _blit(_render_noosphere_frame(bezel, mask, now))
             except Exception as e:
                 print(f"[display] noosphere render error: {e}")
-            time.sleep(1 / 30)
+            time.sleep(1 / config.DISPLAY_FPS)
             continue
 
         if _targeting:
@@ -1541,7 +1543,7 @@ def _loop():
                 _blit(_render_targeting_frame(bezel, mask, now))
             except Exception as e:
                 print(f"[display] targeting render error: {e}")
-            time.sleep(1 / 30)
+            time.sleep(1 / config.DISPLAY_FPS)
             continue
 
         if _visualizing_music and not _speaking and not _thinking:
@@ -1549,7 +1551,7 @@ def _loop():
                 _blit(_render_music_frame(bezel, mask, now))
             except Exception as e:
                 print(f"[display] music render error: {e}")
-            time.sleep(1 / 30)
+            time.sleep(1 / config.DISPLAY_FPS)
             continue
 
         if _showing_custom_image:
@@ -1561,7 +1563,7 @@ def _loop():
                     _blit(_custom_image)
                 except Exception as e:
                     print(f"[display] custom image render error: {e}")
-                time.sleep(1 / 30)
+                time.sleep(1 / config.DISPLAY_FPS)
                 continue
 
         if _speaking:
@@ -1594,7 +1596,7 @@ def _loop():
         except Exception as e:
             print(f"[display] render error: {e}")
             return
-        time.sleep(1 / 30)
+        time.sleep(1 / config.DISPLAY_FPS)
 
 
 def start_die_roll(result: int | str) -> None:
