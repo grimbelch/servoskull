@@ -329,7 +329,7 @@ def _make_bezel():
     return bg
 
 
-def _render_frame(bezel, mask, amp: float, angle: float = 0.0, blink: float = 0.0):
+def _render_frame(bezel, mask, amp: float, angle: float = 0.0, blink: float = 0.0, look_x: float = 0.0, look_y: float = 0.0):
     """Compose one iris frame for normalized amplitude `amp` (0..1). The iris is
     drawn on its own layer and pasted through `mask` so it stays in the aperture.
 
@@ -339,18 +339,24 @@ def _render_frame(bezel, mask, amp: float, angle: float = 0.0, blink: float = 0.
     disc and so is unaffected.
 
     `blink` (0=open..1=fully closed) squashes the iris vertically about its
-    centre into a slit, so the eye reads as blinking."""
+    centre into a slit, so the eye reads as blinking.
+    
+    `look_x` and `look_y` shift the iris center to simulate looking around.
+    """
     # rotate() returns a fresh image we can draw on; otherwise copy the shared bezel.
     img = bezel.rotate(angle, resample=Image.BICUBIC) if angle else bezel.copy()
     base = _mood_rgb
     intensity = 0.25 + 0.75 * amp           # never fully dark
     iris_r = 30 + 30 * amp                   # iris grows as it "speaks"
 
+    cx = _CX + look_x
+    cy = _CY + look_y
+
     iris = Image.new("RGB", (W, H), (0, 0, 0))
     d = ImageDraw.Draw(iris)
 
     def disc(r, colour):
-        d.ellipse([_CX - r, _CY - r, _CX + r, _CY + r], fill=colour)
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=colour)
 
     disc(iris_r * 2.0, _scale(base, intensity * 0.12))   # outer halo (fills aperture at peak)
     disc(iris_r * 1.45, _scale(base, intensity * 0.32))  # glow
@@ -1406,6 +1412,13 @@ def _loop():
     blink_t0 = None       # start time of the in-progress blink, else None
     idle_anim_start_time = 0.0
     last_picked_anim = None
+    
+    # Gaze variables for looking around when idle
+    look_x = 0.0
+    look_y = 0.0
+    target_look_x = 0.0
+    target_look_y = 0.0
+    next_gaze_time = t0 + random.uniform(2.0, 5.0)
     while not _stop.is_set():
         now = time.monotonic()
         dt, last = now - last, now
@@ -1589,6 +1602,28 @@ def _loop():
         # gear doesn't snap back to zero.
         if _thinking:
             angle = (angle + _SPIN_DEG_PER_SEC * dt) % 360
+
+        # Gaze behavior: look around randomly when not speaking, not thinking, and not running screensavers
+        if not _speaking and not _thinking and not is_active:
+            if now >= next_gaze_time:
+                if random.random() < 0.3:  # 30% chance to look back to center
+                    target_look_x = 0.0
+                    target_look_y = 0.0
+                else:
+                    gaze_angle = random.uniform(0, 2 * math.pi)
+                    gaze_dist = random.uniform(6.0, 18.0)
+                    target_look_x = gaze_dist * math.cos(gaze_angle)
+                    target_look_y = gaze_dist * math.sin(gaze_angle)
+                next_gaze_time = now + random.uniform(2.5, 6.0)
+        else:
+            # Center the eye when actively speaking, thinking, or in visualizer modes
+            target_look_x = 0.0
+            target_look_y = 0.0
+
+        # Smoothly interpolate gaze position
+        look_x += (target_look_x - look_x) * 0.08
+        look_y += (target_look_y - look_y) * 0.08
+
         # Blink every few seconds: a quick close-and-open easing 0->1->0.
         if blink_t0 is None and now >= next_blink:
             blink_t0 = now
@@ -1601,7 +1636,7 @@ def _loop():
             else:
                 blink = math.sin(math.pi * p)  # 0 at edges, fully closed mid-blink
         try:
-            _blit(_render_frame(bezel, mask, max(0.0, min(1.0, shown)), angle, blink))
+            _blit(_render_frame(bezel, mask, max(0.0, min(1.0, shown)), angle, blink, look_x, look_y))
         except Exception as e:
             print(f"[display] render error: {e}")
             return
