@@ -217,13 +217,15 @@ def register_voice(name: str) -> str:
         
         print(f"[speaker_id] Starting voice registration for {name}")
         
-        # We will record 3 samples
-        num_samples = 3
-        for i in range(num_samples):
-            # Announce sample registration
-            prompt = f"Speak sample {i+1} of {num_samples} after the chime."
+        questions = [
+            f"First inquiry for the archives of Mars: State thy name and thy primary biological function or profession in this sector.",
+            "Second inquiry: Which machine spirit or device in thy possession requires the most frequent application of sacred oils and prayers?",
+            "Third inquiry: In the name of the Omnissiah, what is thy ultimate purpose or duty?"
+        ]
+        
+        for i, q in enumerate(questions):
             try:
-                prompt_wav = tts.synthesize(prompt)
+                prompt_wav = tts.synthesize(q)
                 audio.play_wav_bytes(prompt_wav, output_device=config.VOICE_OUTPUT_DEVICE)
             except Exception as e:
                 print(f"[speaker_id] TTS prompt error: {e}")
@@ -232,9 +234,9 @@ def register_voice(name: str) -> str:
             sfx.play("wake_ping", config.VOICE_OUTPUT_DEVICE)
             time.sleep(0.2)
             
-            # Record 4 seconds of speech
+            # Record up to 6.0 seconds, stopping early on silence
             try:
-                pcm, rate = audio.record(4.0, silence_threshold=250, silence_duration=1.5)
+                pcm, rate = audio.record(6.0, silence_threshold=250, silence_duration=1.5)
                 wav_bytes = audio.pcm_to_wav_bytes(pcm, rate)
                 # Save WAV
                 wav_path = target_dir / f"sample_{i}_{int(time.time())}.wav"
