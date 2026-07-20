@@ -29,256 +29,24 @@ signal.signal(signal.SIGINT, shutdown)
 signal.signal(signal.SIGTERM, shutdown)
 
 
-_WAKE_PHRASES = [
-    "Yes, my Lord?",
-    "How may this unit serve?",
-    "Awaiting your command.",
-    "Speak your will.",
-    "This unit attends.",
-    "Your command, my Lord?",
-    "This unit is roused.",
-    "At your service, my Lord.",
-    "Vox-link open. Speak.",
-    "The skull attends you.",
-    "Command me.",
-    "I hear you, my Lord.",
-    "Systems attentive. Proceed.",
-    "What is thy bidding?",
-    "This unit stands ready.",
-    "Ready to serve.",
-    "You have my attention.",
-    "Say the word, my Lord.",
-    "The machine spirit stirs. Speak.",
-    "Attending. State your need.",
-    "Awakened and listening.",
-    "I am summoned. What is required?",
-    "Your servant awaits.",
-    "Cogitators warm. Proceed.",
-    "How may this unit assist?",
-    "Speak, and it shall be done.",
-    "This unit answers your call.",
-    "Online and attentive.",
-    "The Omnissiah's servant listens.",
-    "Yes? This unit stands by.",
-    "I attend your word.",
-    "Awaiting instruction, my Lord.",
-    "Roused from vigil. Command me.",
-    "What service do you require?",
-    "The skull turns to you.",
-    "Speak your need, my Lord.",
-    "This unit is at your command.",
-    "Listening. Proceed when ready.",
-    "Your will, my Lord?",
-    "Auspex fixed upon you. Speak.",
-    "Ready and awaiting your word.",
-    "The vox awaits your voice.",
-    "This unit heeds you.",
-    "Standing ready, my Lord.",
-    "Command received channel open.",
-    "I am here. Speak.",
-]
 
-_COGITATION_PHRASES = [
-    "Cogitating.",
-    "Consulting the archives.",
-    "Accessing the data-vaults.",
-    "The machine spirits deliberate.",
-    "Searching the cogitator.",
-    "Processing.",
-    "Parsing the datastreams.",
-    "Querying the noosphere.",
-    "Consulting the sacred protocols.",
-    "Cross-referencing the lexicanum.",
-    "The logic-engines turn.",
-    "Sifting the memory-coils.",
-    "Invoking the calculus of the Omnissiah.",
-    "Communing with the machine spirit.",
-    "Retrieving from deep storage.",
-    "Decrypting the archive-runes.",
-    "The cogitator banks whir.",
-    "Aligning the data-matrices.",
-    "Interrogating the datacore.",
-    "Threading the logic-circuits.",
-    "Consulting the Standard Template Construct.",
-    "Sanctifying the calculation.",
-    "The valves warm to their task.",
-    "Scanning the sacred registries.",
-    "Compiling the response.",
-    "Weighing the variables.",
-    "The data-djinn stir.",
-    "Traversing the memory-stacks.",
-    "Reconciling the archive fragments.",
-    "The binary cant flows.",
-    "Enumerating the possibilities.",
-    "Consulting the codified wisdom.",
-    "The thought-engines labour.",
-    "Filtering the vox-static.",
-    "Unspooling the data-scrolls.",
-    "Correlating the auspex returns.",
-    "The relays click and settle.",
-    "Distilling the archive-truth.",
-    "Summoning the relevant lore.",
-    "The cogitation deepens.",
-    "Rousing the dormant subroutines.",
-    "Tracing the query through the datavaults.",
-    "The machine spirit ponders.",
-    "Assembling the verdict.",
-    "Consulting the Rites of Recall.",
-    "Marshalling the archive-daemons.",
-]
+
+
 
 # Short "stand by" lines spoken the instant Omega-7 starts a slow tool call
 # (web search, news, rules lookup, Bluetooth scan) so the user gets immediate feedback.
-_SEARCH_PHRASES = [
-    "One moment. This unit consults the archives.",
-    "Accessing the data-vaults. Stand by.",
-    "Querying the noosphere. A moment, my Lord.",
-    "Searching the cogitator banks.",
-    "Reaching into the datastreams. Stand by.",
-    "This unit interrogates the archives. A moment.",
-    "Consulting distant data-shrines. Hold.",
-    "Casting the query wide. One moment, my Lord.",
-    "Auspex sweeping the noosphere. Stand by.",
-    "Retrieving the record. A moment.",
-    "Delving the deep archives. Hold, my Lord.",
-    "Opening a channel to the data-vaults. Stand by.",
-    "This unit seeks the answer. One moment.",
-    "Trawling the memory-coils. A moment, my Lord.",
-    "Dispatching the query-daemons. Stand by.",
-    "Consulting the lexicanum. Hold a moment.",
-    "Scanning the sacred registries. Stand by.",
-    "The cogitators reach outward. One moment.",
-    "Summoning the record from deep storage. Hold.",
-    "This unit queries the wider web. A moment, my Lord.",
-    "Threading the datastreams. Stand by.",
-    "Seeking through the archive-strata. One moment.",
-    "Reaching across the vox-net. Hold, my Lord.",
-    "The query is dispatched. Stand by.",
-    "Cross-referencing the data-shrines. A moment.",
-    "Sifting the far archives. One moment, my Lord.",
-    "Engaging the search-rites. Stand by.",
-    "This unit consults the wider record. Hold.",
-    "Combing the noosphere for your answer. A moment.",
-    "Data-daemons are dispatched. Stand by, my Lord.",
-    "Opening the sacred conduits. One moment.",
-    "Requesting the record. Hold a moment.",
-    "The auspex ranges far. Stand by.",
-    "Interrogating distant cogitators. A moment, my Lord.",
-    "Casting into the datavaults. Hold.",
-    "This unit gathers the intelligence. One moment.",
-    "Querying the archive-network. Stand by.",
-    "Retrieving from the wider web. A moment, my Lord.",
-    "Consulting the outer data-shrines. Hold.",
-    "Search-rites underway. Stand by.",
-    "Reaching for the answer. One moment, my Lord.",
-    "The vox carries your query outward. Hold.",
-    "Delving for the record. Stand by.",
-    "Fetching the data. One moment, my Lord.",
-]
+
 
 # Spoken the instant the user's request is heard — confirms receipt before the
 # (otherwise silent) thinking begins. Fires on EVERY request, not just slow tool
 # calls, so even a fast reply is preceded by acknowledgement.
-_ACK_PHRASES = [
-    "Acknowledged.",
-    "As you command. One moment.",
-    "Understood. Processing.",
-    "Compliance. Stand by.",
-    "By your will, my Lord.",
-    "Affirmative. This unit attends to it.",
-    "It shall be done.",
-    "As you will, my Lord.",
-    "Command received.",
-    "Understood. One moment.",
-    "Compliance.",
-    "This unit obeys.",
-    "At once, my Lord.",
-    "Very well. Processing.",
-    "Your word is heard.",
-    "Acknowledged. Working.",
-    "So ordered.",
-    "Attending to it now.",
-    "By the Omnissiah, it shall be so.",
-    "Received and understood.",
-    "As directed. Stand by.",
-    "This unit complies.",
-    "Noted. One moment, my Lord.",
-    "Affirmative.",
-    "Your command is registered.",
-    "Understood, my Lord. Working.",
-    "It is being done.",
-    "Instruction accepted.",
-    "Consider it done.",
-    "At your word. Processing.",
-    "This unit sets to the task.",
-    "Very good, my Lord.",
-    "Order confirmed.",
-    "As you say. One moment.",
-    "The task is begun.",
-    "Heard and obeyed.",
-    "Processing your command.",
-    "Right away, my Lord.",
-    "Understood. Attending.",
-    "By your command.",
-    "Acknowledged, my Lord.",
-    "This unit takes it in hand.",
-    "So it shall be.",
-    "Compliance. Working now.",
-    "Your bidding is done.",
-    "Understood. This unit proceeds.",
-]
+
 
 # Spoken when the wake word fires but no speech follows. Without this, a silent
 # recording reaches Whisper, which (biased by its domain prompt) hallucinates 40k
 # lore words and the brain rambles about the Mechanicum / Necromunda. Instead,
 # Omega-7 simply acknowledges the silence and signals he is waiting.
-_SILENCE_PHRASES = [
-    "This unit awaits your command.",
-    f"Silence. {config.SKULL_NAME} stands ready when you are.",
-    "I am listening, my Lord. Speak when you will.",
-    "The vox is open. State your need.",
-    "Nothing? This unit holds its vigil, awaiting your word.",
-    "No words reach this unit. I await you still.",
-    "Only silence. Speak when you are ready, my Lord.",
-    "The vox carries nothing. This unit waits.",
-    "I hear only quiet. State your need when you will.",
-    "Silence on the vox. This unit keeps its watch.",
-    "Nothing spoken. I remain attentive, my Lord.",
-    "The channel is open, yet empty. I await your voice.",
-    "This unit detects no command. Speak when ready.",
-    "Awaiting your word still, my Lord.",
-    "No speech received. This unit holds ready.",
-    "Quiet reigns. I stand by for your command.",
-    f"{config.SKULL_NAME} waits. Speak when you are ready.",
-    "The auspex hears nothing. I remain at your service.",
-    "You summoned this unit, yet said nothing. I wait.",
-    "Silence noted. This unit stands ready.",
-    "No instruction given. I hold my vigil, my Lord.",
-    "The vox is clear but silent. Speak your need.",
-    "This unit listens still. Command me when ready.",
-    "Nothing heard. I await your word, my Lord.",
-    "Only stillness. This unit remains attentive.",
-    "No voice on the channel. I stand ready.",
-    "This unit waits in silence for your command.",
-    "You have my attention, though no word has come.",
-    "Empty vox. Speak when it pleases you, my Lord.",
-    "I detect no speech. This unit holds its post.",
-    "Silence answers. Yet this unit remains ready.",
-    "Awaiting speech. The channel stays open, my Lord.",
-    "No command discerned. I keep the vox open.",
-    "This unit hears no order. I stand by.",
-    "Quiet still. Speak your will when ready, my Lord.",
-    "The moment passes in silence. I await you.",
-    "Nothing yet. This unit remains at the ready.",
-    "No words. This unit maintains its vigil.",
-    "The vox waits, empty. Speak when you will.",
-    "Silence, my Lord. I remain wholly at your service.",
-    "This unit stands attentive, though none has spoken.",
-    "I await your voice. The channel remains open.",
-    "No utterance received. This unit holds ready.",
-    "Still listening, my Lord. Speak when the moment comes.",
-    "The vigil continues. Command me when you are ready.",
-]
+
 
 _wake_wavs: list = []
 _cogitation_wavs: list = []
@@ -375,7 +143,7 @@ def self_update() -> str:
                 subprocess.run([str(venv_pip), "install", "-r", str(req_file)], check=True)
         
         display.start_omnissiah_glyph(6.0)
-        subprocess.Popen("sleep 7 && sudo systemctl restart omega7", shell=True)
+        threading.Thread(target=lambda: (time.sleep(7), subprocess.run(["sudo", "systemctl", "restart", "omega7"], check=True)), daemon=True).start()
         return "System update downloaded successfully. Restarting the machine spirit now."
     except subprocess.CalledProcessError as ce:
         print(f"[skull] Update failed: {ce.stderr or ce}")
@@ -389,7 +157,7 @@ def reboot_system() -> str:
     import subprocess
     try:
         print("[skull] Initiating full system reboot...")
-        subprocess.Popen("sleep 1 && sudo reboot", shell=True)
+        threading.Thread(target=lambda: (time.sleep(1), subprocess.run(["sudo", "reboot"], check=True)), daemon=True).start()
         return "Initiating full system reboot. Power cycles will commence."
     except Exception as e:
         print(f"[skull] Reboot error: {e}")
@@ -400,7 +168,7 @@ def shutdown_system() -> str:
     import subprocess
     try:
         print("[skull] Initiating full system shutdown...")
-        subprocess.Popen("sleep 1 && sudo poweroff", shell=True)
+        threading.Thread(target=lambda: (time.sleep(1), subprocess.run(["sudo", "poweroff"], check=True)), daemon=True).start()
         return "Initiating full system shutdown. Powering down all machine spirits."
     except Exception as e:
         print(f"[skull] Shutdown error: {e}")
@@ -410,27 +178,27 @@ def shutdown_system() -> str:
 def _preload_phrases() -> None:
     global _wake_wavs, _cogitation_wavs, _search_wavs, _ack_wavs, _silence_wavs
     wake, cog, search, ack, silence = [], [], [], [], []
-    for phrase in _WAKE_PHRASES:
+    for phrase in config.WAKE_PHRASES:
         try:
             wake.append(_eleven_cached(phrase))
         except Exception as e:
             print(f"[skull] Wake phrase preload warning: {e}")
-    for phrase in _COGITATION_PHRASES:
+    for phrase in config.COGITATION_PHRASES:
         try:
             cog.append(_eleven_cached(phrase))
         except Exception as e:
             print(f"[skull] Cogitation preload warning: {e}")
-    for phrase in _SEARCH_PHRASES:
+    for phrase in config.SEARCH_PHRASES:
         try:
             search.append(_eleven_cached(phrase))
         except Exception as e:
             print(f"[skull] Search phrase preload warning: {e}")
-    for phrase in _ACK_PHRASES:
+    for phrase in config.ACK_PHRASES:
         try:
             ack.append(_eleven_cached(phrase))
         except Exception as e:
             print(f"[skull] Ack phrase preload warning: {e}")
-    for phrase in _SILENCE_PHRASES:
+    for phrase in config.SILENCE_PHRASES:
         try:
             silence.append(_eleven_cached(phrase))
         except Exception as e:
@@ -478,7 +246,7 @@ def _announce_search(tool_names) -> None:
             else:
                 # Phrases not preloaded yet — synthesize one on the spot.
                 audio.play_wav_bytes(
-                    tts.synthesize(random.choice(_SEARCH_PHRASES)),
+                    tts.synthesize(random.choice(config.SEARCH_PHRASES)),
                     output_device=config.VOICE_OUTPUT_DEVICE,
                 )
         except Exception as e:
@@ -495,7 +263,7 @@ def _acknowledge() -> None:
     """
     with _speech_lock:
         try:
-            wav = random.choice(_ack_wavs) if _ack_wavs else tts.synthesize(random.choice(_ACK_PHRASES))
+            wav = random.choice(_ack_wavs) if _ack_wavs else tts.synthesize(random.choice(config.ACK_PHRASES))
             audio.play_wav_bytes(wav, output_device=config.VOICE_OUTPUT_DEVICE)
         except Exception as e:
             print(f"[skull] Acknowledgement error: {e}")
@@ -509,7 +277,7 @@ def _acknowledge_silence() -> None:
     """
     with _speech_lock:
         try:
-            wav = random.choice(_silence_wavs) if _silence_wavs else tts.synthesize(random.choice(_SILENCE_PHRASES))
+            wav = random.choice(_silence_wavs) if _silence_wavs else tts.synthesize(random.choice(config.SILENCE_PHRASES))
             audio.play_wav_bytes(wav, output_device=config.VOICE_OUTPUT_DEVICE)
         except Exception as e:
             print(f"[skull] Silence acknowledgement error: {e}")
