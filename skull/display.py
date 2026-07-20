@@ -154,6 +154,16 @@ _COLMOD = 0x3A
 # MADCTL orientation bits keyed by DISPLAY_ROTATION.
 _MADCTL_BY_ROT = {0: 0x08, 90: 0x68, 180: 0xC8, 270: 0xA8}
 
+
+def get_screensaver_names() -> list[str]:
+    """Return the authoritative list of available screensaver animation names.
+
+    brain.py calls this at startup so the LLM tool schema is always in sync
+    with display.py without requiring manual edits in two places.
+    """
+    return list(_screensaver_anims)
+
+
 # Mood -> base iris colour. Names match skull/mood.py dispositions; unknown moods
 # fall back to Imperial red.
 _MOOD_COLOURS = {

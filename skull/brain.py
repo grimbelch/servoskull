@@ -14,6 +14,7 @@ from skull import mood as _mood
 from skull import quiet as _quiet
 from skull import candles as _candles
 from skull import llm as _llm
+from skull import display as _display
 
 _history: list[dict] = []
 
@@ -50,7 +51,13 @@ def _load_history() -> None:
 
 _load_history()
 
-_TOOLS = [
+def _build_tools() -> list[dict]:
+    """Build the Anthropic tool-use schema at startup, pulling the screensaver
+    list dynamically from display.py so future additions there are reflected
+    here automatically without any edits to brain.py."""
+    _screensaver_names = _display.get_screensaver_names()
+    _saver_desc = ", ".join(f"'{n}'" for n in _screensaver_names)
+    return [
     {
         "name": "web_search",
         "description": (
@@ -760,21 +767,14 @@ _TOOLS = [
     },
     {
         "name": "play_idle_animation",
-        "description": "Trigger an idle/screensaver animation on the eye display immediately for a specified duration. Available animations: 'pong', 'canticle_rain', 'starfield', 'oscilloscope', 'game_of_life', 'radar', 'warp_core', 'circuit_maze', 'double_helix', 'spinning_rings', 'wireframe_cube', 'bouncing_cog', 'fractal_tree', 'hud_status', 'orbitals', 'spectrum_bars', 'plasma', 'lissajous', 'voronoi', 'data_stream', 'mandala', 'rune_wheel', 'glitch', 'dna_helix', 'neural_net', 'gravity_well', 'morse_code', 'hex_grid', 'kaleidoscope', 'particle_burst'.",
+        "description": f"Trigger an idle/screensaver animation on the eye display immediately for a specified duration. Available animations: {_saver_desc}.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "animation_name": {
                     "type": "string",
                     "description": "Specific screensaver animation to play. If omitted, selects one randomly.",
-                    "enum": [
-                        "pong", "canticle_rain", "starfield", "oscilloscope", "game_of_life", "radar",
-                        "warp_core", "circuit_maze", "double_helix", "spinning_rings", "wireframe_cube",
-                        "bouncing_cog", "fractal_tree", "hud_status", "orbitals", "spectrum_bars",
-                        "plasma", "lissajous", "voronoi", "data_stream", "mandala",
-                        "rune_wheel", "glitch", "dna_helix", "neural_net", "gravity_well",
-                        "morse_code", "hex_grid", "kaleidoscope", "particle_burst"
-                    ]
+                    "enum": _screensaver_names,
                 },
                 "duration_seconds": {
                     "type": "number",
@@ -784,6 +784,9 @@ _TOOLS = [
         }
     }
 ]
+
+
+_TOOLS = _build_tools()
 
 _ORDINALS = {
     "first": 0, "1": 0,
