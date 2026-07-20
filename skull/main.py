@@ -637,6 +637,7 @@ def main():
                 continue  # temp warning queued — spoken at the top of the loop
 
             _barge_wav = None
+            speaker_name = None
 
         # ── 2. Play wake ack, then record ────────────────────────────────────────
         # Wake phrase plays first (blocking) so the mic doesn't pick up the skull's
@@ -712,6 +713,13 @@ def main():
             import pathlib
             pathlib.Path("/tmp/skull_debug.wav").write_bytes(wav)
             print("[skull] DEBUG: saved recording to /tmp/skull_debug.wav — open it to hear what the mic captured")
+
+        try:
+            from skull import speaker_id
+            speaker_name = speaker_id.identify_speaker(wav)
+        except Exception as e:
+            print(f"[skull] Speaker identification error: {e}")
+
         print("[skull] Transcribing...")
         try:
             user_text = transcribe.transcribe(wav)
@@ -994,7 +1002,7 @@ def main():
         cog_thread = threading.Thread(target=_cogitation_loop, args=(_cancel_cog,), daemon=True)
         cog_thread.start()
         try:
-            reply, spotify_cmds = brain.respond(user_text, on_tool_use=_announce_search)
+            reply, spotify_cmds = brain.respond(user_text, speaker_name=speaker_name, on_tool_use=_announce_search)
         except Exception as e:
             print(f"[skull] Brain error: {e}")
 

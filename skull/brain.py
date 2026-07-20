@@ -19,7 +19,7 @@ _history: list[dict] = []
 
 # Tools that hit the network/hardware and can take a noticeable moment. Omega-7
 # speaks a short "stand by" before running any of these so the user gets feedback.
-_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings", "register_face"}
+_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings", "register_face", "register_voice"}
 _HISTORY_PATH = config.data_path(config.HISTORY_FILE)
 _last_turn_tools: list[str] = []
 
@@ -739,6 +739,20 @@ _TOOLS = [
                 "name": {
                     "type": "string",
                     "description": "Name of the person being registered (e.g. 'Sean', 'Sarah')."
+                }
+            },
+            "required": ["name"]
+        }
+    },
+    {
+        "name": "register_voice",
+        "description": "Enrolls a speaker's voice in the local speaker identification database. Records 3 voice samples after verbal prompt chimes.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Name of the person registering their voice (e.g. 'Sean', 'Alex')."
                 }
             },
             "required": ["name"]
@@ -1854,6 +1868,11 @@ def _tool_register_face(i):
     from skull import camera
     return camera.register_face(name_val)
 
+def _tool_register_voice(i):
+    name_val = i.get("name", "")
+    from skull import speaker_id
+    return speaker_id.register_voice(name_val)
+
 def _tool_play_idle_animation(i):
     dur = float(i.get("duration_seconds", 60.0))
     anim = i.get("animation_name")
@@ -1900,6 +1919,7 @@ _TOOL_REGISTRY = {
     "display_art": _tool_display_art,
     "capture_and_describe_surroundings": _tool_capture_and_describe_surroundings,
     "register_face": _tool_register_face,
+    "register_voice": _tool_register_voice,
     "play_idle_animation": _tool_play_idle_animation,
 }
 
@@ -1995,7 +2015,7 @@ def register_shutdown_cb(cb):
     _SHUTDOWN_CB = cb
 
 
-def respond(user_text: str, on_tool_use=None) -> tuple[str, list[tuple]]:
+def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -> tuple[str, list[tuple]]:
     """Return (spoken_text, spotify_commands).
 
     on_tool_use: optional callback invoked with the list of slow tool names
@@ -2014,7 +2034,14 @@ def respond(user_text: str, on_tool_use=None) -> tuple[str, list[tuple]]:
     system = SYSTEM_PROMPT
     active_game = get_current_game()
     game_ctx = f"\n\nCURRENT ACTIVE TABLETOP GAME: {active_game}. Please default all dice rolling requests to this game unless the user specifies otherwise."
-    system_suffix = (date_ctx + game_ctx + _memory.longterm_prompt(longterm)
+    
+    speaker_ctx = ""
+    if speaker_name:
+        speaker_ctx = f"\n\nCURRENT SPEAKER: {speaker_name}."
+    else:
+        speaker_ctx = "\n\nCURRENT SPEAKER: Unknown/Unregistered."
+        
+    system_suffix = (date_ctx + game_ctx + speaker_ctx + _memory.longterm_prompt(longterm)
                      + _memory.facts_prompt(facts) + _mood.system_addendum())
 
     # Record which tools fired so we can reconcile silent mode afterwards.
