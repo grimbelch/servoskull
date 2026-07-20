@@ -183,7 +183,7 @@ def _proximity_trigger_loop(read) -> None:
     """Fire vision whenever a target comes within PROXIMITY_THRESHOLD_CM."""
     global _last_observation_time
     print("[camera] Proximity-triggered vision active (VL53L1X)")
-    while True:
+    while proximity.available():
         time.sleep(config.PROXIMITY_POLL_INTERVAL)
         cm = proximity.read_cm()
         if cm is None:
@@ -236,9 +236,14 @@ def _vision_loop() -> None:
     read, close = backend
     _read_frame_fn = read
     try:
-        if proximity.start():
+        use_proximity = proximity.start()
+        if use_proximity:
             _proximity_trigger_loop(read)
-        else:
+            if not proximity.available():
+                print("[camera] Proximity sensor failed. Falling back to motion detection.")
+                use_proximity = False
+        
+        if not use_proximity:
             _motion_trigger_loop(read)
     finally:
         _read_frame_fn = None

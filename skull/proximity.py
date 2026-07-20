@@ -22,6 +22,72 @@ _available = False
 _lock = threading.Lock()  # I2C transactions aren't reentrant; serialize reads
 
 
+def _patch_vl53l1x():
+    """Monkeypatch VL53L1X to catch I2C errors in ctypes callbacks.
+    
+    This prevents segfaults when the sensor is disconnected or suffers undervoltage.
+    """
+    try:
+        import VL53L1X
+        from ctypes import CFUNCTYPE, c_int, c_ubyte, POINTER, c_uint16
+        from smbus2 import i2c_msg
+    except ImportError:
+        return
+
+    _I2C_MULTI_FUNC = CFUNCTYPE(c_int, c_ubyte, c_uint16)
+    _I2C_READ_FUNC = CFUNCTYPE(c_int, c_ubyte, c_uint16, POINTER(c_ubyte), c_ubyte)
+    _I2C_WRITE_FUNC = CFUNCTYPE(c_int, c_ubyte, c_uint16, POINTER(c_ubyte), c_ubyte)
+
+    def custom_configure(self):
+        self._i2c_error = False
+
+        def _i2c_read(address, reg, data_p, length):
+            if self._i2c_error:
+                return -1
+            try:
+                msg_w = i2c_msg.write(address, [reg >> 8, reg & 0xff])
+                msg_r = i2c_msg.read(address, length)
+                self._i2c.i2c_rdwr(msg_w, msg_r)
+                for index in range(length):
+                    data_p[index] = ord(msg_r.buf[index])
+                return 0
+            except Exception as e:
+                self._i2c_error = True
+                print(f"[proximity] I2C read error: {e}")
+                return -1
+
+        def _i2c_write(address, reg, data_p, length):
+            if self._i2c_error:
+                return -1
+            try:
+                data = [data_p[index] for index in range(length)]
+                msg_w = i2c_msg.write(address, [reg >> 8, reg & 0xff] + data)
+                self._i2c.i2c_rdwr(msg_w)
+                return 0
+            except Exception as e:
+                self._i2c_error = True
+                print(f"[proximity] I2C write error: {e}")
+                return -1
+
+        def _i2c_multi(address, reg):
+            if self._i2c_error:
+                return -1
+            try:
+                self._i2c.write_byte(address, reg)
+                return 0
+            except Exception as e:
+                self._i2c_error = True
+                print(f"[proximity] I2C multi-write error: {e}")
+                return -1
+
+        self._i2c_multi_func = _I2C_MULTI_FUNC(_i2c_multi)
+        self._i2c_read_func = _I2C_READ_FUNC(_i2c_read)
+        self._i2c_write_func = _I2C_WRITE_FUNC(_i2c_write)
+        VL53L1X._TOF_LIBRARY.VL53L1_set_i2c(self._i2c_multi_func, self._i2c_read_func, self._i2c_write_func)
+
+    VL53L1X.VL53L1X._configure_i2c_library_functions = custom_configure
+
+
 def start() -> bool:
     """Open the sensor and begin continuous ranging.
 
@@ -45,6 +111,7 @@ def start() -> bool:
         except Exception as ge:
             print(f"[proximity] GPIO setup warning (XSHUT pin {config.PROXIMITY_XSHUT_PIN}): {ge}")
 
+        _patch_vl53l1x()
         import VL53L1X
         tof = VL53L1X.VL53L1X(
             i2c_bus=config.PROXIMITY_I2C_BUS,
@@ -77,13 +144,33 @@ def read_cm() -> float | None:
     The VL53L1X reports 0 mm when it has no valid return (out of range, no target,
     or a failed measurement); we treat that as None rather than "0 cm away".
     """
+    global _available
     if not _available or _tof is None:
         return None
+    
+    # Check if monkeypatched driver flagged an I2C error
+    if getattr(_tof, "_i2c_error", False):
+        print("[proximity] VL53L1X flagged I2C error. Disabling proximity sensor.")
+        _available = False
+        try:
+            with _lock:
+                _tof.stop_ranging()
+                _tof.close()
+        except Exception:
+            pass
+        return None
+
     try:
         with _lock:
             mm = _tof.get_distance()
-    except Exception:
+    except Exception as e:
+        print(f"[proximity] Error reading sensor: {e}. Disabling sensor.")
+        _available = False
         return None
+
+    if getattr(_tof, "_i2c_error", False):
+        return None
+
     if mm is None or mm <= 0:
         return None
     return mm / 10.0
