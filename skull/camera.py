@@ -363,7 +363,7 @@ def register_face(name: str) -> str:
             if face_rect:
                 x, y_coord, w, h = face_rect
                 cropped = frame[y_coord : y_coord + h, x : x + w]
-                resized = cv2.resize(cropped, (64, 64))
+                resized = cv2.resize(cropped, (112, 112))
                 # Save cropped BGR face
                 face_path = target_dir / f"face_{captured_count}_{int(time.time())}.jpg"
                 cv2.imwrite(str(face_path), resized)
