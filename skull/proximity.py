@@ -118,6 +118,8 @@ def start() -> bool:
             i2c_address=config.PROXIMITY_I2C_ADDR,
         )
         tof.open()
+        if getattr(tof, "_i2c_error", False) or not tof._dev:
+            raise RuntimeError("Sensor not responding on I2C bus")
         tof.start_ranging(config.PROXIMITY_RANGE_MODE)
         _tof = tof
         _available = True
