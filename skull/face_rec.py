@@ -25,7 +25,7 @@ _face_cascade = cv2.CascadeClassifier(_cascade_path)
 
 # Active trained model cache
 _embeddings_db: dict[str, list[np.ndarray]] = {}
-_net = None
+_recognizer = None
 
 def ensure_model_exists() -> None:
     """Download SFace ONNX model if not already present."""
@@ -50,13 +50,13 @@ def ensure_model_exists() -> None:
                 pass
         raise
 
-def _get_net():
-    """Lazily load and cache the SFace network."""
-    global _net
-    if _net is None:
+def _get_recognizer():
+    """Lazily load and cache the SFace FaceRecognizerSF."""
+    global _recognizer
+    if _recognizer is None:
         ensure_model_exists()
-        _net = cv2.dnn.readNet(str(SFACE_MODEL_PATH))
-    return _net
+        _recognizer = cv2.FaceRecognizerSF.create(str(SFACE_MODEL_PATH), "")
+    return _recognizer
 
 def load_model() -> bool:
     """Load the trained face recognition embeddings from disk. Returns True on success."""
@@ -115,24 +115,11 @@ def detect_face(img) -> tuple[np.ndarray, tuple[int, int, int, int]] | None:
     return None
 
 def _get_embedding(face_img) -> np.ndarray | None:
-    """Generate 128-D embedding from BGR face image using SFace model."""
+    """Generate 128-D embedding from BGR face image using FaceRecognizerSF."""
     try:
-        net = _get_net()
+        rec = _get_recognizer()
         resized = cv2.resize(face_img, (112, 112))
-        blob = cv2.dnn.blobFromImage(
-            resized,
-            scalefactor=1.0/255.0,
-            size=(112, 112),
-            mean=(0, 0, 0),
-            swapRB=True,
-            crop=False
-        )
-        net.setInput(blob)
-        embedding = net.forward()[0]
-        # L2 normalize
-        norm = np.linalg.norm(embedding)
-        if norm > 0:
-            embedding = embedding / norm
+        embedding = rec.feature(resized)[0]
         return embedding
     except Exception as e:
         print(f"[face_rec] Failed to extract embedding: {e}")
