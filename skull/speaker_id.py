@@ -205,50 +205,55 @@ def register_voice(name: str) -> str:
     """Record 3 voice samples for the given name and train the GMM classifier."""
     from skull import audio, sfx, tts
     
-    # Create target directory
-    target_dir = VOICES_DIR / name
-    if target_dir.exists():
-        import shutil
-        shutil.rmtree(target_dir)
-    target_dir.mkdir(parents=True, exist_ok=True)
-    
-    print(f"[speaker_id] Starting voice registration for {name}")
-    
-    # We will record 3 samples
-    num_samples = 3
-    for i in range(num_samples):
-        # Announce sample registration
-        prompt = f"Speak sample {i+1} of {num_samples} after the chime."
-        try:
-            prompt_wav = tts.synthesize(prompt)
-            audio.play_wav_bytes(prompt_wav, output_device=config.VOICE_OUTPUT_DEVICE)
-        except Exception as e:
-            print(f"[speaker_id] TTS prompt error: {e}")
-            
-        time.sleep(0.5)
-        sfx.play("wake_ping", config.VOICE_OUTPUT_DEVICE)
-        time.sleep(0.2)
+    # Suspend background thinking phrases so they don't play during recording
+    config.COGITATION_SUSPENDED = True
+    try:
+        # Create target directory
+        target_dir = VOICES_DIR / name
+        if target_dir.exists():
+            import shutil
+            shutil.rmtree(target_dir)
+        target_dir.mkdir(parents=True, exist_ok=True)
         
-        # Record 4 seconds of speech
-        try:
-            pcm, rate = audio.record(4.0, silence_threshold=250, silence_duration=1.5)
-            wav_bytes = audio.pcm_to_wav_bytes(pcm, rate)
-            # Save WAV
-            wav_path = target_dir / f"sample_{i}_{int(time.time())}.wav"
-            wav_path.write_bytes(wav_bytes)
-            print(f"[speaker_id] Saved sample {i+1}")
-        except Exception as e:
-            return f"Voice registration failed during recording of sample {i+1}: {e}"
-            
-        # Short break
-        time.sleep(1.0)
+        print(f"[speaker_id] Starting voice registration for {name}")
         
-    # Play completion sound
-    sfx.play("positive", config.VOICE_OUTPUT_DEVICE)
-    
-    # Trigger GMM training
-    train_result = train_speaker_model()
-    return f"Voice registration complete for {name}. {train_result}"
+        # We will record 3 samples
+        num_samples = 3
+        for i in range(num_samples):
+            # Announce sample registration
+            prompt = f"Speak sample {i+1} of {num_samples} after the chime."
+            try:
+                prompt_wav = tts.synthesize(prompt)
+                audio.play_wav_bytes(prompt_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+            except Exception as e:
+                print(f"[speaker_id] TTS prompt error: {e}")
+                
+            time.sleep(0.5)
+            sfx.play("wake_ping", config.VOICE_OUTPUT_DEVICE)
+            time.sleep(0.2)
+            
+            # Record 4 seconds of speech
+            try:
+                pcm, rate = audio.record(4.0, silence_threshold=250, silence_duration=1.5)
+                wav_bytes = audio.pcm_to_wav_bytes(pcm, rate)
+                # Save WAV
+                wav_path = target_dir / f"sample_{i}_{int(time.time())}.wav"
+                wav_path.write_bytes(wav_bytes)
+                print(f"[speaker_id] Saved sample {i+1}")
+            except Exception as e:
+                return f"Voice registration failed during recording of sample {i+1}: {e}"
+                
+            # Short break
+            time.sleep(1.0)
+            
+        # Play completion sound
+        sfx.play("positive", config.VOICE_OUTPUT_DEVICE)
+        
+        # Trigger GMM training
+        train_result = train_speaker_model()
+        return f"Voice registration complete for {name}. {train_result}"
+    finally:
+        config.COGITATION_SUSPENDED = False
 
 # Load model on import
 load_model()
