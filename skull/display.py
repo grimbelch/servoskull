@@ -1412,7 +1412,6 @@ def _loop():
             or _rolling_die
             or _scanning_auspex
             or _scanning_noosphere
-            or _targeting
             or _visualizing_music
             or _showing_custom_image
             or _speaking
