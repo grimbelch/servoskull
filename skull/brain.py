@@ -701,6 +701,14 @@ _TOOLS = [
         }
     },
     {
+        "name": "cancel_printer_alerts",
+        "description": "Cancel and stop any repeating verbal alerts/notifications about the 3D printer status (such as completion alerts or health errors).",
+        "input_schema": {
+            "type": "object",
+            "properties": {}
+        }
+    },
+    {
         "name": "display_art",
         "description": "Search the web for Warhammer 40k or Necromunda artwork matching the query, download it, and project/display it on the skull's eye display screen.",
         "input_schema": {
@@ -1805,6 +1813,13 @@ def _execute_tool(name: str, tool_input: dict) -> str:
         if _SHUTDOWN_CB:
             return _SHUTDOWN_CB()
         return "Shutdown callback not registered."
+    if name == "cancel_printer_alerts":
+        from skull import bambu_ctrl
+        monitor = bambu_ctrl.get_monitor()
+        if monitor:
+            monitor.cancel_repeater()
+            return "Repeating 3D printer alerts have been successfully cancelled."
+        return "Bambu monitor is not currently active."
     if name == "display_art":
         search_query = tool_input.get("search_query", "")
         return _execute_display_art(search_query)
