@@ -1949,46 +1949,66 @@ def _execute_display_art(search_query: str) -> str:
         from io import BytesIO
         from PIL import Image
         from skull import display
-        
-        # 1. Search DeviantArt RSS feed
-        url = f"https://backend.deviantart.com/rss.xml?q={requests.utils.quote(search_query)}"
-        r = requests.get(url, timeout=5.0)
+
+        # 1. Search DeviantArt RSS feed sorted by popularity.
+        # Appending "order:popular" to the query makes DA return results ranked by
+        # favourite/view count rather than recency — consistently higher quality art.
+        pop_query = f"{search_query} order:popular"
+        url = f"https://backend.deviantart.com/rss.xml?q={requests.utils.quote(pop_query)}&type=deviation"
+        r = requests.get(url, timeout=6.0)
         if r.status_code != 200:
-            return f"Failed to query DeviantArt RSS API: status code {r.status_code}"
-            
+            # Fall back to plain query if the popularity sort fails
+            url = f"https://backend.deviantart.com/rss.xml?q={requests.utils.quote(search_query)}"
+            r = requests.get(url, timeout=6.0)
+            if r.status_code != 200:
+                return f"Failed to query DeviantArt RSS API: status code {r.status_code}"
+
         root = ET.fromstring(r.content)
         ns = {'media': 'http://search.yahoo.com/mrss/'}
         items = root.findall('.//item')
         if not items:
             return f"No artwork found matching query: {search_query}"
-            
-        # Select one of the first 5 items to give some variety
-        choices = items[:5]
-        item = random.choice(choices)
-        
-        title = item.find('title').text
-        media = item.find('.//media:content', ns)
-        if media is None:
-            for alt_item in items:
-                media = alt_item.find('.//media:content', ns)
-                if media is not None:
-                    title = alt_item.find('title').text
-                    break
-                    
-        if media is None:
+
+        # 2. Build a scored candidate list from the first 20 results.
+        # Score = pixel area of the full-size image (larger images are more likely
+        # to be polished, professional pieces rather than quick sketches).
+        candidates = []
+        for it in items[:20]:
+            media = it.find('.//media:content', ns)
+            if media is None:
+                continue
+            img_url = media.get('url', '')
+            if not img_url:
+                continue
+            try:
+                w = int(media.get('width', 0) or 0)
+                h = int(media.get('height', 0) or 0)
+            except (TypeError, ValueError):
+                w, h = 0, 0
+            score = w * h if w and h else 1  # fall back to 1 so item still eligible
+            title_el = it.find('title')
+            title = title_el.text if title_el is not None else 'Unknown'
+            candidates.append({'url': img_url, 'title': title, 'score': score})
+
+        if not candidates:
             return "No image media links found in the search results."
-            
-        img_url = media.get('url')
-        
-        # 2. Download the image
-        img_res = requests.get(img_url, timeout=5.0)
+
+        # 3. Weighted-random pick from the top 10 by score (favours popular/large art
+        # while still providing variety across requests).
+        candidates.sort(key=lambda c: c['score'], reverse=True)
+        pool = candidates[:10]
+        weights = [max(c['score'], 1) for c in pool]
+        chosen = random.choices(pool, weights=weights, k=1)[0]
+
+        # 4. Download the chosen image
+        img_res = requests.get(chosen['url'], timeout=8.0)
         if img_res.status_code != 200:
-            return f"Failed to download image from {img_url}"
-            
-        # 3. Load and display
+            return f"Failed to download image from {chosen['url']}"
+
+        # 5. Load and display
         img = Image.open(BytesIO(img_res.content))
         display.display_pil_image(img, duration=15.0)
-        return f"Successfully projected artwork: '{title}' on the eye display."
+        return f"Successfully projected artwork: '{chosen['title']}' on the eye display."
     except Exception as e:
         import traceback
         traceback.print_exc()
