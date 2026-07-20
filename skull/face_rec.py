@@ -74,14 +74,45 @@ def load_model() -> bool:
         _embeddings_db = {}
         return False
 
-def detect_face(gray_img) -> tuple[int, int, int, int] | None:
-    """Detect a single face in a grayscale image. Returns (x, y, w, h) of the largest face."""
-    faces = _face_cascade.detectMultiScale(gray_img, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
-    if len(faces) == 0:
-        return None
-    # Return the largest face by area
-    largest_face = max(faces, key=lambda rect: rect[2] * rect[3])
-    return tuple(map(int, largest_face))
+def detect_face(img) -> tuple[np.ndarray, tuple[int, int, int, int]] | None:
+    """Detect a single face trying multiple rotations (0, 90 CW, 90 CCW, 180).
+    
+    Returns (upright_img, (x, y, w, h)) of the largest face, or None if no face is found.
+    Input img is BGR color image.
+    """
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    
+    # 1. Try 0 degrees
+    faces = _face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+    if len(faces) > 0:
+        largest = max(faces, key=lambda r: r[2] * r[3])
+        return img, tuple(map(int, largest))
+        
+    # 2. Try 90 degrees CW
+    gray_90cw = cv2.rotate(gray, cv2.ROTATE_90_CLOCKWISE)
+    faces = _face_cascade.detectMultiScale(gray_90cw, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+    if len(faces) > 0:
+        largest = max(faces, key=lambda r: r[2] * r[3])
+        img_90cw = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+        return img_90cw, tuple(map(int, largest))
+        
+    # 3. Try 90 degrees CCW
+    gray_90ccw = cv2.rotate(gray, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    faces = _face_cascade.detectMultiScale(gray_90ccw, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+    if len(faces) > 0:
+        largest = max(faces, key=lambda r: r[2] * r[3])
+        img_90ccw = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        return img_90ccw, tuple(map(int, largest))
+        
+    # 4. Try 180 degrees
+    gray_180 = cv2.rotate(gray, cv2.ROTATE_180)
+    faces = _face_cascade.detectMultiScale(gray_180, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+    if len(faces) > 0:
+        largest = max(faces, key=lambda r: r[2] * r[3])
+        img_180 = cv2.rotate(img, cv2.ROTATE_180)
+        return img_180, tuple(map(int, largest))
+        
+    return None
 
 def _get_embedding(face_img) -> np.ndarray | None:
     """Generate 128-D embedding from BGR face image using SFace model."""
@@ -136,11 +167,11 @@ def train() -> str:
                 # If image is not 112x112, it might be a raw uncropped photo.
                 # Try to crop it if so.
                 if img.shape[0] != 112 or img.shape[1] != 112:
-                    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                    face_rect = detect_face(gray)
-                    if face_rect:
+                    res = detect_face(img)
+                    if res:
+                        rotated_img, face_rect = res
                         x, y_coord, w, h = face_rect
-                        cropped = img[y_coord : y_coord + h, x : x + w]
+                        cropped = rotated_img[y_coord : y_coord + h, x : x + w]
                     else:
                         cropped = img
                 else:
@@ -178,14 +209,14 @@ def recognize(frame) -> str | None:
             return None
 
     try:
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        face_rect = detect_face(gray)
-        if not face_rect:
+        res = detect_face(frame)
+        if not res:
             return None
 
         # Crop and preprocess face
+        rotated_frame, face_rect = res
         x, y_coord, w, h = face_rect
-        cropped = frame[y_coord : y_coord + h, x : x + w]
+        cropped = rotated_frame[y_coord : y_coord + h, x : x + w]
         
         embedding = _get_embedding(cropped)
         if embedding is None:

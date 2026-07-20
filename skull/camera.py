@@ -358,11 +358,11 @@ def register_face(name: str) -> str:
             if frame is None:
                 continue
                 
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            face_rect = face_rec.detect_face(gray)
-            if face_rect:
+            res = face_rec.detect_face(frame)
+            if res:
+                rotated_frame, face_rect = res
                 x, y_coord, w, h = face_rect
-                cropped = frame[y_coord : y_coord + h, x : x + w]
+                cropped = rotated_frame[y_coord : y_coord + h, x : x + w]
                 resized = cv2.resize(cropped, (112, 112))
                 # Save cropped BGR face
                 face_path = target_dir / f"face_{captured_count}_{int(time.time())}.jpg"
