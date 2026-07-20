@@ -636,6 +636,19 @@ def main():
     brain.register_update_cb(self_update)
     brain.register_reboot_cb(reboot_system)
     brain.register_shutdown_cb(shutdown_system)
+
+    # Set default output volume to 50% on boot
+    try:
+        import sys
+        import subprocess
+        if sys.platform == "darwin":
+            subprocess.run(["osascript", "-e", "set volume output volume 50"], capture_output=True)
+        else:
+            subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", "50%"], capture_output=True)
+        print("[skull] Boot volume initialized to 50%")
+    except Exception as e:
+        print(f"[skull] Failed to set boot volume: {e}")
+
     eyes.setup(config.LED_PIN_LEFT, config.LED_PIN_CENTER, config.LED_PIN_RIGHT)
     candles.setup(config.CANDLE_PIN)
     candles.on()  # ambient — flicker for as long as the skull is powered
