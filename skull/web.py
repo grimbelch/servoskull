@@ -440,8 +440,10 @@ HTML_CLIENT = """<!DOCTYPE html>
             padding-bottom: 16px;
             margin-bottom: 10px;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+            width: 100%;
         }
 
         .header h1 {
@@ -470,26 +472,71 @@ HTML_CLIENT = """<!DOCTYPE html>
 
         .telemetry {
             display: flex;
-            gap: 15px;
-            font-size: 13px;
+            flex-wrap: wrap;
+            gap: 16px;
+            width: 100%;
+            border: 2px double var(--border-color);
+            background: rgba(17, 120, 35, 0.03);
+            padding: 12px 16px;
+            box-sizing: border-box;
+            border-radius: 4px;
+            margin-top: 10px;
         }
 
         .telemetry-item {
             border: 1px solid var(--border-color);
             background: rgba(17, 120, 35, 0.05);
-            padding: 6px 12px;
+            padding: 8px 14px;
             border-radius: 2px;
             box-shadow: inset 0 0 5px rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex: 1 1 200px;
+            min-width: 180px;
+        }
+
+        .telemetry-item.text-only {
+            justify-content: center;
+            flex: 1 1 150px;
+            min-width: 130px;
         }
 
         .telemetry-label {
             color: var(--dim-green);
+            font-size: 11px;
+            letter-spacing: 1px;
         }
 
         .telemetry-value {
             color: var(--bright-green);
             font-weight: bold;
             text-shadow: 0 0 4px var(--glow-color);
+            font-size: 13px;
+        }
+
+        .sensor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sensor-bar-container {
+            width: 100%;
+            height: 6px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-color);
+            border-radius: 1px;
+            overflow: hidden;
+            box-shadow: inset 0 0 4px rgba(0,0,0,0.9);
+        }
+
+        .sensor-bar {
+            height: 100%;
+            background: var(--bright-green);
+            box-shadow: 0 0 8px var(--glow-color);
+            width: 0%;
+            transition: width 0.4s cubic-bezier(0.1, 0.8, 0.3, 1);
         }
 
         /* Immersive Top Alert Banner */
@@ -804,19 +851,34 @@ HTML_CLIENT = """<!DOCTYPE html>
                 </h1>
                 <div class="telemetry">
                     <div class="telemetry-item">
-                        <span class="telemetry-label">CORE TEMP: </span>
-                        <span id="temp-val" class="telemetry-value">--.-°C</span>
+                        <div class="sensor-header">
+                            <span class="telemetry-label">CORE TEMP:</span>
+                            <span id="temp-val" class="telemetry-value">--.-°C</span>
+                        </div>
+                        <div class="sensor-bar-container">
+                            <div id="temp-bar" class="sensor-bar" style="width: 0%;"></div>
+                        </div>
                     </div>
                     <div class="telemetry-item">
-                        <span class="telemetry-label">RAM: </span>
-                        <span id="ram-val" class="telemetry-value">--.-%</span>
+                        <div class="sensor-header">
+                            <span class="telemetry-label">RAM:</span>
+                            <span id="ram-val" class="telemetry-value">--.-%</span>
+                        </div>
+                        <div class="sensor-bar-container">
+                            <div id="ram-bar" class="sensor-bar" style="width: 0%;"></div>
+                        </div>
                     </div>
                     <div class="telemetry-item">
-                        <span class="telemetry-label">STORAGE: </span>
-                        <span id="storage-val" class="telemetry-value">--.-%</span>
+                        <div class="sensor-header">
+                            <span class="telemetry-label">STORAGE:</span>
+                            <span id="storage-val" class="telemetry-value">--.-%</span>
+                        </div>
+                        <div class="sensor-bar-container">
+                            <div id="storage-bar" class="sensor-bar" style="width: 0%;"></div>
+                        </div>
                     </div>
-                    <div class="telemetry-item">
-                        <span class="telemetry-label">ACTIVE GAME: </span>
+                    <div class="telemetry-item text-only">
+                        <span class="telemetry-label">ACTIVE GAME</span>
                         <span id="game-val" class="telemetry-value">NONE</span>
                     </div>
                 </div>
@@ -921,6 +983,20 @@ HTML_CLIENT = """<!DOCTYPE html>
                 ramVal.innerText = data.ram;
                 storageVal.innerText = data.storage;
                 gameVal.innerText = data.active_game.toUpperCase();
+
+                // Update progress bars
+                const tempFloat = parseFloat(data.temperature);
+                if (!isNaN(tempFloat)) {
+                    document.getElementById('temp-bar').style.width = Math.min(100, Math.max(0, tempFloat)) + '%';
+                }
+                const ramFloat = parseFloat(data.ram);
+                if (!isNaN(ramFloat)) {
+                    document.getElementById('ram-bar').style.width = Math.min(100, Math.max(0, ramFloat)) + '%';
+                }
+                const storageFloat = parseFloat(data.storage);
+                if (!isNaN(storageFloat)) {
+                    document.getElementById('storage-bar').style.width = Math.min(100, Math.max(0, storageFloat)) + '%';
+                }
                 
                 // Update screensaver options if not already filled
                 if (screensaverSelect.options.length <= 1 && data.screensavers) {
