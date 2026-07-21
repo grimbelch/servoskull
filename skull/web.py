@@ -123,10 +123,11 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                 disp_state = {}
                 
             try:
-                temp = temperature.get_warning() or f"{temperature.get_warning() if hasattr(temperature, 'get_warning') else 45.0}°C"
-                # fallback mock temperature if needed
-                if not temp:
-                    temp = "42.0°C"
+                t_val = temperature.read_temp_c()
+                if t_val is not None:
+                    temp = f"{t_val:.1f}°C"
+                else:
+                    temp = "42.0°C (Virtual)"
             except Exception:
                 temp = "Unavailable"
                 
