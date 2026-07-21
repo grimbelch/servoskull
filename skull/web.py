@@ -805,9 +805,10 @@ HTML_CLIENT = """<!DOCTYPE html>
 
         .console-line {
             white-space: pre-wrap;
-            border-bottom: 1px dashed rgba(56, 255, 88, 0.05);
+            border-bottom: 1px dashed rgba(56, 255, 88, 0.08);
             padding: 2px 0;
-            opacity: 0.9;
+            opacity: 1.0;
+            text-shadow: 0 0 3px var(--glow-color);
         }
 
         .controls-row {
