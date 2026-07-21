@@ -17,22 +17,22 @@ Point a wake word at it — *"Servitor"* — and it wakes, ignites its candle LE
 Omega-7 is a self-contained voice assistant with a very specific soul. Everything runs **on the Pi itself** — the only things that leave the device are the API calls you opt into (Claude for the brain, optionally OpenAI Whisper for transcription, optionally ElevenLabs for the voice).
 
 - **🗣️ Talks back, in character.** Wake it with *"Servitor"* and it listens, thinks (Anthropic Claude), and replies aloud through a text-to-speech voice — formal, archaic, ominous, devoted to the Emperor and the Machine God. It refers to itself as "this unit" and speaks with serialized, uninterrupted canned response playback.
-- **👁️ Sees you.** An Arducam IMX708 camera lets it describe the scene on demand — *"What do you see, Omega-7?"* — and, with the optional time-of-flight proximity sensor, it can wake and greet you when you physically approach, even in the dark.
-- **💡 Physical reactions & AdMech Eye HUD.** Three red LEDs behind the eye lenses and a circular GC9A01 IPS panel "machine-spirit eye" pulse in time with its speech. Candle LEDs atop the skull light when it wakes and snuff on shutdown. The display features 6 dynamic HUD animation states:
+- **👁️ Sees & Identifies you.** An Arducam IMX708 camera lets it describe the scene on demand — *"What do you see, Omega-7?"* — and, with the optional time-of-flight proximity sensor, it can wake and greet you when you physically approach, even in the dark. It runs SFace facial recognition and voice identification (GMM model classification with configurable threshold) to recognize you on sight and sound. Gaze behavior sweeps the red eye around randomly when idle to look alive.
+- **💡 Physical reactions & AdMech Eye HUD.** Three red LEDs behind the eye lenses and a circular GC9A01 IPS panel "machine-spirit eye" pulse in time with its speech. Candle LEDs atop the skull light when it wakes and snuff on shutdown. The display features 6 dynamic HUD animation states and dynamically registers 30 screensaver options (cycling every 5 minutes when on):
   * **Praise the Omnissiah Logo**: Off-white bone and machine grey AdMech skull-cog vector rendering expanding on boot/update.
   * **Auspex Scan**: Concentric Noosphere beacon pulsing waves mapping surroundings.
   * **Targeting lock-on**: A floating crosshair tracking target focus during vision queries.
   * **Equalizer visualizer**: Dynamic frequency bars bouncing to Spotify Connect streams.
   * **Cogitation gear**: Rotating bezel cog wheel spinning at 80 deg/sec during brain processing.
   * **Vector Digit projector**: High-tech segment lines drawing actual dice values.
-  * **Artwork Projector**: Direct DeviantArt RSS search fetching and displaying 40k or Necromunda fan art inside the mechanical lens aperture.
+  * **Artwork Projector**: Direct DeviantArt RSS search fetching and displaying 40k or Necromunda fan art inside the mechanical lens aperture. Searches are sorted by popularity (`order=9`) and resolution-weighted for high-quality projection.
 - **📖 Knows the rules.** A built-in, offline rules library lets it answer questions about **Warhammer 40,000 (11th ed.)**, **Necromunda**, **NetEpic (Epic 2nd ed.)**, and **Net Epic Armageddon (Epic 3rd ed.)** — datasheets, stratagems, weapons, points, formations, tournament rules — quoting the actual rulebooks rather than guessing.
 - **🎲 Tabletop Game Context & specialized dice simulator.** Persistent memory tracks what game is active (**Necromunda**, **NetEpic**, **NetEA**, **Warhammer 40k**). Zero-latency regex intercepts roll specialized dice (firepower, injury, scatter, combat resolution, macro-weapons, saving throws) instantly, playing rolling dice sound effects and projecting vector-drawn alphanumeric outcomes directly on the eye screen.
 - **🖨️ Bambu Lab 3D Printer Monitor.** Subscribes to local secure MQTT broker telemetry. Verbally reports print start/completion, reads temperature stats, and issues warning announcements if the printer hits a Health Management System (HMS) diagnostic fault code.
 - **🎵 Plays your music.** Spotify voice control — "play the Imperial march" — with pause/resume/skip, routed through its own speaker or a Bluetooth speaker it can discover and pair with.
-- **🧠 Remembers you.** Short- and long-term memory, a drifting mood/personality state, timers & reminders, and a proactive daily briefing (weather + news) the first time you wake it each morning.
+- **🧠 Remembers you.** Configurable short-term conversation history memory limit (`HISTORY_LIMIT`, default 60 turns/30 conversations) and long-term explicit memories, a drifting mood/personality state, timers & reminders, and a proactive daily briefing (weather + news) the first time you wake it each morning.
 - **🌡️ Looks after itself.** Monitors its own core temperature and warns you if it runs hot. Volume control and a "silent mode" for its unprompted idle observations round it out.
-- **🔊 Atmosphere.** Mechanicus chimes and vox-crackle stings play on wake and before it speaks.
+- **🔊 Atmosphere.** Mechanicus chimes and vox-crackle stings play on wake and before it speaks. Thematic voice registration calibration (Tech-Priest three-question test) and unknown voice imprinting protocol.
 
 It's a **bring-your-own-keys** device: you supply your own Anthropic (and optional OpenAI / ElevenLabs / Spotify) accounts, and everything else lives on the Pi. No backend, no subscription, no data leaving the device beyond the model calls you choose to make.
 
@@ -73,8 +73,8 @@ Omega-7 supports rich conversational interaction and custom voice commands. He u
 
 ### 🖥️ Display Screensavers & Artwork Projection
 * **Run Screensaver**: *"Play the [screensaver name] animation"*, *"Show screensaver"* (displays a retro animation on the eye screen). Available screensavers:
-  * `pong`, `canticle_rain` (Matrix code), `starfield`, `oscilloscope`, `game_of_life`, `radar`, `warp_core`, `circuit_maze`, `double_helix`, `spinning_rings`, `wireframe_cube`, `bouncing_cog`, `fractal_tree`, `hud_status`, `orbitals`, `spectrum_bars`.
-* **Project Artwork**: *"Display artwork of [subject]"*, *"Show me a picture of a [Space Marine/Necromunda Gang]"* (scrapes DeviantArt for matching artwork and blits it full-screen).
+  * `pong`, `canticle_rain` (Matrix code), `starfield`, `oscilloscope`, `game_of_life`, `radar`, `warp_core`, `circuit_maze`, `double_helix`, `spinning_rings`, `wireframe_cube`, `bouncing_cog`, `fractal_tree`, `hud_status`, `orbitals`, `spectrum_bars`, `plasma`, `lissajous`, `voronoi`, `data_stream`, `mandala`, `rune_wheel`, `glitch`, `dna_helix`, `neural_net`, `gravity_well`, `morse_code`, `hex_grid`, `kaleidoscope`, `particle_burst`.
+* **Project Artwork**: *"Display artwork of [subject]"*, *"Show me a picture of a [Space Marine/Necromunda Gang]"* (scrapes DeviantArt for matching artwork, sorted by popularity and resolution-weighted, and blits it full-screen).
 
 ### 🕯️ Ambient & Personality Control
 * **Silent Mode**: *"Be quiet"*, *"Silent mode"*, *"Stop observations"* (disables periodic unprompted announcements).
@@ -89,6 +89,7 @@ Omega-7 supports rich conversational interaction and custom voice commands. He u
 * **Acknowledge Alarm**: *"I hear you"*, *"Clear reminders"* (acknowledges and turns off an active chime).
 * **Store Facts**: *"Remember that I play House Van Saar"*, *"Remember my favorite faction is Adeptus Mechanicus"* (saves user preferences to long-term memory).
 * **Forget Facts**: *"Forget that [fact]"*.
+* **Purge Identity**: *"Purge your memory of [Name]"*, *"Delete [Name]'s face and voice"* (expunges visage/face training images, vox/voice GMM profiles, and all associated memory facts from the registries).
 
 ### 🌐 System & Utility
 * **Web Search**: *"Search the web for [query]"*, *"Who was the second president of the United States?"* (queries Wikipedia/Google when offline databases don't cover it).
