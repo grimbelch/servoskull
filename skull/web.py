@@ -147,6 +147,9 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", "image/jpeg")
                 self.send_header("Content-Length", str(len(img_bytes)))
+                self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                self.send_header("Pragma", "no-cache")
+                self.send_header("Expires", "0")
                 self.end_headers()
                 self.wfile.write(img_bytes)
             else:
@@ -812,22 +815,31 @@ HTML_CLIENT = """<!DOCTYPE html>
         let mediaRecorder = null;
         let audioChunks = [];
 
-        // Flicker-free double-buffered frame streaming
+        // Flicker-free double-buffered frame streaming with safety timeout
         let tempImg = new Image();
         let loading = false;
+        let loadTimeout = null;
         
         function refreshFrame() {
             if (loading || document.hidden) return;
             loading = true;
+            
+            if (loadTimeout) clearTimeout(loadTimeout);
+            loadTimeout = setTimeout(() => {
+                loading = false;
+            }, 500);
+            
             tempImg.src = '/api/custom_image.jpg?t=' + Date.now();
         }
         
         tempImg.onload = function() {
+            if (loadTimeout) clearTimeout(loadTimeout);
             img.src = tempImg.src;
             loading = false;
         };
         
         tempImg.onerror = function() {
+            if (loadTimeout) clearTimeout(loadTimeout);
             loading = false;
         };
         
