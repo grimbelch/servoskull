@@ -431,6 +431,8 @@ def main():
     bambu_ctrl.init(_speak_bambu_notification)
     bambu_ctrl.get_monitor().start()
     threading.Thread(target=_spotify_poller_loop, daemon=True).start()
+    from skull import web
+    web.start()
     print(f"[skull] {config.SKULL_NAME} online. Awaiting the Emperor's commands.")
     try:
         import sounddevice as sd
@@ -523,218 +525,255 @@ def main():
             observation = None
         if observation:
             try:
-                spotify_ctrl.duck()  # restored at the loop top after the `continue` below
+                spotify_ctrl.duck()
                 eyes.on()
                 obs_wav = tts.synthesize(observation)
                 # Barge-in: let the user cut in with the wake word mid-observation.
                 if _speak_interruptible(obs_wav, on_wake):
                     skip_wake_word = True
             except Exception as e:
-                print(f"[skull] Camera observation error: {e}")
+                print(f"[camera] Camera observation error: {e}")
                 eyes.off()
                 display.idle()
             continue
 
+        # Check for web command
+        from skull import web
+        web_item = web.get_queued_command()
+        web_wake = web.pop_wake_request()
+
+        run_brain = False
+        if web_item:
+            user_text, speaker_name = web_item
+            run_brain = True
+            skip_ack = True
+            play_ack_sound = False
+            is_answering_question = False
+            print(f"[skull] Web command received: {user_text}")
+        elif web_wake:
+            skip_wake_word = True
+
         # ── 1. Wait for wake word (skip after a barge-in interruption) ────────
-        if skip_wake_word:
-            skip_wake_word = False
-            on_wake()
-            if skip_ack:
-                is_answering_question = True
-                skip_ack = False
-                _barge_wav = None
-                play_ack_sound = False
+        if not run_brain:
+            if skip_wake_word:
+                skip_wake_word = False
+                on_wake()
+                if skip_ack:
+                    is_answering_question = True
+                    skip_ack = False
+                    _barge_wav = None
+                    play_ack_sound = False
+                else:
+                    is_answering_question = False
+                    ack = random.choice([
+                        "Ah, yes?",
+                        "Speak.",
+                        "Yes?",
+                        "Proceed.",
+                        "Command me.",
+                        "Why must you interrupt me?",
+                        f"Again you interrupt {config.SKULL_NAME}?",
+                        "This had better be important.",
+                        "Insufferable. What is it?",
+                    ])
+                    _barge_wav = None
+                    try:
+                        _barge_wav = tts.synthesize(ack)
+                    except Exception:
+                        pass
+                    play_ack_sound = True
             else:
                 is_answering_question = False
-                ack = random.choice([
-                    "Ah, yes?",
-                    "Speak.",
-                    "Yes?",
-                    "Proceed.",
-                    "Command me.",
-                    "Why must you interrupt me?",
-                    f"Again you interrupt {config.SKULL_NAME}?",
-                    "This had better be important.",
-                    "Insufferable. What is it?",
-                ])
-                _barge_wav = None
-                try:
-                    _barge_wav = tts.synthesize(ack)
-                except Exception:
-                    pass
                 play_ack_sound = True
-        else:
-            is_answering_question = False
-            play_ack_sound = True
-            _idle_cancel = threading.Event()
-            _idle_fired = threading.Event()
-            _due_reminders: list = []
+                _idle_cancel = threading.Event()
+                _idle_fired = threading.Event()
+                _due_reminders: list = []
 
-            def _idle_timer():
-                delay = random.uniform(_IDLE_MIN, _IDLE_MAX)
-                if not _idle_cancel.wait(timeout=delay):
-                    _idle_fired.set()
-                    _idle_cancel.set()
-
-            def _reminder_watcher():
-                while not _idle_cancel.is_set():
-                    due = reminders.get_due()
-                    if due:
-                        _due_reminders.extend(due)
+                def _idle_timer():
+                    delay = random.uniform(_IDLE_MIN, _IDLE_MAX)
+                    if not _idle_cancel.wait(timeout=delay):
+                        _idle_fired.set()
                         _idle_cancel.set()
-                        return
-                    if temperature.has_pending():
-                        _idle_cancel.set()  # wake the loop so the warning speaks at the top
-                        return
-                    _idle_cancel.wait(timeout=5.0)
 
-            threading.Thread(target=_idle_timer, daemon=True).start()
-            threading.Thread(target=_reminder_watcher, daemon=True).start()
-            detected = wake_word.wait_for_wake_word(on_detected=on_wake, cancel=_idle_cancel)
-            _idle_cancel.set()  # stop background threads if wake word fired first
+                def _reminder_watcher():
+                    while not _idle_cancel.is_set():
+                        due = reminders.get_due()
+                        if due:
+                            _due_reminders.extend(due)
+                            _idle_cancel.set()
+                            return
+                        if temperature.has_pending():
+                            _idle_cancel.set()  # wake the loop so the warning speaks at the top
+                            return
+                        _idle_cancel.wait(timeout=5.0)
 
-            if not detected and _due_reminders:
-                for _rem in _due_reminders:
-                    print(f"[skull] Reminder firing: {_rem['message']}")
+                threading.Thread(target=_idle_timer, daemon=True).start()
+                threading.Thread(target=_reminder_watcher, daemon=True).start()
+                
+                # Register cancel event with web server
+                web.register_cancel_event(_idle_cancel)
+                
+                detected = wake_word.wait_for_wake_word(on_detected=on_wake, cancel=_idle_cancel)
+                _idle_cancel.set()  # stop background threads if wake word fired first
+                
+                # Unregister cancel event
+                web.register_cancel_event(None)
+
+                # Check if a web command came in during the wait
+                web_item = web.get_queued_command()
+                if not detected and web_item:
+                    user_text, speaker_name = web_item
+                    run_brain = True
+                    skip_ack = True
+                    play_ack_sound = False
+                    is_answering_question = False
+                elif not detected and web.pop_wake_request():
+                    skip_wake_word = True
+                    continue
+                elif not detected and _due_reminders:
+                    for _rem in _due_reminders:
+                        print(f"[skull] Reminder firing: {_rem['message']}")
+                        try:
+                            spotify_ctrl.duck()  # restored at the loop top after the `continue` below
+                            with _speech_lock:
+                                sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
+                                eyes.on()
+                                rem_wav = tts.synthesize(_rem["message"])
+                                audio.play_wav_bytes(rem_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+                        except Exception as _e:
+                            print(f"[skull] Reminder TTS error: {_e}")
+                        finally:
+                            eyes.off()
+                        reminders.add(_rem["message"], 10, repeating=True)
+                    continue  # back to top of loop
+
+                elif not detected and _idle_fired.is_set():
+                    if quiet.is_silent():
+                        print("[skull] Idle timeout — silent mode active, holding tongue.")
+                        continue  # back to listening; no unprompted observation
+                    new_mood = mood.drift()
+                    if new_mood:
+                        print(f"[skull] Mood drifted → {new_mood}")
+                        display.set_mood(new_mood)
+                    print("[skull] Idle timeout — generating ambient utterance...")
                     try:
                         spotify_ctrl.duck()  # restored at the loop top after the `continue` below
-                        with _speech_lock:
-                            sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
+                        utterance = brain.idle_utterance()
+                        if utterance:
+                            print(f"[skull] Idle: {utterance}")
+                            idle_wav = tts.synthesize(utterance)
                             eyes.on()
-                            rem_wav = tts.synthesize(_rem["message"])
-                            audio.play_wav_bytes(rem_wav, output_device=config.VOICE_OUTPUT_DEVICE)
-                    except Exception as _e:
-                        print(f"[skull] Reminder TTS error: {_e}")
-                    finally:
+                            display.on()
+                            # Barge-in: let the user cut in with the wake word mid-utterance.
+                            if _speak_interruptible(idle_wav, on_wake):
+                                skip_wake_word = True
+                    except Exception as e:
+                        print(f"[skull] Idle utterance error: {e}")
                         eyes.off()
-                    reminders.add(_rem["message"], 10, repeating=True)
-                continue  # back to top of loop
+                        display.idle()
+                    continue  # back to listening without going through record/transcribe
 
-            if not detected and _idle_fired.is_set():
-                if quiet.is_silent():
-                    print("[skull] Idle timeout — silent mode active, holding tongue.")
-                    continue  # back to listening; no unprompted observation
-                new_mood = mood.drift()
-                if new_mood:
-                    print(f"[skull] Mood drifted → {new_mood}")
-                    display.set_mood(new_mood)
-                print("[skull] Idle timeout — generating ambient utterance...")
+                elif not detected and temperature.has_pending():
+                    continue  # temp warning queued — spoken at the top of the loop
+
+                if not run_brain:
+                    _barge_wav = None
+                    speaker_name = None
+
+        if not run_brain:
+            # ── 2. Play wake ack, then record ────────────────────────────────────────
+            # Wake phrase plays first (blocking) so the mic doesn't pick up the skull's
+            # own speaker output. Recording starts after playback finishes.
+            if play_ack_sound:
+                if _barge_wav is not None:
+                    try:
+                        audio.play_wav_bytes(_barge_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+                    except Exception:
+                        pass
+                elif _wake_wavs:
+                    try:
+                        audio.play_wav_bytes(
+                            random.choice(_wake_wavs),
+                            output_device=config.VOICE_OUTPUT_DEVICE,
+                        )
+                    except Exception:
+                        pass
+
+            _rec_pcm: list = [None]
+            _rec_exc: list = [None]
+            _rec_done = threading.Event()
+
+            # Answering a question allows for a longer reply window (25s max) and a more
+            # patient silence threshold timeout (3.0s) so the user can pause to think.
+            rec_secs = 25 if is_answering_question else config.RECORD_SECONDS
+            silence_dur = 3.0 if is_answering_question else config.SILENCE_DURATION
+
+            def _do_record():
                 try:
-                    spotify_ctrl.duck()  # restored at the loop top after the `continue` below
-                    utterance = brain.idle_utterance()
-                    if utterance:
-                        print(f"[skull] Idle: {utterance}")
-                        idle_wav = tts.synthesize(utterance)
-                        eyes.on()
-                        display.on()
-                        # Barge-in: let the user cut in with the wake word mid-utterance.
-                        if _speak_interruptible(idle_wav, on_wake):
-                            skip_wake_word = True
-                except Exception as e:
-                    print(f"[skull] Idle utterance error: {e}")
-                    eyes.off()
-                    display.idle()
-                continue  # back to listening without going through record/transcribe
-
-            if not detected and temperature.has_pending():
-                continue  # temp warning queued — spoken at the top of the loop
-
-            _barge_wav = None
-            speaker_name = None
-
-        # ── 2. Play wake ack, then record ────────────────────────────────────────
-        # Wake phrase plays first (blocking) so the mic doesn't pick up the skull's
-        # own speaker output. Recording starts after playback finishes.
-        if play_ack_sound:
-            if _barge_wav is not None:
-                try:
-                    audio.play_wav_bytes(_barge_wav, output_device=config.VOICE_OUTPUT_DEVICE)
-                except Exception:
-                    pass
-            elif _wake_wavs:
-                try:
-                    audio.play_wav_bytes(
-                        random.choice(_wake_wavs),
-                        output_device=config.VOICE_OUTPUT_DEVICE,
+                    print(f"[skull] Recording settings: max_secs={rec_secs}, silence_dur={silence_dur}")
+                    _rec_pcm[0] = audio.record(
+                        seconds=rec_secs,
+                        device_index=config.MIC_DEVICE_INDEX,
+                        silence_threshold=config.SILENCE_THRESHOLD,
+                        silence_duration=silence_dur,
                     )
+                except Exception as e:
+                    _rec_exc[0] = e
+                finally:
+                    _rec_done.set()
+
+            threading.Thread(target=_do_record, daemon=True).start()
+            print("[skull] Recording... (speak now)")
+            if not _rec_done.wait(timeout=rec_secs + 15.0):
+                print("[skull] Recording hung — forcing recovery")
+                try:
+                    import sounddevice as _sd_recovery
+                    _sd_recovery.stop()
                 except Exception:
                     pass
+                eyes.off()
+                continue
 
-        _rec_pcm: list = [None]
-        _rec_exc: list = [None]
-        _rec_done = threading.Event()
+            if _rec_exc[0] is not None:
+                print(f"[skull] Audio record error: {_rec_exc[0]}")
+                sfx.play("negative", config.VOICE_OUTPUT_DEVICE)
+                eyes.off()
+                continue
 
-        # Answering a question allows for a longer reply window (25s max) and a more
-        # patient silence threshold timeout (3.0s) so the user can pause to think.
-        rec_secs = 25 if is_answering_question else config.RECORD_SECONDS
-        silence_dur = 3.0 if is_answering_question else config.SILENCE_DURATION
+            pcm, pcm_rate = _rec_pcm[0]
+            if not pcm or audio.max_window_rms(pcm, pcm_rate) < config.SILENCE_THRESHOLD:
+                print("[skull] No speech detected — acknowledging silence, not transcribing.")
+                eyes.off()
+                _acknowledge_silence()
+                continue
 
-        def _do_record():
+            eyes.off()
+
+            # ── 3. Transcribe ──────────────────────────────────────────────────────
+            wav = audio.pcm_to_wav_bytes(pcm, pcm_rate)
+            if config.AUDIO_DEBUG:
+                import pathlib
+                pathlib.Path("/tmp/skull_debug.wav").write_bytes(wav)
+                print("[skull] DEBUG: saved recording to /tmp/skull_debug.wav — open it to hear what the mic captured")
+
             try:
-                print(f"[skull] Recording settings: max_secs={rec_secs}, silence_dur={silence_dur}")
-                _rec_pcm[0] = audio.record(
-                    seconds=rec_secs,
-                    device_index=config.MIC_DEVICE_INDEX,
-                    silence_threshold=config.SILENCE_THRESHOLD,
-                    silence_duration=silence_dur,
-                )
+                from skull import speaker_id
+                speaker_name = speaker_id.identify_speaker(wav)
             except Exception as e:
-                _rec_exc[0] = e
-            finally:
-                _rec_done.set()
+                print(f"[skull] Speaker identification error: {e}")
 
-        threading.Thread(target=_do_record, daemon=True).start()
-        print("[skull] Recording... (speak now)")
-        if not _rec_done.wait(timeout=rec_secs + 15.0):
-            print("[skull] Recording hung — forcing recovery")
+            print("[skull] Transcribing...")
             try:
-                import sounddevice as _sd_recovery
-                _sd_recovery.stop()
-            except Exception:
-                pass
-            eyes.off()
-            continue
+                user_text = transcribe.transcribe(wav)
+            except Exception as e:
+                print(f"[skull] STT error: {e}")
+                sfx.play("negative", config.VOICE_OUTPUT_DEVICE)
+                continue
 
-        if _rec_exc[0] is not None:
-            print(f"[skull] Audio record error: {_rec_exc[0]}")
-            sfx.play("negative", config.VOICE_OUTPUT_DEVICE)
-            eyes.off()
-            continue
-
-        pcm, pcm_rate = _rec_pcm[0]
-        if not pcm or audio.max_window_rms(pcm, pcm_rate) < config.SILENCE_THRESHOLD:
-            print("[skull] No speech detected — acknowledging silence, not transcribing.")
-            eyes.off()
-            _acknowledge_silence()
-            continue
-
-        eyes.off()
-
-        # ── 3. Transcribe ──────────────────────────────────────────────────────
-        wav = audio.pcm_to_wav_bytes(pcm, pcm_rate)
-        if config.AUDIO_DEBUG:
-            import pathlib
-            pathlib.Path("/tmp/skull_debug.wav").write_bytes(wav)
-            print("[skull] DEBUG: saved recording to /tmp/skull_debug.wav — open it to hear what the mic captured")
-
-        try:
-            from skull import speaker_id
-            speaker_name = speaker_id.identify_speaker(wav)
-        except Exception as e:
-            print(f"[skull] Speaker identification error: {e}")
-
-        print("[skull] Transcribing...")
-        try:
-            user_text = transcribe.transcribe(wav)
-        except Exception as e:
-            print(f"[skull] STT error: {e}")
-            sfx.play("negative", config.VOICE_OUTPUT_DEVICE)
-            continue
-
-        if not user_text:
-            print("[skull] No speech detected — acknowledging silence.")
-            _acknowledge_silence()
-            continue
+            if not user_text:
+                print("[skull] No speech detected — acknowledging silence.")
+                _acknowledge_silence()
+                continue
 
         print(f"[skull] Heard: {user_text}")
 
