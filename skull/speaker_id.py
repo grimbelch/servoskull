@@ -190,7 +190,7 @@ def identify_speaker(wav_bytes: bytes) -> str | None:
                 best_name = name
                 
         # Threshold to reject background noise / untrained voices
-        threshold = -45.0
+        threshold = config.SPEAKER_ID_THRESHOLD
         if best_score < threshold:
             print(f"[speaker_id] Best match '{best_name}' score {best_score:.3f} below threshold {threshold}")
             return None
