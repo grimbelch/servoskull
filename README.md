@@ -78,7 +78,7 @@ Omega-7 supports rich conversational interaction and custom voice commands. He u
 
 ### 🖥️ Display Screensavers & Artwork Projection
 * **Run Screensaver**: *"Play the [screensaver name] animation"*, *"Show screensaver"* (displays a retro animation on the eye screen). Available screensavers:
-  * `pong`, `canticle_rain` (Matrix code), `starfield`, `oscilloscope`, `game_of_life`, `radar`, `warp_core`, `circuit_maze`, `double_helix`, `spinning_rings`, `wireframe_cube`, `bouncing_cog`, `fractal_tree`, `hud_status`, `orbitals`, `spectrum_bars`, `plasma`, `lissajous`, `voronoi`, `data_stream`, `mandala`, `rune_wheel`, `glitch`, `dna_helix`, `neural_net`, `gravity_well`, `morse_code`, `hex_grid`, `kaleidoscope`, `particle_burst`.
+  * `pong`, `canticle_rain` (Matrix code), `starfield`, `oscilloscope`, `game_of_life`, `radar`, `warp_core`, `circuit_maze`, `double_helix`, `spinning_rings`, `wireframe_cube`, `bouncing_cog`, `fractal_tree`, `hud_status`, `orbitals`, `spectrum_bars`, `plasma`, `lissajous`, `voronoi`, `data_stream`, `mandala`, `rune_wheel`, `glitch`, `dna_helix`, `neural_net`, `gravity_well`, `void_shield`, `hex_grid`, `kaleidoscope`, `particle_burst`.
 * **Project Artwork**: *"Display artwork of [subject]"*, *"Show me a picture of a [Space Marine/Necromunda Gang]"* (scrapes DeviantArt for matching artwork, sorted by popularity and resolution-weighted, and blits it full-screen).
 
 ### 🕯️ Ambient & Personality Control
