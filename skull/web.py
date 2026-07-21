@@ -235,20 +235,16 @@ HTML_CLIENT = """<!DOCTYPE html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Omega-7 Web Remote & Emulator</title>
+    <title>Omega-7 Cogitator Terminal</title>
     <style>
         :root {
-            --bg-color: #0b0b0c;
-            --card-color: #141416;
-            --border-color: #27272a;
-            --red-glow: #ff2a2a;
-            --red-dim: #7f1212;
-            --brass: #d4af37;
-            --brass-dim: #8b6e15;
-            --text-color: #e4e4e7;
-            --text-muted: #a1a1aa;
-            --green-glow: #10b981;
-            --cyan-glow: #06b6d4;
+            --bg-color: #020803;
+            --card-color: #030f05;
+            --border-color: #14531d;
+            --bright-green: #38ff58;
+            --dim-green: #117823;
+            --glow-color: rgba(56, 255, 88, 0.45);
+            --crt-glow: rgba(56, 255, 88, 0.1);
         }
 
         * {
@@ -259,127 +255,244 @@ HTML_CLIENT = """<!DOCTYPE html>
 
         body {
             background-color: var(--bg-color);
-            color: var(--text-color);
-            font-family: 'Share Tech Mono', 'JetBrains Mono', Courier, monospace;
-            padding: 20px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            color: var(--bright-green);
+            font-family: 'Share Tech Mono', 'Courier New', Courier, monospace;
+            overflow-x: hidden;
+            position: relative;
             min-height: 100vh;
         }
 
+        /* CRT Screen Filter & Glass Effects */
+        .screen {
+            position: relative;
+            width: 100%;
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .screen::after {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(56, 255, 88, 0.04), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 4px, 6px 100%;
+            z-index: 9999;
+            pointer-events: none;
+            animation: crt-flicker 0.25s infinite;
+        }
+
+        .screen::before {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: radial-gradient(circle, rgba(56, 255, 88, 0.03) 0%, rgba(0, 0, 0, 0.75) 120%);
+            z-index: 10000;
+            pointer-events: none;
+        }
+
+        @keyframes crt-flicker {
+            0% { opacity: 0.985; }
+            50% { opacity: 1; }
+            100% { opacity: 0.978; }
+        }
+
+        /* Page Layout Container */
         .container {
             width: 100%;
-            max-width: 900px;
+            max-width: 1000px;
+            margin: 0 auto;
+            border: 2px solid var(--border-color);
+            background-color: var(--card-color);
+            padding: 24px;
+            position: relative;
+            box-shadow: 0 0 30px rgba(17, 120, 35, 0.15);
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            background-color: var(--card-color);
-            border: 2px solid var(--border-color);
-            border-radius: 12px;
-            padding: 24px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 20px rgba(212, 175, 55, 0.05);
+            gap: 24px;
         }
+
+        /* Diagonal corner cuts for AdMech framing */
+        .container::before, .container::after, .frame-bracket::before, .frame-bracket::after {
+            content: "";
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-color: var(--bright-green);
+            border-style: solid;
+            pointer-events: none;
+        }
+
+        .container::before { top: -2px; left: -2px; border-width: 4px 0 0 4px; }
+        .container::after { top: -2px; right: -2px; border-width: 4px 4px 0 0; }
+        
+        .frame-bracket {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+        }
+        .frame-bracket::before { bottom: -2px; left: -2px; border-width: 0 0 4px 4px; }
+        .frame-bracket::after { bottom: -2px; right: -2px; border-width: 0 4px 4px 0; }
 
         @media (max-width: 768px) {
             .container {
                 grid-template-columns: 1fr;
-            }
-            body {
-                padding: 10px;
+                padding: 16px;
             }
         }
 
+        /* Heading & Telemetry Section */
         .header {
             grid-column: 1 / -1;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 16px;
+            margin-bottom: 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 2px solid var(--border-color);
-            padding-bottom: 12px;
-            margin-bottom: 10px;
         }
 
         .header h1 {
-            color: var(--red-glow);
-            font-size: 24px;
-            letter-spacing: 2px;
-            text-shadow: 0 0 10px rgba(255, 42, 42, 0.5);
+            color: var(--bright-green);
+            font-size: 26px;
+            letter-spacing: 3px;
+            text-shadow: 0 0 10px var(--glow-color);
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 12px;
         }
 
-        .header h1 span {
-            color: var(--brass);
-            font-size: 14px;
+        /* SVG AdMech Logo */
+        .cog-logo {
+            width: 28px;
+            height: 28px;
+            fill: var(--bright-green);
+            filter: drop-shadow(0 0 4px var(--glow-color));
+            animation: slow-spin 20s linear infinite;
+        }
+
+        @keyframes slow-spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         .telemetry {
             display: flex;
             gap: 15px;
-            font-size: 14px;
+            font-size: 13px;
         }
 
         .telemetry-item {
-            background: rgba(255, 255, 255, 0.02);
             border: 1px solid var(--border-color);
-            border-radius: 4px;
-            padding: 4px 8px;
+            background: rgba(17, 120, 35, 0.05);
+            padding: 6px 12px;
+            border-radius: 2px;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.8);
         }
 
         .telemetry-label {
-            color: var(--text-muted);
+            color: var(--dim-green);
         }
 
         .telemetry-value {
-            color: var(--brass);
+            color: var(--bright-green);
             font-weight: bold;
+            text-shadow: 0 0 4px var(--glow-color);
         }
 
-        /* Ocular Display Left Pane */
-        .emulator-pane {
+        /* Immersive Top Alert Banner */
+        .alert-banner {
+            grid-column: 1 / -1;
+            border: 2px solid var(--bright-green);
+            background-color: rgba(56, 255, 88, 0.07);
+            box-shadow: 0 0 15px rgba(56, 255, 88, 0.15), inset 0 0 10px rgba(56, 255, 88, 0.08);
+            padding: 14px 20px;
+            text-align: center;
+            border-radius: 2px;
+            position: relative;
+            margin-bottom: 5px;
+        }
+
+        .alert-banner::before {
+            content: "◆ COGITATOR MONITORING ACTIVE ◆";
+            position: absolute;
+            top: -9px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--card-color);
+            padding: 0 8px;
+            font-size: 11px;
+            color: var(--bright-green);
+            letter-spacing: 2px;
+        }
+
+        .alert-title {
+            font-size: 12px;
+            color: var(--bright-green);
+            letter-spacing: 4px;
+            opacity: 0.8;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+
+        .alert-value {
+            font-size: 24px;
+            font-weight: 900;
+            letter-spacing: 6px;
+            color: var(--bright-green);
+            text-shadow: 0 0 10px var(--glow-color);
+            text-transform: uppercase;
+        }
+
+        /* Left Column: Tactical Ocular Display Feed */
+        .ocular-pane {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             gap: 20px;
-            padding: 10px;
-            border-right: 1px solid var(--border-color);
-        }
-
-        @media (max-width: 768px) {
-            .emulator-pane {
-                border-right: none;
-                border-bottom: 1px solid var(--border-color);
-                padding-bottom: 24px;
-            }
-        }
-
-        /* Circular Eye */
-        .ocular-ring {
-            width: 260px;
-            height: 260px;
-            border-radius: 50%;
-            border: 6px solid var(--brass);
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            background: rgba(0,0,0,0.4);
             position: relative;
-            background-color: #000;
-            box-shadow: 0 0 25px var(--red-dim), inset 0 0 20px rgba(0, 0, 0, 0.9);
+        }
+
+        .ocular-ring {
+            width: 270px;
+            height: 270px;
+            border: 4px double var(--bright-green);
+            position: relative;
+            background-color: #000200;
+            box-shadow: 0 0 20px rgba(56, 255, 88, 0.1), inset 0 0 25px rgba(0,0,0,0.95);
             overflow: hidden;
             display: flex;
             justify-content: center;
             align-items: center;
-            transition: box-shadow 0.1s ease;
         }
+
+        /* Ocular Bezel Tech Details */
+        .ocular-bezel-text {
+            position: absolute;
+            font-size: 9px;
+            color: var(--dim-green);
+            z-index: 10;
+        }
+        .bezel-tl { top: 6px; left: 6px; }
+        .bezel-tr { top: 6px; right: 6px; }
+        .bezel-bl { bottom: 6px; left: 6px; }
+        .bezel-br { bottom: 6px; right: 6px; }
 
         .ocular-canvas {
             width: 240px;
             height: 240px;
             border-radius: 50%;
             display: block;
-            image-rendering: pixelated;
         }
 
+        /* Monochromatic Green night vision filter for custom image uploads */
         .custom-image-display {
             position: absolute;
             width: 240px;
@@ -387,73 +500,67 @@ HTML_CLIENT = """<!DOCTYPE html>
             border-radius: 50%;
             object-fit: cover;
             display: none;
+            filter: sepia(1) hue-rotate(85deg) saturate(2.5) contrast(1.2) brightness(0.95);
+            opacity: 0.95;
         }
 
-        .led-glow {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background-color: var(--red-glow);
-            box-shadow: 0 0 10px var(--red-glow);
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            transition: all 0.1s ease;
-        }
-
-        .status-badge {
-            background-color: rgba(255, 255, 255, 0.02);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 8px 16px;
-            font-size: 16px;
-            text-align: center;
-            width: 80%;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        /* Control Panel Right Pane */
+        /* Right Column: Mechanical Vox Control Panel */
         .control-pane {
             display: flex;
             flex-direction: column;
             gap: 16px;
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            background: rgba(0,0,0,0.4);
         }
 
-        /* Chat log / responses */
+        .pane-title {
+            font-size: 13px;
+            letter-spacing: 2px;
+            color: var(--bright-green);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 6px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+
+        /* Chat feed / console interface */
         .chat-container {
             flex-grow: 1;
-            height: 180px;
+            height: 200px;
             border: 1px solid var(--border-color);
-            border-radius: 6px;
-            background: rgba(0, 0, 0, 0.2);
+            background: rgba(0, 0, 0, 0.6);
             padding: 12px;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
             gap: 8px;
-            font-size: 14px;
+            font-size: 13px;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.9);
         }
 
         .chat-bubble {
             max-width: 90%;
-            padding: 6px 10px;
-            border-radius: 4px;
+            padding: 8px 12px;
+            border-radius: 2px;
             line-height: 1.4;
+            border-left: 3px solid;
+            white-space: pre-wrap;
         }
 
         .chat-user {
             align-self: flex-end;
-            background-color: rgba(212, 175, 55, 0.1);
-            border: 1px solid var(--brass-dim);
-            color: var(--brass);
+            background-color: rgba(56, 255, 88, 0.05);
+            border-color: var(--dim-green);
+            color: var(--bright-green);
         }
 
         .chat-skull {
             align-self: flex-start;
-            background-color: rgba(255, 42, 42, 0.05);
-            border: 1px solid var(--red-dim);
-            color: var(--red-glow);
+            background-color: rgba(56, 255, 88, 0.1);
+            border-color: var(--bright-green);
+            color: var(--bright-green);
+            text-shadow: 0 0 4px var(--glow-color);
         }
 
         .input-bar {
@@ -463,186 +570,213 @@ HTML_CLIENT = """<!DOCTYPE html>
 
         .input-bar input {
             flex-grow: 1;
-            background-color: rgba(0,0,0,0.5);
+            background-color: rgba(0,0,0,0.7);
             border: 1px solid var(--border-color);
-            border-radius: 4px;
             padding: 10px;
-            color: var(--text-color);
+            color: var(--bright-green);
             font-family: inherit;
-            font-size: 15px;
+            font-size: 14px;
         }
 
         .input-bar input:focus {
             outline: none;
-            border-color: var(--brass);
+            border-color: var(--bright-green);
+            box-shadow: 0 0 5px var(--glow-color);
         }
 
+        /* High-tech chamfered button style */
         button {
-            background-color: var(--brass-dim);
-            border: 1px solid var(--brass);
-            color: var(--text-color);
-            padding: 10px 16px;
-            border-radius: 4px;
+            background-color: rgba(17, 120, 35, 0.15);
+            border: 1px solid var(--bright-green);
+            color: var(--bright-green);
+            padding: 10px 18px;
             font-family: inherit;
             cursor: pointer;
             font-weight: bold;
+            letter-spacing: 1px;
+            text-shadow: 0 0 4px var(--glow-color);
             transition: all 0.2s ease;
+            clip-path: polygon(8px 0%, 100% 0%, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0% 100%, 0% 8px);
         }
 
         button:hover {
-            background-color: var(--brass);
+            background-color: var(--bright-green);
             color: #000;
-            box-shadow: 0 0 10px rgba(212, 175, 55, 0.4);
+            text-shadow: none;
+            box-shadow: 0 0 10px var(--glow-color);
         }
 
         .action-buttons {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 10px;
+            gap: 12px;
         }
 
         button.wake-btn {
-            background-color: var(--red-dim);
-            border-color: var(--red-glow);
-        }
-
-        button.wake-btn:hover {
-            background-color: var(--red-glow);
-            color: #000;
-            box-shadow: 0 0 10px rgba(255, 42, 42, 0.4);
+            background-color: rgba(56, 255, 88, 0.08);
         }
 
         button.mic-btn {
-            background-color: #27272a;
-            border-color: #3f3f46;
+            background-color: rgba(0,0,0,0.6);
+            border-color: var(--border-color);
         }
         
         button.mic-btn.recording {
-            background-color: var(--red-glow);
+            background-color: var(--bright-green);
             color: #000;
+            text-shadow: none;
             animation: pulse 1.5s infinite;
         }
 
         @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(255, 42, 42, 0.7); }
-            70% { box-shadow: 0 0 0 8px rgba(255, 42, 42, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(255, 42, 42, 0); }
+            0% { box-shadow: 0 0 0 0 rgba(56, 255, 88, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(56, 255, 88, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(56, 255, 88, 0); }
         }
 
-        /* Logs Console Panel */
+        /* Console Output Logs Pane */
         .console-container {
             grid-column: 1 / -1;
-            border-top: 2px solid var(--border-color);
-            margin-top: 10px;
-            padding-top: 15px;
-        }
-
-        .console-title {
-            font-size: 13px;
-            color: var(--text-muted);
-            margin-bottom: 6px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            display: flex;
-            justify-content: space-between;
+            border: 1px solid var(--border-color);
+            background: rgba(0,0,0,0.5);
+            padding: 16px;
         }
 
         .console-box {
-            background: rgba(0, 0, 0, 0.4);
+            background: rgba(0, 0, 0, 0.8);
             border: 1px solid var(--border-color);
-            border-radius: 6px;
-            height: 120px;
+            height: 130px;
             padding: 8px 12px;
             overflow-y: auto;
             font-family: 'Courier New', Courier, monospace;
             font-size: 11px;
-            color: var(--text-muted);
+            color: var(--bright-green);
             line-height: 1.5;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.95);
         }
 
         .console-line {
             white-space: pre-wrap;
-            border-bottom: 1px solid rgba(255,255,255,0.02);
+            border-bottom: 1px dashed rgba(56, 255, 88, 0.05);
             padding: 2px 0;
+            opacity: 0.9;
         }
 
-        /* Dropdowns for Quick Settings */
         .controls-row {
             display: flex;
             gap: 10px;
-            font-size: 14px;
         }
 
         .controls-row select {
             flex-grow: 1;
-            background-color: rgba(0,0,0,0.5);
+            background-color: rgba(0,0,0,0.7);
             border: 1px solid var(--border-color);
-            color: var(--text-color);
+            color: var(--bright-green);
             padding: 8px;
-            border-radius: 4px;
             font-family: inherit;
+        }
+        
+        .controls-row select:focus {
+            outline: none;
+            border-color: var(--bright-green);
+        }
+
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--dim-green);
+            border-radius: 1px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--bright-green);
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <div class="header">
-            <h1>OMEGA-7 <span>SERVO SKULL REMOTE</span></h1>
-            <div class="telemetry">
-                <div class="telemetry-item">
-                    <span class="telemetry-label">TEMP:</span>
-                    <span id="temp-val" class="telemetry-value">--.-°C</span>
+    <div class="screen">
+        <div class="container">
+            <div class="frame-bracket"></div>
+
+            <!-- Header -->
+            <div class="header">
+                <h1>
+                    <!-- Wireframe SVG Cog Logo -->
+                    <svg class="cog-logo" viewBox="0 0 100 100">
+                        <path d="M50 20c-16.5 0-30 13.5-30 30s13.5 30 30 30 30-13.5 30-30-13.5-30-30-30zm0 10c11 0 20 9 20 20s-9 20-20 20-20-9-20-20 9-20 20-20z"/>
+                        <path d="M50 0l6 14h-12zM50 100l6-14h-12zM0 50l14-6v12zM100 50l-14-6v12zM15 15l10 10-8 8zM85 85l-10-10 8-8zM15 85l10-10-8-8zM85 15l-10 10 8 8z"/>
+                    </svg>
+                    OMEGA-7 COGITATOR TERMINAL
+                </h1>
+                <div class="telemetry">
+                    <div class="telemetry-item">
+                        <span class="telemetry-label">CORE TEMP: </span>
+                        <span id="temp-val" class="telemetry-value">--.-°C</span>
+                    </div>
+                    <div class="telemetry-item">
+                        <span class="telemetry-label">ACTIVE GAME: </span>
+                        <span id="game-val" class="telemetry-value">NONE</span>
+                    </div>
                 </div>
-                <div class="telemetry-item">
-                    <span class="telemetry-label">GAME:</span>
-                    <span id="game-val" class="telemetry-value">NONE</span>
+            </div>
+
+            <!-- Thematic Warning/Status Banner (Secret Level Style) -->
+            <div class="alert-banner">
+                <div class="alert-title" id="alert-title">SYSTEM STATUS</div>
+                <div class="alert-value" id="alert-value">SYSTEM OPTIMAL</div>
+            </div>
+
+            <!-- Left column: Ocular Feed -->
+            <div class="ocular-pane">
+                <div class="pane-title" style="width: 100%;">[ OCULAR SENSOR FEED ]</div>
+                <div class="ocular-ring" id="eye-ring">
+                    <!-- Overlay Bezel Telemetry -->
+                    <div class="ocular-bezel-text bezel-tl">TGT: LOCK</div>
+                    <div class="ocular-bezel-text bezel-tr">Z: 4.0X</div>
+                    <div class="ocular-bezel-text bezel-bl">SENS: IR/NV</div>
+                    <div class="ocular-bezel-text bezel-br">RA: 18h36m</div>
+
+                    <canvas class="ocular-canvas" id="eye-canvas" width="240" height="240"></canvas>
+                    <img class="custom-image-display" id="custom-image" src="" alt="Custom Image View">
                 </div>
             </div>
-        </div>
 
-        <!-- Left Pane: Ocular Panel -->
-        <div class="emulator-pane">
-            <div class="ocular-ring" id="eye-ring">
-                <canvas class="ocular-canvas" id="eye-canvas" width="240" height="240"></canvas>
-                <img class="custom-image-display" id="custom-image" src="" alt="Custom Image View">
-                <div class="led-glow" id="eye-led"></div>
-            </div>
-            <div class="status-badge" id="status-badge">● IDLE</div>
-        </div>
+            <!-- Right column: Control Room -->
+            <div class="control-pane">
+                <div class="pane-title">[ VOX CHANNEL LOGS ]</div>
+                <div class="chat-container" id="chat-container">
+                    <div class="chat-bubble chat-skull">System initialized. Awaiting commands, master.</div>
+                </div>
+                
+                <div class="controls-row">
+                    <select id="screensaver-select">
+                        <option value="">-- Select Screensaver --</option>
+                    </select>
+                    <button onclick="playScreensaver()">RUN</button>
+                </div>
 
-        <!-- Right Pane: Control Room -->
-        <div class="control-pane">
-            <div class="chat-container" id="chat-container">
-                <div class="chat-bubble chat-skull">System initialized. Awaiting commands, master.</div>
-            </div>
-            
-            <div class="controls-row">
-                <select id="screensaver-select">
-                    <option value="">-- Trigger Screensaver --</option>
-                </select>
-                <button onclick="playScreensaver()">PLAY</button>
-            </div>
+                <div class="action-buttons">
+                    <button class="wake-btn" onclick="triggerWake()">TRIGGER MIC</button>
+                    <button class="mic-btn" id="mic-btn" onmousedown="startMicRecording()" onmouseup="stopMicRecording()" ontouchstart="startMicRecording()" ontouchend="stopMicRecording()">HOLD TO SPEAK</button>
+                </div>
 
-            <div class="action-buttons">
-                <button class="wake-btn" onclick="triggerWake()">VERBAL WAKE</button>
-                <button class="mic-btn" id="mic-btn" onmousedown="startMicRecording()" onmouseup="stopMicRecording()" ontouchstart="startMicRecording()" ontouchend="stopMicRecording()">HOLD TO SPEAK</button>
+                <div class="input-bar">
+                    <input type="text" id="command-input" placeholder="Enter high-level command..." onkeydown="if(event.key === 'Enter') sendCommand()">
+                    <button onclick="sendCommand()">SEND</button>
+                </div>
             </div>
 
-            <div class="input-bar">
-                <input type="text" id="command-input" placeholder="Transmit command text (e.g. 'roll standard d20')..." onkeydown="if(event.key === 'Enter') sendCommand()">
-                <button onclick="sendCommand()">SEND</button>
-            </div>
-        </div>
-
-        <!-- Console Logging Buffer -->
-        <div class="console-container">
-            <div class="console-title">
-                <span>Machine Spirit Output Logs</span>
-                <span style="color: var(--brass)">Active Console Connection</span>
-            </div>
-            <div class="console-box" id="console-box">
-                <div class="console-line">[SYSTEM] Remote terminal connection established.</div>
+            <!-- Console Log Panel -->
+            <div class="console-container">
+                <div class="pane-title">[ TELEMETRY CONSOLE FEED ]</div>
+                <div class="console-box" id="console-box">
+                    <div class="console-line">[SYSTEM] Remote connection established via Tailscale link.</div>
+                </div>
             </div>
         </div>
     </div>
@@ -651,11 +785,12 @@ HTML_CLIENT = """<!DOCTYPE html>
         const canvas = document.getElementById('eye-canvas');
         const ctx = canvas.getContext('2d');
         const img = document.getElementById('custom-image');
-        const statusBadge = document.getElementById('status-badge');
+        const alertTitle = document.getElementById('alert-title');
+        const alertValue = document.getElementById('alert-value');
+        const alertBanner = document.getElementById('alert-banner');
         const tempVal = document.getElementById('temp-val');
         const gameVal = document.getElementById('game-val');
         const eyeRing = document.getElementById('eye-ring');
-        const eyeLed = document.getElementById('eye-led');
         const chatContainer = document.getElementById('chat-container');
         const consoleBox = document.getElementById('console-box');
         const screensaverSelect = document.getElementById('screensaver-select');
@@ -675,7 +810,7 @@ HTML_CLIENT = """<!DOCTYPE html>
             die_result: ""
         };
 
-        let lastRepliedText = "";
+        let lastStatus = "";
         let audioContext = null;
         let mediaRecorder = null;
         let audioChunks = [];
@@ -718,27 +853,36 @@ HTML_CLIENT = """<!DOCTYPE html>
                 const prevState = { ...currentState };
                 currentState = data.display;
 
-                // Update Status Badge
-                let statusText = "● IDLE";
-                let statusColor = "var(--text-muted)";
-                if (currentState.thinking) {
-                    statusText = "● THINKING";
-                    statusColor = "var(--cyan-glow)";
-                } else if (currentState.speaking) {
-                    statusText = "● SPEAKING";
-                    statusColor = "var(--red-glow)";
-                } else if (currentState.scanning_auspex || currentState.scanning_noosphere) {
-                    statusText = "● SCANNING";
-                    statusColor = "var(--green-glow)";
-                } else if (currentState.active_idle_anim) {
-                    statusText = `● SCREENSAVER (${currentState.active_idle_anim})`;
-                    statusColor = "var(--brass)";
-                }
-                statusBadge.innerText = statusText;
-                statusBadge.style.color = statusColor;
-                statusBadge.style.borderColor = statusColor;
+                // Update Warning/Status Banner (Secret Level Style)
+                let headerTitle = "SYSTEM STATUS";
+                let headerValue = "SYSTEM OPTIMAL";
+                let bannerBg = "rgba(56, 255, 88, 0.07)";
+                let bannerBorder = "2px solid var(--bright-green)";
 
-                // Adjust glows/LEDs based on amplitude
+                if (currentState.thinking) {
+                    headerTitle = "COGITATION PROTOCOL";
+                    headerValue = "ACTIVE";
+                    bannerBg = "rgba(56, 255, 88, 0.15)";
+                } else if (currentState.speaking) {
+                    headerTitle = "VOCAL TRANSMISSION";
+                    headerValue = "ACTIVE";
+                    bannerBg = "rgba(56, 255, 88, 0.25)";
+                    bannerBorder = "3px double var(--bright-green)";
+                } else if (currentState.scanning_auspex || currentState.scanning_noosphere) {
+                    headerTitle = "AUSPEX SCANNING MODE";
+                    headerValue = "ACTIVE";
+                    bannerBg = "rgba(56, 255, 88, 0.15)";
+                } else if (currentState.active_idle_anim) {
+                    headerTitle = "VISUAL EMULATION";
+                    headerValue = currentState.active_idle_anim.toUpperCase().replace('_', ' ');
+                }
+                
+                alertTitle.innerText = headerTitle;
+                alertValue.innerText = headerValue;
+                alertBanner.style.background = bannerBg;
+                alertBanner.style.border = bannerBorder;
+
+                // Adjust glows/shadows based on speech amplitude
                 const amp = currentState.amplitude || 0;
                 let brightness = 15;
                 if (currentState.speaking) {
@@ -747,15 +891,13 @@ HTML_CLIENT = """<!DOCTYPE html>
                     brightness = 40 + Math.sin(Date.now() / 150) * 20;
                 }
                 
-                eyeLed.style.opacity = brightness / 100;
-                eyeLed.style.transform = `scale(${0.8 + (brightness/100)*0.4})`;
-                eyeRing.style.boxShadow = `0 0 ${15 + (brightness/100)*25}px var(--red-dim)`;
+                // Pulsate eye ring glow matching the speaker amplitude
+                eyeRing.style.boxShadow = `0 0 ${15 + (brightness/100)*25}px var(--glow-color)`;
 
                 // Update custom image display
                 if (currentState.showing_custom_image) {
                     img.style.display = 'block';
                     canvas.style.display = 'none';
-                    // Reload src if just transitioned
                     if (!prevState.showing_custom_image) {
                         img.src = '/api/custom_image.jpg?t=' + Date.now();
                     }
@@ -771,7 +913,7 @@ HTML_CLIENT = """<!DOCTYPE html>
 
         setInterval(fetchState, 300);
 
-        // Canvas animation simulation
+        // Canvas animation simulation (Monochromatic green styling)
         function drawCanvas() {
             animationFrameCount++;
             ctx.fillStyle = '#000000';
@@ -779,19 +921,36 @@ HTML_CLIENT = """<!DOCTYPE html>
 
             const now = Date.now();
 
+            // Draw concentric background targets to look like a tactical CRT sensor
+            ctx.strokeStyle = 'rgba(56, 255, 88, 0.1)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(120, 120, 110, 0, 2 * Math.PI);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(120, 120, 75, 0, 2 * Math.PI);
+            ctx.stroke();
+            
+            // Draw crosshairs
+            ctx.beginPath();
+            ctx.moveTo(120, 10); ctx.lineTo(120, 230);
+            ctx.moveTo(10, 120); ctx.lineTo(230, 120);
+            ctx.stroke();
+
             if (currentState.thinking) {
-                // Spinning Cog Animation
+                // Spinning cog animation (Adeptus Mechanicus symbol)
                 ctx.save();
                 ctx.translate(120, 120);
                 ctx.rotate((animationFrameCount * 2 * Math.PI) / 180);
                 
-                ctx.strokeStyle = 'var(--cyan-glow)';
+                ctx.strokeStyle = 'var(--bright-green)';
                 ctx.lineWidth = 4;
                 ctx.beginPath();
                 ctx.arc(0, 0, 50, 0, 2 * Math.PI);
                 ctx.stroke();
 
                 // Draw teeth
+                ctx.fillStyle = 'var(--bright-green)';
                 for (let i = 0; i < 8; i++) {
                     ctx.rotate(Math.PI / 4);
                     ctx.fillRect(-8, -62, 16, 12);
@@ -801,24 +960,24 @@ HTML_CLIENT = """<!DOCTYPE html>
                 // Pulsing central iris
                 ctx.beginPath();
                 ctx.arc(120, 120, 30 + Math.sin(now / 100)*4, 0, 2*Math.PI);
-                ctx.fillStyle = 'var(--red-glow)';
+                ctx.fillStyle = 'var(--bright-green)';
                 ctx.fill();
             }
             else if (currentState.speaking) {
-                // Speaking iris pulses
+                // Speaking iris pulses green
                 const amp = currentState.amplitude || 0;
                 const irisRadius = 40 + amp * 35;
                 
                 // Glow boundary
                 ctx.beginPath();
                 ctx.arc(120, 120, irisRadius + 8, 0, 2 * Math.PI);
-                ctx.fillStyle = 'rgba(255, 42, 42, 0.2)';
+                ctx.fillStyle = 'rgba(56, 255, 88, 0.2)';
                 ctx.fill();
 
                 // Solid center
                 ctx.beginPath();
                 ctx.arc(120, 120, irisRadius, 0, 2 * Math.PI);
-                ctx.fillStyle = 'var(--red-glow)';
+                ctx.fillStyle = 'var(--bright-green)';
                 ctx.fill();
 
                 // Pupil
@@ -835,8 +994,7 @@ HTML_CLIENT = """<!DOCTYPE html>
                 ctx.rotate((angle * Math.PI) / 180);
                 
                 // Sweep line
-                const scanColor = currentState.scanning_auspex ? 'rgba(16, 185, 129, 0.8)' : 'rgba(255, 42, 42, 0.8)';
-                ctx.strokeStyle = scanColor;
+                ctx.strokeStyle = 'var(--bright-green)';
                 ctx.lineWidth = 3;
                 ctx.beginPath();
                 ctx.moveTo(0, 0);
@@ -844,7 +1002,7 @@ HTML_CLIENT = """<!DOCTYPE html>
                 ctx.stroke();
                 
                 // Fade gradient
-                ctx.fillStyle = currentState.scanning_auspex ? 'rgba(16, 185, 129, 0.05)' : 'rgba(255, 42, 42, 0.05)';
+                ctx.fillStyle = 'rgba(56, 255, 88, 0.08)';
                 ctx.beginPath();
                 ctx.moveTo(0, 0);
                 ctx.arc(0, 0, 110, -Math.PI/2, -Math.PI/2 - 0.5, true);
@@ -853,8 +1011,8 @@ HTML_CLIENT = """<!DOCTYPE html>
 
                 ctx.restore();
 
-                // Draw circles
-                ctx.strokeStyle = currentState.scanning_auspex ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255, 42, 42, 0.3)';
+                // Draw pulsing rings
+                ctx.strokeStyle = 'rgba(56, 255, 88, 0.4)';
                 ctx.lineWidth = 1;
                 for (let r = 30; r <= 110; r += 30) {
                     ctx.beginPath();
@@ -863,23 +1021,23 @@ HTML_CLIENT = """<!DOCTYPE html>
                 }
             }
             else if (currentState.rolling_die) {
-                // Draw rotating numbers or dice outline
-                ctx.strokeStyle = 'var(--brass)';
+                // Tactical target square
+                ctx.strokeStyle = 'var(--bright-green)';
                 ctx.lineWidth = 2;
                 ctx.strokeRect(60, 60, 120, 120);
                 
-                ctx.fillStyle = 'var(--text-color)';
-                ctx.font = '36px Courier New';
+                ctx.fillStyle = 'var(--bright-green)';
+                ctx.font = 'bold 36px Share Tech Mono';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 const tempRoll = Math.floor(Math.random() * 20) + 1;
                 ctx.fillText(currentState.die_result || tempRoll.toString(), 120, 120);
             }
             else if (currentState.active_idle_anim === 'canticle_rain') {
-                // Binary Matrix rain simulation
+                // Binary Matrix rain
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
                 ctx.fillRect(0, 0, 240, 240);
-                ctx.fillStyle = '#10b981';
+                ctx.fillStyle = 'var(--bright-green)';
                 ctx.font = '12px Courier New';
                 for (let i = 10; i < 240; i += 20) {
                     const char = Math.random() > 0.5 ? "1" : "0";
@@ -888,11 +1046,11 @@ HTML_CLIENT = """<!DOCTYPE html>
                 }
             }
             else {
-                // Default breathing iris
+                // Default breathing iris in green
                 const radius = 50 + Math.sin(now / 800) * 5;
                 ctx.beginPath();
                 ctx.arc(120, 120, radius, 0, 2 * Math.PI);
-                ctx.fillStyle = 'var(--red-glow)';
+                ctx.fillStyle = 'rgba(56, 255, 88, 0.8)';
                 ctx.fill();
 
                 ctx.beginPath();
@@ -908,7 +1066,7 @@ HTML_CLIENT = """<!DOCTYPE html>
 
         // Control API Calls
         async function triggerWake() {
-            addChatBubble("Triggering verbal wake word...", 'chat-user');
+            addChatBubble("Triggering verbal wake sequence...", 'chat-user');
             await fetch('/api/wake', { method: 'POST' });
         }
 
@@ -958,7 +1116,7 @@ HTML_CLIENT = """<!DOCTYPE html>
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 
-        // Web Audio Recording (Microphone) -> WAV mono 16kHz
+        // Web Audio Recording
         let mediaStream = null;
 
         async function startMicRecording() {
@@ -973,21 +1131,17 @@ HTML_CLIENT = """<!DOCTYPE html>
                 
                 mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 const source = audioContext.createMediaStreamSource(mediaStream);
-                
-                // Use a processor to downsample and collect PCM samples
                 const bufferSize = 4096;
                 const processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
                 
                 processor.onaudioprocess = function(e) {
                     const inputData = e.inputBuffer.getChannelData(0);
-                    // Copy float32 samples
                     audioChunks.push(new Float32Array(inputData));
                 };
                 
                 source.connect(processor);
                 processor.connect(audioContext.destination);
                 
-                // Store references to shut down later
                 micBtn.audioProcessor = processor;
                 micBtn.audioSource = source;
             } catch (err) {
@@ -1011,11 +1165,9 @@ HTML_CLIENT = """<!DOCTYPE html>
                 mediaStream.getTracks().forEach(track => track.stop());
             }
 
-            // Convert Float32Array chunks to 16-bit PCM WAV
             if (audioChunks.length === 0) return;
             
-            addChatBubble("[Voice input transmitted]", 'chat-user');
-            
+            addChatBubble("[Vox input transmitted]", 'chat-user');
             const wavBlob = encodeWAV(audioChunks, 16000);
             
             try {
@@ -1033,9 +1185,7 @@ HTML_CLIENT = """<!DOCTYPE html>
             }
         }
 
-        // JS WAV Encoder Helper
         function encodeWAV(chunks, sampleRate) {
-            // Flatten chunks
             let totalLength = 0;
             for (let i = 0; i < chunks.length; i++) {
                 totalLength += chunks[i].length;
@@ -1050,34 +1200,20 @@ HTML_CLIENT = """<!DOCTYPE html>
             const buffer = new ArrayBuffer(44 + samples.length * 2);
             const view = new DataView(buffer);
 
-            /* RIFF identifier */
             writeString(view, 0, 'RIFF');
-            /* file length */
             view.setUint32(4, 36 + samples.length * 2, true);
-            /* RIFF type */
             writeString(view, 8, 'WAVE');
-            /* format chunk identifier */
             writeString(view, 12, 'fmt ');
-            /* format chunk length */
             view.setUint32(16, 16, true);
-            /* sample format (raw pcm) */
             view.setUint16(20, 1, true);
-            /* channel count (mono) */
             view.setUint16(22, 1, true);
-            /* sample rate */
             view.setUint32(24, sampleRate, true);
-            /* byte rate (sample rate * block align) */
             view.setUint32(28, sampleRate * 2, true);
-            /* block align (channel count * bytes per sample) */
             view.setUint16(32, 2, true);
-            /* bits per sample */
             view.setUint16(34, 16, true);
-            /* data chunk identifier */
             writeString(view, 36, 'data');
-            /* chunk length */
             view.setUint32(40, samples.length * 2, true);
 
-            // Write PCM audio samples (Float32 to Int16)
             let index = 44;
             for (let i = 0; i < samples.length; i++) {
                 const s = Math.max(-1, Math.min(1, samples[i]));
@@ -1097,3 +1233,4 @@ HTML_CLIENT = """<!DOCTYPE html>
 </body>
 </html>
 """
+
