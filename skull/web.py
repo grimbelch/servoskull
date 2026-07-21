@@ -119,6 +119,25 @@ def get_cpu_usage() -> str:
     except Exception:
         return "12.4% [Virtual]"
 
+
+def get_fabricator_status() -> dict:
+    try:
+        from skull import bambu_ctrl
+        status = bambu_ctrl.get_status_report()
+        if status is None:
+            monitor = bambu_ctrl.get_monitor()
+            if monitor and monitor.is_configured():
+                return {"text": "OFFLINE", "percent": 0.0}
+            return {"text": "UNCONFIGURED", "percent": 0.0}
+        
+        state = status.get("gcode_state", "UNKNOWN").upper()
+        percent = float(status.get("percent", 0))
+        if state in ("RUNNING", "PREPARE"):
+            return {"text": f"{state} ({percent:.0f}%)", "percent": percent}
+        return {"text": state, "percent": 0.0}
+    except Exception:
+        return {"text": "UNAVAILABLE", "percent": 0.0}
+
 class ThreadingHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
 
@@ -171,6 +190,8 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             except Exception:
                 temp = "Unavailable"
                 
+            from skull import quiet
+            master_name = config._OWNER_PROFILE.get("name", "Unknown").upper()
             state_data = {
                 "skull_name": config.SKULL_NAME,
                 "display": disp_state,
@@ -178,6 +199,9 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                 "cpu": get_cpu_usage(),
                 "ram": get_ram_usage(),
                 "storage": get_storage_usage(),
+                "master": master_name,
+                "silent_mode": "ACTIVE" if quiet.is_silent() else "INACTIVE",
+                "fabricator": get_fabricator_status(),
                 "active_game": brain.get_current_game() if hasattr(brain, "get_current_game") else "None",
                 "screensavers": display.get_screensaver_names() if hasattr(display, "get_screensaver_names") else [],
                 "logs": get_logs(),
@@ -899,6 +923,23 @@ HTML_CLIENT = """<!DOCTYPE html>
                             <div id="storage-bar" class="sensor-bar" style="width: 0%;"></div>
                         </div>
                     </div>
+                    <div class="telemetry-item">
+                        <div class="sensor-header">
+                            <span class="telemetry-label">FABRICATOR:</span>
+                            <span id="fabricator-val" class="telemetry-value">UNCONFIGURED</span>
+                        </div>
+                        <div class="sensor-bar-container">
+                            <div id="fabricator-bar" class="sensor-bar" style="width: 0%;"></div>
+                        </div>
+                    </div>
+                    <div class="telemetry-item text-only">
+                        <span class="telemetry-label">MASTER</span>
+                        <span id="master-val" class="telemetry-value">UNKNOWN</span>
+                    </div>
+                    <div class="telemetry-item text-only">
+                        <span class="telemetry-label">SILENT MODE</span>
+                        <span id="silent-val" class="telemetry-value">INACTIVE</span>
+                    </div>
                     <div class="telemetry-item text-only">
                         <span class="telemetry-label">ACTIVE GAME</span>
                         <span id="game-val" class="telemetry-value">NONE</span>
@@ -969,6 +1010,9 @@ HTML_CLIENT = """<!DOCTYPE html>
         const cpuVal = document.getElementById('cpu-val');
         const ramVal = document.getElementById('ram-val');
         const storageVal = document.getElementById('storage-val');
+        const fabricatorVal = document.getElementById('fabricator-val');
+        const masterVal = document.getElementById('master-val');
+        const silentVal = document.getElementById('silent-val');
         const gameVal = document.getElementById('game-val');
         const eyeRing = document.getElementById('eye-ring');
         const chatContainer = document.getElementById('chat-container');
@@ -1006,6 +1050,9 @@ HTML_CLIENT = """<!DOCTYPE html>
                 cpuVal.innerText = data.cpu;
                 ramVal.innerText = data.ram;
                 storageVal.innerText = data.storage;
+                fabricatorVal.innerText = data.fabricator.text;
+                masterVal.innerText = data.master;
+                silentVal.innerText = data.silent_mode;
                 gameVal.innerText = data.active_game.toUpperCase();
 
                 // Update progress bars
@@ -1024,6 +1071,9 @@ HTML_CLIENT = """<!DOCTYPE html>
                 const storageFloat = parseFloat(data.storage);
                 if (!isNaN(storageFloat)) {
                     document.getElementById('storage-bar').style.width = Math.min(100, Math.max(0, storageFloat)) + '%';
+                }
+                if (data.fabricator && typeof data.fabricator.percent === 'number') {
+                    document.getElementById('fabricator-bar').style.width = Math.min(100, Math.max(0, data.fabricator.percent)) + '%';
                 }
                 
                 // Update screensaver options if not already filled
