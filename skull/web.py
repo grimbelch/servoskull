@@ -812,13 +812,26 @@ HTML_CLIENT = """<!DOCTYPE html>
         let mediaRecorder = null;
         let audioChunks = [];
 
-        // Refresh frame loop at 15 FPS (66ms) - mirror the physical screen exactly
+        // Flicker-free double-buffered frame streaming
+        let tempImg = new Image();
+        let loading = false;
+        
         function refreshFrame() {
-            if (!document.hidden) {
-                img.src = '/api/custom_image.jpg?t=' + Date.now();
-            }
+            if (loading || document.hidden) return;
+            loading = true;
+            tempImg.src = '/api/custom_image.jpg?t=' + Date.now();
         }
-        setInterval(refreshFrame, 66);
+        
+        tempImg.onload = function() {
+            img.src = tempImg.src;
+            loading = false;
+        };
+        
+        tempImg.onerror = function() {
+            loading = false;
+        };
+        
+        setInterval(refreshFrame, 66); // ~15 FPS
 
         // Fetch State loop
         async function fetchState() {
