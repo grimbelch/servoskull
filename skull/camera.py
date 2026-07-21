@@ -251,10 +251,9 @@ def _vision_loop() -> None:
 
 
 def start() -> None:
-    """Start background vision triggering. No-op if CAMERA_ENABLED is false."""
-    if not config.CAMERA_ENABLED:
-        return
-    threading.Thread(target=_vision_loop, daemon=True).start()
+    """Start background vision triggering. No-op (disabled per user request;
+    camera now runs strictly on-demand when queried)."""
+    pass
 
 
 def get_observation() -> str | None:
