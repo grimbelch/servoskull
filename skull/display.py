@@ -2172,9 +2172,9 @@ def _loop():
             target_look_x = 0.0
             target_look_y = 0.0
 
-        # Smoothly interpolate gaze position
-        look_x += (target_look_x - look_x) * 0.08
-        look_y += (target_look_y - look_y) * 0.08
+        # Smoothly interpolate gaze position (snappy organic saccades)
+        look_x += (target_look_x - look_x) * 0.65
+        look_y += (target_look_y - look_y) * 0.65
 
         # Blink every few seconds: a quick close-and-open easing 0->1->0.
         if blink_t0 is None and now >= next_blink:
