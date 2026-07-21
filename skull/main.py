@@ -681,6 +681,27 @@ def main():
                     speaker_name = None
 
         if not run_brain:
+            # Check if daily briefing is due
+            if brain.is_daily_briefing_due():
+                print("[skull] First wake of the day detected. Initiating daily briefing...")
+                try:
+                    with _speech_lock:
+                        eyes.on()
+                        display.on()
+                        sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
+                        intro_wav = tts.synthesize("Awaiting your command, master. Activating daily briefing protocol...")
+                        audio.play_wav_bytes(intro_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+                        
+                        briefing_text = brain.generate_daily_briefing()
+                        print(f"[skull] Daily Briefing: {briefing_text}")
+                        briefing_wav = tts.synthesize(briefing_text)
+                        audio.play_wav_bytes(briefing_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+                        brain.mark_daily_briefing_done()
+                        
+                        play_ack_sound = False
+                except Exception as e:
+                    print(f"[skull] Daily briefing execution failed: {e}")
+
             # ── 2. Play wake ack, then record ────────────────────────────────────────
             # Wake phrase plays first (blocking) so the mic doesn't pick up the skull's
             # own speaker output. Recording starts after playback finishes.

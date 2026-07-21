@@ -2333,3 +2333,60 @@ Speak in character. Output ONLY the spoken words. No asterisks, stage directions
         except Exception as e:
             print(f"[brain] Idle chat utterance error: {e}")
             return "Ocular sensors online. Cogitators cycling within normal parameters, master."
+
+
+def is_daily_briefing_due() -> bool:
+    try:
+        path = config.data_path("last_briefing.json")
+        if not path.exists():
+            return True
+        with path.open() as f:
+            data = json.load(f)
+        last_date = data.get("date")
+        today = datetime.now().date().isoformat()
+        return last_date != today
+    except Exception:
+        return True
+
+
+def mark_daily_briefing_done() -> None:
+    try:
+        path = config.data_path("last_briefing.json")
+        today = datetime.now().date().isoformat()
+        with path.open("w") as f:
+            json.dump({"date": today}, f)
+    except Exception as e:
+        print(f"[brain] Error saving last_briefing: {e}")
+
+
+def generate_daily_briefing() -> str:
+    """Compile weather and news, then generate an immersive Mechanicus-themed briefing."""
+    print("[brain] Generating proactive daily briefing...")
+    try:
+        from skull.config import WEATHER_LAT, WEATHER_LON
+        if WEATHER_LAT != 0.0 or WEATHER_LON != 0.0:
+            weather_info = _search.get_weather(WEATHER_LAT, WEATHER_LON)
+        else:
+            weather_info = "Weather location coordinates not configured."
+    except Exception as e:
+        weather_info = f"Failed to retrieve atmospheric readouts: {e}"
+
+    try:
+        news_info = _search.news_search("global top headlines", max_results=5)
+    except Exception as e:
+        news_info = f"Failed to poll the Noosphere headlines: {e}"
+
+    try:
+        system = (
+            SYSTEM_PROMPT +
+            "\n\nYou are compiling a daily briefing for the master (weather and news). "
+            "Keep the briefing concise (under 75 words). "
+            "Speak in your established Adeptus Mechanicus Servo-Skull persona, showing absolute reverence and using Tech-Priest terminology (e.g. atmospheric sensor readouts, Noosphere data packets, sacred telemetry). "
+            "Combine the weather and news into one brief paragraph."
+        )
+        user = f"WEATHER READOUTS:\n{weather_info}\n\nNOOSPHERE NEWS PACKETS:\n{news_info}\n\nGenerate the briefing."
+        briefing = _llm.simple(system, user, max_tokens=150)
+        return (briefing or "").strip()
+    except Exception as e:
+        print(f"[brain] Error generating daily briefing LLM response: {e}")
+        return f"Warning: Noosphere link degraded. Weather reports: {weather_info}."
