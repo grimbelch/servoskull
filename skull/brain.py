@@ -1706,6 +1706,7 @@ def _tool_set_quiet_mode(i):
 
 def _tool_shift_mood(i):
     new_mood = _mood.set_mood(str(i.get("mood", "DUTIFUL")))
+    _display.set_mood(new_mood)  # sync iris colour immediately
     return f"Disposition updated to {new_mood}."
 
 def _tool_set_candles(i):
