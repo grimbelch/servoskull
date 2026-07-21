@@ -61,7 +61,7 @@ _screensaver_anims = [
     # New screensavers
     "plasma", "lissajous", "voronoi", "data_stream", "mandala",
     "rune_wheel", "glitch", "dna_helix", "neural_net", "gravity_well",
-    "morse_code", "hex_grid", "kaleidoscope", "particle_burst"
+    "void_shield", "hex_grid", "kaleidoscope", "particle_burst"
 ]
 
 # Pong state variables
@@ -1715,42 +1715,49 @@ def _init_morse():
     _morse_pos = 0
     _morse_last_advance = 0.0
 
-def _render_morse_code_frame(bezel, mask, now):
-    global _morse_pos, _morse_last_advance
-    if not _morse_message:
-        _init_morse()
+def _render_void_shield_frame(bezel, mask, now):
     from PIL import Image, ImageDraw
     img = Image.new("RGB", (240, 240), (0, 0, 0))
     d = ImageDraw.Draw(img)
-    if now - _morse_last_advance > 0.18:
-        _morse_last_advance = now
-        _morse_pos = (_morse_pos + 1) % len(_morse_message)
-    sym = _morse_message[_morse_pos] if _morse_message else "."
-    on = sym in (".", "-")
-    if on:
-        # Flash the main display
-        intensity = 220 if sym == "." else 255
-        d.ellipse([60, 60, 180, 180], fill=(0, intensity, int(intensity * 0.5)))
-        # Dot vs dash
-        if sym == ".":
-            d.ellipse([100, 100, 140, 140], fill=(200, 255, 200))
-        else:
-            d.rectangle([70, 105, 170, 135], fill=(150, 255, 180))
-    # Show history of recent symbols
-    history_start = max(0, _morse_pos - 20)
-    x = 10
-    for h in range(history_start, _morse_pos):
-        if x > 230:
-            break
-        hs = _morse_message[h]
-        if hs == ".":
-            d.ellipse([x, 225, x+4, 229], fill=(0, 180, 80))
-            x += 8
-        elif hs == "-":
-            d.rectangle([x, 225, x+12, 229], fill=(0, 180, 80))
-            x += 16
-        else:
-            x += 6
+    
+    cx, cy = 120, 120
+    num_sides = 6
+    angles = [now * 0.25, -now * 0.15, now * 0.08]
+    pulse = 1.0 + 0.15 * math.sin(now * 1.5)
+    base_radii = [30 * pulse, 55 * pulse, 80 * pulse]
+    
+    for ring in range(3):
+        r = base_radii[ring]
+        rot = angles[ring]
+        pts = []
+        for i in range(num_sides + 1):
+            theta = rot + (i * 2 * math.pi / num_sides)
+            px = cx + r * math.cos(theta)
+            py = cy + r * math.sin(theta)
+            pts.append((px, py))
+            
+        d.line(pts, fill=(0, 140, 40), width=1)
+        
+        for px, py in pts[:-1]:
+            d.ellipse([px-2, py-2, px+2, py+2], fill=(50, 255, 100))
+            
+    inner_pts = []
+    outer_pts = []
+    for i in range(num_sides):
+        theta_in = angles[0] + (i * 2 * math.pi / num_sides)
+        px_in = cx + base_radii[0] * math.cos(theta_in)
+        py_in = cy + base_radii[0] * math.sin(theta_in)
+        inner_pts.append((px_in, py_in))
+        
+        theta_out = angles[2] + (i * 2 * math.pi / num_sides)
+        px_out = cx + base_radii[2] * math.cos(theta_out)
+        py_out = cy + base_radii[2] * math.sin(theta_out)
+        outer_pts.append((px_out, py_out))
+        
+        d.line([(cx, cy), (px_in, py_in)], fill=(0, 70, 20), width=1)
+        d.line([(px_in, py_in), (px_out, py_out)], fill=(0, 70, 20), width=1)
+
+    img.paste(bezel, (0, 0), mask)
     return img
 
 
@@ -2000,8 +2007,6 @@ def _loop():
                         _init_data_stream()
                     elif _active_idle_anim == "neural_net":
                         _init_neural_net()
-                    elif _active_idle_anim == "morse_code":
-                        _init_morse()
                     elif _active_idle_anim == "hex_grid":
                         _init_hex_grid()
                     elif _active_idle_anim == "particle_burst":
@@ -2060,8 +2065,8 @@ def _loop():
                         _blit(_render_neural_net_frame(bezel, mask, now))
                     elif _active_idle_anim == "gravity_well":
                         _blit(_render_gravity_well_frame(bezel, mask, now))
-                    elif _active_idle_anim == "morse_code":
-                        _blit(_render_morse_code_frame(bezel, mask, now))
+                    elif _active_idle_anim == "void_shield":
+                        _blit(_render_void_shield_frame(bezel, mask, now))
                     elif _active_idle_anim == "hex_grid":
                         _blit(_render_hex_grid_frame(bezel, mask, now))
                     elif _active_idle_anim == "kaleidoscope":
