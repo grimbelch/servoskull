@@ -142,7 +142,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             return
             
         elif self.path == "/api/custom_image.jpg":
-            img_bytes = display.get_custom_image_bytes()
+            img_bytes = display.get_ocular_frame_bytes()
             if img_bytes:
                 self.send_response(200)
                 self.send_header("Content-Type", "image/jpeg")
@@ -741,8 +741,7 @@ HTML_CLIENT = """<!DOCTYPE html>
                     <div class="ocular-bezel-text bezel-bl">SENS: IR/NV</div>
                     <div class="ocular-bezel-text bezel-br">RA: 18h36m</div>
 
-                    <canvas class="ocular-canvas" id="eye-canvas" width="240" height="240"></canvas>
-                    <img class="custom-image-display" id="custom-image" src="" alt="Custom Image View">
+                    <img class="custom-image-display" id="custom-image" src="/api/custom_image.jpg" alt="Ocular View" style="display: block; width: 240px; height: 240px; border-radius: 50%; object-fit: cover;">
                 </div>
             </div>
 
@@ -782,8 +781,6 @@ HTML_CLIENT = """<!DOCTYPE html>
     </div>
 
     <script>
-        const canvas = document.getElementById('eye-canvas');
-        const ctx = canvas.getContext('2d');
         const img = document.getElementById('custom-image');
         const alertTitle = document.getElementById('alert-title');
         const alertValue = document.getElementById('alert-value');
@@ -814,8 +811,14 @@ HTML_CLIENT = """<!DOCTYPE html>
         let audioContext = null;
         let mediaRecorder = null;
         let audioChunks = [];
-        let canvasAnimationId = null;
-        let animationFrameCount = 0;
+
+        // Refresh frame loop at 15 FPS (66ms) - mirror the physical screen exactly
+        function refreshFrame() {
+            if (!document.hidden) {
+                img.src = '/api/custom_image.jpg?t=' + Date.now();
+            }
+        }
+        setInterval(refreshFrame, 66);
 
         // Fetch State loop
         async function fetchState() {
@@ -850,7 +853,6 @@ HTML_CLIENT = """<!DOCTYPE html>
                 }
 
                 // Check state transitions
-                const prevState = { ...currentState };
                 currentState = data.display;
 
                 // Update Warning/Status Banner (Secret Level Style)
@@ -894,175 +896,12 @@ HTML_CLIENT = """<!DOCTYPE html>
                 // Pulsate eye ring glow matching the speaker amplitude
                 eyeRing.style.boxShadow = `0 0 ${15 + (brightness/100)*25}px var(--glow-color)`;
 
-                // Update custom image display
-                if (currentState.showing_custom_image) {
-                    img.style.display = 'block';
-                    canvas.style.display = 'none';
-                    if (!prevState.showing_custom_image) {
-                        img.src = '/api/custom_image.jpg?t=' + Date.now();
-                    }
-                } else {
-                    img.style.display = 'none';
-                    canvas.style.display = 'block';
-                }
-
             } catch (err) {
                 console.error("Error fetching state:", err);
             }
         }
 
         setInterval(fetchState, 300);
-
-        // Canvas animation simulation (Monochromatic green styling)
-        function drawCanvas() {
-            animationFrameCount++;
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(0, 0, 240, 240);
-
-            const now = Date.now();
-
-            // Draw concentric background targets to look like a tactical CRT sensor
-            ctx.strokeStyle = 'rgba(56, 255, 88, 0.1)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.arc(120, 120, 110, 0, 2 * Math.PI);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.arc(120, 120, 75, 0, 2 * Math.PI);
-            ctx.stroke();
-            
-            // Draw crosshairs
-            ctx.beginPath();
-            ctx.moveTo(120, 10); ctx.lineTo(120, 230);
-            ctx.moveTo(10, 120); ctx.lineTo(230, 120);
-            ctx.stroke();
-
-            if (currentState.thinking) {
-                // Spinning cog animation (Adeptus Mechanicus symbol)
-                ctx.save();
-                ctx.translate(120, 120);
-                ctx.rotate((animationFrameCount * 2 * Math.PI) / 180);
-                
-                ctx.strokeStyle = 'var(--bright-green)';
-                ctx.lineWidth = 4;
-                ctx.beginPath();
-                ctx.arc(0, 0, 50, 0, 2 * Math.PI);
-                ctx.stroke();
-
-                // Draw teeth
-                ctx.fillStyle = 'var(--bright-green)';
-                for (let i = 0; i < 8; i++) {
-                    ctx.rotate(Math.PI / 4);
-                    ctx.fillRect(-8, -62, 16, 12);
-                }
-                ctx.restore();
-                
-                // Pulsing central iris
-                ctx.beginPath();
-                ctx.arc(120, 120, 30 + Math.sin(now / 100)*4, 0, 2*Math.PI);
-                ctx.fillStyle = 'var(--bright-green)';
-                ctx.fill();
-            }
-            else if (currentState.speaking) {
-                // Speaking iris pulses green
-                const amp = currentState.amplitude || 0;
-                const irisRadius = 40 + amp * 35;
-                
-                // Glow boundary
-                ctx.beginPath();
-                ctx.arc(120, 120, irisRadius + 8, 0, 2 * Math.PI);
-                ctx.fillStyle = 'rgba(56, 255, 88, 0.2)';
-                ctx.fill();
-
-                // Solid center
-                ctx.beginPath();
-                ctx.arc(120, 120, irisRadius, 0, 2 * Math.PI);
-                ctx.fillStyle = 'var(--bright-green)';
-                ctx.fill();
-
-                // Pupil
-                ctx.beginPath();
-                ctx.arc(120, 120, 15, 0, 2 * Math.PI);
-                ctx.fillStyle = '#000000';
-                ctx.fill();
-            }
-            else if (currentState.scanning_auspex || currentState.scanning_noosphere) {
-                // Radar sweep
-                ctx.save();
-                ctx.translate(120, 120);
-                const angle = (animationFrameCount * 3) % 360;
-                ctx.rotate((angle * Math.PI) / 180);
-                
-                // Sweep line
-                ctx.strokeStyle = 'var(--bright-green)';
-                ctx.lineWidth = 3;
-                ctx.beginPath();
-                ctx.moveTo(0, 0);
-                ctx.lineTo(0, -110);
-                ctx.stroke();
-                
-                // Fade gradient
-                ctx.fillStyle = 'rgba(56, 255, 88, 0.08)';
-                ctx.beginPath();
-                ctx.moveTo(0, 0);
-                ctx.arc(0, 0, 110, -Math.PI/2, -Math.PI/2 - 0.5, true);
-                ctx.closePath();
-                ctx.fill();
-
-                ctx.restore();
-
-                // Draw pulsing rings
-                ctx.strokeStyle = 'rgba(56, 255, 88, 0.4)';
-                ctx.lineWidth = 1;
-                for (let r = 30; r <= 110; r += 30) {
-                    ctx.beginPath();
-                    ctx.arc(120, 120, r, 0, 2 * Math.PI);
-                    ctx.stroke();
-                }
-            }
-            else if (currentState.rolling_die) {
-                // Tactical target square
-                ctx.strokeStyle = 'var(--bright-green)';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(60, 60, 120, 120);
-                
-                ctx.fillStyle = 'var(--bright-green)';
-                ctx.font = 'bold 36px Share Tech Mono';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                const tempRoll = Math.floor(Math.random() * 20) + 1;
-                ctx.fillText(currentState.die_result || tempRoll.toString(), 120, 120);
-            }
-            else if (currentState.active_idle_anim === 'canticle_rain') {
-                // Binary Matrix rain
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
-                ctx.fillRect(0, 0, 240, 240);
-                ctx.fillStyle = 'var(--bright-green)';
-                ctx.font = '12px Courier New';
-                for (let i = 10; i < 240; i += 20) {
-                    const char = Math.random() > 0.5 ? "1" : "0";
-                    const y = (animationFrameCount * 4 + i * 3) % 240;
-                    ctx.fillText(char, i, y);
-                }
-            }
-            else {
-                // Default breathing iris in green
-                const radius = 50 + Math.sin(now / 800) * 5;
-                ctx.beginPath();
-                ctx.arc(120, 120, radius, 0, 2 * Math.PI);
-                ctx.fillStyle = 'rgba(56, 255, 88, 0.8)';
-                ctx.fill();
-
-                ctx.beginPath();
-                ctx.arc(120, 120, 12, 0, 2 * Math.PI);
-                ctx.fillStyle = '#000000';
-                ctx.fill();
-            }
-
-            canvasAnimationId = requestAnimationFrame(drawCanvas);
-        }
-
-        drawCanvas();
 
         // Control API Calls
         async function triggerWake() {
