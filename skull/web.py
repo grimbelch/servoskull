@@ -503,9 +503,11 @@ HTML_CLIENT = """<!DOCTYPE html>
         }
 
         .telemetry-label {
-            color: var(--dim-green);
+            color: rgba(56, 255, 88, 0.75);
             font-size: 11px;
-            letter-spacing: 1px;
+            letter-spacing: 1.5px;
+            font-weight: bold;
+            text-shadow: 0 0 2px rgba(56, 255, 88, 0.3);
         }
 
         .telemetry-value {
