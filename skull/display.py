@@ -281,8 +281,22 @@ def _set_window(x0: int, y0: int, x1: int, y1: int) -> None:
     _cmd(_RAMWR)
 
 
+_current_frame_image = None
+_frame_lock = threading.Lock()
+
+
 def _blit(img) -> None:
     """Push a 240x240 PIL RGB image to the panel as big-endian RGB565."""
+    global _current_frame_image
+    try:
+        with _frame_lock:
+            _current_frame_image = img.copy()
+    except Exception:
+        pass
+
+    if not _available or _spi is None:
+        return
+
     if config.DISPLAY_FINE_ROTATION != 0.0:
         # PIL rotate is counter-clockwise. Pass -angle to rotate clockwise.
         img = img.rotate(-config.DISPLAY_FINE_ROTATION, resample=Image.BICUBIC)
@@ -2236,38 +2250,40 @@ def trigger_idle_animation(duration: float = 60.0, animation_name: str | None = 
 # ── public API (mirrors eyes.py) ─────────────────────────────────────────────────
 
 def setup() -> None:
-    """Initialise the panel and start the render thread. No-op if disabled or
-    the hardware/libraries are unavailable."""
+    """Initialise the panel and start the render thread. Runs a virtual render loop
+    for the web remote if hardware/libraries are unavailable."""
     global _available, _spi, _render_thread
     if not config.DISPLAY_ENABLED:
         return
-    if _GPIO is None:
-        print("[display] DISPLAY_ENABLED but spidev/RPi.GPIO/Pillow unavailable — skipping.")
-        return
+
     try:
-        _GPIO.setmode(_GPIO.BCM)  # eyes.py already sets BCM; harmless to repeat
-        _GPIO.setwarnings(False)
-        for pin in (config.DISPLAY_DC_PIN, config.DISPLAY_RST_PIN, config.DISPLAY_BL_PIN):
-            if pin >= 0:
-                _GPIO.setup(pin, _GPIO.OUT, initial=_GPIO.LOW)
+        if _GPIO is not None and spidev is not None:
+            _GPIO.setmode(_GPIO.BCM)
+            _GPIO.setwarnings(False)
+            for pin in (config.DISPLAY_DC_PIN, config.DISPLAY_RST_PIN, config.DISPLAY_BL_PIN):
+                if pin >= 0:
+                    _GPIO.setup(pin, _GPIO.OUT, initial=_GPIO.LOW)
 
-        _spi = spidev.SpiDev()
-        _spi.open(config.DISPLAY_SPI_BUS, config.DISPLAY_SPI_DEVICE)
-        _spi.max_speed_hz = config.DISPLAY_SPI_HZ
-        _spi.mode = 0
+            _spi = spidev.SpiDev()
+            _spi.open(config.DISPLAY_SPI_BUS, config.DISPLAY_SPI_DEVICE)
+            _spi.max_speed_hz = config.DISPLAY_SPI_HZ
+            _spi.mode = 0
 
-        _init_panel()
-        if config.DISPLAY_BL_PIN >= 0:
-            _GPIO.output(config.DISPLAY_BL_PIN, 1)  # backlight on
-        _available = True
-
-        _stop.clear()
-        _render_thread = threading.Thread(target=_loop, daemon=True)
-        _render_thread.start()
-        print("[display] GC9A01 online — the machine spirit observes.")
+            _init_panel()
+            if config.DISPLAY_BL_PIN >= 0:
+                _GPIO.output(config.DISPLAY_BL_PIN, 1)  # backlight on
+            _available = True
+            print("[display] GC9A01 online — the machine spirit observes.")
+        else:
+            print("[display] Hardware libraries unavailable; running virtual render loop for web remote.")
+            _available = False
     except Exception as e:
-        print(f"[display] init failed: {e}")
+        print(f"[display] Hardware init failed ({e}); running virtual render loop for web remote.")
         _available = False
+
+    _stop.clear()
+    _render_thread = threading.Thread(target=_loop, daemon=True)
+    _render_thread.start()
 
 
 def set_amplitude(amp: float) -> None:
@@ -2400,3 +2416,19 @@ def get_custom_image_bytes() -> bytes | None:
     except Exception as e:
         print(f"[display] Failed to get custom image bytes: {e}")
         return None
+
+
+def get_ocular_frame_bytes() -> bytes | None:
+    global _current_frame_image
+    with _frame_lock:
+        if _current_frame_image is None:
+            return None
+        try:
+            import io
+            buf = io.BytesIO()
+            # Compress at 70% quality for fast network transport
+            _current_frame_image.save(buf, format="JPEG", quality=70)
+            return buf.getvalue()
+        except Exception as e:
+            print(f"[display] Failed to get ocular frame bytes: {e}")
+            return None
