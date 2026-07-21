@@ -110,6 +110,15 @@ def get_storage_usage() -> str:
         except Exception:
             return "18.2% (11.6G/64.0G) [Virtual]"
 
+
+def get_cpu_usage() -> str:
+    try:
+        import psutil
+        pct = psutil.cpu_percent(interval=None)
+        return f"{pct:.1f}%"
+    except Exception:
+        return "12.4% [Virtual]"
+
 class ThreadingHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
 
@@ -166,6 +175,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                 "skull_name": config.SKULL_NAME,
                 "display": disp_state,
                 "temperature": temp,
+                "cpu": get_cpu_usage(),
                 "ram": get_ram_usage(),
                 "storage": get_storage_usage(),
                 "active_game": brain.get_current_game() if hasattr(brain, "get_current_game") else "None",
@@ -863,6 +873,15 @@ HTML_CLIENT = """<!DOCTYPE html>
                     </div>
                     <div class="telemetry-item">
                         <div class="sensor-header">
+                            <span class="telemetry-label">CPU:</span>
+                            <span id="cpu-val" class="telemetry-value">--.-%</span>
+                        </div>
+                        <div class="sensor-bar-container">
+                            <div id="cpu-bar" class="sensor-bar" style="width: 0%;"></div>
+                        </div>
+                    </div>
+                    <div class="telemetry-item">
+                        <div class="sensor-header">
                             <span class="telemetry-label">RAM:</span>
                             <span id="ram-val" class="telemetry-value">--.-%</span>
                         </div>
@@ -946,6 +965,7 @@ HTML_CLIENT = """<!DOCTYPE html>
         const alertValue = document.getElementById('alert-value');
         const alertBanner = document.getElementById('alert-banner');
         const tempVal = document.getElementById('temp-val');
+        const cpuVal = document.getElementById('cpu-val');
         const ramVal = document.getElementById('ram-val');
         const storageVal = document.getElementById('storage-val');
         const gameVal = document.getElementById('game-val');
@@ -982,6 +1002,7 @@ HTML_CLIENT = """<!DOCTYPE html>
                 
                 // Update basic telemetry
                 tempVal.innerText = data.temperature;
+                cpuVal.innerText = data.cpu;
                 ramVal.innerText = data.ram;
                 storageVal.innerText = data.storage;
                 gameVal.innerText = data.active_game.toUpperCase();
@@ -990,6 +1011,10 @@ HTML_CLIENT = """<!DOCTYPE html>
                 const tempFloat = parseFloat(data.temperature);
                 if (!isNaN(tempFloat)) {
                     document.getElementById('temp-bar').style.width = Math.min(100, Math.max(0, tempFloat)) + '%';
+                }
+                const cpuFloat = parseFloat(data.cpu);
+                if (!isNaN(cpuFloat)) {
+                    document.getElementById('cpu-bar').style.width = Math.min(100, Math.max(0, cpuFloat)) + '%';
                 }
                 const ramFloat = parseFloat(data.ram);
                 if (!isNaN(ramFloat)) {
