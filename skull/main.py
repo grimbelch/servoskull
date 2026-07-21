@@ -470,6 +470,12 @@ def main():
 
     is_answering_question = False
 
+    # Morning briefing state — persists for the session but resets on next run.
+    # _briefing_offered:          True once we've asked "ready for briefing?"
+    # _briefing_awaiting_response: True while we're listening for the yes/no reply.
+    _briefing_offered = False
+    _briefing_awaiting_response = False
+
     while True:
         # Back at idle — undo any music ducking from the previous interaction.
         spotify_ctrl.restore()
@@ -681,27 +687,6 @@ def main():
                     speaker_name = None
 
         if not run_brain:
-            # Check if daily briefing is due
-            if brain.is_daily_briefing_due():
-                print("[skull] First wake of the day detected. Initiating daily briefing...")
-                try:
-                    with _speech_lock:
-                        eyes.on()
-                        display.on()
-                        sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
-                        intro_wav = tts.synthesize("Awaiting your command, master. Activating daily briefing protocol...")
-                        audio.play_wav_bytes(intro_wav, output_device=config.VOICE_OUTPUT_DEVICE)
-                        
-                        briefing_text = brain.generate_daily_briefing()
-                        print(f"[skull] Daily Briefing: {briefing_text}")
-                        briefing_wav = tts.synthesize(briefing_text)
-                        audio.play_wav_bytes(briefing_wav, output_device=config.VOICE_OUTPUT_DEVICE)
-                        brain.mark_daily_briefing_done()
-                        
-                        play_ack_sound = False
-                except Exception as e:
-                    print(f"[skull] Daily briefing execution failed: {e}")
-
             # ── 2. Play wake ack, then record ────────────────────────────────────────
             # Wake phrase plays first (blocking) so the mic doesn't pick up the skull's
             # own speaker output. Recording starts after playback finishes.
@@ -799,6 +784,53 @@ def main():
         print(f"[skull] Heard: {user_text}")
 
         _t = user_text.lower()
+
+        # ── 3a-0. Intercept morning-briefing yes/no response ───────────────────
+        # This runs only when the skull has already offered the briefing and is
+        # waiting for the user's answer.  A clear "yes" delivers the briefing;
+        # a clear "no" dismisses it; anything else falls through normally (which
+        # also clears the pending flag so the brain doesn't get confused).
+        if _briefing_awaiting_response:
+            _YES = ("yes", "sure", "yeah", "yep", "yup", "ready", "affirmative",
+                    "proceed", "deliver", "go ahead", "please", "of course",
+                    "absolutely", "aye", "correct", "indeed", "do it")
+            _NO  = ("no", "not now", "later", "skip", "negative", "cancel",
+                    "nevermind", "never mind", "pass", "maybe later", "not yet",
+                    "nope", "nah")
+            if any(p in _t for p in _YES):
+                _briefing_awaiting_response = False
+                print("[skull] User confirmed morning briefing. Generating...")
+                try:
+                    briefing_text = brain.generate_daily_briefing()
+                    brain.mark_daily_briefing_done()
+                    print(f"[skull] Daily Briefing: {briefing_text}")
+                    briefing_wav = tts.synthesize(briefing_text)
+                    eyes.on()
+                    interrupted = _speak_interruptible(briefing_wav, on_wake)
+                    if interrupted:
+                        skip_wake_word = True
+                except Exception as e:
+                    print(f"[skull] Briefing delivery failed: {e}")
+                finally:
+                    display.stop_noosphere_scan()
+                    display.stop_auspex_scan()
+                continue
+            elif any(p in _t for p in _NO):
+                _briefing_awaiting_response = False
+                print("[skull] User declined morning briefing. Archiving.")
+                try:
+                    ack_wav = tts.synthesize(
+                        "Understood, master. Cogitations archived. Speak freely."
+                    )
+                    eyes.on()
+                    _speak_interruptible(ack_wav, on_wake)
+                except Exception as e:
+                    print(f"[skull] Briefing dismiss ack error: {e}")
+                continue
+            else:
+                # Ambiguous — clear the flag and let the brain handle it normally
+                _briefing_awaiting_response = False
+                print("[skull] Briefing response unclear — falling through to brain.")
 
         # ── 3a. Conversation-reset request (deterministic, pre-LLM) ────────────
         # Wipes the short-term history by voice, so a poisoned/anchored conversation
@@ -1149,7 +1181,28 @@ def main():
             display.stop_noosphere_scan()
             display.stop_auspex_scan()
 
-
+        # ── 7. Morning briefing offer (once per day, after first interaction) ───────
+        # Only fires on the first completed turn of the day and only once per session.
+        if brain.is_daily_briefing_due() and not _briefing_offered:
+            _briefing_offered = True
+            _briefing_awaiting_response = True
+            print("[skull] First interaction of the day complete. Offering morning briefing.")
+            try:
+                offer_wav = tts.synthesize(
+                    "Master. This unit has compiled your morning cogitations — "
+                    "weather data, hive dispatches, and machine-spirit telemetry. "
+                    "Are you ready to receive your daily briefing?"
+                )
+                eyes.on()
+                interrupted = _speak_interruptible(offer_wav, on_wake)
+                skip_wake_word = True  # listen immediately for yes/no
+                if interrupted:
+                    # They barged in — treat it as listening for the answer
+                    pass
+                skip_ack = True  # suppress the normal wake ack for this response
+            except Exception as e:
+                print(f"[skull] Briefing offer failed: {e}")
+                _briefing_awaiting_response = False
 
 
 if __name__ == "__main__":
