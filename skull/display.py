@@ -2368,3 +2368,35 @@ def cleanup() -> None:
     except Exception:
         pass
     _available = False
+
+
+def get_state() -> dict:
+    global _showing_custom_image, _active_idle_anim, _speaking, _thinking, _target_amp
+    global _scanning_auspex, _scanning_noosphere, _targeting, _visualizing_music, _rolling_die, _die_result
+    return {
+        "showing_custom_image": _showing_custom_image,
+        "active_idle_anim": _active_idle_anim,
+        "speaking": _speaking,
+        "thinking": _thinking,
+        "amplitude": _target_amp,
+        "scanning_auspex": _scanning_auspex,
+        "scanning_noosphere": _scanning_noosphere,
+        "targeting": _targeting,
+        "visualizing_music": _visualizing_music,
+        "rolling_die": _rolling_die,
+        "die_result": _die_result,
+    }
+
+
+def get_custom_image_bytes() -> bytes | None:
+    global _custom_image
+    if _custom_image is None:
+        return None
+    try:
+        import io
+        buf = io.BytesIO()
+        _custom_image.save(buf, format="JPEG")
+        return buf.getvalue()
+    except Exception as e:
+        print(f"[display] Failed to get custom image bytes: {e}")
+        return None

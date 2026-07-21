@@ -228,6 +228,8 @@ DISPLAY_IDLE_TIMEOUT = float(os.getenv("DISPLAY_IDLE_TIMEOUT", "300.0"))  # seco
 # default warns at 80 and re-arms once it cools below 72. No-op on non-Pi hosts
 # (no thermal sensor). Set TEMP_MONITOR_ENABLED=false to disable entirely.
 TEMP_MONITOR_ENABLED = os.getenv("TEMP_MONITOR_ENABLED", "true").lower() == "true"
+WEB_SERVER_ENABLED = os.getenv("WEB_SERVER_ENABLED", "true").lower() == "true"
+WEB_SERVER_PORT = int(os.getenv("WEB_SERVER_PORT", "8080"))
 TEMP_WARN_THRESHOLD = float(os.getenv("TEMP_WARN_THRESHOLD", "80"))    # °C — warn at/above this
 TEMP_CLEAR_THRESHOLD = float(os.getenv("TEMP_CLEAR_THRESHOLD", "72"))  # °C — re-arm once below this
 TEMP_CHECK_INTERVAL = int(os.getenv("TEMP_CHECK_INTERVAL", "30"))      # seconds between readings
