@@ -32,6 +32,11 @@ Omega-7 is a self-contained voice assistant with a very specific soul. Everythin
 - **🎵 Plays your music.** Spotify voice control — "play the Imperial march" — with pause/resume/skip, routed through its own speaker or a Bluetooth speaker it can discover and pair with.
 - **🧠 Remembers you.** Configurable short-term conversation history memory limit (`HISTORY_LIMIT`, default 60 turns/30 conversations) and long-term explicit memories, a drifting mood/personality state, timers & reminders, and a proactive daily briefing (weather + news) the first time you wake it each morning.
 - **🌡️ Looks after itself.** Monitors its own core temperature and warns you if it runs hot. Volume control and a "silent mode" for its unprompted idle observations round it out.
+- **🌐 Adeptus Mechanicus Web Remote (Port 8080).** Exposes a responsive terminal webpage styled as a monochromatic green CRT tactical display (phosphor glow, scanlines, analog screen flicker, and double-borders). Operates securely over HTTPS using automatically generated self-signed SSL certificates for network links (Tailscale/LAN), which enables browser microphone capture permissions natively. Exposes:
+  * **Ocular Feed Mirror**: Real-time video mirror stream of the circular GC9A01 display, rendered using high-performance, native MJPEG to show screensavers, cog rotation, and custom images exactly as they look on the physical skull.
+  * **Secure Audio Capture**: Clients can capture and upload browser mic audio (WAV PCM 16kHz mono) securely over the network.
+  * **System Telemetry**: Displays core temperature, active game, RAM status, and storage usage in real time.
+  * **Remote Execution**: Includes remote verbal wakes, direct command line injection, and custom screensaver triggering.
 - **🔊 Atmosphere.** Mechanicus chimes and vox-crackle stings play on wake and before it speaks. Thematic voice registration calibration (Tech-Priest three-question test) and unknown voice imprinting protocol.
 
 It's a **bring-your-own-keys** device: you supply your own Anthropic (and optional OpenAI / ElevenLabs / Spotify) accounts, and everything else lives on the Pi. No backend, no subscription, no data leaving the device beyond the model calls you choose to make.
@@ -183,7 +188,7 @@ skull/                 The application (Python package)
   bluetooth_ctrl.py    Bluetooth speaker pairing
   search.py            Weather / news / rules lookups
   memory.py mood.py    Persistent memory & personality state
-  reminders.py quiet.py temperature.py sfx.py cast_audio.py
+  reminders.py quiet.py temperature.py sfx.py cast_audio.py web.py
   persona_template.txt The servo-skull character (product data)
   config.py            Pin assignments + settings (single source of truth)
 
