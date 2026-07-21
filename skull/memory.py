@@ -201,3 +201,27 @@ def extract_and_store(user_text: str, assistant_text: str) -> None:
 
 def store_in_background(user_text: str, assistant_text: str) -> None:
     threading.Thread(target=extract_and_store, args=(user_text, assistant_text), daemon=True).start()
+
+
+def purge_memory_of_name(name: str) -> int:
+    """Remove any facts from memory and longterm_memory containing the name (case-insensitive).
+    Returns the total number of facts removed.
+    """
+    nl = name.lower()
+    removed_count = 0
+    
+    # 1. Purge short-term memory
+    facts = load()
+    new_facts = [f for f in facts if nl not in f.lower()]
+    removed_count += len(facts) - len(new_facts)
+    if len(facts) != len(new_facts):
+        _save(new_facts)
+        
+    # 2. Purge long-term memory
+    lt_facts = load_longterm()
+    new_lt_facts = [f for f in lt_facts if nl not in f.lower()]
+    removed_count += len(lt_facts) - len(new_lt_facts)
+    if len(lt_facts) != len(new_lt_facts):
+        _save_longterm(new_lt_facts)
+        
+    return removed_count

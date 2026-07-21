@@ -20,7 +20,7 @@ _history: list[dict] = []
 
 # Tools that hit the network/hardware and can take a noticeable moment. Omega-7
 # speaks a short "stand by" before running any of these so the user gets feedback.
-_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings", "register_face", "register_voice"}
+_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings", "register_face", "register_voice", "purge_identity"}
 _HISTORY_PATH = config.data_path(config.HISTORY_FILE)
 _last_turn_tools: list[str] = []
 
@@ -781,6 +781,20 @@ def _build_tools() -> list[dict]:
                     "description": "Duration to run the animation in seconds (default: 60)."
                 }
             }
+        }
+    },
+    {
+        "name": "purge_identity",
+        "description": "Purge all biometric data (visage/face training, voice profiles) and memory records associated with a specific person's name.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Name of the person to purge (e.g. 'Tara')."
+                }
+            },
+            "required": ["name"]
         }
     }
 ]
@@ -1887,6 +1901,10 @@ def _tool_play_idle_animation(i):
     anim_str = anim if anim else "random"
     return f"Initiating cogitator screensaver sequence ({anim_str}) for {dur} seconds."
 
+def _tool_purge_identity(i):
+    name_val = i.get("name", "")
+    return _execute_purge_identity(name_val)
+
 _TOOL_REGISTRY = {
     "web_search": _tool_web_search,
     "news_search": _tool_news_search,
@@ -1927,6 +1945,7 @@ _TOOL_REGISTRY = {
     "register_face": _tool_register_face,
     "register_voice": _tool_register_voice,
     "play_idle_animation": _tool_play_idle_animation,
+    "purge_identity": _tool_purge_identity,
 }
 
 def _execute_tool(name: str, tool_input: dict) -> str:
@@ -2014,6 +2033,62 @@ def _execute_display_art(search_query: str) -> str:
         import traceback
         traceback.print_exc()
         return f"Error displaying artwork: {e}"
+
+
+def _execute_purge_identity(name: str) -> str:
+    import shutil
+    from skull import face_rec, speaker_id, memory
+    
+    purged_parts = []
+    
+    # 1. Purge face recognition data
+    face_dir = face_rec.FACES_DIR / name
+    face_purged = False
+    if face_dir.exists():
+        try:
+            shutil.rmtree(face_dir)
+            face_purged = True
+        except Exception as e:
+            print(f"[brain] Error deleting face dir for {name}: {e}")
+            
+    # Always retrain face_rec if we deleted to update model
+    if face_purged:
+        try:
+            face_rec.train()
+            purged_parts.append("visage (face) profile")
+        except Exception as e:
+            print(f"[brain] Error retraining face_rec: {e}")
+            
+    # 2. Purge voice recognition data
+    voice_dir = speaker_id.VOICES_DIR / name
+    voice_purged = False
+    if voice_dir.exists():
+        try:
+            shutil.rmtree(voice_dir)
+            voice_purged = True
+        except Exception as e:
+            print(f"[brain] Error deleting voice dir for {name}: {e}")
+            
+    # Always retrain speaker_id if we deleted to update model
+    if voice_purged:
+        try:
+            speaker_id.train_speaker_model()
+            purged_parts.append("vox (voice) profile")
+        except Exception as e:
+            print(f"[brain] Error retraining speaker_id: {e}")
+            
+    # 3. Purge memory facts
+    try:
+        facts_count = memory.purge_memory_of_name(name)
+        if facts_count > 0:
+            purged_parts.append(f"{facts_count} memory record(s)")
+    except Exception as e:
+        print(f"[brain] Error purging memory of {name}: {e}")
+        
+    if not purged_parts:
+        return f"No visage, vox, or memory records found for identity '{name}' in this unit's archives."
+        
+    return f"Purged the following records for identity '{name}': {', '.join(purged_parts)}. The data has been expunged from the machine spirit's registries."
 
 
 _RELOAD_VOICE_CACHE_CB = None
