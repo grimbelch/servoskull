@@ -157,6 +157,28 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                 self.end_headers()
             return
             
+        elif self.path == "/api/ocular_stream.mjpeg":
+            self.send_response(200)
+            self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Expires", "0")
+            self.end_headers()
+            try:
+                import time
+                while True:
+                    img_bytes = display.get_ocular_frame_bytes()
+                    if img_bytes:
+                        self.wfile.write(b"--frame\r\n")
+                        self.wfile.write(b"Content-Type: image/jpeg\r\n")
+                        self.wfile.write(f"Content-Length: {len(img_bytes)}\r\n\r\n".encode())
+                        self.wfile.write(img_bytes)
+                        self.wfile.write(b"\r\n")
+                    time.sleep(0.066)  # ~15 FPS matching display thread
+            except Exception:
+                pass
+            return
+
         self.send_response(404)
         self.end_headers()
 
@@ -744,7 +766,7 @@ HTML_CLIENT = """<!DOCTYPE html>
                     <div class="ocular-bezel-text bezel-bl">SENS: IR/NV</div>
                     <div class="ocular-bezel-text bezel-br">RA: 18h36m</div>
 
-                    <canvas class="ocular-canvas" id="eye-canvas" width="240" height="240"></canvas>
+                    <img class="ocular-canvas" id="eye-stream" src="/api/ocular_stream.mjpeg" alt="Ocular View">
                 </div>
             </div>
 
@@ -784,8 +806,6 @@ HTML_CLIENT = """<!DOCTYPE html>
     </div>
 
     <script>
-        const canvas = document.getElementById('eye-canvas');
-        const ctx = canvas.getContext('2d');
         const alertTitle = document.getElementById('alert-title');
         const alertValue = document.getElementById('alert-value');
         const alertBanner = document.getElementById('alert-banner');
@@ -815,27 +835,6 @@ HTML_CLIENT = """<!DOCTYPE html>
         let audioContext = null;
         let mediaRecorder = null;
         let audioChunks = [];
-
-        // Flicker-free canvas-based frame streaming (self-buffering)
-        const streamImg = new Image();
-        let loading = false;
-        
-        function refreshFrame() {
-            if (loading || document.hidden) return;
-            loading = true;
-            streamImg.src = '/api/custom_image.jpg?t=' + Date.now();
-        }
-        
-        streamImg.onload = function() {
-            ctx.drawImage(streamImg, 0, 0, 240, 240);
-            loading = false;
-        };
-        
-        streamImg.onerror = function() {
-            loading = false;
-        };
-        
-        setInterval(refreshFrame, 66); // ~15 FPS
 
         // Fetch State loop
         async function fetchState() {
