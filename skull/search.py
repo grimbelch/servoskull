@@ -16,7 +16,7 @@ def _rules_dir() -> pathlib.Path:
     both here and on older deployments that predate the config data-dir refactor.
     RULES_DIR may be a bare name (resolved under the data dir) or an absolute path."""
     repo_root = pathlib.Path(__file__).resolve().parent.parent
-    data_dir = pathlib.Path(os.getenv("OMEGA7_DATA_DIR", str(repo_root))).expanduser()
+    data_dir = pathlib.Path(os.getenv("OMEGA7_DATA_DIR", "~/.config/omega7")).expanduser()
     rules = pathlib.Path(os.getenv("RULES_DIR", "Rules")).expanduser()
     return rules if rules.is_absolute() else data_dir / rules
 

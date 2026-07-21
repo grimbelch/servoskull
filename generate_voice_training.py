@@ -43,8 +43,16 @@ import wave
 from dotenv import load_dotenv
 load_dotenv()
 
-API_KEY  = os.environ["ELEVENLABS_API_KEY"]
-VOICE_ID = os.environ["ELEVENLABS_VOICE_ID"]
+try:
+    from skull import config
+    API_KEY = config.ELEVENLABS_API_KEY
+    VOICE_ID = config.ELEVENLABS_VOICE_ID
+except Exception:
+    API_KEY = os.environ.get("ELEVENLABS_API_KEY", "")
+    VOICE_ID = os.environ.get("ELEVENLABS_VOICE_ID", "")
+
+if not API_KEY or not VOICE_ID:
+    raise RuntimeError("ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID must be configured in config or environment.")
 MODEL_ID = "eleven_turbo_v2"
 
 SAMPLE_RATE = 22050   # Hz — Piper's required input rate

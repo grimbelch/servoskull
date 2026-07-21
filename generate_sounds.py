@@ -173,9 +173,14 @@ def main() -> None:
         )
         return
 
-    api_key = os.environ.get("ELEVENLABS_API_KEY", "").strip()
+    try:
+        from skull import config
+        api_key = config.ELEVENLABS_API_KEY
+    except Exception:
+        api_key = os.environ.get("ELEVENLABS_API_KEY", "").strip()
+
     if not api_key:
-        print("ERROR: ELEVENLABS_API_KEY not found in environment / .env")
+        print("ERROR: ELEVENLABS_API_KEY not found in config / environment / .env")
         return
 
     from elevenlabs.client import ElevenLabs

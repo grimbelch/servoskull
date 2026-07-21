@@ -23,7 +23,8 @@ load_dotenv(override=True)
 # found unchanged. On the appliance image, set OMEGA7_DATA_DIR to a writable path
 # such as /var/lib/omega7 or ~/.config/omega7.
 _REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
-USER_DATA_DIR = pathlib.Path(os.getenv("OMEGA7_DATA_DIR", str(_REPO_ROOT))).expanduser()
+USER_DATA_DIR = pathlib.Path(os.getenv("OMEGA7_DATA_DIR", "~/.config/omega7")).expanduser()
+USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def data_path(name: str) -> pathlib.Path:
