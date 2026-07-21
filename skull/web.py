@@ -240,9 +240,39 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
 
 def _run_server(port: int) -> None:
     try:
-        # Bind to 0.0.0.0 so it is accessible via Tailscale IP or local network IP
+        import os
+        import ssl
+        import subprocess
+
+        use_https = getattr(config, "WEB_SERVER_HTTPS", True)
+        # Save certificates in the skull code directory
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        cert_file = os.path.join(base_dir, "cert.pem")
+        key_file = os.path.join(base_dir, "key.pem")
+
+        if use_https:
+            if not os.path.exists(cert_file) or not os.path.exists(key_file):
+                print("[web] Generating self-signed SSL certificate for secure audio capture context...")
+                try:
+                    subprocess.run([
+                        "openssl", "req", "-new", "-newkey", "rsa:2048", "-days", "365",
+                        "-nodes", "-x509", "-keyout", key_file, "-out", cert_file,
+                        "-subj", "/C=US/ST=Mars/L=Mechanicus/O=Adeptus/CN=omega7"
+                    ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception as e:
+                    print(f"[web] Failed to generate self-signed certificate: {e}")
+                    use_https = False
+
         server = ThreadingHTTPServer(("0.0.0.0", port), WebRequestHandler)
-        print(f"[web] Servoskull Web Remote Server running on port {port} (accessible via local/Tailscale IP)")
+
+        if use_https and os.path.exists(cert_file) and os.path.exists(key_file):
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.load_cert_chain(certfile=cert_file, keyfile=key_file)
+            server.socket = context.wrap_socket(server.socket, server_side=True)
+            print(f"[web] Servoskull Web Remote Server running SECURELY on HTTPS port {port}")
+        else:
+            print(f"[web] Servoskull Web Remote Server running on HTTP port {port} (insecure context - microphone disabled by browser)")
+
         server.serve_forever()
     except Exception as e:
         print(f"[web] Server failed to start: {e}")
