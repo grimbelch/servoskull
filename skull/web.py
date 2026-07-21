@@ -744,7 +744,7 @@ HTML_CLIENT = """<!DOCTYPE html>
                     <div class="ocular-bezel-text bezel-bl">SENS: IR/NV</div>
                     <div class="ocular-bezel-text bezel-br">RA: 18h36m</div>
 
-                    <img class="custom-image-display" id="custom-image" src="/api/custom_image.jpg" alt="Ocular View" style="display: block; width: 240px; height: 240px; border-radius: 50%; object-fit: cover;">
+                    <canvas class="ocular-canvas" id="eye-canvas" width="240" height="240"></canvas>
                 </div>
             </div>
 
@@ -784,7 +784,8 @@ HTML_CLIENT = """<!DOCTYPE html>
     </div>
 
     <script>
-        const img = document.getElementById('custom-image');
+        const canvas = document.getElementById('eye-canvas');
+        const ctx = canvas.getContext('2d');
         const alertTitle = document.getElementById('alert-title');
         const alertValue = document.getElementById('alert-value');
         const alertBanner = document.getElementById('alert-banner');
@@ -815,31 +816,22 @@ HTML_CLIENT = """<!DOCTYPE html>
         let mediaRecorder = null;
         let audioChunks = [];
 
-        // Flicker-free double-buffered frame streaming with safety timeout
-        let tempImg = new Image();
+        // Flicker-free canvas-based frame streaming (self-buffering)
+        const streamImg = new Image();
         let loading = false;
-        let loadTimeout = null;
         
         function refreshFrame() {
             if (loading || document.hidden) return;
             loading = true;
-            
-            if (loadTimeout) clearTimeout(loadTimeout);
-            loadTimeout = setTimeout(() => {
-                loading = false;
-            }, 500);
-            
-            tempImg.src = '/api/custom_image.jpg?t=' + Date.now();
+            streamImg.src = '/api/custom_image.jpg?t=' + Date.now();
         }
         
-        tempImg.onload = function() {
-            if (loadTimeout) clearTimeout(loadTimeout);
-            img.src = tempImg.src;
+        streamImg.onload = function() {
+            ctx.drawImage(streamImg, 0, 0, 240, 240);
             loading = false;
         };
         
-        tempImg.onerror = function() {
-            if (loadTimeout) clearTimeout(loadTimeout);
+        streamImg.onerror = function() {
             loading = false;
         };
         
