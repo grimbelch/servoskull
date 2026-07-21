@@ -246,6 +246,12 @@ RECORD_SECONDS = 10
 SILENCE_THRESHOLD = int(_cfg("SILENCE_THRESHOLD", "1000"))
 SILENCE_DURATION = 1.5
 
+# Speaker identification GMM score threshold to reject untrained/unknown voices.
+# Since training samples average -52.0 to -53.0 on 13-dim MFCCs, a default of -60.0
+# provides a secure margin for clean matches while successfully rejecting noise/strangers.
+SPEAKER_ID_THRESHOLD = float(_cfg("SPEAKER_ID_THRESHOLD", "-60.0"))
+
+
 # ── Persona (character = product data; owner profile = user data) ─────────────────
 # The servo-skull character and all tool-usage instructions live in the shipped
 # persona template; the owner's personal details come from owner.json (written by

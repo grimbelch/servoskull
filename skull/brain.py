@@ -2083,11 +2083,14 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
         tools_called.append(name)
         return _execute_tool(name, tool_input)
 
+    speaker_label = speaker_name if speaker_name else "Unknown"
+    formatted_user_text = f"[{speaker_label}]: {user_text}"
+
     raw = _llm.run_conversation(
         system=system,
         system_suffix=system_suffix,
         history=_history,
-        user_text=user_text,
+        user_text=formatted_user_text,
         tools=_TOOLS,
         execute_tool=_exec,
         on_tool_use=on_tool_use,
@@ -2120,7 +2123,7 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
     spoken = _strip_actions(spoken).strip()
 
     # Store only the clean conversational turns in history
-    _history.append({"role": "user", "content": user_text})
+    _history.append({"role": "user", "content": formatted_user_text})
     _history.append({"role": "assistant", "content": spoken})
     if len(_history) > 20:
         _history[:] = _history[-20:]
