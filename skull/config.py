@@ -236,6 +236,9 @@ TEMP_WARN_COOLDOWN = int(os.getenv("TEMP_WARN_COOLDOWN", "300"))       # min sec
 # ── Conversation history ─────────────────────────────────────────────────────────
 # Stored inside USER_DATA_DIR. HISTORY_FILE may be a bare filename or an absolute path.
 HISTORY_FILE = os.getenv("HISTORY_FILE", "history.json")
+# Maximum number of messages (turns) to keep in the short-term conversation history.
+# 60 messages corresponds to 30 full back-and-forth conversation exchanges.
+HISTORY_LIMIT = int(os.getenv("HISTORY_LIMIT", "60"))
 
 # How long to record after wake word (seconds)
 RECORD_SECONDS = 10

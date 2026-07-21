@@ -2200,8 +2200,8 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
     # Store only the clean conversational turns in history
     _history.append({"role": "user", "content": formatted_user_text})
     _history.append({"role": "assistant", "content": spoken})
-    if len(_history) > 20:
-        _history[:] = _history[-20:]
+    if len(_history) > config.HISTORY_LIMIT:
+        _history[:] = _history[-config.HISTORY_LIMIT:]
     _save_history()
 
     # Extract and persist any memorable facts in the background
