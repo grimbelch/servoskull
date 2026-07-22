@@ -2252,6 +2252,15 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
     return spoken, cmds
 
 
+def record_assistant_turn(text: str) -> None:
+    """Record an assistant message (e.g. proactive briefing offer) to history."""
+    global _history
+    _history.append({"role": "assistant", "content": text})
+    if len(_history) > config.HISTORY_LIMIT:
+        _history[:] = _history[-config.HISTORY_LIMIT:]
+    _save_history()
+
+
 def get_history() -> list[dict]:
     """Return a copy of short-term conversation history."""
     return list(_history)
