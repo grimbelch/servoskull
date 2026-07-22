@@ -43,6 +43,8 @@ _looking_up_rules = False
 _rules_lookup_until = 0.0
 _fetching_news = False
 _news_fetch_until = 0.0
+_retrieving_image = False
+_image_retrieval_until = 0.0
 _targeting = False
 _visualizing_music = False
 
