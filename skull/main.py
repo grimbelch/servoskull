@@ -788,7 +788,24 @@ def main():
 
         _t = user_text.lower()
 
-        # ── 3a-0. Intercept morning-briefing yes/no response ───────────────────
+        # ── 3a-0. Intercept screensaver / visual emulation commands ────────────
+        if "screensaver" in _t or "visual emulation" in _t:
+            import re
+            m = re.search(r'(?:play|run|show|start|trigger|exec|execute)?\s*([a-z0-9_]+)\s*(?:screensaver|visual emulation)', _t)
+            anim_target = None
+            if m:
+                anim_target = m.group(1).strip()
+            if not anim_target or anim_target not in display.get_screensaver_names():
+                for s_name in display.get_screensaver_names():
+                    if s_name in _t:
+                        anim_target = s_name
+                        break
+            if anim_target:
+                print(f"[skull] Local screensaver intercept triggered: {anim_target}")
+                display.trigger_idle_animation(300.0, anim_target)
+                continue
+
+        # ── 3a-1. Intercept morning-briefing yes/no response ───────────────────
         # This runs only when the skull has already offered the briefing and is
         # waiting for the user's answer.  A clear "yes" delivers the briefing;
         # a clear "no" dismisses it; anything else falls through normally (which

@@ -425,6 +425,23 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             self._send_json({"status": "ok", "message": "Wake request triggered."})
             return
             
+        elif self.path == "/api/screensaver":
+            try:
+                content_length = int(self.headers.get('Content-Length', 0))
+                post_data = self.rfile.read(content_length).decode('utf-8')
+                data = json.loads(post_data)
+                anim = data.get("animation", "").strip()
+                if anim:
+                    from skull import display
+                    display.trigger_idle_animation(300.0, anim)
+                    log_vox("Omega-7", f"Executing cogitator visual emulation ({anim}).")
+                    self._send_json({"status": "ok", "message": f"Triggered screensaver: {anim}"})
+                else:
+                    self._send_json({"status": "error", "message": "Animation parameter is empty."}, 400)
+            except Exception as e:
+                self._send_json({"status": "error", "message": str(e)}, 500)
+            return
+
         elif self.path == "/api/command":
             try:
                 content_length = int(self.headers.get('Content-Length', 0))
@@ -1722,14 +1739,21 @@ HTML_CLIENT = """<!DOCTYPE html>
             const anim = select.value;
             if (!anim) return;
             
-            const cmd = `play ${anim} screensaver`;
-            addChatBubble(cmd, 'chat-user');
+            addChatBubble(`Executing cogitator visual emulation (${anim})...`, 'chat-user');
             
-            await fetch('/api/command', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ command: cmd })
-            });
+            try {
+                const res = await fetch('/api/screensaver', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ animation: anim })
+                });
+                const data = await res.json();
+                if (data.status !== 'ok') {
+                    addChatBubble(`Screensaver error: ${data.message}`, 'chat-skull');
+                }
+            } catch (err) {
+                addChatBubble(`Failed to run screensaver: ${err}`, 'chat-skull');
+            }
         }
 
         function addChatBubble(text, className) {
