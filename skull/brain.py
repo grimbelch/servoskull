@@ -784,6 +784,14 @@ def _build_tools() -> list[dict]:
         }
     },
     {
+        "name": "get_daily_briefing",
+        "description": "Compile and deliver the daily morning briefing (weather, news, hive telemetry) for the master.",
+        "input_schema": {
+            "type": "object",
+            "properties": {}
+        }
+    },
+    {
         "name": "purge_identity",
         "description": "Purge all biometric data (visage/face training, voice profiles) and memory records associated with a specific person's name.",
         "input_schema": {
@@ -1906,6 +1914,11 @@ def _tool_purge_identity(i):
     name_val = i.get("name", "")
     return _execute_purge_identity(name_val)
 
+def _tool_get_daily_briefing(i):
+    briefing = generate_daily_briefing()
+    mark_daily_briefing_done()
+    return briefing
+
 _TOOL_REGISTRY = {
     "web_search": _tool_web_search,
     "news_search": _tool_news_search,
@@ -1914,6 +1927,7 @@ _TOOL_REGISTRY = {
     "netepic_rules": _tool_netepic_rules,
     "netea_rules": _tool_netea_rules,
     "get_weather": _tool_get_weather,
+    "get_daily_briefing": _tool_get_daily_briefing,
     "set_volume": _tool_set_volume,
     "bluetooth_scan": _tool_bluetooth_scan,
     "bluetooth_connect": _tool_bluetooth_connect,

@@ -805,24 +805,22 @@ def main():
                 display.trigger_idle_animation(300.0, anim_target)
                 continue
 
-        # ── 3a-1. Intercept morning-briefing yes/no response ───────────────────
-        # This runs only when the skull has already offered the briefing and is
-        # waiting for the user's answer.  A clear "yes" delivers the briefing;
-        # a clear "no" dismisses it; anything else falls through normally (which
-        # also clears the pending flag so the brain doesn't get confused).
-        if _briefing_awaiting_response:
+        # ── 3a-1. Intercept morning-briefing / briefing requests ───────────────
+        if _briefing_awaiting_response or "briefing" in _t:
             _YES = ("yes", "sure", "yeah", "yep", "yup", "ready", "affirmative",
                     "proceed", "deliver", "go ahead", "please", "of course",
-                    "absolutely", "aye", "correct", "indeed", "do it")
+                    "absolutely", "aye", "correct", "indeed", "do it", "ok", "okay",
+                    "briefing", "daily briefing", "morning briefing", "give it to me", "tell me")
             _NO  = ("no", "not now", "later", "skip", "negative", "cancel",
                     "nevermind", "never mind", "pass", "maybe later", "not yet",
                     "nope", "nah")
-            if any(p in _t for p in _YES):
+            if any(p in _t for p in _YES) or "briefing" in _t:
                 _briefing_awaiting_response = False
-                print("[skull] User confirmed morning briefing. Generating...")
+                print("[skull] User confirmed/requested morning briefing. Generating...")
                 try:
                     briefing_text = brain.generate_daily_briefing()
                     brain.mark_daily_briefing_done()
+                    web.log_vox(config.SKULL_NAME, briefing_text)
                     print(f"[skull] Daily Briefing: {briefing_text}")
                     briefing_wav = tts.synthesize(briefing_text)
                     eyes.on()
@@ -839,16 +837,15 @@ def main():
                 _briefing_awaiting_response = False
                 print("[skull] User declined morning briefing. Archiving.")
                 try:
-                    ack_wav = tts.synthesize(
-                        "Understood, master. Cogitations archived. Speak freely."
-                    )
+                    ack_text = "Understood, master. Cogitations archived. Speak freely."
+                    web.log_vox(config.SKULL_NAME, ack_text)
+                    ack_wav = tts.synthesize(ack_text)
                     eyes.on()
                     _speak_interruptible(ack_wav, on_wake)
                 except Exception as e:
                     print(f"[skull] Briefing dismiss ack error: {e}")
                 continue
             else:
-                # Ambiguous — clear the flag and let the brain handle it normally
                 _briefing_awaiting_response = False
                 print("[skull] Briefing response unclear — falling through to brain.")
 
