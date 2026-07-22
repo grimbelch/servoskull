@@ -686,13 +686,13 @@ HTML_CLIENT = """<!DOCTYPE html>
         }
 
         .telemetry {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 16px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
             width: 100%;
             border: 2px double var(--border-color);
             background: rgba(17, 120, 35, 0.03);
-            padding: 12px 16px;
+            padding: 14px;
             box-sizing: border-box;
             border-radius: 4px;
             margin-top: 10px;
@@ -701,20 +701,20 @@ HTML_CLIENT = """<!DOCTYPE html>
         .telemetry-item {
             border: 1px solid var(--border-color);
             background: rgba(17, 120, 35, 0.05);
-            padding: 8px 14px;
+            padding: 10px 14px;
             border-radius: 2px;
             box-shadow: inset 0 0 5px rgba(0,0,0,0.8);
             display: flex;
             flex-direction: column;
             gap: 8px;
-            flex: 1 1 140px;
-            min-width: 0;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .telemetry-item.text-only {
             justify-content: center;
-            flex: 1 1 120px;
-            min-width: 0;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .telemetry-label {
