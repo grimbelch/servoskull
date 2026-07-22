@@ -41,7 +41,7 @@ Turning the single-tenant build into a replicable, consumer-friendly appliance.
 - Add a factory-reset path that clears memory/mood/quiet/reminders/history for a clean per-unit state.
 
 ### 1.4 Verify
-- Run the emulator and/or the Pi with a fresh empty user config + a test owner profile. Confirm persona loads, PII injection works, and no personal data leaks from source.
+- Run the web client and/or the Pi with a fresh empty user config + a test owner profile. Confirm persona loads, PII injection works, and no personal data leaks from source.
 
 **Exit criteria:** No owner PII anywhere in source or shipped data. Persona is data. All config flows through one layer. Existing behavior unchanged on current hardware.
 
