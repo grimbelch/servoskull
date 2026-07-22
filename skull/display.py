@@ -38,9 +38,13 @@ _die_result = "0"
 _scanning_auspex = False
 _scanning_noosphere = False
 _searching_web = False
+_web_search_until = 0.0
 _looking_up_rules = False
+_rules_lookup_until = 0.0
 _fetching_news = False
+_news_fetch_until = 0.0
 _retrieving_image = False
+_image_retrieval_until = 0.0
 _targeting = False
 _visualizing_music = False
 
@@ -2083,16 +2087,22 @@ def _loop():
         now = time.monotonic()
         dt, last = now - last, now
 
+        # Check active status & minimum duration timers
+        searching_web_active = _searching_web or (now < _web_search_until)
+        rules_lookup_active = _looking_up_rules or (now < _rules_lookup_until)
+        news_fetch_active = _fetching_news or (now < _news_fetch_until)
+        image_retrieval_active = _retrieving_image or (now < _image_retrieval_until)
+
         # Update last activity time if active
         is_active = (
             _showing_omnissiah_glyph
             or _rolling_die
             or _scanning_auspex
             or _scanning_noosphere
-            or _searching_web
-            or _looking_up_rules
-            or _fetching_news
-            or _retrieving_image
+            or searching_web_active
+            or rules_lookup_active
+            or news_fetch_active
+            or image_retrieval_active
             or _visualizing_music
             or _showing_custom_image
             or _speaking
@@ -2262,7 +2272,7 @@ def _loop():
             time.sleep(1 / config.DISPLAY_FPS)
             continue
 
-        if _searching_web:
+        if searching_web_active:
             try:
                 _blit(_render_web_search_frame(bezel, mask, now))
             except Exception as e:
@@ -2270,7 +2280,7 @@ def _loop():
             time.sleep(1 / config.DISPLAY_FPS)
             continue
 
-        if _looking_up_rules:
+        if rules_lookup_active:
             try:
                 _blit(_render_rules_lookup_frame(bezel, mask, now))
             except Exception as e:
@@ -2278,7 +2288,7 @@ def _loop():
             time.sleep(1 / config.DISPLAY_FPS)
             continue
 
-        if _fetching_news:
+        if news_fetch_active:
             try:
                 _blit(_render_news_fetch_frame(bezel, mask, now))
             except Exception as e:
@@ -2286,7 +2296,7 @@ def _loop():
             time.sleep(1 / config.DISPLAY_FPS)
             continue
 
-        if _retrieving_image:
+        if image_retrieval_active:
             try:
                 _blit(_render_image_retrieval_frame(bezel, mask, now))
             except Exception as e:
@@ -2542,8 +2552,9 @@ def stop_noosphere_scan() -> None:
     _scanning_noosphere = False
 
 
-def start_web_search() -> None:
-    global _searching_web
+def start_web_search(min_duration: float = 3.0) -> None:
+    global _searching_web, _web_search_until
+    _web_search_until = time.monotonic() + min_duration
     _searching_web = True
 
 
@@ -2552,8 +2563,9 @@ def stop_web_search() -> None:
     _searching_web = False
 
 
-def start_rules_lookup() -> None:
-    global _looking_up_rules
+def start_rules_lookup(min_duration: float = 3.5) -> None:
+    global _looking_up_rules, _rules_lookup_until
+    _rules_lookup_until = time.monotonic() + min_duration
     _looking_up_rules = True
 
 
@@ -2562,8 +2574,9 @@ def stop_rules_lookup() -> None:
     _looking_up_rules = False
 
 
-def start_news_fetch() -> None:
-    global _fetching_news
+def start_news_fetch(min_duration: float = 3.0) -> None:
+    global _fetching_news, _news_fetch_until
+    _news_fetch_until = time.monotonic() + min_duration
     _fetching_news = True
 
 
@@ -2572,8 +2585,9 @@ def stop_news_fetch() -> None:
     _fetching_news = False
 
 
-def start_image_retrieval() -> None:
-    global _retrieving_image
+def start_image_retrieval(min_duration: float = 3.0) -> None:
+    global _retrieving_image, _image_retrieval_until
+    _image_retrieval_until = time.monotonic() + min_duration
     _retrieving_image = True
 
 
@@ -2612,6 +2626,8 @@ def cleanup() -> None:
 def get_state() -> dict:
     global _showing_custom_image, _active_idle_anim, _speaking, _thinking, _target_amp
     global _scanning_auspex, _scanning_noosphere, _searching_web, _looking_up_rules, _fetching_news, _retrieving_image, _targeting, _visualizing_music, _rolling_die, _die_result
+    global _web_search_until, _rules_lookup_until, _news_fetch_until, _image_retrieval_until
+    now = time.monotonic()
     return {
         "showing_custom_image": _showing_custom_image,
         "active_idle_anim": _active_idle_anim,
@@ -2620,10 +2636,10 @@ def get_state() -> dict:
         "amplitude": _target_amp,
         "scanning_auspex": _scanning_auspex,
         "scanning_noosphere": _scanning_noosphere,
-        "searching_web": _searching_web,
-        "looking_up_rules": _looking_up_rules,
-        "fetching_news": _fetching_news,
-        "retrieving_image": _retrieving_image,
+        "searching_web": _searching_web or (now < _web_search_until),
+        "looking_up_rules": _looking_up_rules or (now < _rules_lookup_until),
+        "fetching_news": _fetching_news or (now < _news_fetch_until),
+        "retrieving_image": _retrieving_image or (now < _image_retrieval_until),
         "targeting": _targeting,
         "visualizing_music": _visualizing_music,
         "rolling_die": _rolling_die,
