@@ -40,7 +40,7 @@ Simply speak the wake phrase — **"Servitor"** — and it wakes, ignites its to
 
 ## 🌐 Adeptus Mechanicus Web Remote (Port 8080)
 
-Omega-7 hosts a responsive, green-phosphor CRT tactical display accessible securely over HTTPS (`https://<host>:8080` or via Tailscale `https://omega7.panther-firefighter.ts.net:8080/`).
+Omega-7 hosts a responsive, green-phosphor CRT tactical display accessible securely over HTTPS.
 
 ### Remote Features:
 - **Ocular Feed Mirror**: Real-time MJPEG stream mirroring the physical circular GC9A01 eye screen (HUD states, screensavers, cog rotation, and artwork projections).
