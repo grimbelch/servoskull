@@ -1,217 +1,175 @@
 # Omega-7 — The Servo Skull Assistant
 
-> *"This unit serves the Omnissiah, and, in its infinite mercy, you."*
-
-An AI-powered **Warhammer 40,000 servo skull** that floats on your shelf, glares at you with glowing red optics, lights its own candles when it wakes, and answers you out loud — in character as an ancient, Emperor-devoted machine-spirit. It runs entirely on a **Raspberry Pi 5**, sees you through a camera, hears you through a mic, and speaks through a real voice. It knows the 40k rulebook cold, plays your music, monitors your 3D printer, simulates tabletop battles, and remembers who you are.
-
-Point a wake word at it — *"Servitor"* — and it wakes, ignites its candle LEDs, pulses its iris in time with its speech, and responds.
-
 <p align="center">
-  <img src="images/cog_eye_preview.png" width="320" alt="The machine-spirit eye — glowing red iris with the Mechanicus tick-ring">
+  <img src="images/servoskull_hero.jpg" width="100%" alt="Omega-7 Cybernetic Servo-Skull Assistant">
 </p>
 
----
+<p align="center">
+  <a href="#-what-it-does"><img src="https://img.shields.io/badge/Hardware-Raspberry%20Pi%205-red.svg?style=for-the-badge&logo=raspberrypi" alt="Raspberry Pi 5"></a>
+  <a href="#-what-it-does"><img src="https://img.shields.io/badge/Brain-Anthropic%20Claude-7377AD.svg?style=for-the-badge&logo=anthropic" alt="Anthropic Claude"></a>
+  <a href="#-tabletop-game-context--dice-simulator"><img src="https://img.shields.io/badge/Rules-Warhammer%2040k%20%7C%20Necromunda-green.svg?style=for-the-badge" alt="40k Rules"></a>
+  <a href="#-adeptus-mechanicus-web-remote-port-8080"><img src="https://img.shields.io/badge/Web_Remote-HTTPS%20%3A8080-brightgreen.svg?style=for-the-badge" alt="HTTPS Remote"></a>
+</p>
 
-## What it does
-
-Omega-7 is a self-contained voice assistant with a very specific soul. Everything runs **on the Pi itself** — the only things that leave the device are the API calls you opt into (Claude for the brain, optionally OpenAI Whisper for transcription, optionally ElevenLabs for the voice).
-
-- **🗣️ Talks back, in character.** Wake it with *"Servitor"* and it listens, thinks (Anthropic Claude), and replies aloud through a text-to-speech voice — formal, archaic, ominous, devoted to the Emperor and the Machine God. It refers to itself as "this unit" and speaks with serialized, uninterrupted canned response playback.
-- **👁️ Sees & Identifies you.** An Arducam IMX708 camera lets it describe the scene on demand — *"What do you see, Omega-7?"* — and, with the optional time-of-flight proximity sensor, it can wake and greet you when you physically approach, even in the dark. It runs SFace facial recognition and voice identification (GMM model classification with configurable threshold) to recognize you on sight and sound. Gaze behavior sweeps the red eye around randomly when idle to look alive.
-- **💡 Physical reactions & AdMech Eye HUD.** Three red LEDs behind the eye lenses and a circular GC9A01 IPS panel "machine-spirit eye" pulse in time with its speech. Candle LEDs atop the skull light when it wakes and snuff on shutdown. The display features 6 dynamic HUD animation states and dynamically registers 30 screensaver options (cycling every 5 minutes when on):
-  * **Praise the Omnissiah Logo**: Off-white bone and machine grey AdMech skull-cog vector rendering expanding on boot/update.
-  * **Auspex Scan**: Concentric Noosphere beacon pulsing waves mapping surroundings.
-  * **Targeting lock-on**: A floating crosshair tracking target focus during vision queries.
-  * **Equalizer visualizer**: Dynamic frequency bars bouncing to Spotify Connect streams.
-  * **Cogitation gear**: Rotating bezel cog wheel spinning at 80 deg/sec during brain processing.
-  * **Vector Digit projector**: High-tech segment lines drawing actual dice values.
-  * **Artwork Projector**: Direct DeviantArt RSS search fetching and displaying 40k or Necromunda fan art inside the mechanical lens aperture. Searches are sorted by popularity (`order=9`) and resolution-weighted for high-quality projection.
-- **📖 Knows the rules.** A built-in, offline rules library lets it answer questions about **Warhammer 40,000 (11th ed.)**, **Necromunda**, **NetEpic (Epic 2nd ed.)**, and **Net Epic Armageddon (Epic 3rd ed.)** — datasheets, stratagems, weapons, points, formations, tournament rules — quoting the actual rulebooks rather than guessing.
-- **🎲 Tabletop Game Context & specialized dice simulator.** Persistent memory tracks what game is active (**Necromunda**, **NetEpic**, **NetEA**, **Warhammer 40k**). Zero-latency regex intercepts roll specialized dice (firepower, injury, scatter, combat resolution, macro-weapons, saving throws) instantly, playing rolling dice sound effects and projecting vector-drawn alphanumeric outcomes directly on the eye screen.
-- **🖨️ Bambu Lab 3D Printer Monitor.** Subscribes to local secure MQTT broker telemetry. Verbally reports print start/completion, reads temperature stats, and issues warning announcements if the printer hits a Health Management System (HMS) diagnostic fault code.
-- **🎵 Plays your music.** Spotify voice control — "play the Imperial march" — with pause/resume/skip, routed through its own speaker or a Bluetooth speaker it can discover and pair with.
-- **🧠 Remembers you.** Configurable short-term conversation history memory limit (`HISTORY_LIMIT`, default 60 turns/30 conversations) and long-term explicit memories, a drifting mood/personality state, timers & reminders, and a proactive daily briefing (weather + news) the first time you wake it each morning.
-- **🌡️ Looks after itself.** Monitors its own core temperature and warns you if it runs hot. Volume control and a "silent mode" for its unprompted idle observations round it out.
-- **🌐 Adeptus Mechanicus Web Remote (Port 8080).** Exposes a responsive terminal webpage styled as a monochromatic green CRT tactical display (phosphor glow, scanlines, analog screen flicker, and double-borders). Operates securely over HTTPS using automatically generated self-signed SSL certificates for network links (Tailscale/LAN), which enables browser microphone capture permissions natively. Exposes:
-  * **Ocular Feed Mirror**: Real-time video mirror stream of the circular GC9A01 display, rendered using high-performance, native MJPEG to show screensavers, cog rotation, and custom images exactly as they look on the physical skull.
-  * **Secure Audio Capture**: Clients can capture and upload browser mic audio (WAV PCM 16kHz mono) securely over the network.
-  * **System Telemetry**: Displays core temperature, active game, RAM status, and storage usage in real time.
-  * **Remote Execution**: Includes remote verbal wakes, direct command line injection, and custom screensaver triggering.
-- **🔊 Atmosphere.** Mechanicus chimes and vox-crackle stings play on wake and before it speaks. Thematic voice registration calibration (Tech-Priest three-question test) and unknown voice imprinting protocol.
-
-It's a **bring-your-own-keys** device: you supply your own Anthropic (and optional OpenAI / ElevenLabs / Spotify) accounts, and everything else lives on the Pi. No backend, no subscription, no data leaving the device beyond the model calls you choose to make.
+> *"This unit serves the Omnissiah, and, in its infinite mercy, you."*
 
 ---
 
-## Verbal Commands
+An AI-powered **Warhammer 40,000 servo skull** that floats on your shelf, glares at you with glowing red optics, ignites its own candle flames when it wakes, and answers you out loud — in character as an ancient, Emperor-devoted machine-spirit. 
 
-Omega-7 supports rich conversational interaction and custom voice commands. He understands and responds to the following requests (phrased naturally):
+Powered by a **Raspberry Pi 5**, Omega-7 sees you through an autofocus camera, hears you through an embedded microphone, and speaks through a real voice. It knows tabletop rulebooks cold, plays music via Spotify Connect, monitors your 3D printer, simulates specialized dice rolls, and remembers your preferences.
 
-### 🎵 Music & Audio Control (Spotify & Bluetooth)
-* **Play Music**: *"Play [song/artist/playlist]"*, *"Play some Warhammer soundtrack"* (triggers Spotify Connect playback).
-* **Pause Music**: *"Pause"*, *"Stop the music"*, *"Silence the music"* (pauses Spotify).
-* **Resume Music**: *"Resume"*, *"Keep playing"*, *"Unpause"* (resumes Spotify).
-* **Skip Tracks**: *"Skip"*, *"Next song"*, *"Change the track"* (skips to the next track).
-* **Volume Control**: *"Louder"*, *"Quieter"*, *"Turn it down"*, *"Set volume to 80"* (changes system voice volume).
-* **Spotify Volume Control**: *"Set Spotify volume to 50"*, *"Turn up the music"* (controls music volume independently of system voice).
-* **Scan Bluetooth**: *"Scan for Bluetooth speakers"*, *"Find nearby speakers"* (searches for discoverable Bluetooth devices).
-* **Connect Bluetooth**: *"Connect to speaker [name/number]"*, *"Connect to the first device"* (routes Spotify audio through the selected speaker).
-
-### 🎲 Tabletop Dice Roller
-* **Standard Dice**: *"Roll 2d6"*, *"Roll a d20"*, *"Roll three d10s"* (rolls numeric dice).
-* **Necromunda Special Dice**: *"Roll a Necromunda injury dice"*, *"Roll firepower"*, *"Roll scatter"* (simulates special Necromunda dice with sound effects).
-* **Epic Armageddon Dice**: *"Roll NetEA order dice"*, *"Roll standard epic dice"*.
-* **Active Game Setting**: *"Set active game to Necromunda"*, *"We are playing Warhammer 40k"* (configures default dice system behavior).
-
-### 📚 Tabletop Rules Lookup
-* **Warhammer 40,000**: *"What does the [Ability/Stratagem/Enhancement] do?"*, *"Look up [Unit Name] stats"* (searches the local offline 11th Edition database).
-* **Necromunda**: *"What are the rules for the [Weapon Trait/Skill/Injury]?"*, *"Look up the Trading Post cost of a plasma pistol"* (searches the local offline NecroRAW database).
-* **Net Epic Armageddon**: *"What are the rules for Blast Markers?"*, *"Look up [Unit/Formation] stats for NetEA"*.
-
-### 👁️ Vision & Biometrics (Camera)
-* **Describe Surroundings**: *"What do you see?"*, *"Look at me"*, *"Describe the room"*, *"What's in front of you?"* (takes a live photo and uses Vision LLM to describe what is visible).
-* **Calibrate Biometrics**: *"Register my face as [Name]"*, *"Calibrate your eye for [Name]"* (registers your face in the biometric database to recognize you on sight).
-
-### 🖨️ Bambu 3D Printer Monitor
-* **Check Printer Status**: *"What is the printer doing?"*, *"Check 3D printer status"*, *"Is my print done?"* (reports printing progress, temperature, subtask, or diagnostic codes).
-* **Acknowledge Alerts**: *"Acknowledged. Cancel the alerts."*, *"Silence the printer notifications"* (terminates repeating completed print/error vocal alerts).
-
-### 🖥️ Display Screensavers & Artwork Projection
-* **Run Screensaver**: *"Play the [screensaver name] animation"*, *"Show screensaver"* (displays a retro animation on the eye screen). Available screensavers:
-  * `pong`, `canticle_rain` (Matrix code), `starfield`, `oscilloscope`, `game_of_life`, `radar`, `warp_core`, `circuit_maze`, `double_helix`, `spinning_rings`, `wireframe_cube`, `bouncing_cog`, `fractal_tree`, `hud_status`, `orbitals`, `spectrum_bars`, `plasma`, `lissajous`, `voronoi`, `data_stream`, `mandala`, `rune_wheel`, `glitch`, `dna_helix`, `neural_net`, `gravity_well`, `void_shield`, `hex_grid`, `kaleidoscope`, `particle_burst`.
-* **Project Artwork**: *"Display artwork of [subject]"*, *"Show me a picture of a [Space Marine/Necromunda Gang]"* (scrapes DeviantArt for matching artwork, sorted by popularity and resolution-weighted, and blits it full-screen).
-
-### 🕯️ Ambient & Personality Control
-* **Silent Mode**: *"Be quiet"*, *"Silent mode"*, *"Stop observations"* (disables periodic unprompted announcements).
-* **Resume Speech**: *"You may speak"*, *"Talk again"*, *"Resume observations"* (reenables ambient observations).
-* **Toggle Candles**: *"Turn on candles"*, *"Extinguish candles"* (toggles the yellow flicker LED flame effects atop the skull).
-* **Shift Temperament**: *"Be more aggressive"*, *"Adopt a worshipful tone"*, *"Adjust mood to solemn"* (modifies vocabulary, tone, and machine attitude).
-
-### 🧠 Reminders & Memory
-* **Set Reminders**: *"Remind me to check the stove in 20 minutes"*, *"Set a reminder for 8:00 PM"* (triggers a vocal alarm chime and reminder when expired).
-* **List Reminders**: *"What are my reminders?"*, *"List pending tasks"*.
-* **Cancel Reminders**: *"Cancel my reminder to [task]"*, *"Remove all reminders"*.
-* **Acknowledge Alarm**: *"I hear you"*, *"Clear reminders"* (acknowledges and turns off an active chime).
-* **Store Facts**: *"Remember that I play House Van Saar"*, *"Remember my favorite faction is Adeptus Mechanicus"* (saves user preferences to long-term memory).
-* **Forget Facts**: *"Forget that [fact]"*.
-* **Purge Identity**: *"Purge your memory of [Name]"*, *"Delete [Name]'s face and voice"* (expunges visage/face training images, vox/voice GMM profiles, and all associated memory facts from the registries).
-
-### 🌐 System & Utility
-* **Web Search**: *"Search the web for [query]"*, *"Who was the second president of the United States?"* (queries Wikipedia/Google when offline databases don't cover it).
-* **News Search**: *"What's the news today?"*, *"Search news about [topic]"* (queries RSS feeds/headlines).
-* **Weather Query**: *"What is the weather?"*, *"Is it raining outside?"* (retrieves current local conditions).
-* **Auspex Scan**: *"Run an auspex scan"*, *"Scan the local network"* (lists IP/MAC addresses of active devices on your local Wi-Fi).
-* **System Operations**:
-  * *"Reboot the system"*, *"Restart"* (reboots the Raspberry Pi).
-  * *"Shutdown"*, *"Power off"*, *"Turn off"* (powers off the Raspberry Pi safely).
-  * *"Self update"*, *"Update your code"* (pulls the latest software code from GitHub and restarts the service).
+Simply speak the wake phrase — **"Servitor"** — and it wakes, ignites its top-mounted candle LEDs, pulses its eye iris in time with its voice, and responds.
 
 ---
 
-## Where it's headed — the productized vision
+## ⚡ Key Capabilities
 
-Today Omega-7 is a builder's project: you wire it, flash a Pi, edit a `.env`, and run it from a terminal. The [**Productization Plan**](PRODUCTIZATION_PLAN.md) turns it into an **unbox-and-go appliance**. When that's done, the experience becomes:
-
-1. **Power it on.** No keyboard, no HDMI, no terminal — ever.
-2. **Connect your phone** to the skull's own Wi-Fi hotspot (`Omega-7-Setup`). A captive portal appears; you pick your home Wi-Fi and hand off.
-3. **Open the setup wizard** at `http://omega7.local` in your phone browser. There you:
-   - Paste your **Anthropic key** (required) and optional **OpenAI / ElevenLabs / Spotify** keys — each with a **Test** button that makes one live call and shows green/red so you know it works before you leave the page.
-   - Fill in an **owner profile** — your name, how it should address you, your location (for weather), the people and things it should know about — so it greets *you*, personally.
-   - Pick a **voice** (local Piper, shipped and free, or a cloud ElevenLabs voice), a **wake word** from a menu, and a **personality** slant.
-4. **It comes alive.** After a restart it's a fully personalized, talking, seeing servo skull — configured entirely from your phone.
-
-Plus runtime controls from the browser: restart it, check its health, re-run a mic/audio check, or factory-reset it back to a clean out-of-box state. Every unit gets its own admin password (never a shared default), keys are stored locked-down and off the boot partition, and **no personal data is ever baked into the software** — the *character* ships, your data is written at setup.
-
-See [PRODUCTIZATION_PLAN.md](PRODUCTIZATION_PLAN.md) for the full phased roadmap (config/PII separation → web wizard → Wi-Fi provisioning + flashable SD image).
+| Capability | Description |
+| :--- | :--- |
+| **🗣️ In-Character Voice AI** | Wakes to *"Servitor"*, processing queries with Anthropic Claude and speaking aloud via local Piper or ElevenLabs text-to-speech. Formal, archaic, and devoted to the Emperor. |
+| **👁️ Computer Vision & Biometrics** | Arducam IMX708 autofocus camera for scene description (*"What do you see?"*), SFace facial recognition, and GMM voice profile identification. |
+| **💡 Physical Eye HUD & Candle LEDs** | GC9A01 1.28" circular IPS panel "machine-spirit eye" with 6 dynamic HUD animation states and 30 screensavers. Transistor-switched flame LEDs ignite on wake and extinguish on sleep. |
+| **📖 Offline Tabletop Rules Engine** | Instant lookup for **Warhammer 40,000 (11th ed.)**, **Necromunda**, **NetEpic**, and **Net Epic Armageddon** datasheets, stratagems, weapon traits, and points. |
+| **🎲 Tabletop Dice Simulator** | Intercepts dice requests (standard, firepower, injury, scatter, order, save) with sound effects and projects vector-drawn alphanumeric outcomes directly onto the eye HUD. |
+| **🖨️ Bambu Lab 3D Printer Telemetry** | Secure local MQTT client monitoring active print progress, nozzle/bed temperatures, and vocalizing diagnostic HMS fault warnings. |
+| **🎵 Spotify & Bluetooth Control** | Hands-free music playback, volume adjustment, and Bluetooth speaker discovery/pairing. |
+| **🧠 Proactive Memory & Reminders** | Remembers facts across conversations, tracks personal preferences, maintains drifting personality states, and delivers daily morning briefings (weather + news). |
+| **🌐 Adeptus Mechanicus Web Remote** | A retro green CRT web remote running securely over HTTPS on port 8080 with live telemetry, video feed mirror, and mic streaming. |
 
 ---
 
-## Build it from scratch
+## 🌐 Adeptus Mechanicus Web Remote (Port 8080)
 
-Two documents carry the full build. Start with the shopping list, then follow the setup guide end to end.
+Omega-7 hosts a responsive, green-phosphor CRT tactical display accessible securely over HTTPS (`https://<host>:8080` or via Tailscale `https://omega7.panther-firefighter.ts.net:8080/`).
 
-### 1. Get the parts — [`SHOPPING_LIST.txt`](SHOPPING_LIST.txt)
+<p align="center">
+  <img src="images/web_remote_preview.jpg" width="100%" alt="Adeptus Mechanicus CRT Web Remote Interface">
+</p>
 
-The complete bill of materials, with specific recommended products and why each one matters. The highlights:
-
-| Group | What you need |
-|---|---|
-| **Body** | The **[Servo Skull — LED Candlelit Lantern 3D model](https://www.printables.com/model/1457078-servo-skull-led-candlelit-lantern)** — the printable chassis this build is designed around |
-| **Core** | Raspberry Pi 5 (4 GB), official Active Cooler, 64 GB microSD, **27 W** USB-C PD supply (the Pi 5 *requires* it — underpowering causes crashes) |
-| **Audio** | UGREEN USB sound card, mini speakers, a 3.5 mm electret/lavalier mic for the nasal cavity |
-| **Vision** | Arducam IMX708 Wide camera (12 MP, autofocus, includes the Pi 5 CSI adapter) |
-| **Eyes** | 3× 5 mm red LEDs + 3× 220 Ω resistors + jumper wires + a mini breadboard/perfboard |
-| **Display** | GC9A01 1.28" round IPS panel (240×240, SPI) |
-| **Sensors** | *(optional)* VL53L1X time-of-flight proximity sensor for approach detection |
-| **Candles** | Self-flickering LED candle bulbs for the top of the skull |
-| **Setup-only** | micro-HDMI→HDMI cable + USB keyboard (borrow if needed) for first boot |
-
-Approximate hardware cost is **~$157** for the electronics (excluding the printed skull, candles, and any props you already own). You'll also want your own **Anthropic API key** (required; Claude Haiku is used, pay-per-token, very cheap) and optionally **OpenAI** (Whisper STT), **ElevenLabs** (premium cloud voice), and **Spotify Premium** (music control).
-
-### 2. Assemble & install — [`PI_SETUP_GUIDE.md`](PI_SETUP_GUIDE.md)
-
-A start-to-finish, matched-to-the-code guide. Its ten steps:
-
-1. **Install the Active Cooler** first, board unpowered (the Pi 5 throttles without it).
-2. **Flash the microSD** with Raspberry Pi OS 64-bit (Debian *Trixie*) using Pi Imager — pre-set the hostname `omega7`, your user, Wi-Fi, and SSH.
-3. **First boot & base config** — update the OS and enable the SPI bus the round display needs.
-4. **Wiring** — a fully annotated GPIO pinout with per-subsystem diagrams for the eye LEDs, the GC9A01 display, the camera ribbon, the USB audio, the optional proximity sensor, and the transistor-switched candle LEDs. Includes a pre-power-on sanity checklist. *(All wiring done with the Pi off and unplugged.)*
-5. **Deploy the software** — clone the repo to `~/skull`, copy in your `.env`, and run the one-shot `pi_setup.sh` installer (system packages, Python venv, Piper voice + wake-word models, and both the `omega7` and `raspotify` systemd services). Includes the essential Pi 5 `RPi.GPIO` shim step.
-6. **Configure `.env`** — the audio, display, camera, proximity, and candle settings, with the PipeWire routing that makes voice and music share one speaker cleanly.
-7. **Bring-up tests** — verify each subsystem one at a time (eyes, display, camera, mic/speaker) before final assembly.
-8. **Run it** — manually to watch the logs, then as the auto-starting service so the finished skull is a headless appliance that wakes on its own.
-9. **Troubleshooting** — a symptom→fix table for the problems you're actually likely to hit.
-10. **Final assembly** — mounting the camera, display, LEDs, and mic inside the printed skull.
-
-> **Golden rule from the guide:** do *all* wiring with the Pi powered off and unplugged.
+### Remote Features:
+- **Ocular Feed Mirror**: Real-time MJPEG stream mirroring the physical circular GC9A01 eye screen (HUD states, screensavers, cog rotation, and artwork projections).
+- **Secure Audio Capture**: Capture and stream browser microphone audio (WAV PCM 16kHz) securely over the network.
+- **2-Column Telemetry Panel**: Live system monitor detailing CPU load, Core Temperature, RAM, Storage, Printer status, Master, Silent Mode, and Active Game in a clean dual-column grid.
+- **Vox Log Channel**: Live streaming transcript of all verbal interactions between the Master and Omega-7.
+- **Remote Commands & Visual Emulation**: Inject direct text commands or trigger any of the 30 visual screensavers on demand.
 
 ---
 
-## Repository layout
+## 👁️ Machine-Spirit Eye HUD & Animations
+
+<p align="center">
+  <img src="images/cog_eye_preview.png" width="320" alt="Machine Spirit Eye HUD">
+</p>
+
+The circular GC9A01 IPS panel serves as Omega-7's main visual feedback element, dynamically updating across multiple states:
+
+- **Praise the Omnissiah Logo**: High-contrast Mechanicus skull-cog vector rendering expanding on boot and code updates.
+- **Auspex Scan**: Concentric Noosphere beacon pulsing waves mapping surroundings.
+- **Targeting Lock-On**: Floating crosshair tracking target focus during vision queries.
+- **Equalizer Visualizer**: Bouncing frequency bars synchronized to Spotify playback.
+- **Cogitation Gear**: Rotating bezel cog wheel spinning at 80°/sec during brain processing.
+- **Vector Digit Projector**: High-tech segment lines drawing physical dice values.
+- **Artwork Projector**: Direct DeviantArt RSS search fetching and displaying 40k and Necromunda fan art inside the mechanical lens aperture.
+
+---
+
+## 🗣️ Verbal Command Quick Reference
+
+<details>
+<summary><b>🎵 Music & Audio Control (Spotify & Bluetooth)</b></summary>
+
+- **Play Music**: *"Play [song/artist/playlist]"*, *"Play Warhammer soundtrack"*
+- **Playback**: *"Pause"*, *"Resume"*, *"Skip track"*
+- **System Volume**: *"Set volume to 80"*, *"Louder"*, *"Quieter"*
+- **Spotify Volume**: *"Set Spotify volume to 50"*
+- **Bluetooth Pairing**: *"Scan for Bluetooth speakers"*, *"Connect to speaker [name/number]"*
+</details>
+
+<details>
+<summary><b>🎲 Tabletop Dice Roller & Rules Lookup</b></summary>
+
+- **Standard Dice**: *"Roll 2d6"*, *"Roll a d20"*, *"Roll three d10s"*
+- **Necromunda Special Dice**: *"Roll a Necromunda injury dice"*, *"Roll firepower"*, *"Roll scatter"*
+- **Active Game Setting**: *"Set active game to Necromunda"*, *"We are playing Warhammer 40k"*
+- **Warhammer 40,000**: *"What does [Ability/Stratagem] do?"*, *"Look up [Unit Name] stats"*
+- **Necromunda**: *"What are the rules for [Weapon Trait/Skill]?"*, *"Look up Trading Post cost for plasma pistol"*
+</details>
+
+<details>
+<summary><b>👁️ Vision, Biometrics & 3D Printer Monitor</b></summary>
+
+- **Describe Scene**: *"What do you see?"*, *"Describe the room"*
+- **Biometric Calibration**: *"Register my face as [Name]"*, *"Calibrate your eye for [Name]"*
+- **3D Printer Status**: *"What is the printer doing?"*, *"Check 3D printer status"*
+- **Alert Suppression**: *"Acknowledged. Cancel the alerts."*
+</details>
+
+<details>
+<summary><b>🖥️ Visual Screensavers & Artwork Projection</b></summary>
+
+- **Trigger Screensaver**: *"Play the [screensaver_name] screensaver"*
+  - *Available*: `canticle_rain`, `pong`, `starfield`, `oscilloscope`, `game_of_life`, `radar`, `warp_core`, `mandala`, `rune_wheel`, `glitch`, `dna_helix`, `neural_net`, `hex_grid`, `void_shield`, `particle_burst`, and more.
+- **Project Artwork**: *"Display artwork of [Space Marine / Gang Name]"*
+</details>
+
+<details>
+<summary><b>🧠 Reminders, Memory & System Operations</b></summary>
+
+- **Reminders**: *"Remind me to check the stove in 20 minutes"*, *"What are my reminders?"*
+- **Store Memory**: *"Remember that I play House Van Saar"*
+- **Purge Biometrics**: *"Purge your memory of [Name]"*
+- **System Commands**: *"Reboot system"*, *"Power off"*, *"Self update"*
+</details>
+
+---
+
+## 🛠️ Build Your Own
+
+Complete step-by-step documentation is included in the repository:
+
+1. **Bill of Materials — [`SHOPPING_LIST.txt`](SHOPPING_LIST.txt)**
+   - Complete hardware checklist (~$157 total for electronics).
+   - Designed around the **[Servo Skull LED Candlelit Lantern 3D model](https://www.printables.com/model/1457078-servo-skull-led-candlelit-lantern)**.
+   - Highlights: Raspberry Pi 5 (4GB), Official Active Cooler, 27W Power Supply, GC9A01 1.28" IPS Display, Arducam IMX708, UGREEN USB Sound Card, Candle LEDs.
+
+2. **Step-by-Step Installation — [`PI_SETUP_GUIDE.md`](PI_SETUP_GUIDE.md)**
+   - Full OS flashing, annotated GPIO pinout diagrams, one-shot installer (`pi_setup.sh`), PipeWire audio routing setup, and assembly guide.
+
+---
+
+## 📁 Repository Layout
 
 ```
-skull/                 The application (Python package)
-  main.py              Wake-word loop + orchestration
-  brain.py             Claude conversation + tool dispatch
-  llm.py               Anthropic client
-  wake_word.py         openWakeWord ("Servitor")
-  transcribe.py        Speech-to-text (Whisper)
-  tts.py               Text-to-speech (Piper / ElevenLabs)
-  audio.py             Capture & playback (PipeWire)
-  camera.py            IMX708 vision
-  proximity.py         VL53L1X time-of-flight trigger
-  eyes.py              Red eye LEDs (GPIO)
-  display.py           GC9A01 round "machine-spirit eye"
-  candles.py           Candle LEDs (transistor-switched GPIO)
-  spotify_ctrl.py      Music control
-  bambu_ctrl.py        Bambu Lab 3D printer secure MQTT client
-  bluetooth_ctrl.py    Bluetooth speaker pairing
-  search.py            Weather / news / rules lookups
-  memory.py mood.py    Persistent memory & personality state
-  reminders.py quiet.py temperature.py sfx.py cast_audio.py web.py
-  persona_template.txt The servo-skull character (product data)
-  config.py            Pin assignments + settings (single source of truth)
+skull/                 Python application package
+  main.py              Wake-word loop & orchestration
+  brain.py             Claude conversation & tool dispatch
+  llm.py               Anthropic API client
+  wake_word.py         openWakeWord engine ("Servitor")
+  transcribe.py        Whisper speech-to-text
+  tts.py               Piper & ElevenLabs voice engine
+  audio.py             PipeWire audio capture & playback
+  camera.py            IMX708 vision & SFace facial recognition
+  eyes.py              GPIO eye LEDs & candle transistor control
+  display.py           GC9A01 circular display driver & HUD engines
+  spotify_ctrl.py      Spotify Connect integration
+  bambu_ctrl.py        Bambu Lab 3D printer MQTT client
+  web.py               Adeptus Mechanicus HTTPS Web Remote (Port 8080)
+  memory.py / mood.py  Persistent memory & drifting personality state
+  config.py            Single source of truth configuration
 
-emulator/              Run the skull on your Mac/Windows without hardware
-Rules/                 Offline rules library ingestion (40k / Necromunda / NetEpic / NetEA)
-pi_setup.sh            One-shot Pi installer / image-build script
-omega7.service         systemd unit for the main loop
-SHOPPING_LIST.txt      Bill of materials
-PI_SETUP_GUIDE.md      Build & install guide
-PRODUCTIZATION_PLAN.md Roadmap to an unbox-and-go appliance
+emulator/              Mac/Windows desktop visual emulator (no hardware needed)
+Rules/                 Offline rules database (40k, Necromunda, NetEpic, NetEA)
+pi_setup.sh            One-shot Pi installer & service setup
+omega7.service         systemd service descriptor
 ```
 
-There's also an **emulator** (`emulator/`, `run_emulator.py`) so you can develop and test the personality, tools, and conversation flow on a Mac or Windows machine — no Pi or wiring required.
-
 ---
 
-## Requirements at a glance
+## 📜 Requirements & Licensing
 
-- **Hardware:** Raspberry Pi 5 (4 GB) + the parts in [`SHOPPING_LIST.txt`](SHOPPING_LIST.txt), inside the [printed skull](https://www.printables.com/model/1457078-servo-skull-led-candlelit-lantern).
-- **OS:** Raspberry Pi OS 64-bit (Debian *Trixie*, Python 3.13, PipeWire audio).
-- **Keys:** Anthropic (required); OpenAI, ElevenLabs, Spotify (optional, each unlocks a feature).
-- **Default voice:** Piper, local and free — the skull talks the moment a Claude key is entered. ElevenLabs and OpenAI/Whisper are optional upgrades.
-
----
+- **Hardware:** Raspberry Pi 5 (4 GB) + components listed in [`SHOPPING_LIST.txt`](SHOPPING_LIST.txt).
+- **OS:** Raspberry Pi OS 64-bit (Debian *Trixie*, Python 3.13, PipeWire).
+- **API Keys:** Anthropic Claude (required); OpenAI, ElevenLabs, Spotify (optional).
 
 *The Omnissiah smiles upon a clean install. Praise the Machine God.*
