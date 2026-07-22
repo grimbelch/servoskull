@@ -264,11 +264,14 @@ def _build_tools() -> list[dict]:
     {
         "name": "connect_bambu_printer",
         "description": (
-            "Connect to or configure a Bambu 3D printer by providing its IP address, serial number, and access code. "
-            "Use this tool when the user says 'connect to a new 3d printer', 'setup 3d printer', 'connect to printer', "
-            "or provides the printer's IP, serial number, or access code. "
-            "If any parameter (ip_address, serial_number, access_code) is missing, invoke this tool with whatever parameters "
-            "you have so far, and the system will instruct you on what missing parameters to ask the user for verbally."
+            "Connect to or configure a Bambu 3D printer step-by-step. "
+            "Use this tool whenever the user wants to connect to or set up a 3D printer, or provides setup details. "
+            "CRITICAL CONVERSATIONAL RULES:\n"
+            "1. Ask for credentials ONE AT A TIME in sequential order: IP address FIRST, then Serial Number SECOND, then Access Code THIRD.\n"
+            "2. If IP address is missing, prompt ONLY for the IP address.\n"
+            "3. If IP address is provided but Serial Number is missing, confirm the IP address and prompt ONLY for the Serial Number.\n"
+            "4. If IP & Serial Number are provided but Access Code is missing, confirm the Serial Number and prompt ONLY for the Access Code.\n"
+            "5. Never ask for all three at once unless the user stated all three simultaneously."
         ),
         "input_schema": {
             "type": "object",
@@ -1736,7 +1739,7 @@ def _tool_connect_bambu_printer(i):
     raw_access = str(i.get("access_code", "") or "").strip()
 
     # Parse and normalize spoken IP address
-    ip = raw_ip or config.BAMBU_PRINTER_IP
+    ip = raw_ip
     if ip:
         ip = ip.lower().replace(" dot ", ".").replace(" point ", ".").replace("dot", ".").replace("point", ".")
         ip = re.sub(r"\s*\.\s*", ".", ip)
@@ -1746,28 +1749,31 @@ def _tool_connect_bambu_printer(i):
             ip = match.group(0)
 
     # Parse and normalize serial & access code
-    serial = raw_serial or config.BAMBU_PRINTER_SERIAL
+    serial = raw_serial
     if serial:
         serial = re.sub(r"[\s\-\,]+", "", serial).upper()
 
-    access_code = raw_access or config.BAMBU_PRINTER_ACCESS_CODE
+    access_code = raw_access
     if access_code:
         access_code = re.sub(r"[\s\-\,]+", "", access_code).lower()
 
-    missing = []
+    # Sequential step-by-step prompts:
     if not ip:
-        missing.append("IP address")
-    if not serial:
-        missing.append("Serial Number")
-    if not access_code:
-        missing.append("Access Code")
-
-    if missing:
-        missing_str = ", ".join(missing)
         return (
-            f"Partial printer details received (IP: {ip or 'not provided'}, "
-            f"Serial: {serial or 'not provided'}, Access Code: {access_code or 'not provided'}). "
-            f"Please state verbally: 'The missing details are: {missing_str}' and ask the user to provide them."
+            "Step 1 of 3: The IP address is missing. Ask the user ONLY for the 3D printer's IP address "
+            "(e.g., 'What is the IP address of the 3D printer?'). Do NOT ask for the serial number or access code yet."
+        )
+    if not serial:
+        return (
+            f"Step 2 of 3: IP address received ({ip}). Confirm the IP address ({ip}) to the user, and ask ONLY "
+            f"for the printer's Serial Number (e.g., 'Recorded IP address {ip}. What is the Serial Number of the printer?'). "
+            f"Do NOT ask for the access code yet."
+        )
+    if not access_code:
+        return (
+            f"Step 3 of 3: IP address ({ip}) and Serial Number ({serial}) received. Confirm the Serial Number ({serial}) "
+            f"to the user, and ask ONLY for the printer's Access Code from the touchscreen (e.g., 'Recorded Serial Number {serial}. "
+            f"Finally, what is the printer's Access Code?')."
         )
 
     # Save to disk .env file
