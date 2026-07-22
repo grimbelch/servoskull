@@ -20,7 +20,7 @@ _history: list[dict] = []
 
 # Tools that hit the network/hardware and can take a noticeable moment. Omega-7
 # speaks a short "stand by" before running any of these so the user gets feedback.
-_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings", "register_face", "register_voice", "purge_identity"}
+_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings", "register_face", "register_voice", "purge_identity", "connect_bambu_printer"}
 _HISTORY_PATH = config.data_path(config.HISTORY_FILE)
 _last_turn_tools: list[str] = []
 
@@ -258,6 +258,34 @@ def _build_tools() -> list[dict]:
         "input_schema": {
             "type": "object",
             "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "connect_bambu_printer",
+        "description": (
+            "Connect to or configure a Bambu 3D printer by providing its IP address, serial number, and access code. "
+            "Use this tool when the user says 'connect to a new 3d printer', 'setup 3d printer', 'connect to printer', "
+            "or provides the printer's IP, serial number, or access code. "
+            "If any parameter (ip_address, serial_number, access_code) is missing, invoke this tool with whatever parameters "
+            "you have so far, and the system will instruct you on what missing parameters to ask the user for verbally."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ip_address": {
+                    "type": "string",
+                    "description": "IP address of the 3D printer, e.g. '192.168.0.81'",
+                },
+                "serial_number": {
+                    "type": "string",
+                    "description": "Serial number of the 3D printer, e.g. '0938AC5B0600679'",
+                },
+                "access_code": {
+                    "type": "string",
+                    "description": "Access code from printer settings e.g. '87c83659'",
+                },
+            },
             "required": [],
         },
     },
@@ -1697,6 +1725,87 @@ def _tool_get_bambu_status(i):
         f"- Diagnostic: {errs}"
     )
 
+def _tool_connect_bambu_printer(i):
+    import re
+    import pathlib
+    import time
+    from skull import config, bambu_ctrl
+
+    raw_ip = str(i.get("ip_address", "") or "").strip()
+    raw_serial = str(i.get("serial_number", "") or "").strip()
+    raw_access = str(i.get("access_code", "") or "").strip()
+
+    # Parse and normalize spoken IP address
+    ip = raw_ip or config.BAMBU_PRINTER_IP
+    if ip:
+        ip = ip.lower().replace(" dot ", ".").replace(" point ", ".").replace("dot", ".").replace("point", ".")
+        ip = re.sub(r"\s*\.\s*", ".", ip)
+        ip = re.sub(r"\s+", "", ip)
+        match = re.search(r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", ip)
+        if match:
+            ip = match.group(0)
+
+    # Parse and normalize serial & access code
+    serial = raw_serial or config.BAMBU_PRINTER_SERIAL
+    if serial:
+        serial = re.sub(r"[\s\-\,]+", "", serial).upper()
+
+    access_code = raw_access or config.BAMBU_PRINTER_ACCESS_CODE
+    if access_code:
+        access_code = re.sub(r"[\s\-\,]+", "", access_code).lower()
+
+    missing = []
+    if not ip:
+        missing.append("IP address")
+    if not serial:
+        missing.append("Serial Number")
+    if not access_code:
+        missing.append("Access Code")
+
+    if missing:
+        missing_str = ", ".join(missing)
+        return (
+            f"Partial printer details received (IP: {ip or 'not provided'}, "
+            f"Serial: {serial or 'not provided'}, Access Code: {access_code or 'not provided'}). "
+            f"Please state verbally: 'The missing details are: {missing_str}' and ask the user to provide them."
+        )
+
+    # Save to disk .env file
+    try:
+        env_path = pathlib.Path(__file__).resolve().parent.parent / ".env"
+        if not env_path.exists():
+            env_path = pathlib.Path("~/.config/omega7/.env").expanduser()
+
+        content = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
+        lines = [l for l in content.splitlines() if not l.startswith("BAMBU_PRINTER_")]
+        lines.append(f"BAMBU_PRINTER_IP={ip}")
+        lines.append(f"BAMBU_PRINTER_SERIAL={serial}")
+        lines.append(f"BAMBU_PRINTER_ACCESS_CODE={access_code}")
+        env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except Exception as e:
+        print(f"[brain] Warning: could not write printer config to .env: {e}")
+
+    # Update in-memory config
+    config.BAMBU_PRINTER_IP = ip
+    config.BAMBU_PRINTER_SERIAL = serial
+    config.BAMBU_PRINTER_ACCESS_CODE = access_code
+
+    # Connect / restart monitor
+    monitor = bambu_ctrl.get_monitor()
+    if monitor:
+        monitor.stop()
+
+    new_monitor = bambu_ctrl.BambuMonitor()
+    bambu_ctrl._monitor_instance = new_monitor
+    new_monitor.start()
+
+    time.sleep(2.5)
+
+    if new_monitor.connected:
+        return f"Successfully paired and connected to Bambu 3D printer at {ip} (Serial: {serial}). Print telemetry monitoring is active."
+    else:
+        return f"Updated printer credentials (IP: {ip}, Serial: {serial}, Access Code: {access_code}), but background connection timed out. Verify the printer is powered on and connected to the local network."
+
 def _tool_remember_fact(i):
     return _memory.remember(str(i.get("fact", "")).strip())
 
@@ -1967,6 +2076,7 @@ _TOOL_REGISTRY = {
     "bluetooth_scan": _tool_bluetooth_scan,
     "bluetooth_connect": _tool_bluetooth_connect,
     "get_bambu_status": _tool_get_bambu_status,
+    "connect_bambu_printer": _tool_connect_bambu_printer,
     "remember_fact": _tool_remember_fact,
     "forget_fact": _tool_forget_fact,
     "update_fact": _tool_update_fact,
