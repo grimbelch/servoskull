@@ -30,6 +30,29 @@ _call_times: list[float] = []  # timestamps of recent vision calls (rolling hour
 _read_frame_fn = None
 _camera_lock = threading.Lock()
 
+_latest_camera_jpeg: bytes | None = None
+_camera_active_until: float = 0.0
+_camera_active_lock = threading.Lock()
+
+
+def publish_camera_frame(jpeg_bytes: bytes, active_sec: float = 5.0) -> None:
+    global _latest_camera_jpeg, _camera_active_until
+    with _camera_active_lock:
+        _latest_camera_jpeg = jpeg_bytes
+        _camera_active_until = max(_camera_active_until, time.time() + active_sec)
+
+
+def is_camera_active() -> bool:
+    with _camera_active_lock:
+        return time.time() < _camera_active_until
+
+
+def get_camera_frame_bytes() -> bytes | None:
+    with _camera_active_lock:
+        if time.time() < _camera_active_until:
+            return _latest_camera_jpeg
+        return None
+
 
 def _is_blank(gray) -> bool:
     """True if the frame is too dark or too uniform to be worth describing.
@@ -164,6 +187,7 @@ def _capture_and_observe(read, reason: str) -> None:
 
     print(f"[camera] {reason} — querying vision (biometrics: {detected_name})")
     _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
+    publish_camera_frame(buf.tobytes(), 5.0)
     
     # Run vision
     from skull import display as _display
@@ -286,6 +310,7 @@ def capture_on_demand() -> str:
             
             detected_name = face_rec.recognize(frame)
             _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
+            publish_camera_frame(buf.tobytes(), 5.0)
             desc = _ask_vision(buf.tobytes(), detected_name)
             return desc
         except Exception as e:
@@ -307,6 +332,7 @@ def capture_on_demand() -> str:
         
         detected_name = face_rec.recognize(frame)
         _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
+        publish_camera_frame(buf.tobytes(), 5.0)
         desc = _ask_vision(buf.tobytes(), detected_name)
         return desc
     except Exception as e:
@@ -357,6 +383,9 @@ def register_face(name: str) -> str:
                 continue
                 
             res = face_rec.detect_face(frame)
+            _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
+            publish_camera_frame(buf.tobytes(), 5.0)
+
             if res:
                 rotated_frame, face_rect = res
                 x, y_coord, w, h = face_rect
