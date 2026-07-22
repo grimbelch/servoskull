@@ -48,7 +48,7 @@ def _client() -> spotipy.Spotify:
             client_secret=config.SPOTIFY_CLIENT_SECRET,
             redirect_uri=config.SPOTIFY_REDIRECT_URI,
             scope=_SCOPES,
-            open_browser=True,
+            open_browser=False,
             cache_path=str(config.data_path(".spotify_cache")),
         ))
     return _sp
