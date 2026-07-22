@@ -970,6 +970,61 @@ HTML_CLIENT = """<!DOCTYPE html>
             border-color: var(--bright-green);
         }
 
+        .aux-panel {
+            width: 100%;
+            border: 2px double var(--border-color);
+            background: rgba(17, 120, 35, 0.04);
+            padding: 10px 16px;
+            box-sizing: border-box;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 6px;
+        }
+
+        .aux-title {
+            color: rgba(56, 255, 88, 0.85);
+            font-size: 11px;
+            letter-spacing: 2px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .aux-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .aux-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .aux-label {
+            font-size: 11px;
+            letter-spacing: 1.5px;
+            color: var(--dim-green);
+            white-space: nowrap;
+        }
+
+        .aux-panel select {
+            background-color: rgba(0,0,0,0.7);
+            border: 1px solid var(--border-color);
+            color: var(--bright-green);
+            padding: 6px 10px;
+            font-family: inherit;
+            font-size: 12px;
+        }
+
+        .aux-panel select:focus {
+            outline: none;
+            border-color: var(--bright-green);
+        }
+
         /* Custom Scrollbars */
         ::-webkit-scrollbar {
             width: 8px;
@@ -1002,6 +1057,20 @@ HTML_CLIENT = """<!DOCTYPE html>
                     </svg>
                     OMEGA-7 COGITATOR TERMINAL
                 </h1>
+                <!-- Auxiliary Controls Section (Above Telemetry) -->
+                <div class="aux-panel">
+                    <div class="aux-title">[ AUXILIARY COGITATOR CONTROLS ]</div>
+                    <div class="aux-controls">
+                        <div class="aux-item">
+                            <span class="aux-label">VISUAL EMULATION:</span>
+                            <select id="screensaver-select">
+                                <option value="">-- Select Screensaver --</option>
+                            </select>
+                            <button onclick="playScreensaver()">RUN</button>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="telemetry">
                     <div class="telemetry-item">
                         <div class="sensor-header">
@@ -1090,11 +1159,9 @@ HTML_CLIENT = """<!DOCTYPE html>
                     <div class="chat-bubble chat-skull">System initialized. Awaiting commands, master.</div>
                 </div>
                 
-                <div class="controls-row">
-                    <select id="screensaver-select">
-                        <option value="">-- Select Screensaver --</option>
-                    </select>
-                    <button onclick="playScreensaver()">RUN</button>
+                <div class="input-bar">
+                    <input type="text" id="command-input" placeholder="Enter high-level command..." onkeydown="if(event.key === 'Enter') sendCommand()">
+                    <button onclick="sendCommand()">SEND</button>
 
                     <button class="wake-btn icon-btn" onclick="triggerWake()" title="Trigger Voice Listener (Wake)">
                         <svg class="btn-svg" viewBox="0 0 24 24">
@@ -1112,11 +1179,6 @@ HTML_CLIENT = """<!DOCTYPE html>
                             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
                         </svg>
                     </button>
-                </div>
-
-                <div class="input-bar">
-                    <input type="text" id="command-input" placeholder="Enter high-level command..." onkeydown="if(event.key === 'Enter') sendCommand()">
-                    <button onclick="sendCommand()">SEND</button>
                 </div>
             </div>
 
