@@ -200,42 +200,30 @@ def _fetch_guardian_rss(max_items: int = 3) -> str:
 
 def _extract_relevant(full_text: str, query: str, max_chars: int = 3000) -> str:
     """Return the most query-relevant paragraphs from a large text block."""
-    words = [w for w in query.lower().split() if len(w) > 2]
-    phrase = " ".join(words)
+    query_words = [w for w in re.findall(r"\w+", query.lower()) if len(w) > 1]
+    words = [w for w in query_words if w not in _RULES_STOPWORDS]
     if not words:
-        return full_text[:max_chars]
+        words = query_words
+    phrase = " ".join(words)
 
-    # Split into double-newline paragraphs, merging bulleted lists/numbered lists with their intro,
-    # but NEVER merge lines that start with Markdown headings ('#') or tables ('|').
     raw_paras = full_text.split("\n\n")
-    paragraphs = []
-    for p in raw_paras:
-        p_clean = p.strip()
-        if not p_clean:
-            continue
-        is_list_item = (p_clean.startswith("- ") or p_clean.startswith("* ") or
-                        (re.match(r"^\d+\.\s", p_clean) and not p_clean.startswith("#")))
-        is_table = p_clean.startswith("|")
-        is_heading = p_clean.startswith("#")
-
-        if paragraphs and is_list_item and not is_table and not is_heading:
-            paragraphs[-1] = paragraphs[-1] + "\n\n" + p_clean
-        else:
-            paragraphs.append(p_clean)
+    paragraphs = [p.strip() for p in raw_paras if p.strip()]
 
     # Score each paragraph by query relevance
     scored = []
     for i, para in enumerate(paragraphs):
         pl = para.lower()
-        score = sum(pl.count(w) for w in words)
+        score = sum(pl.count(w) * 5.0 for w in words)
         lines = para.splitlines()
         first_line = lines[0] if lines else ""
         if first_line.startswith("#"):
             fl_lower = first_line.lower()
             if phrase and phrase in fl_lower:
-                score += 200.0
+                score += 500.0
+            elif all(w in fl_lower for w in words):
+                score += 400.0
             elif any(w in fl_lower for w in words):
-                score += 50.0
+                score += 150.0
         if para.startswith("|"):
             score *= 0.01
 
@@ -253,16 +241,19 @@ def _extract_relevant(full_text: str, query: str, max_chars: int = 3000) -> str:
     for score, idx, _ in scored:
         if total >= max_chars:
             break
+        # Grab heading + next 3 paragraphs (body text under heading)
         start = idx
-        end = min(len(paragraphs), idx + 2)
+        end = min(len(paragraphs), idx + 4)
         for j in range(start, end):
+            # stop if we hit the next heading
+            if j > idx and paragraphs[j].startswith("#"):
+                break
             if j not in selected_indices:
                 p_len = len(paragraphs[j])
                 if total + p_len <= max_chars:
                     selected_indices.add(j)
                     total += p_len + 2
 
-    # Return selected paragraphs in original document order
     sorted_indices = sorted(selected_indices)
     return "\n\n".join(paragraphs[j] for j in sorted_indices)
 
