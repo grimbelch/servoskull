@@ -551,11 +551,13 @@ def main():
         run_brain = False
         if web_item:
             user_text, speaker_name = web_item
+            if not speaker_name:
+                speaker_name = config._OWNER_PROFILE.get("name", "User")
             run_brain = True
             skip_ack = True
             play_ack_sound = False
             is_answering_question = False
-            print(f"[skull] Web command received: {user_text}")
+            print(f"[skull] Processing web input for {speaker_name}...")
         elif web_wake:
             skip_wake_word = True
 

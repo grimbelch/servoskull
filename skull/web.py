@@ -105,9 +105,6 @@ class WebLogRedirect:
                 spk = m_heard.group(1) or "User"
                 txt = m_heard.group(2)
                 log_vox(spk, txt, timestamp=now_str)
-            elif clean_s.startswith("[skull] Web command received:"):
-                txt = clean_s[len("[skull] Web command received:"):].strip()
-                log_vox("Web Master", txt, timestamp=now_str)
             elif clean_s.startswith("[skull] Idle:"):
                 txt = clean_s[len("[skull] Idle:"):].strip()
                 log_vox(config.SKULL_NAME, txt, timestamp=now_str)
@@ -149,8 +146,6 @@ def trigger_cancel() -> None:
 
 
 def queue_command(text: str, speaker_name: str | None = None) -> None:
-    spk = speaker_name if speaker_name else config._OWNER_PROFILE.get("name", "User")
-    log_vox(spk, text)
     _command_queue.put((text, speaker_name))
     trigger_cancel()
 
