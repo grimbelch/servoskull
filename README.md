@@ -8,7 +8,6 @@
   <a href="#-what-it-does"><img src="https://img.shields.io/badge/Hardware-Raspberry%20Pi%205-red.svg?style=for-the-badge&logo=raspberrypi" alt="Raspberry Pi 5"></a>
   <a href="#-what-it-does"><img src="https://img.shields.io/badge/Brain-Anthropic%20Claude-7377AD.svg?style=for-the-badge&logo=anthropic" alt="Anthropic Claude"></a>
   <a href="#-tabletop-game-context--dice-simulator"><img src="https://img.shields.io/badge/Rules-Warhammer%2040k%20%7C%20Necromunda-green.svg?style=for-the-badge" alt="40k Rules"></a>
-  <a href="#-adeptus-mechanicus-web-remote-port-8080"><img src="https://img.shields.io/badge/Web_Remote-HTTPS%20%3A8080-brightgreen.svg?style=for-the-badge" alt="HTTPS Remote"></a>
 </p>
 
 > *"This unit serves the Omnissiah, and, in its infinite mercy, you."*
@@ -42,10 +41,6 @@ Simply speak the wake phrase — **"Servitor"** — and it wakes, ignites its to
 ## 🌐 Adeptus Mechanicus Web Remote (Port 8080)
 
 Omega-7 hosts a responsive, green-phosphor CRT tactical display accessible securely over HTTPS (`https://<host>:8080` or via Tailscale `https://omega7.panther-firefighter.ts.net:8080/`).
-
-<p align="center">
-  <img src="images/web_remote_preview.jpg" width="100%" alt="Adeptus Mechanicus CRT Web Remote Interface">
-</p>
 
 ### Remote Features:
 - **Ocular Feed Mirror**: Real-time MJPEG stream mirroring the physical circular GC9A01 eye screen (HUD states, screensavers, cog rotation, and artwork projections).
