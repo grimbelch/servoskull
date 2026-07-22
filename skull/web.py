@@ -17,39 +17,88 @@ _wake_requested = False
 _cancel_event = None
 _cancel_lock = threading.Lock()
 
-# Thread-safe log buffer
+# Thread-safe log buffers (Telemetry vs Vox Channel)
 _log_buffer = collections.deque(maxlen=100)
 _log_lock = threading.Lock()
+
+_vox_buffer = collections.deque(maxlen=100)
+_vox_lock = threading.Lock()
+
+
+def log_vox(speaker: str, text: str, timestamp: str | None = None) -> None:
+    if not text or not text.strip():
+        return
+    if not timestamp:
+        timestamp = time.strftime("%H:%M:%S")
+    entry = {
+        "time": timestamp,
+        "speaker": speaker.strip() if speaker else "User",
+        "text": text.strip()
+    }
+    with _vox_lock:
+        if _vox_buffer and _vox_buffer[-1]["text"] == entry["text"] and _vox_buffer[-1]["speaker"] == entry["speaker"]:
+            return
+        _vox_buffer.append(entry)
+
+
+def get_vox_logs() -> list[dict]:
+    with _vox_lock:
+        return list(_vox_buffer)
+
 
 class WebLogRedirect:
     def __init__(self, original_stdout):
         self.original_stdout = original_stdout
-        
+
     def write(self, s):
         self.original_stdout.write(s)
         if s.strip():
-            # Strip ANSI escape codes if any (for cleaner display)
-            clean_s = s.strip()
-            # Basic escape sequences stripper
             import re
-            clean_s = re.sub(r'\x1b\[[0-9;]*[mK]', '', clean_s)
-            with _log_lock:
-                _log_buffer.append(f"[{time.strftime('%H:%M:%S')}] {clean_s}")
-                
+            clean_s = re.sub(r'\x1b\[[0-9;]*[mK]', '', s.strip())
+            now_str = time.strftime("%H:%M:%S")
+
+            m_heard = re.match(r'^\[skull\]\s+Heard(?:\s*\(([^)]+)\))?:\s*(.+)$', clean_s)
+            m_skull = re.match(r'^\[skull\]\s+([^:]+):\s*(.+)$', clean_s)
+
+            if m_heard:
+                spk = m_heard.group(1) or "User"
+                txt = m_heard.group(2)
+                log_vox(spk, txt, timestamp=now_str)
+            elif clean_s.startswith("[skull] Web command received:"):
+                txt = clean_s[len("[skull] Web command received:"):].strip()
+                log_vox("Web Master", txt, timestamp=now_str)
+            elif clean_s.startswith("[skull] Idle:"):
+                txt = clean_s[len("[skull] Idle:"):].strip()
+                log_vox(config.SKULL_NAME, txt, timestamp=now_str)
+            elif clean_s.startswith("[skull] Daily Briefing:"):
+                txt = clean_s[len("[skull] Daily Briefing:"):].strip()
+                log_vox(config.SKULL_NAME, txt, timestamp=now_str)
+            elif m_skull and m_skull.group(1).strip() in (config.SKULL_NAME, "Omega-7", "Servo-Skull"):
+                spk = m_skull.group(1).strip()
+                txt = m_skull.group(2)
+                log_vox(spk, txt, timestamp=now_str)
+            else:
+                with _log_lock:
+                    _log_buffer.append(f"[{now_str}] {clean_s}")
+
     def flush(self):
         self.original_stdout.flush()
 
+
 # Redirect stdout to capture logs
 sys.stdout = WebLogRedirect(sys.stdout)
+
 
 def get_logs() -> list[str]:
     with _log_lock:
         return list(_log_buffer)
 
+
 def register_cancel_event(evt) -> None:
     global _cancel_event
     with _cancel_lock:
         _cancel_event = evt
+
 
 def trigger_cancel() -> None:
     global _cancel_event
@@ -57,7 +106,10 @@ def trigger_cancel() -> None:
         if _cancel_event is not None:
             _cancel_event.set()
 
+
 def queue_command(text: str, speaker_name: str | None = None) -> None:
+    spk = speaker_name if speaker_name else config._OWNER_PROFILE.get("name", "User")
+    log_vox(spk, text)
     _command_queue.put((text, speaker_name))
     trigger_cancel()
 
@@ -205,6 +257,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                 "active_game": brain.get_current_game() if hasattr(brain, "get_current_game") else "None",
                 "screensavers": display.get_screensaver_names() if hasattr(display, "get_screensaver_names") else [],
                 "logs": get_logs(),
+                "vox_logs": get_vox_logs(),
             }
             self._send_json(state_data)
             return
@@ -1086,7 +1139,7 @@ HTML_CLIENT = """<!DOCTYPE html>
                     });
                 }
 
-                // Update Logs Console
+                // Update Logs Console (Telemetry Console Feed)
                 if (data.logs) {
                     consoleBox.innerHTML = '';
                     data.logs.forEach(line => {
@@ -1096,6 +1149,24 @@ HTML_CLIENT = """<!DOCTYPE html>
                         consoleBox.appendChild(div);
                     });
                     consoleBox.scrollTop = consoleBox.scrollHeight;
+                }
+
+                // Update Vox Channel Logs
+                if (data.vox_logs && data.vox_logs.length > 0) {
+                    const voxHash = JSON.stringify(data.vox_logs);
+                    if (window._lastVoxHash !== voxHash) {
+                        window._lastVoxHash = voxHash;
+                        chatContainer.innerHTML = '';
+                        data.vox_logs.forEach(msg => {
+                            const bubble = document.createElement('div');
+                            const isSkull = (msg.speaker === data.skull_name || msg.speaker === 'Omega-7' || msg.speaker === 'Servo-Skull');
+                            bubble.className = `chat-bubble ${isSkull ? 'chat-skull' : 'chat-user'}`;
+                            const timeTag = msg.time ? `[${msg.time}] ` : '';
+                            bubble.innerText = `${timeTag}${msg.speaker}: ${msg.text}`;
+                            chatContainer.appendChild(bubble);
+                        });
+                        chatContainer.scrollTop = chatContainer.scrollHeight;
+                    }
                 }
 
                 // Check state transitions

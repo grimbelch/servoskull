@@ -781,7 +781,8 @@ def main():
                 _acknowledge_silence()
                 continue
 
-        print(f"[skull] Heard: {user_text}")
+        spk_label = speaker_name if speaker_name else "User"
+        print(f"[skull] Heard ({spk_label}): {user_text}")
 
         _t = user_text.lower()
 
