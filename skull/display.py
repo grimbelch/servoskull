@@ -43,10 +43,24 @@ _looking_up_rules = False
 _rules_lookup_until = 0.0
 _fetching_news = False
 _news_fetch_until = 0.0
-_retrieving_image = False
-_image_retrieval_until = 0.0
 _targeting = False
 _visualizing_music = False
+
+_showing_alignment = False
+_alignment_until = 0.0
+
+def start_alignment_display(duration: float = 60.0):
+    global _showing_alignment, _alignment_until
+    _showing_alignment = True
+    _alignment_until = time.monotonic() + duration
+
+def stop_alignment_display():
+    global _showing_alignment, _alignment_until
+    _showing_alignment = False
+    _alignment_until = 0.0
+
+def is_alignment_active() -> bool:
+    return _showing_alignment or (time.monotonic() < _alignment_until)
 
 _showing_omnissiah_glyph = False
 _omnissiah_start_time = 0.0
@@ -659,6 +673,53 @@ def _render_image_retrieval_frame(bezel, mask, now: float):
         d.text((_CX - 38, 185), "FETCHING ART...", fill=_scale(base, 0.7), font=font)
     except Exception:
         pass
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
+def _render_alignment_frame(bezel, mask, now: float):
+    img = bezel.copy()
+    base = (0, 255, 128)  # Bright glowing green
+    accent = (0, 229, 255)  # Cyan
+    overlay = Image.new("RGB", (W, H), (10, 14, 20))
+    d = ImageDraw.Draw(overlay)
+
+    # Calibration outer rings
+    d.ellipse([15, 15, 225, 225], outline=accent, width=2)
+    d.ellipse([25, 25, 215, 215], outline=_scale(accent, 0.4), width=1)
+
+    # Cardinal ticks (12 o'clock / UP is highlighted green)
+    d.line([(120, 15), (120, 30)], fill=base, width=3)      # 12 o'clock (UP)
+    d.line([(120, 210), (120, 225)], fill=accent, width=2)  # 6 o'clock
+    d.line([(15, 120), (30, 120)], fill=accent, width=2)    # 9 o'clock
+    d.line([(210, 120), (225, 120)], fill=accent, width=2)  # 3 o'clock
+
+    # Subtle pulse animation for the arrow
+    pulse = 1.0 + 0.05 * math.sin(now * 8.0)
+    top_y = int(45 - (pulse - 1.0) * 10)
+
+    # Large bold UP arrow pointing straight up towards 12 o'clock
+    arrow_poly = [
+        (120, top_y),
+        (160, 115),
+        (136, 115),
+        (136, 160),
+        (104, 160),
+        (104, 115),
+        (80, 115)
+    ]
+    d.polygon(arrow_poly, fill=base, outline=(255, 255, 255))
+
+    # Text overlay
+    try:
+        font_sm = _get_font(10)
+        font_lg = _get_font(12)
+        d.text((120, 30), "UP ▲", fill=base, font=font_sm, anchor="mm")
+        d.text((120, 176), "ALIGNMENT MODE", fill=accent, font=font_lg, anchor="mm")
+        d.text((120, 194), f"OFFSET: {config.DISPLAY_FINE_ROTATION:+.1f}°", fill=_scale(accent, 0.8), font=font_sm, anchor="mm")
+    except Exception:
+        pass
+
     img.paste(overlay, (0, 0), mask)
     return img
 
@@ -2304,6 +2365,15 @@ def _loop():
             time.sleep(1 / config.DISPLAY_FPS)
             continue
 
+        alignment_active = _showing_alignment or (now < _alignment_until)
+        if alignment_active:
+            try:
+                _blit(_render_alignment_frame(bezel, mask, now))
+            except Exception as e:
+                print(f"[display] alignment render error: {e}")
+            time.sleep(1 / config.DISPLAY_FPS)
+            continue
+
         if _targeting:
             try:
                 _blit(_render_targeting_frame(bezel, mask, now))
@@ -2626,7 +2696,7 @@ def cleanup() -> None:
 def get_state() -> dict:
     global _showing_custom_image, _active_idle_anim, _speaking, _thinking, _target_amp
     global _scanning_auspex, _scanning_noosphere, _searching_web, _looking_up_rules, _fetching_news, _retrieving_image, _targeting, _visualizing_music, _rolling_die, _die_result
-    global _web_search_until, _rules_lookup_until, _news_fetch_until, _image_retrieval_until
+    global _web_search_until, _rules_lookup_until, _news_fetch_until, _image_retrieval_until, _showing_alignment, _alignment_until
     now = time.monotonic()
     return {
         "showing_custom_image": _showing_custom_image,
@@ -2640,6 +2710,7 @@ def get_state() -> dict:
         "looking_up_rules": _looking_up_rules or (now < _rules_lookup_until),
         "fetching_news": _fetching_news or (now < _news_fetch_until),
         "retrieving_image": _retrieving_image or (now < _image_retrieval_until),
+        "showing_alignment": _showing_alignment or (now < _alignment_until),
         "targeting": _targeting,
         "visualizing_music": _visualizing_music,
         "rolling_die": _rolling_die,

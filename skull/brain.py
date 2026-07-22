@@ -338,6 +338,24 @@ def _build_tools() -> list[dict]:
         },
     },
     {
+        "name": "show_display_alignment",
+        "description": (
+            "Display an UP alignment arrow (▲) and angle calibration grid on the hardware eye screen. "
+            "Use when the user says 'show me up on the display', 'display up arrow', 'show alignment grid', "
+            "or wants to see which direction the screen considers UP to calibrate physical rotation."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "duration_seconds": {
+                    "type": "number",
+                    "description": "Duration in seconds to display the alignment mode e.g. 60.0",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
         "name": "set_audio_sensitivity",
         "description": (
             "Adjust microphone recording sensitivity, noise floor threshold, or wake word sensitivity. "
@@ -1960,7 +1978,7 @@ def _tool_set_weather_location(i):
 
 def _tool_set_display_rotation(i):
     import pathlib
-    from skull import config
+    from skull import config, display
 
     delta = i.get("fine_rotation_delta")
     exact = i.get("fine_rotation_exact")
@@ -1999,7 +2017,21 @@ def _tool_set_display_rotation(i):
     config.DISPLAY_FINE_ROTATION = new_fine
     config.DISPLAY_ROTATION = new_rot
 
-    return f"Eye display alignment updated: Fine Rotation offset set to {new_fine:.1f}° (Hardware Rotation: {new_rot}°). Display output re-aligned."
+    # Keep alignment grid active for 60 seconds so user sees rotation live
+    display.start_alignment_display(60.0)
+
+    return f"Eye display alignment updated: Fine Rotation offset set to {new_fine:.1f}° (Hardware Rotation: {new_rot}°). Alignment UP arrow is active and re-aligned live."
+
+
+def _tool_show_display_alignment(i):
+    dur = float(i.get("duration_seconds", 60.0))
+    from skull import display
+    display.start_alignment_display(dur)
+    return (
+        f"Alignment mode activated on the hardware eye display for {dur} seconds. "
+        f"A green UP arrow (▲) pointing towards 12 o'clock (top of the display) is now shown. "
+        f"The user can look at the display and dictate adjustments e.g. 'rotate 15 degrees clockwise'."
+    )
 
 
 def _tool_set_audio_sensitivity(i):
@@ -2352,6 +2384,7 @@ _TOOL_REGISTRY = {
     "connect_bambu_printer": _tool_connect_bambu_printer,
     "set_weather_location": _tool_set_weather_location,
     "set_display_rotation": _tool_set_display_rotation,
+    "show_display_alignment": _tool_show_display_alignment,
     "set_audio_sensitivity": _tool_set_audio_sensitivity,
     "set_cast_target": _tool_set_cast_target,
     "remember_fact": _tool_remember_fact,
