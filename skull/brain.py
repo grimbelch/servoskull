@@ -2118,6 +2118,27 @@ def register_shutdown_cb(cb):
     _SHUTDOWN_CB = cb
 
 
+_MOOD_KEYWORDS = {
+    "vigilant": "VIGILANT",
+    "contemplative": "CONTEMPLATIVE",
+    "suspicious": "SUSPICIOUS",
+    "dutiful": "DUTIFUL",
+    "melancholic": "MELANCHOLIC",
+    "melancholy": "MELANCHOLIC",
+    "fervent": "FERVENT",
+}
+
+
+def _mood_intent(text: str) -> str | None:
+    t = text.lower()
+    triggers = ("mood", "disposition", "be ", "go back to", "return to", "set to", "shift to", "change to", "switch to")
+    if any(tr in t for tr in triggers):
+        for word, m in _MOOD_KEYWORDS.items():
+            if word in t:
+                return m
+    return None
+
+
 def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -> tuple[str, list[tuple]]:
     """Return (spoken_text, spotify_commands).
 
@@ -2126,6 +2147,12 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
     give the user immediate "stand by" feedback before the call blocks.
     """
     global _last_turn_tools
+    m_intent = _mood_intent(user_text)
+    if m_intent and m_intent != _mood.get():
+        print(f"[brain] Explicit mood intent detected: {m_intent}")
+        new_m = _mood.set_mood(m_intent)
+        _display.set_mood(new_m)
+
     facts = _memory.load()
     longterm = _memory.load_longterm()
     now = datetime.now()
