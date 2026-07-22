@@ -299,6 +299,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                 "screensavers": display.get_screensaver_names() if hasattr(display, "get_screensaver_names") else [],
                 "logs": get_logs(),
                 "vox_logs": get_vox_logs(),
+                "camera_active": __import__("skull.camera", fromlist=["is_camera_active"]).is_camera_active() if hasattr(__import__("skull.camera", fromlist=["is_camera_active"]), "is_camera_active") else False,
             }
             self._send_json(state_data)
             return
@@ -337,6 +338,29 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                         self.wfile.write(img_bytes)
                         self.wfile.write(b"\r\n")
                     time.sleep(0.066)  # ~15 FPS matching display thread
+            except Exception:
+                pass
+            return
+
+        elif self.path == "/api/camera_stream.mjpeg":
+            self.send_response(200)
+            self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Expires", "0")
+            self.end_headers()
+            try:
+                from skull import camera
+                import time
+                while True:
+                    img_bytes = camera.get_camera_frame_bytes()
+                    if img_bytes:
+                        self.wfile.write(b"--frame\r\n")
+                        self.wfile.write(b"Content-Type: image/jpeg\r\n")
+                        self.wfile.write(f"Content-Length: {len(img_bytes)}\r\n\r\n".encode())
+                        self.wfile.write(img_bytes)
+                        self.wfile.write(b"\r\n")
+                    time.sleep(0.1)
             except Exception:
                 pass
             return
@@ -775,6 +799,13 @@ HTML_CLIENT = """<!DOCTYPE html>
             opacity: 0.7;
         }
 
+        .camera-canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
         /* Ocular & Camera Bezel Tech Details */
         .ocular-bezel-text {
             position: absolute;
@@ -1177,17 +1208,18 @@ HTML_CLIENT = """<!DOCTYPE html>
                 </div>
             </div>
 
-            <!-- Right column: Camera Optic Feed (Placeholder) -->
+            <!-- Right column: Camera Optic Feed -->
             <div class="camera-pane">
                 <div class="pane-title" style="width: 100%;">[ CAMERA OPTIC FEED ]</div>
                 <div class="camera-screen" id="camera-screen">
                     <!-- Overlay Bezel Telemetry -->
                     <div class="ocular-bezel-text bezel-tl">CAM: 01</div>
-                    <div class="ocular-bezel-text bezel-tr">FPS: --</div>
-                    <div class="ocular-bezel-text bezel-bl">MODE: STANDBY</div>
-                    <div class="ocular-bezel-text bezel-br">RESOL: --</div>
+                    <div class="ocular-bezel-text bezel-tr" id="cam-bezel-tr">FPS: --</div>
+                    <div class="ocular-bezel-text bezel-bl" id="cam-bezel-bl">MODE: STANDBY</div>
+                    <div class="ocular-bezel-text bezel-br">RESOL: 640x480</div>
 
-                    <div class="camera-placeholder-text">[ NO CAMERA STREAM ]<br>STANDBY</div>
+                    <img class="camera-canvas" id="camera-stream" src="/api/camera_stream.mjpeg" alt="Camera Feed" style="display: none;">
+                    <div class="camera-placeholder-text" id="camera-standby">[ NO CAMERA STREAM ]<br>STANDBY</div>
                 </div>
             </div>
 
@@ -1356,6 +1388,27 @@ HTML_CLIENT = """<!DOCTYPE html>
                             chatContainer.appendChild(bubble);
                         });
                         chatContainer.scrollTop = chatContainer.scrollHeight;
+                    }
+                }
+
+                // Update Camera Feed status
+                const camActive = data.camera_active;
+                const camStream = document.getElementById('camera-stream');
+                const camStandby = document.getElementById('camera-standby');
+                const camMode = document.getElementById('cam-bezel-bl');
+                const camFps = document.getElementById('cam-bezel-tr');
+
+                if (camStream && camStandby) {
+                    if (camActive) {
+                        camStream.style.display = 'block';
+                        camStandby.style.display = 'none';
+                        if (camMode) camMode.innerText = 'MODE: LIVE';
+                        if (camFps) camFps.innerText = 'FPS: 15';
+                    } else {
+                        camStream.style.display = 'none';
+                        camStandby.style.display = 'block';
+                        if (camMode) camMode.innerText = 'MODE: STANDBY';
+                        if (camFps) camFps.innerText = 'FPS: --';
                     }
                 }
 
