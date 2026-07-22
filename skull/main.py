@@ -1205,11 +1205,13 @@ def main():
             _briefing_awaiting_response = True
             print("[skull] First interaction of the day complete. Offering morning briefing.")
             try:
-                offer_wav = tts.synthesize(
+                offer_text = (
                     "Master. This unit has compiled your morning cogitations — "
                     "weather data, hive dispatches, and machine-spirit telemetry. "
                     "Are you ready to receive your daily briefing?"
                 )
+                brain.record_assistant_turn(offer_text)
+                offer_wav = tts.synthesize(offer_text)
                 eyes.on()
                 interrupted = _speak_interruptible(offer_wav, on_wake)
                 skip_wake_word = True  # listen immediately for yes/no
