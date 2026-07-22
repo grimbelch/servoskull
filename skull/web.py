@@ -690,14 +690,14 @@ HTML_CLIENT = """<!DOCTYPE html>
             display: flex;
             flex-direction: column;
             gap: 8px;
-            flex: 1 1 200px;
-            min-width: 180px;
+            flex: 1 1 140px;
+            min-width: 0;
         }
 
         .telemetry-item.text-only {
             justify-content: center;
-            flex: 1 1 150px;
-            min-width: 130px;
+            flex: 1 1 120px;
+            min-width: 0;
         }
 
         .telemetry-label {
