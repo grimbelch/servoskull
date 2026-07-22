@@ -1673,13 +1673,29 @@ HTML_CLIENT = """<!DOCTYPE html>
                     headerValue = "ACTIVE";
                     bannerBg = "rgba(56, 255, 88, 0.25)";
                     bannerBorder = "3px double var(--bright-green)";
+                } else if (currentState.searching_web) {
+                    headerTitle = "NOOSPHERE SEARCH";
+                    headerValue = "QUERYING NETWORK";
+                    bannerBg = "rgba(56, 255, 88, 0.2)";
+                } else if (currentState.looking_up_rules) {
+                    headerTitle = "LIBRARIUM CODEX";
+                    headerValue = "RULES DATABASE";
+                    bannerBg = "rgba(56, 255, 88, 0.2)";
+                } else if (currentState.fetching_news) {
+                    headerTitle = "VOX TRANSMISSION";
+                    headerValue = "SCANNING BROADCASTS";
+                    bannerBg = "rgba(56, 255, 88, 0.2)";
+                } else if (currentState.retrieving_image) {
+                    headerTitle = "PICT-FEED RASTER";
+                    headerValue = "FETCHING ARTWORK";
+                    bannerBg = "rgba(56, 255, 88, 0.2)";
                 } else if (currentState.scanning_auspex || currentState.scanning_noosphere) {
                     headerTitle = "AUSPEX SCANNING MODE";
                     headerValue = "ACTIVE";
                     bannerBg = "rgba(56, 255, 88, 0.15)";
                 } else if (currentState.active_idle_anim) {
                     headerTitle = "VISUAL EMULATION";
-                    headerValue = currentState.active_idle_anim.toUpperCase().replace('_', ' ');
+                    headerValue = currentState.active_idle_anim.toUpperCase().replace(/_/g, ' ');
                 }
                 
                 alertTitle.innerText = headerTitle;

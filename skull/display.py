@@ -37,6 +37,10 @@ _die_start_time = 0.0
 _die_result = "0"
 _scanning_auspex = False
 _scanning_noosphere = False
+_searching_web = False
+_looking_up_rules = False
+_fetching_news = False
+_retrieving_image = False
 _targeting = False
 _visualizing_music = False
 
@@ -514,6 +518,143 @@ def _render_targeting_frame(bezel, mask, now: float):
         d.polygon([(cx - offset, cy), (cx - offset + 6, cy - 4), (cx - offset + 6, cy + 4)], fill=base)
         d.polygon([(cx + offset, cy), (cx + offset - 6, cy - 4), (cx + offset - 6, cy + 4)], fill=base)
     d.ellipse([cx - 2, cy - 2, cx + 2, cy + 2], fill=base)
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
+def _render_web_search_frame(bezel, mask, now: float):
+    img = bezel.copy()
+    base = _mood_rgb
+    overlay = Image.new("RGB", (W, H), (0, 0, 0))
+    d = ImageDraw.Draw(overlay)
+    angle = (now * 60) % 360
+    for a_deg in range(0, 360, 45):
+        rad = math.radians(a_deg + angle)
+        x2 = _CX + 75 * math.cos(rad)
+        y2 = _CY + 75 * math.sin(rad)
+        d.line([(_CX, _CY), (x2, y2)], fill=_scale(base, 0.25), width=1)
+    for r_base in [20, 45, 70]:
+        r = int((r_base + (now * 25) % 60) % 80)
+        opacity = max(0.1, 1.0 - (r / 80.0))
+        d.ellipse([_CX - r, _CY - r, _CX + r, _CY + r], outline=_scale(base, opacity), width=1)
+    for i in range(4):
+        orbit_rad = math.radians(-angle * 1.5 + i * 90)
+        dist = 40 + 15 * math.sin(now * 3 + i)
+        px = int(_CX + dist * math.cos(orbit_rad))
+        py = int(_CY + dist * math.sin(orbit_rad))
+        d.rectangle([px - 3, py - 3, px + 3, py + 3], fill=base)
+    core_r = int(6 + 3 * math.sin(now * 10))
+    d.ellipse([_CX - core_r, _CY - core_r, _CX + core_r, _CY + core_r], fill=base)
+    try:
+        font = _get_font(10)
+        d.text((_CX - 45, 45), "NOOSPHERE SEARCH", fill=base, font=font)
+        d.text((_CX - 35, 180), "QUERYING...", fill=_scale(base, 0.7), font=font)
+    except Exception:
+        pass
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
+def _render_rules_lookup_frame(bezel, mask, now: float):
+    img = bezel.copy()
+    base = _mood_rgb
+    overlay = Image.new("RGB", (W, H), (0, 0, 0))
+    d = ImageDraw.Draw(overlay)
+    cog_r = 35
+    teeth = 12
+    cog_angle = (now * 90) % 360
+    for i in range(teeth):
+        a1 = math.radians(i * (360 / teeth) + cog_angle)
+        a2 = math.radians(i * (360 / teeth) + 15 + cog_angle)
+        x1 = _CX + (cog_r + 6) * math.cos(a1)
+        y1 = _CY + (cog_r + 6) * math.sin(a1)
+        x2 = _CX + (cog_r + 6) * math.cos(a2)
+        y2 = _CY + (cog_r + 6) * math.sin(a2)
+        d.line([(x1, y1), (x2, y2)], fill=base, width=3)
+    d.ellipse([_CX - cog_r, _CY - cog_r, _CX + cog_r, _CY + cog_r], outline=base, width=2)
+    d.ellipse([_CX - 15, _CY - 15, _CX + 15, _CY + 15], outline=_scale(base, 0.6), width=1)
+    for line_idx in range(5):
+        y_pos = int(50 + line_idx * 32 + (now * 40) % 32)
+        if 40 <= y_pos <= 190:
+            width_val = int(30 + 40 * math.sin(line_idx * 1.5 + now * 4))
+            d.line([(_CX - width_val, y_pos), (_CX + width_val, y_pos)], fill=_scale(base, 0.4), width=1)
+    b_off = 65
+    d.rectangle([_CX - b_off, _CY - b_off, _CX + b_off, _CY + b_off], outline=_scale(base, 0.5), width=1)
+    d.line([(_CX - b_off, _CY - b_off), (_CX - b_off + 12, _CY - b_off)], fill=base, width=2)
+    d.line([(_CX - b_off, _CY - b_off), (_CX - b_off, _CY - b_off + 12)], fill=base, width=2)
+    d.line([(_CX + b_off, _CY - b_off), (_CX + b_off - 12, _CY - b_off)], fill=base, width=2)
+    d.line([(_CX + b_off, _CY - b_off), (_CX + b_off, _CY - b_off + 12)], fill=base, width=2)
+    d.line([(_CX - b_off, _CY + b_off), (_CX - b_off + 12, _CY + b_off)], fill=base, width=2)
+    d.line([(_CX - b_off, _CY + b_off), (_CX - b_off, _CY + b_off - 12)], fill=base, width=2)
+    d.line([(_CX + b_off, _CY + b_off), (_CX + b_off - 12, _CY + b_off)], fill=base, width=2)
+    d.line([(_CX + b_off, _CY + b_off), (_CX + b_off, _CY + b_off - 12)], fill=base, width=2)
+    try:
+        font = _get_font(10)
+        d.text((_CX - 48, 42), "LIBRARIUM CODEX", fill=base, font=font)
+        d.text((_CX - 38, 185), "SEARCHING...", fill=_scale(base, 0.7), font=font)
+    except Exception:
+        pass
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
+def _render_news_fetch_frame(bezel, mask, now: float):
+    img = bezel.copy()
+    base = _mood_rgb
+    overlay = Image.new("RGB", (W, H), (0, 0, 0))
+    d = ImageDraw.Draw(overlay)
+    points = []
+    for x in range(35, 206, 3):
+        y = int(_CY + 22 * math.sin((x * 0.08) + (now * 8)) * math.cos(now * 2))
+        points.append((x, y))
+    if len(points) > 1:
+        d.line(points, fill=base, width=2)
+    beacon_cy = 65
+    for i in range(3):
+        r = int(8 + ((now * 30 + i * 15) % 35))
+        opacity = max(0.1, 1.0 - (r / 35.0))
+        d.ellipse([_CX - r, beacon_cy - r, _CX + r, beacon_cy + r], outline=_scale(base, opacity), width=1)
+    d.ellipse([_CX - 4, beacon_cy - 4, _CX + 4, beacon_cy + 4], fill=base)
+    bar_x = 185
+    for b in range(5):
+        h_val = 6 + b * 6
+        b_y = 150 - b * 9
+        active = (int(now * 8) % 6) >= b
+        fill_col = base if active else _scale(base, 0.25)
+        d.rectangle([bar_x, b_y - h_val, bar_x + 5, b_y], fill=fill_col)
+    try:
+        font = _get_font(10)
+        d.text((_CX - 42, 40), "VOX TRANSMISSION", fill=base, font=font)
+        d.text((_CX - 40, 175), "RECEIVING RSS...", fill=_scale(base, 0.7), font=font)
+    except Exception:
+        pass
+    img.paste(overlay, (0, 0), mask)
+    return img
+
+
+def _render_image_retrieval_frame(bezel, mask, now: float):
+    img = bezel.copy()
+    base = _mood_rgb
+    overlay = Image.new("RGB", (W, H), (0, 0, 0))
+    d = ImageDraw.Draw(overlay)
+    scan_y = int(45 + ((now * 110) % 150))
+    d.line([(35, scan_y), (205, scan_y)], fill=base, width=3)
+    d.line([(35, scan_y - 2), (205, scan_y - 2)], fill=_scale(base, 0.5), width=1)
+    d.line([(35, scan_y + 2), (205, scan_y + 2)], fill=_scale(base, 0.5), width=1)
+    for gx in range(45, 200, 20):
+        for gy in range(45, 200, 20):
+            if gy < scan_y:
+                d.rectangle([gx, gy, gx + 2, gy + 2], fill=_scale(base, 0.6))
+            else:
+                d.rectangle([gx, gy, gx + 1, gy + 1], fill=_scale(base, 0.15))
+    ap_size = int(55 + 5 * math.sin(now * 6))
+    d.rectangle([_CX - ap_size, _CY - ap_size, _CX + ap_size, _CY + ap_size], outline=_scale(base, 0.7), width=1)
+    try:
+        font = _get_font(10)
+        d.text((_CX - 44, 40), "PICT-FEED RASTER", fill=base, font=font)
+        d.text((_CX - 38, 185), "FETCHING ART...", fill=_scale(base, 0.7), font=font)
+    except Exception:
+        pass
     img.paste(overlay, (0, 0), mask)
     return img
 
@@ -1948,6 +2089,10 @@ def _loop():
             or _rolling_die
             or _scanning_auspex
             or _scanning_noosphere
+            or _searching_web
+            or _looking_up_rules
+            or _fetching_news
+            or _retrieving_image
             or _visualizing_music
             or _showing_custom_image
             or _speaking
@@ -2114,6 +2259,38 @@ def _loop():
                 _blit(_render_noosphere_frame(bezel, mask, now))
             except Exception as e:
                 print(f"[display] noosphere render error: {e}")
+            time.sleep(1 / config.DISPLAY_FPS)
+            continue
+
+        if _searching_web:
+            try:
+                _blit(_render_web_search_frame(bezel, mask, now))
+            except Exception as e:
+                print(f"[display] web search render error: {e}")
+            time.sleep(1 / config.DISPLAY_FPS)
+            continue
+
+        if _looking_up_rules:
+            try:
+                _blit(_render_rules_lookup_frame(bezel, mask, now))
+            except Exception as e:
+                print(f"[display] rules lookup render error: {e}")
+            time.sleep(1 / config.DISPLAY_FPS)
+            continue
+
+        if _fetching_news:
+            try:
+                _blit(_render_news_fetch_frame(bezel, mask, now))
+            except Exception as e:
+                print(f"[display] news fetch render error: {e}")
+            time.sleep(1 / config.DISPLAY_FPS)
+            continue
+
+        if _retrieving_image:
+            try:
+                _blit(_render_image_retrieval_frame(bezel, mask, now))
+            except Exception as e:
+                print(f"[display] image retrieval render error: {e}")
             time.sleep(1 / config.DISPLAY_FPS)
             continue
 
@@ -2365,6 +2542,46 @@ def stop_noosphere_scan() -> None:
     _scanning_noosphere = False
 
 
+def start_web_search() -> None:
+    global _searching_web
+    _searching_web = True
+
+
+def stop_web_search() -> None:
+    global _searching_web
+    _searching_web = False
+
+
+def start_rules_lookup() -> None:
+    global _looking_up_rules
+    _looking_up_rules = True
+
+
+def stop_rules_lookup() -> None:
+    global _looking_up_rules
+    _looking_up_rules = False
+
+
+def start_news_fetch() -> None:
+    global _fetching_news
+    _fetching_news = True
+
+
+def stop_news_fetch() -> None:
+    global _fetching_news
+    _fetching_news = False
+
+
+def start_image_retrieval() -> None:
+    global _retrieving_image
+    _retrieving_image = True
+
+
+def stop_image_retrieval() -> None:
+    global _retrieving_image
+    _retrieving_image = False
+
+
 def set_targeting(active: bool) -> None:
     global _targeting
     _targeting = active
@@ -2394,7 +2611,7 @@ def cleanup() -> None:
 
 def get_state() -> dict:
     global _showing_custom_image, _active_idle_anim, _speaking, _thinking, _target_amp
-    global _scanning_auspex, _scanning_noosphere, _targeting, _visualizing_music, _rolling_die, _die_result
+    global _scanning_auspex, _scanning_noosphere, _searching_web, _looking_up_rules, _fetching_news, _retrieving_image, _targeting, _visualizing_music, _rolling_die, _die_result
     return {
         "showing_custom_image": _showing_custom_image,
         "active_idle_anim": _active_idle_anim,
@@ -2403,6 +2620,10 @@ def get_state() -> dict:
         "amplitude": _target_amp,
         "scanning_auspex": _scanning_auspex,
         "scanning_noosphere": _scanning_noosphere,
+        "searching_web": _searching_web,
+        "looking_up_rules": _looking_up_rules,
+        "fetching_news": _fetching_news,
+        "retrieving_image": _retrieving_image,
         "targeting": _targeting,
         "visualizing_music": _visualizing_music,
         "rolling_die": _rolling_die,
