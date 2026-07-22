@@ -228,6 +228,32 @@ def is_configured() -> bool:
     return bool(config.SPOTIFY_CLIENT_ID and config.SPOTIFY_CLIENT_SECRET)
 
 
+def get_currently_playing() -> str:
+    """Get details on whatever track is currently playing on Spotify across any active device."""
+    try:
+        sp = _client()
+        pb = sp.current_playback()
+        if not pb or not pb.get("is_playing"):
+            return "Nothing is currently playing on Spotify."
+        item = pb.get("item") or {}
+        if not item:
+            return "Spotify is active, but track details could not be retrieved."
+        track_name = item.get("name", "Unknown Track")
+        artists = ", ".join([a.get("name", "") for a in item.get("artists", []) if a.get("name")])
+        album = (item.get("album") or {}).get("name", "Unknown Album")
+        dev_name = (pb.get("device") or {}).get("name", "Unknown Device")
+        progress_ms = pb.get("progress_ms", 0)
+        duration_ms = item.get("duration_ms", 0)
+        
+        mins_prog, secs_prog = divmod(progress_ms // 1000, 60)
+        mins_dur, secs_dur = divmod(duration_ms // 1000, 60)
+        time_str = f"{mins_prog}:{secs_prog:02d} / {mins_dur}:{secs_dur:02d}"
+
+        return f"Currently playing '{track_name}' by {artists} (Album: {album}) [{time_str}] on device '{dev_name}'."
+    except Exception as e:
+        return f"Failed to check Spotify playback: {e}"
+
+
 @retry_spotify_call()
 def is_playing() -> bool:
     if _sp is None:

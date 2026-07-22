@@ -20,7 +20,7 @@ _history: list[dict] = []
 
 # Tools that hit the network/hardware and can take a noticeable moment. Omega-7
 # speaks a short "stand by" before running any of these so the user gets feedback.
-_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings", "register_face", "register_voice", "purge_identity", "connect_bambu_printer", "set_weather_location"}
+_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings", "register_face", "register_voice", "purge_identity", "connect_bambu_printer", "set_weather_location", "get_spotify_current_track"}
 _HISTORY_PATH = config.data_path(config.HISTORY_FILE)
 _last_turn_tools: list[str] = []
 
@@ -815,6 +815,18 @@ def _build_tools() -> list[dict]:
                 }
             },
             "required": ["change"]
+        }
+    },
+    {
+        "name": "get_spotify_current_track",
+        "description": (
+            "Check what song, artist, album, or track is currently playing on Spotify on any connected device. "
+            "Use when the user asks 'what song is playing?', 'what's playing on Spotify right now?', 'who sings this?', etc."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": []
         }
     },
     {
@@ -2300,6 +2312,10 @@ def _tool_adjust_spotify_volume(i):
     from skull import spotify_ctrl
     return spotify_ctrl.adjust_volume(change)
 
+def _tool_get_spotify_current_track(i):
+    from skull import spotify_ctrl
+    return spotify_ctrl.get_currently_playing()
+
 def _tool_refresh_voice_cache(i):
     if _RELOAD_VOICE_CACHE_CB:
         return _RELOAD_VOICE_CACHE_CB()
@@ -2405,6 +2421,7 @@ _TOOL_REGISTRY = {
     "roll_epic_dice": _tool_roll_epic_dice,
     "set_spotify_volume": _tool_set_spotify_volume,
     "adjust_spotify_volume": _tool_adjust_spotify_volume,
+    "get_spotify_current_track": _tool_get_spotify_current_track,
     "refresh_voice_cache": _tool_refresh_voice_cache,
     "self_update": _tool_self_update,
     "reboot_system": _tool_reboot_system,
