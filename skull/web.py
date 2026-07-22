@@ -1334,20 +1334,20 @@ HTML_CLIENT = """<!DOCTYPE html>
                 <div class="telemetry">
                     <div class="telemetry-item">
                         <div class="sensor-header">
-                            <span class="telemetry-label">CORE TEMP:</span>
-                            <span id="temp-val" class="telemetry-value">--.-°C</span>
-                        </div>
-                        <div class="sensor-bar-container">
-                            <div id="temp-bar" class="sensor-bar" style="width: 0%;"></div>
-                        </div>
-                    </div>
-                    <div class="telemetry-item">
-                        <div class="sensor-header">
                             <span class="telemetry-label">CPU:</span>
                             <span id="cpu-val" class="telemetry-value">--.-%</span>
                         </div>
                         <div class="sensor-bar-container">
                             <div id="cpu-bar" class="sensor-bar" style="width: 0%;"></div>
+                        </div>
+                    </div>
+                    <div class="telemetry-item">
+                        <div class="sensor-header">
+                            <span class="telemetry-label">CORE TEMP:</span>
+                            <span id="temp-val" class="telemetry-value">--.-°C</span>
+                        </div>
+                        <div class="sensor-bar-container">
+                            <div id="temp-bar" class="sensor-bar" style="width: 0%;"></div>
                         </div>
                     </div>
                     <div class="telemetry-item">
