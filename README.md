@@ -38,7 +38,7 @@ Simply speak the wake phrase — **"Servitor"** — and it wakes, ignites its to
 
 ---
 
-## 🌐 Adeptus Mechanicus Web Remote (Port 8080)
+## 🌐 Adeptus Mechanicus Web Remote
 
 Omega-7 hosts a responsive, green-phosphor CRT tactical display accessible securely over HTTPS.
 
