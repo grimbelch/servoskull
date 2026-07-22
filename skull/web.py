@@ -1168,78 +1168,89 @@ HTML_CLIENT = """<!DOCTYPE html>
         /* Mobile Responsive Overrides (Must stay at bottom of style block) */
         @media (max-width: 768px) {
             .screen {
-                padding: 4px !important;
+                padding: 2px !important;
                 overflow-x: hidden !important;
             }
             .container {
                 grid-template-columns: 1fr !important;
-                padding: 8px 6px !important;
-                gap: 12px !important;
+                padding: 6px 4px !important;
+                gap: 10px !important;
                 width: 100% !important;
                 max-width: 100% !important;
                 overflow-x: hidden !important;
             }
+            .header {
+                padding-bottom: 8px !important;
+                margin-bottom: 6px !important;
+                gap: 6px !important;
+            }
             .header h1 {
-                font-size: 15px !important;
-                letter-spacing: 0.5px !important;
+                font-size: 13px !important;
+                letter-spacing: 0px !important;
                 flex-wrap: wrap !important;
-                line-height: 1.3 !important;
+                line-height: 1.2 !important;
                 word-break: break-word !important;
             }
             .cog-logo {
-                width: 18px !important;
-                height: 18px !important;
+                width: 16px !important;
+                height: 16px !important;
                 flex-shrink: 0 !important;
             }
             .telemetry {
+                display: flex !important;
+                flex-direction: column !important;
+                width: 100% !important;
                 gap: 6px !important;
-                padding: 4px !important;
+                padding: 2px !important;
             }
             .telemetry-item, .telemetry-item.text-only {
                 flex: 1 1 100% !important;
                 width: 100% !important;
-                min-width: 0 !important;
+                min-width: 100% !important;
+                max-width: 100% !important;
                 box-sizing: border-box !important;
                 padding: 6px 8px !important;
             }
             .telemetry-label {
                 font-size: 10px !important;
+                letter-spacing: 0.5px !important;
             }
             .telemetry-value {
                 font-size: 10px !important;
+                letter-spacing: 0.5px !important;
                 word-break: break-all !important;
             }
             .alert-banner {
-                padding: 14px 6px 10px 6px !important;
+                padding: 12px 4px 8px 4px !important;
                 width: 100% !important;
                 box-sizing: border-box !important;
             }
             .alert-banner::before {
                 font-size: 8px !important;
-                letter-spacing: 1px !important;
+                letter-spacing: 0.5px !important;
                 top: -9px !important;
                 content: "◆ MONITORING ACTIVE ◆" !important;
             }
             .alert-title {
-                font-size: 10px !important;
-                letter-spacing: 1px !important;
+                font-size: 9px !important;
+                letter-spacing: 0.5px !important;
             }
             .alert-value {
-                font-size: 14px !important;
-                letter-spacing: 1px !important;
+                font-size: 13px !important;
+                letter-spacing: 0px !important;
                 word-break: break-word !important;
                 white-space: normal !important;
             }
             .ocular-pane, .camera-pane, .control-pane, .console-container {
-                padding: 10px 8px !important;
+                padding: 8px 6px !important;
             }
             .ocular-ring, .camera-screen {
-                width: 240px !important;
-                height: 240px !important;
+                width: 220px !important;
+                height: 220px !important;
                 max-width: 100% !important;
             }
             .aux-panel {
-                padding: 8px 8px !important;
+                padding: 6px 6px !important;
             }
             .aux-controls {
                 flex-direction: column !important;
@@ -1247,7 +1258,7 @@ HTML_CLIENT = """<!DOCTYPE html>
             }
             .input-bar {
                 flex-wrap: wrap !important;
-                gap: 8px !important;
+                gap: 6px !important;
             }
             .input-bar input {
                 width: 100% !important;
@@ -1258,11 +1269,11 @@ HTML_CLIENT = """<!DOCTYPE html>
                 flex: 1 1 calc(50% - 4px) !important;
                 text-align: center !important;
                 justify-content: center !important;
-                padding: 12px 8px !important;
+                padding: 10px 6px !important;
             }
             .pane-title, .aux-title {
-                font-size: 11px !important;
-                letter-spacing: 0.5px !important;
+                font-size: 10px !important;
+                letter-spacing: 0px !important;
                 word-break: break-word !important;
             }
         }
