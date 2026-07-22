@@ -2130,6 +2130,7 @@ def _render_spectrum_bars_frame(bezel, mask, now):
 
 def _loop():
     global _rolling_die, _showing_omnissiah_glyph, _showing_custom_image, _custom_image, _custom_image_expiry
+    global _showing_alignment, _alignment_until
     global _last_activity_time, _active_idle_anim, _custom_idle_expiry, _requested_idle_anim
     bezel = _make_bezel()
     mask = _make_iris_mask()
