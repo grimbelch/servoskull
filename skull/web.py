@@ -630,99 +630,6 @@ HTML_CLIENT = """<!DOCTYPE html>
         .frame-bracket::before { bottom: -2px; left: -2px; border-width: 0 0 4px 4px; }
         .frame-bracket::after { bottom: -2px; right: -2px; border-width: 0 4px 4px 0; }
 
-        @media (max-width: 768px) {
-            .screen {
-                padding: 4px;
-                overflow-x: hidden;
-            }
-            .container {
-                grid-template-columns: 1fr;
-                padding: 8px 6px;
-                gap: 12px;
-                width: 100%;
-                max-width: 100%;
-                overflow-x: hidden;
-            }
-            .header h1 {
-                font-size: 15px;
-                letter-spacing: 0.5px;
-                flex-wrap: wrap;
-                line-height: 1.3;
-                word-break: break-word;
-            }
-            .cog-logo {
-                width: 18px;
-                height: 18px;
-                flex-shrink: 0;
-            }
-            .telemetry {
-                gap: 6px;
-                padding: 4px;
-            }
-            .telemetry-item, .telemetry-item.text-only {
-                flex: 1 1 100%;
-                width: 100%;
-                min-width: 0;
-                box-sizing: border-box;
-                padding: 6px 8px;
-            }
-            .alert-banner {
-                padding: 14px 6px 10px 6px;
-                width: 100%;
-                box-sizing: border-box;
-            }
-            .alert-banner::before {
-                font-size: 8px;
-                letter-spacing: 1px;
-                top: -9px;
-                content: "◆ MONITORING ACTIVE ◆";
-            }
-            .alert-title {
-                font-size: 10px;
-                letter-spacing: 1px;
-            }
-            .alert-value {
-                font-size: 15px;
-                letter-spacing: 1px;
-                word-break: break-word;
-                white-space: normal;
-            }
-            .ocular-pane, .camera-pane, .control-pane, .console-container {
-                padding: 10px 8px;
-            }
-            .ocular-ring, .camera-screen {
-                width: 250px;
-                height: 250px;
-                max-width: 100%;
-            }
-            .aux-panel {
-                padding: 8px 8px;
-            }
-            .aux-controls {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            .input-bar {
-                flex-wrap: wrap;
-                gap: 8px;
-            }
-            .input-bar input {
-                width: 100%;
-                flex: 1 1 100%;
-                box-sizing: border-box;
-            }
-            .send-btn, .mic-btn {
-                flex: 1 1 calc(50% - 4px);
-                text-align: center;
-                justify-content: center;
-                padding: 12px 8px;
-            }
-            .pane-title, .aux-title {
-                font-size: 11px;
-                letter-spacing: 0.5px;
-                word-break: break-word;
-            }
-        }
 
         /* Heading & Telemetry Section */
         .header {
@@ -1258,6 +1165,106 @@ HTML_CLIENT = """<!DOCTYPE html>
         }
         ::-webkit-scrollbar-thumb:hover {
             background: var(--bright-green);
+        /* Mobile Responsive Overrides (Must stay at bottom of style block) */
+        @media (max-width: 768px) {
+            .screen {
+                padding: 4px !important;
+                overflow-x: hidden !important;
+            }
+            .container {
+                grid-template-columns: 1fr !important;
+                padding: 8px 6px !important;
+                gap: 12px !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                overflow-x: hidden !important;
+            }
+            .header h1 {
+                font-size: 15px !important;
+                letter-spacing: 0.5px !important;
+                flex-wrap: wrap !important;
+                line-height: 1.3 !important;
+                word-break: break-word !important;
+            }
+            .cog-logo {
+                width: 18px !important;
+                height: 18px !important;
+                flex-shrink: 0 !important;
+            }
+            .telemetry {
+                gap: 6px !important;
+                padding: 4px !important;
+            }
+            .telemetry-item, .telemetry-item.text-only {
+                flex: 1 1 100% !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                box-sizing: border-box !important;
+                padding: 6px 8px !important;
+            }
+            .telemetry-label {
+                font-size: 10px !important;
+            }
+            .telemetry-value {
+                font-size: 10px !important;
+                word-break: break-all !important;
+            }
+            .alert-banner {
+                padding: 14px 6px 10px 6px !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+            .alert-banner::before {
+                font-size: 8px !important;
+                letter-spacing: 1px !important;
+                top: -9px !important;
+                content: "◆ MONITORING ACTIVE ◆" !important;
+            }
+            .alert-title {
+                font-size: 10px !important;
+                letter-spacing: 1px !important;
+            }
+            .alert-value {
+                font-size: 14px !important;
+                letter-spacing: 1px !important;
+                word-break: break-word !important;
+                white-space: normal !important;
+            }
+            .ocular-pane, .camera-pane, .control-pane, .console-container {
+                padding: 10px 8px !important;
+            }
+            .ocular-ring, .camera-screen {
+                width: 240px !important;
+                height: 240px !important;
+                max-width: 100% !important;
+            }
+            .aux-panel {
+                padding: 8px 8px !important;
+            }
+            .aux-controls {
+                flex-direction: column !important;
+                align-items: stretch !important;
+            }
+            .input-bar {
+                flex-wrap: wrap !important;
+                gap: 8px !important;
+            }
+            .input-bar input {
+                width: 100% !important;
+                flex: 1 1 100% !important;
+                box-sizing: border-box !important;
+            }
+            .send-btn, .mic-btn {
+                flex: 1 1 calc(50% - 4px) !important;
+                text-align: center !important;
+                justify-content: center !important;
+                padding: 12px 8px !important;
+            }
+            .pane-title, .aux-title {
+                font-size: 11px !important;
+                letter-spacing: 0.5px !important;
+                word-break: break-word !important;
+            }
         }
     </style>
 </head>
