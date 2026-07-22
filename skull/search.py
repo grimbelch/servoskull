@@ -84,6 +84,10 @@ _NECRO_ROUTES = [
         "book of peril", "badzone", "bad zone", "special ammunition", "special ammo",
         "ammunition", "ammo", "wargear", "trading post equipment", "personal equipment",
     ]),
+    ("gangs/gang-lists/house-delaque", [
+        "delaque", "nacht-ghul", "nacht ghul", "phantom", "master of shadow",
+        "from the shadows", "psychoteric", "psy-gheist",
+    ]),
 ]
 
 
@@ -241,9 +245,9 @@ def _extract_relevant(full_text: str, query: str, max_chars: int = 3000) -> str:
     for score, idx, _ in scored:
         if total >= max_chars:
             break
-        # Grab heading + next 3 paragraphs (body text under heading)
+        # Grab heading + next 10 paragraphs (body text & special rules under unit headings)
         start = idx
-        end = min(len(paragraphs), idx + 4)
+        end = min(len(paragraphs), idx + 10)
         for j in range(start, end):
             # stop if we hit the next heading
             if j > idx and paragraphs[j].startswith("#"):
