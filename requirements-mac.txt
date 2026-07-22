@@ -1,4 +1,4 @@
-# Mac development / emulator dependencies
+# Mac development dependencies
 # Run once before this: brew install portaudio
 #
 # Pi/native packages excluded:

@@ -6,7 +6,7 @@ Pi doesn't animate them. A GPIO drives a 2N2222 low-side transistor switch that
 simply gates the candles on/off, so the skull lights its candles when it wakes and
 snuffs them when it powers down.
 
-Mirrors eyes.py: if the hardware/libs are absent (Mac/Windows emulator) or
+Mirrors eyes.py: if the hardware/libs are absent (non-Pi dev host) or
 CANDLE_ENABLED is false, every entry point is a silent no-op.
 """
 

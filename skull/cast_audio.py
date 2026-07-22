@@ -108,7 +108,7 @@ def _get_cast():
 def is_configured() -> bool:
     if not _DEVICE_NAME:
         return False
-    # Casting is opt-in on macOS (emulator/dev) and opt-out on Linux/Pi; see config.
+    # Casting is opt-in on macOS (dev host) and opt-out on Linux/Pi; see config.
     if not config.CAST_ENABLED:
         return False
     # Casting is impossible without pychromecast (not in the Pi requirements). Report

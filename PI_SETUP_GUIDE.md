@@ -268,7 +268,7 @@ eye-LED section told you *not* to use at 3.3 V; on the 5 V candle rail they're c
 
 Add a **10 kΩ resistor from base to GND** so the transistor stays off while GPIO17 floats
 during boot (otherwise the candles may glow faintly until the software drives the pin low).
-Then set `CANDLE_ENABLED=true` in `.env`. On the Mac/Windows emulator and any Pi without the
+Then set `CANDLE_ENABLED=true` in `.env`. On non-Pi dev environments and any Pi without the
 circuit wired, `candles.py` is a silent no-op.
 
 ### Wiring sanity check before powering on

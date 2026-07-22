@@ -5,7 +5,7 @@ physically close, replacing frame-difference motion as the vision trigger.
 Why ToF over the old motion approach: a laser rangefinder fires only on genuine
 physical approach (no false trips from auto-exposure or a changing scene) and it
 works in a dark room, where frame differencing sees nothing. If the sensor or its
-library is absent (the Mac/Windows emulator, or a Pi without the sensor wired),
+library is absent (non-Pi dev hosts, or a Pi without the sensor wired),
 every entry point is a silent no-op and camera.py falls back to motion detection.
 Mirrors the defensive pattern in eyes.py / display.py.
 

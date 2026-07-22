@@ -1,7 +1,6 @@
-# Windows development / emulator dependencies
+# Windows development dependencies
 #
 # PyAudio ships prebuilt wheels for Windows, so no PortAudio install is needed.
-# windows-curses backs the emulator TUI (stdlib `curses` is POSIX-only).
 #
 # Pi/native packages excluded:
 #   apa102-pi  — needs spidev (Linux kernel module)

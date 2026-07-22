@@ -15,7 +15,7 @@ opencv-python>=4.8.0
 Pillow>=10.0.0
 spidev>=3.5
 # Proximity trigger (VL53L1X time-of-flight over I2C) — Pi only; pulls in smbus2.
-# camera.py no-ops the sensor on the Mac/Windows emulator, so it's absent from
+# camera.py no-ops the sensor on non-Pi dev environments, so it's absent from
 # requirements-mac.txt / requirements-windows.txt.
 VL53L1X>=0.0.5
 paho-mqtt>=2.1.0
