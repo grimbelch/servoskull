@@ -1071,14 +1071,14 @@ HTML_CLIENT = """<!DOCTYPE html>
             border-color: var(--border-color);
         }
         
-        button.mic-btn.recording {
+        button.wake-btn.recording, button.mic-btn.recording {
             background-color: var(--bright-green);
             color: #000;
             text-shadow: none;
             animation: pulse 1.5s infinite;
         }
 
-        button.mic-btn.recording .btn-svg {
+        button.wake-btn.recording .btn-svg, button.mic-btn.recording .btn-svg {
             fill: #000;
         }
 
@@ -1332,7 +1332,7 @@ HTML_CLIENT = """<!DOCTYPE html>
                     <input type="text" id="command-input" placeholder="Enter high-level command..." onkeydown="if(event.key === 'Enter') sendCommand()">
                     <button onclick="sendCommand()">SEND</button>
 
-                    <button class="wake-btn icon-btn" onclick="triggerWake()" title="Trigger Voice Listener (Wake)">
+                    <button class="wake-btn icon-btn" id="wake-btn" onclick="toggleMicRecording()" title="Click to Record Web Mic Audio">
                         <svg class="btn-svg" viewBox="0 0 24 24">
                             <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
                             <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
@@ -1661,6 +1661,26 @@ HTML_CLIENT = """<!DOCTYPE html>
 
         // Web Audio Recording
         let mediaStream = null;
+        let isToggleRecording = false;
+
+        async function toggleMicRecording() {
+            const wakeBtn = document.getElementById('wake-btn');
+            if (!isToggleRecording) {
+                isToggleRecording = true;
+                if (wakeBtn) {
+                    wakeBtn.classList.add('recording');
+                    wakeBtn.title = "Click to stop & transmit web mic audio";
+                }
+                await startMicRecording();
+            } else {
+                isToggleRecording = false;
+                if (wakeBtn) {
+                    wakeBtn.classList.remove('recording');
+                    wakeBtn.title = "Click to record web mic audio";
+                }
+                await stopMicRecording();
+            }
+        }
 
         async function startMicRecording() {
             micBtn.classList.add('recording');
@@ -1695,7 +1715,13 @@ HTML_CLIENT = """<!DOCTYPE html>
         }
 
         async function stopMicRecording() {
-            if (!micBtn.classList.contains('recording')) return;
+            isToggleRecording = false;
+            const wakeBtn = document.getElementById('wake-btn');
+            if (wakeBtn) {
+                wakeBtn.classList.remove('recording');
+                wakeBtn.title = "Click to Record Web Mic Audio";
+            }
+            if (!micBtn.classList.contains('recording') && !audioChunks.length) return;
             
             micBtn.classList.remove('recording');
             micBtn.title = "Hold to Speak (Web Mic)";
@@ -1712,6 +1738,7 @@ HTML_CLIENT = """<!DOCTYPE html>
             
             addChatBubble("[Vox input transmitted]", 'chat-user');
             const wavBlob = encodeWAV(audioChunks, 16000);
+            audioChunks = [];
             
             try {
                 const res = await fetch('/api/upload_audio', {
