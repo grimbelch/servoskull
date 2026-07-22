@@ -41,8 +41,40 @@ def log_vox(speaker: str, text: str, timestamp: str | None = None) -> None:
         _vox_buffer.append(entry)
 
 
+def clear_vox_logs() -> None:
+    with _vox_lock:
+        _vox_buffer.clear()
+
+
+def load_vox_history_from_brain() -> None:
+    try:
+        from skull import brain
+        history = brain.get_history()
+        import re
+        for item in history:
+            role = item.get("role")
+            content = item.get("content", "")
+            if not content:
+                continue
+            if role == "user":
+                m = re.match(r'^\[([^\]]+)\]:\s*(.+)$', content)
+                if m:
+                    spk = m.group(1)
+                    txt = m.group(2)
+                else:
+                    spk = "User"
+                    txt = content
+                log_vox(spk, txt, timestamp="History")
+            elif role == "assistant":
+                log_vox(config.SKULL_NAME, content, timestamp="History")
+    except Exception as e:
+        print(f"[web] History load error: {e}")
+
+
 def get_vox_logs() -> list[dict]:
     with _vox_lock:
+        if not _vox_buffer:
+            load_vox_history_from_brain()
         return list(_vox_buffer)
 
 

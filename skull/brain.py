@@ -2238,9 +2238,19 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
     return spoken, cmds
 
 
+def get_history() -> list[dict]:
+    """Return a copy of short-term conversation history."""
+    return list(_history)
+
+
 def reset() -> None:
     _history.clear()
     _save_history()
+    try:
+        from skull import web
+        web.clear_vox_logs()
+    except Exception:
+        pass
 
 
 _IDLE_PROMPT = f"""\
