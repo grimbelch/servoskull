@@ -158,6 +158,11 @@ def play_wav_bytes(
     stop_event: if set mid-playback, audio stops immediately (barge-in interruption).
     """
     import time
+    try:
+        from skull import web
+        web.publish_web_audio(wav_bytes)
+    except Exception:
+        pass
 
     buf = io.BytesIO(wav_bytes)
     rate, data = wavfile.read(buf)
