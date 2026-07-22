@@ -584,7 +584,6 @@ HTML_CLIENT = """<!DOCTYPE html>
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 24px;
-            overflow: hidden;
             box-sizing: border-box;
         }
 
@@ -612,39 +611,41 @@ HTML_CLIENT = """<!DOCTYPE html>
 
         @media (max-width: 768px) {
             .screen {
-                padding: 8px;
+                padding: 4px;
             }
             .container {
                 grid-template-columns: 1fr;
-                padding: 12px;
-                gap: 16px;
+                padding: 10px 8px;
+                gap: 12px;
+                width: 100%;
+                max-width: 100%;
             }
             .header h1 {
-                font-size: 17px;
-                letter-spacing: 1px;
+                font-size: 16px;
+                letter-spacing: 0.5px;
                 flex-wrap: wrap;
                 line-height: 1.3;
             }
             .cog-logo {
-                width: 22px;
-                height: 22px;
+                width: 20px;
+                height: 20px;
                 flex-shrink: 0;
             }
             .telemetry {
-                gap: 8px;
-                padding: 8px;
+                gap: 6px;
+                padding: 6px;
             }
             .telemetry-item {
-                flex: 1 1 calc(50% - 8px);
-                min-width: 120px;
-                padding: 6px 10px;
+                flex: 1 1 calc(50% - 6px);
+                min-width: 110px;
+                padding: 6px 8px;
             }
             .telemetry-item.text-only {
-                flex: 1 1 calc(50% - 8px);
-                min-width: 110px;
+                flex: 1 1 calc(50% - 6px);
+                min-width: 100px;
             }
             .alert-banner {
-                padding: 16px 10px 10px 10px;
+                padding: 16px 8px 10px 8px;
             }
             .alert-banner::before {
                 font-size: 9px;
@@ -657,19 +658,19 @@ HTML_CLIENT = """<!DOCTYPE html>
                 letter-spacing: 2px;
             }
             .alert-value {
-                font-size: 18px;
-                letter-spacing: 3px;
+                font-size: 17px;
+                letter-spacing: 2px;
             }
-            .ocular-pane, .camera-pane {
-                padding: 10px;
+            .ocular-pane, .camera-pane, .control-pane, .console-container {
+                padding: 10px 8px;
             }
             .ocular-ring, .camera-screen {
-                width: 100%;
-                max-width: 270px;
-                height: 270px;
+                width: 250px;
+                height: 250px;
+                max-width: 100%;
             }
             .aux-panel {
-                padding: 8px 12px;
+                padding: 8px 8px;
             }
             .aux-controls {
                 flex-direction: column;
@@ -692,7 +693,8 @@ HTML_CLIENT = """<!DOCTYPE html>
             }
             .pane-title, .aux-title {
                 font-size: 11px;
-                letter-spacing: 1px;
+                letter-spacing: 0.5px;
+                word-break: break-word;
             }
         }
 
