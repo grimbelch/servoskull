@@ -2246,6 +2246,7 @@ def trigger_idle_animation(duration: float = 60.0, animation_name: str | None = 
         return
     _custom_idle_expiry = time.monotonic() + duration
     _active_idle_anim = None
+    _last_activity_time = 0.0  # Force idle screensaver mode immediately
     if animation_name and animation_name in _screensaver_anims:
         _requested_idle_anim = animation_name
     else:
