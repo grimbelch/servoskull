@@ -971,16 +971,17 @@ HTML_CLIENT = """<!DOCTYPE html>
         }
 
         .aux-panel {
+            grid-column: 1 / -1;
             width: 100%;
-            border: 2px double var(--border-color);
+            border: 1px solid var(--border-color);
             background: rgba(17, 120, 35, 0.04);
-            padding: 10px 16px;
+            padding: 12px 16px;
             box-sizing: border-box;
-            border-radius: 4px;
+            border-radius: 2px;
             display: flex;
             flex-direction: column;
             gap: 8px;
-            margin-top: 6px;
+            margin-top: 4px;
         }
 
         .aux-title {
@@ -1057,19 +1058,6 @@ HTML_CLIENT = """<!DOCTYPE html>
                     </svg>
                     OMEGA-7 COGITATOR TERMINAL
                 </h1>
-                <!-- Auxiliary Controls Section (Above Telemetry) -->
-                <div class="aux-panel">
-                    <div class="aux-title">[ AUXILIARY COGITATOR CONTROLS ]</div>
-                    <div class="aux-controls">
-                        <div class="aux-item">
-                            <span class="aux-label">VISUAL EMULATION:</span>
-                            <select id="screensaver-select">
-                                <option value="">-- Select Screensaver --</option>
-                            </select>
-                            <button onclick="playScreensaver()">RUN</button>
-                        </div>
-                    </div>
-                </div>
 
                 <div class="telemetry">
                     <div class="telemetry-item">
@@ -1179,6 +1167,20 @@ HTML_CLIENT = """<!DOCTYPE html>
                             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
                         </svg>
                     </button>
+                </div>
+            </div>
+
+            <!-- Auxiliary Controls Section (Above Telemetry Console Feed) -->
+            <div class="aux-panel">
+                <div class="aux-title">[ AUXILIARY COGITATOR CONTROLS ]</div>
+                <div class="aux-controls">
+                    <div class="aux-item">
+                        <span class="aux-label">VISUAL EMULATION:</span>
+                        <select id="screensaver-select">
+                            <option value="">-- Select Screensaver --</option>
+                        </select>
+                        <button onclick="playScreensaver()">RUN</button>
+                    </div>
                 </div>
             </div>
 
