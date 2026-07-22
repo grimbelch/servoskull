@@ -584,6 +584,8 @@ HTML_CLIENT = """<!DOCTYPE html>
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 24px;
+            overflow: hidden;
+            box-sizing: border-box;
         }
 
         /* Diagonal corner cuts for AdMech framing */
@@ -675,9 +677,22 @@ HTML_CLIENT = """<!DOCTYPE html>
             }
             .input-bar {
                 flex-wrap: wrap;
+                gap: 8px;
             }
             .input-bar input {
-                min-width: 120px;
+                width: 100%;
+                flex: 1 1 100%;
+                box-sizing: border-box;
+            }
+            .send-btn, .mic-btn {
+                flex: 1 1 calc(50% - 4px);
+                text-align: center;
+                justify-content: center;
+                padding: 12px 8px;
+            }
+            .pane-title, .aux-title {
+                font-size: 11px;
+                letter-spacing: 1px;
             }
         }
 
@@ -1052,8 +1067,8 @@ HTML_CLIENT = """<!DOCTYPE html>
         }
 
         .btn-svg {
-            width: 18px;
-            height: 18px;
+            width: 16px;
+            height: 16px;
             fill: var(--bright-green);
             transition: fill 0.2s ease;
         }
@@ -1062,24 +1077,33 @@ HTML_CLIENT = """<!DOCTYPE html>
             fill: #000;
         }
 
-        button.wake-btn {
-            background-color: rgba(56, 255, 88, 0.08);
-        }
-
         button.mic-btn {
-            background-color: rgba(0,0,0,0.6);
-            border-color: var(--border-color);
-        }
-        
-        button.wake-btn.recording, button.mic-btn.recording {
-            background-color: var(--bright-green);
-            color: #000;
-            text-shadow: none;
-            animation: pulse 1.5s infinite;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 10px 14px;
+            background-color: rgba(56, 255, 88, 0.08);
+            border-color: var(--bright-green);
+            flex-shrink: 0;
         }
 
-        button.wake-btn.recording .btn-svg, button.mic-btn.recording .btn-svg {
-            fill: #000;
+        button.mic-btn.recording {
+            background-color: #ff3838;
+            border-color: #ff3838;
+            color: #ffffff;
+            text-shadow: none;
+            animation: pulse-red 1.5s infinite;
+        }
+
+        button.mic-btn.recording .btn-svg {
+            fill: #ffffff;
+        }
+
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(255, 56, 56, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 56, 56, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 56, 56, 0); }
         }
 
         @keyframes pulse {
@@ -1330,23 +1354,14 @@ HTML_CLIENT = """<!DOCTYPE html>
                 
                 <div class="input-bar">
                     <input type="text" id="command-input" placeholder="Enter high-level command..." onkeydown="if(event.key === 'Enter') sendCommand()">
-                    <button onclick="sendCommand()">SEND</button>
+                    <button class="send-btn" onclick="sendCommand()">SEND</button>
 
-                    <button class="wake-btn icon-btn" id="wake-btn" onclick="toggleMicRecording()" title="Click to Record Web Mic Audio">
-                        <svg class="btn-svg" viewBox="0 0 24 24">
+                    <button class="mic-btn" id="mic-btn" onclick="toggleMicRecording()" title="Click to Record Web Mic Audio">
+                        <svg class="btn-svg" viewBox="0 0 24 24" style="vertical-align: middle;">
                             <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
                             <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
                         </svg>
-                    </button>
-
-                    <button class="mic-btn icon-btn" id="mic-btn" 
-                            onmousedown="startMicRecording()" onmouseup="stopMicRecording()" 
-                            ontouchstart="startMicRecording()" ontouchend="stopMicRecording()" 
-                            title="Hold to Speak (Web Mic)">
-                        <svg class="btn-svg" viewBox="0 0 24 24">
-                            <circle cx="12" cy="12" r="5"/>
-                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
-                        </svg>
+                        <span id="mic-btn-label">REC</span>
                     </button>
                 </div>
             </div>
@@ -1664,27 +1679,33 @@ HTML_CLIENT = """<!DOCTYPE html>
         let isToggleRecording = false;
 
         async function toggleMicRecording() {
-            const wakeBtn = document.getElementById('wake-btn');
+            const micBtn = document.getElementById('mic-btn');
+            const micLabel = document.getElementById('mic-btn-label');
             if (!isToggleRecording) {
                 isToggleRecording = true;
-                if (wakeBtn) {
-                    wakeBtn.classList.add('recording');
-                    wakeBtn.title = "Click to stop & transmit web mic audio";
+                if (micBtn) {
+                    micBtn.classList.add('recording');
+                    micBtn.title = "Click to stop & transmit web mic audio";
                 }
+                if (micLabel) micLabel.innerText = '● REC...';
                 await startMicRecording();
             } else {
                 isToggleRecording = false;
-                if (wakeBtn) {
-                    wakeBtn.classList.remove('recording');
-                    wakeBtn.title = "Click to record web mic audio";
+                if (micBtn) {
+                    micBtn.classList.remove('recording');
+                    micBtn.title = "Click to record web mic audio";
                 }
+                if (micLabel) micLabel.innerText = 'REC';
                 await stopMicRecording();
             }
         }
 
         async function startMicRecording() {
-            micBtn.classList.add('recording');
-            micBtn.title = "Recording audio...";
+            const micBtn = document.getElementById('mic-btn');
+            if (micBtn) {
+                micBtn.classList.add('recording');
+                micBtn.title = "Recording audio...";
+            }
             audioChunks = [];
 
             try {
@@ -1709,24 +1730,22 @@ HTML_CLIENT = """<!DOCTYPE html>
                 micBtn.audioSource = source;
             } catch (err) {
                 console.error("Mic access failed:", err);
-                addChatBubble("Failed to access browser microphone.", 'chat-skull');
+                addChatBubble("Browser mic blocked or unavailable. Please grant microphone permissions or type your command directly.", 'chat-skull');
                 stopMicRecording();
             }
         }
 
         async function stopMicRecording() {
             isToggleRecording = false;
-            const wakeBtn = document.getElementById('wake-btn');
-            if (wakeBtn) {
-                wakeBtn.classList.remove('recording');
-                wakeBtn.title = "Click to Record Web Mic Audio";
+            const micBtn = document.getElementById('mic-btn');
+            const micLabel = document.getElementById('mic-btn-label');
+            if (micBtn) {
+                micBtn.classList.remove('recording');
+                micBtn.title = "Click to Record Web Mic Audio";
             }
-            if (!micBtn.classList.contains('recording') && !audioChunks.length) return;
+            if (micLabel) micLabel.innerText = 'REC';
             
-            micBtn.classList.remove('recording');
-            micBtn.title = "Hold to Speak (Web Mic)";
-
-            if (micBtn.audioProcessor) {
+            if (micBtn && micBtn.audioProcessor) {
                 micBtn.audioProcessor.disconnect();
                 micBtn.audioSource.disconnect();
             }
