@@ -18,7 +18,11 @@ def _rules_dir() -> pathlib.Path:
     repo_root = pathlib.Path(__file__).resolve().parent.parent
     data_dir = pathlib.Path(os.getenv("OMEGA7_DATA_DIR", "~/.config/omega7")).expanduser()
     rules = pathlib.Path(os.getenv("RULES_DIR", "Rules")).expanduser()
-    return rules if rules.is_absolute() else data_dir / rules
+    if rules.is_absolute():
+        return rules
+    if (repo_root / rules).exists():
+        return repo_root / rules
+    return data_dir / rules
 
 _WMO_CODES: dict[int, str] = {
     0: "clear sky",
