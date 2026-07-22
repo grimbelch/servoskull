@@ -24,6 +24,24 @@ _log_lock = threading.RLock()
 _vox_buffer = collections.deque(maxlen=100)
 _vox_lock = threading.RLock()
 
+_latest_audio_bytes: bytes | None = None
+_latest_audio_id: int = 0
+_audio_lock = threading.Lock()
+
+
+def publish_web_audio(wav_bytes: bytes) -> None:
+    global _latest_audio_bytes, _latest_audio_id
+    if not wav_bytes:
+        return
+    with _audio_lock:
+        _latest_audio_bytes = wav_bytes
+        _latest_audio_id = int(time.time() * 1000)
+
+
+def get_latest_web_audio() -> tuple[bytes | None, int]:
+    with _audio_lock:
+        return _latest_audio_bytes, _latest_audio_id
+
 
 def log_vox(speaker: str, text: str, timestamp: str | None = None) -> None:
     if not text or not text.strip():
@@ -295,8 +313,25 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                 "logs": get_logs(),
                 "vox_logs": get_vox_logs(),
                 "camera_active": __import__("skull.camera", fromlist=["is_camera_active"]).is_camera_active() if hasattr(__import__("skull.camera", fromlist=["is_camera_active"]), "is_camera_active") else False,
+                "audio_id": get_latest_web_audio()[1],
             }
             self._send_json(state_data)
+            return
+
+        elif self.path.startswith("/api/last_speech.wav"):
+            wav_bytes, _ = get_latest_web_audio()
+            if wav_bytes:
+                self.send_response(200)
+                self.send_header("Content-Type", "audio/wav")
+                self.send_header("Content-Length", str(len(wav_bytes)))
+                self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                self.send_header("Pragma", "no-cache")
+                self.send_header("Expires", "0")
+                self.end_headers()
+                self.wfile.write(wav_bytes)
+            else:
+                self.send_response(404)
+                self.end_headers()
             return
             
         elif self.path == "/api/custom_image.jpg":
@@ -1327,6 +1362,10 @@ HTML_CLIENT = """<!DOCTYPE html>
                         </select>
                         <button onclick="playScreensaver()">RUN</button>
                     </div>
+                    <div class="aux-item">
+                        <span class="aux-label">VOX AUDIO OUTPUT:</span>
+                        <button id="web-audio-btn" onclick="toggleWebAudio()">🔊 WEB AUDIO: ENABLED</button>
+                    </div>
                 </div>
             </div>
 
@@ -1377,11 +1416,53 @@ HTML_CLIENT = """<!DOCTYPE html>
         let mediaRecorder = null;
         let audioChunks = [];
 
+        let webAudioEnabled = true;
+        let lastAudioId = 0;
+        let currentAudioObj = null;
+
+        function toggleWebAudio() {
+            webAudioEnabled = !webAudioEnabled;
+            const btn = document.getElementById('web-audio-btn');
+            if (webAudioEnabled) {
+                btn.innerText = '🔊 WEB AUDIO: ENABLED';
+                btn.style.color = 'var(--bright-green)';
+                const silentAudio = new Audio();
+                silentAudio.play().catch(() => {});
+            } else {
+                btn.innerText = '🔇 WEB AUDIO: DISABLED';
+                btn.style.color = 'var(--dim-green)';
+                if (currentAudioObj) {
+                    currentAudioObj.pause();
+                }
+            }
+        }
+
+        document.addEventListener('click', function unlockAudio() {
+            const dummy = new Audio();
+            dummy.play().catch(() => {});
+        }, { once: true });
+
         // Fetch State loop
         async function fetchState() {
             try {
                 const res = await fetch('/api/state');
                 const data = await res.json();
+                
+                // Stream Web Vox Audio if new speech generated
+                if (data.audio_id && data.audio_id > lastAudioId) {
+                    if (lastAudioId === 0) {
+                        lastAudioId = data.audio_id;
+                    } else {
+                        lastAudioId = data.audio_id;
+                        if (webAudioEnabled) {
+                            if (currentAudioObj) {
+                                currentAudioObj.pause();
+                            }
+                            currentAudioObj = new Audio('/api/last_speech.wav?id=' + data.audio_id);
+                            currentAudioObj.play().catch(e => console.log('Web audio playback:', e));
+                        }
+                    }
+                }
                 
                 // Update basic telemetry
                 tempVal.innerText = data.temperature;
