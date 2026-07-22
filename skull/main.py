@@ -711,10 +711,10 @@ def main():
             _rec_exc: list = [None]
             _rec_done = threading.Event()
 
-            # Answering a question allows for a longer reply window (25s max) and a more
-            # patient silence threshold timeout (3.0s) so the user can pause to think.
-            rec_secs = 25 if is_answering_question else config.RECORD_SECONDS
-            silence_dur = 3.0 if is_answering_question else config.SILENCE_DURATION
+            # Answering a question allows for a longer reply window (30s max) and a more
+            # patient silence threshold timeout (4.5s) so the user can dictate numbers/codes.
+            rec_secs = 30 if is_answering_question else config.RECORD_SECONDS
+            silence_dur = 4.5 if is_answering_question else config.SILENCE_DURATION
 
             def _do_record():
                 try:
