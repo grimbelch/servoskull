@@ -28,11 +28,12 @@ Simply speak the wake phrase — **"Servitor"** — and it wakes, ignites its to
 | :--- | :--- |
 | **🗣️ In-Character Voice AI** | Wakes to *"Servitor"*, processing queries with Anthropic Claude and speaking aloud via local Piper or ElevenLabs text-to-speech. Formal, archaic, and devoted to the Emperor. |
 | **👁️ Computer Vision & Biometrics** | Arducam IMX708 autofocus camera for scene description (*"What do you see?"*), SFace facial recognition, and GMM voice profile identification. |
-| **💡 Physical Eye HUD & Candle LEDs** | GC9A01 1.28" circular IPS panel "machine-spirit eye" with 6 dynamic HUD animation states and 30 screensavers. Transistor-switched flame LEDs ignite on wake and extinguish on sleep. |
-| **📖 Offline Tabletop Rules Engine** | Instant lookup for **Warhammer 40,000 (11th ed.)**, **Necromunda**, **NetEpic**, and **Net Epic Armageddon** datasheets, stratagems, weapon traits, and points. |
+| **💡 Physical Eye HUD & Candle LEDs** | GC9A01 1.28" circular IPS panel "machine-spirit eye" with 6 dynamic HUD animation states, 30 screensavers, and **Live Visual UP Alignment Mode (`▲`)** for precision rotation. Transistor-switched flame LEDs ignite on wake and extinguish on sleep. |
+| **📖 Offline Tabletop Rules Engine** | Instant lookup for **Warhammer 40,000 (11th ed.)**, **Necromunda**, **NetEpic**, and **Net Epic Armageddon** datasheets, stratagems, weapon traits, skills, and points. |
 | **🎲 Tabletop Dice Simulator** | Intercepts dice requests (standard, firepower, injury, scatter, order, save) with sound effects and projects vector-drawn alphanumeric outcomes directly onto the eye HUD. |
-| **🖨️ Bambu Lab 3D Printer Telemetry** | Secure local MQTT client monitoring active print progress, nozzle/bed temperatures, and vocalizing diagnostic HMS fault warnings. |
-| **🎵 Spotify & Bluetooth Control** | Hands-free music playback, volume adjustment, and Bluetooth speaker discovery/pairing. |
+| **🖨️ Bambu Lab 3D Printer Telemetry** | Secure local MQTT client monitoring active print progress, nozzle/bed temperatures, and vocalizing diagnostic HMS fault warnings. Includes **Step-by-Step Voice Pairing** (*"Connect to a new 3D printer"*). |
+| **🎵 Spotify Playback & Bluetooth Control** | Hands-free music playback, live playback status queries (*"What song is playing on Spotify?"*), volume control, and Bluetooth speaker discovery/pairing. |
+| **⚙️ Hands-Free Verbal Configuration** | Reconfigure system settings verbally: geocode weather locations (*"Set weather location to Seattle"*), adjust eye rotation, tune mic sensitivity, or change Google Home cast targets. |
 | **🧠 Proactive Memory & Reminders** | Remembers facts across conversations, tracks personal preferences, maintains drifting personality states, and delivers daily morning briefings (weather + news). |
 | **🌐 Adeptus Mechanicus Web Remote** | A retro green CRT web remote running securely over HTTPS on port 8080 with live telemetry, video feed mirror, and mic streaming. |
 
@@ -60,6 +61,7 @@ Omega-7 hosts a responsive, green-phosphor CRT tactical display accessible secur
 The circular GC9A01 IPS panel serves as Omega-7's main visual feedback element, dynamically updating across multiple states:
 
 - **Praise the Omnissiah Logo**: High-contrast Mechanicus skull-cog vector rendering expanding on boot and code updates.
+- **UP Alignment Calibration Mode**: Bright green `▲` UP arrow and cyan compass ring pointing to 12 o'clock for real-time visual hardware display rotation.
 - **Auspex Scan**: Concentric Noosphere beacon pulsing waves mapping surroundings.
 - **Targeting Lock-On**: Floating crosshair tracking target focus during vision queries.
 - **Equalizer Visualizer**: Bouncing frequency bars synchronized to Spotify playback.
@@ -75,10 +77,21 @@ The circular GC9A01 IPS panel serves as Omega-7's main visual feedback element, 
 <summary><b>🎵 Music & Audio Control (Spotify & Bluetooth)</b></summary>
 
 - **Play Music**: *"Play [song/artist/playlist]"*, *"Play Warhammer soundtrack"*
+- **Track Status**: *"What song is playing on Spotify right now?"*, *"Who sings this track?"*
 - **Playback**: *"Pause"*, *"Resume"*, *"Skip track"*
 - **System Volume**: *"Set volume to 80"*, *"Louder"*, *"Quieter"*
 - **Spotify Volume**: *"Set Spotify volume to 50"*
 - **Bluetooth Pairing**: *"Scan for Bluetooth speakers"*, *"Connect to speaker [name/number]"*
+</details>
+
+<details>
+<summary><b>⚙️ System & Hardware Verbal Configuration</b></summary>
+
+- **Weather Location**: *"Set my location for weather to Seattle, WA"*, *"Change weather location to Chicago"*
+- **Eye Rotation Calibration**: *"Show me up on the display"* (shows green UP arrow), *"Rotate eye display 15 degrees clockwise"*
+- **Microphone Sensitivity**: *"Make microphone more sensitive to quiet speech"*, *"Increase noise rejection for a loud room"*
+- **3D Printer Voice Pairing**: *"Connect to a new 3D printer"* (guided sequential setup: IP -> Serial -> Access Code)
+- **Google Home Casting**: *"Set default cast speaker to Living Room Speaker"*, *"Disable audio casting"*
 </details>
 
 <details>
@@ -88,7 +101,7 @@ The circular GC9A01 IPS panel serves as Omega-7's main visual feedback element, 
 - **Necromunda Special Dice**: *"Roll a Necromunda injury dice"*, *"Roll firepower"*, *"Roll scatter"*
 - **Active Game Setting**: *"Set active game to Necromunda"*, *"We are playing Warhammer 40k"*
 - **Warhammer 40,000**: *"What does [Ability/Stratagem] do?"*, *"Look up [Unit Name] stats"*
-- **Necromunda**: *"What are the rules for [Weapon Trait/Skill]?"*, *"Look up Trading Post cost for plasma pistol"*
+- **Necromunda**: *"What are the rules for [Weapon Trait/Skill]?"*, *"What does From the Shadows do?"*, *"Look up Trading Post cost for plasma pistol"*
 </details>
 
 <details>
