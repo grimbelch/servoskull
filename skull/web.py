@@ -774,10 +774,11 @@ HTML_CLIENT = """<!DOCTYPE html>
         .control-pane {
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 12px;
             border: 1px solid var(--border-color);
             padding: 15px;
             background: rgba(0,0,0,0.4);
+            min-height: 380px;
         }
 
         .pane-title {
@@ -793,7 +794,8 @@ HTML_CLIENT = """<!DOCTYPE html>
         /* Chat feed / console interface */
         .chat-container {
             flex-grow: 1;
-            height: 200px;
+            height: 320px;
+            min-height: 300px;
             border: 1px solid var(--border-color);
             background: rgba(0, 0, 0, 0.6);
             padding: 12px;
@@ -872,10 +874,26 @@ HTML_CLIENT = """<!DOCTYPE html>
             box-shadow: 0 0 10px var(--glow-color);
         }
 
-        .action-buttons {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
+        /* Small Icon Buttons for Mic Controls */
+        .icon-btn {
+            width: 38px;
+            height: 38px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .btn-svg {
+            width: 18px;
+            height: 18px;
+            fill: var(--bright-green);
+            transition: fill 0.2s ease;
+        }
+
+        button:hover .btn-svg {
+            fill: #000;
         }
 
         button.wake-btn {
@@ -892,6 +910,10 @@ HTML_CLIENT = """<!DOCTYPE html>
             color: #000;
             text-shadow: none;
             animation: pulse 1.5s infinite;
+        }
+
+        button.mic-btn.recording .btn-svg {
+            fill: #000;
         }
 
         @keyframes pulse {
@@ -1073,11 +1095,23 @@ HTML_CLIENT = """<!DOCTYPE html>
                         <option value="">-- Select Screensaver --</option>
                     </select>
                     <button onclick="playScreensaver()">RUN</button>
-                </div>
 
-                <div class="action-buttons">
-                    <button class="wake-btn" onclick="triggerWake()">TRIGGER MIC</button>
-                    <button class="mic-btn" id="mic-btn" onmousedown="startMicRecording()" onmouseup="stopMicRecording()" ontouchstart="startMicRecording()" ontouchend="stopMicRecording()">HOLD TO SPEAK</button>
+                    <button class="wake-btn icon-btn" onclick="triggerWake()" title="Trigger Voice Listener (Wake)">
+                        <svg class="btn-svg" viewBox="0 0 24 24">
+                            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                        </svg>
+                    </button>
+
+                    <button class="mic-btn icon-btn" id="mic-btn" 
+                            onmousedown="startMicRecording()" onmouseup="stopMicRecording()" 
+                            ontouchstart="startMicRecording()" ontouchend="stopMicRecording()" 
+                            title="Hold to Speak (Web Mic)">
+                        <svg class="btn-svg" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="5"/>
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
+                        </svg>
+                    </button>
                 </div>
 
                 <div class="input-bar">
@@ -1318,7 +1352,7 @@ HTML_CLIENT = """<!DOCTYPE html>
 
         async function startMicRecording() {
             micBtn.classList.add('recording');
-            micBtn.innerText = "RECORDING...";
+            micBtn.title = "Recording audio...";
             audioChunks = [];
 
             try {
@@ -1352,7 +1386,7 @@ HTML_CLIENT = """<!DOCTYPE html>
             if (!micBtn.classList.contains('recording')) return;
             
             micBtn.classList.remove('recording');
-            micBtn.innerText = "HOLD TO SPEAK";
+            micBtn.title = "Hold to Speak (Web Mic)";
 
             if (micBtn.audioProcessor) {
                 micBtn.audioProcessor.disconnect();
