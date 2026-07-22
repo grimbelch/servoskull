@@ -53,8 +53,8 @@ _alignment_until = 0.0
 
 def start_alignment_display(duration: float = 60.0):
     global _showing_alignment, _alignment_until
-    _showing_alignment = True
     _alignment_until = time.monotonic() + duration
+    _showing_alignment = True
 
 def stop_alignment_display():
     global _showing_alignment, _alignment_until
@@ -62,7 +62,10 @@ def stop_alignment_display():
     _alignment_until = 0.0
 
 def is_alignment_active() -> bool:
-    return _showing_alignment or (time.monotonic() < _alignment_until)
+    global _showing_alignment, _alignment_until
+    if _showing_alignment and time.monotonic() >= _alignment_until:
+        _showing_alignment = False
+    return _showing_alignment and (time.monotonic() < _alignment_until)
 
 _showing_omnissiah_glyph = False
 _omnissiah_start_time = 0.0
@@ -2367,14 +2370,16 @@ def _loop():
             time.sleep(1 / config.DISPLAY_FPS)
             continue
 
-        alignment_active = _showing_alignment or (now < _alignment_until)
-        if alignment_active:
-            try:
-                _blit(_render_alignment_frame(bezel, mask, now))
-            except Exception as e:
-                print(f"[display] alignment render error: {e}")
-            time.sleep(1 / config.DISPLAY_FPS)
-            continue
+        if _showing_alignment:
+            if now >= _alignment_until:
+                _showing_alignment = False
+            else:
+                try:
+                    _blit(_render_alignment_frame(bezel, mask, now))
+                except Exception as e:
+                    print(f"[display] alignment render error: {e}")
+                time.sleep(1 / config.DISPLAY_FPS)
+                continue
 
         if _targeting:
             try:
