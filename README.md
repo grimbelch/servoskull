@@ -153,7 +153,6 @@ skull/                 Python application package
   memory.py / mood.py  Persistent memory & drifting personality state
   config.py            Single source of truth configuration
 
-emulator/              Mac/Windows desktop visual emulator (no hardware needed)
 Rules/                 Offline rules database (40k, Necromunda, NetEpic, NetEA)
 pi_setup.sh            One-shot Pi installer & service setup
 omega7.service         systemd service descriptor
