@@ -1169,17 +1169,25 @@ HTML_CLIENT = """<!DOCTYPE html>
 
         /* Mobile Responsive Overrides (Must stay at bottom of style block) */
         @media (max-width: 768px) {
-            .screen {
-                padding: 2px !important;
+            html, body {
                 overflow-x: hidden !important;
+                overflow-y: auto !important;
+                touch-action: pan-y !important;
+                -webkit-overflow-scrolling: touch !important;
+            }
+            .screen {
+                padding: 4px 2px !important;
+                overflow: visible !important;
+                touch-action: pan-y !important;
             }
             .container {
                 grid-template-columns: 1fr !important;
-                padding: 6px 4px !important;
+                padding: 8px 4px !important;
                 gap: 10px !important;
                 width: 100% !important;
                 max-width: 100% !important;
-                overflow-x: hidden !important;
+                overflow: visible !important;
+                touch-action: pan-y !important;
             }
             .header {
                 padding-bottom: 8px !important;
