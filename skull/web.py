@@ -395,6 +395,27 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                 pass
             return
 
+        elif self.path.startswith("/api/camera_frame.jpg"):
+            try:
+                from skull import camera
+                img_bytes = camera.get_camera_frame_bytes()
+                if img_bytes:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "image/jpeg")
+                    self.send_header("Content-Length", str(len(img_bytes)))
+                    self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                    self.send_header("Pragma", "no-cache")
+                    self.send_header("Expires", "0")
+                    self.end_headers()
+                    self.wfile.write(img_bytes)
+                else:
+                    self.send_response(404)
+                    self.end_headers()
+            except Exception:
+                self.send_response(404)
+                self.end_headers()
+            return
+
         self.send_response(404)
         self.end_headers()
 
@@ -1342,7 +1363,7 @@ HTML_CLIENT = """<!DOCTYPE html>
                     <div class="ocular-bezel-text bezel-bl" id="cam-bezel-bl">MODE: STANDBY</div>
                     <div class="ocular-bezel-text bezel-br">RESOL: 640x480</div>
 
-                    <img class="camera-canvas" id="camera-stream" src="/api/camera_stream.mjpeg" alt="Camera Feed" style="display: none;">
+                    <img class="camera-canvas" id="camera-stream" alt="Camera Feed" style="display: none;">
                     <div class="camera-placeholder-text" id="camera-standby">[ NO CAMERA STREAM ]<br>STANDBY</div>
                 </div>
             </div>
@@ -1561,12 +1582,14 @@ HTML_CLIENT = """<!DOCTYPE html>
 
                 if (camStream && camStandby) {
                     if (camActive) {
+                        camStream.src = '/api/camera_frame.jpg?t=' + Date.now();
                         camStream.style.display = 'block';
                         camStandby.style.display = 'none';
                         if (camMode) camMode.innerText = 'MODE: LIVE';
-                        if (camFps) camFps.innerText = 'FPS: 15';
+                        if (camFps) camFps.innerText = 'FPS: LIVE';
                     } else {
                         camStream.style.display = 'none';
+                        camStream.removeAttribute('src');
                         camStandby.style.display = 'block';
                         if (camMode) camMode.innerText = 'MODE: STANDBY';
                         if (camFps) camFps.innerText = 'FPS: --';
