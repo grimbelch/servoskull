@@ -1207,27 +1207,35 @@ HTML_CLIENT = """<!DOCTYPE html>
                 flex-shrink: 0 !important;
             }
             .telemetry {
-                display: flex !important;
-                flex-direction: column !important;
-                width: 100% !important;
+                display: grid !important;
+                grid-template-columns: 1fr 1fr !important;
                 gap: 6px !important;
+                width: 100% !important;
                 padding: 2px !important;
             }
             .telemetry-item, .telemetry-item.text-only {
-                flex: 1 1 100% !important;
                 width: 100% !important;
-                min-width: 100% !important;
+                min-width: 0 !important;
                 max-width: 100% !important;
                 box-sizing: border-box !important;
                 padding: 6px 8px !important;
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 4px !important;
+            }
+            .sensor-header {
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 2px !important;
             }
             .telemetry-label {
-                font-size: 10px !important;
+                font-size: 9px !important;
                 letter-spacing: 0.5px !important;
             }
             .telemetry-value {
                 font-size: 10px !important;
-                letter-spacing: 0.5px !important;
+                letter-spacing: 0px !important;
                 word-break: break-all !important;
             }
             .alert-banner {
