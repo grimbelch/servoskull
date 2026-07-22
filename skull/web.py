@@ -739,7 +739,43 @@ HTML_CLIENT = """<!DOCTYPE html>
             align-items: center;
         }
 
-        /* Ocular Bezel Tech Details */
+        /* Right Column: Camera Optic Feed (Placeholder) */
+        .camera-pane {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            background: rgba(0,0,0,0.4);
+            position: relative;
+        }
+
+        .camera-screen {
+            width: 270px;
+            height: 270px;
+            border: 4px double var(--border-color);
+            position: relative;
+            background-color: #000200;
+            box-shadow: 0 0 20px rgba(56, 255, 88, 0.05), inset 0 0 25px rgba(0,0,0,0.95);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .camera-placeholder-text {
+            color: var(--dim-green);
+            font-size: 11px;
+            letter-spacing: 2px;
+            text-align: center;
+            line-height: 1.6;
+            opacity: 0.7;
+        }
+
+        /* Ocular & Camera Bezel Tech Details */
         .ocular-bezel-text {
             position: absolute;
             font-size: 9px;
@@ -770,15 +806,16 @@ HTML_CLIENT = """<!DOCTYPE html>
             opacity: 0.95;
         }
 
-        /* Right Column: Mechanical Vox Control Panel */
+        /* Full Width Section: Vox Control Panel (Under feeds) */
         .control-pane {
+            grid-column: 1 / -1;
+            width: 100%;
             display: flex;
             flex-direction: column;
             gap: 12px;
             border: 1px solid var(--border-color);
             padding: 15px;
             background: rgba(0,0,0,0.4);
-            min-height: 380px;
         }
 
         .pane-title {
@@ -1137,6 +1174,20 @@ HTML_CLIENT = """<!DOCTYPE html>
                     <div class="ocular-bezel-text bezel-br">RA: 18h36m</div>
 
                     <img class="ocular-canvas" id="eye-stream" src="/api/ocular_stream.mjpeg" alt="Ocular View">
+                </div>
+            </div>
+
+            <!-- Right column: Camera Optic Feed (Placeholder) -->
+            <div class="camera-pane">
+                <div class="pane-title" style="width: 100%;">[ CAMERA OPTIC FEED ]</div>
+                <div class="camera-screen" id="camera-screen">
+                    <!-- Overlay Bezel Telemetry -->
+                    <div class="ocular-bezel-text bezel-tl">CAM: 01</div>
+                    <div class="ocular-bezel-text bezel-tr">FPS: --</div>
+                    <div class="ocular-bezel-text bezel-bl">MODE: STANDBY</div>
+                    <div class="ocular-bezel-text bezel-br">RESOL: --</div>
+
+                    <div class="camera-placeholder-text">[ NO CAMERA STREAM ]<br>STANDBY</div>
                 </div>
             </div>
 
