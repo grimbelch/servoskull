@@ -1550,32 +1550,62 @@ def _simulate_epic_dice(
 def _tool_web_search(i):
     query = i.get("query", "")
     print(f"[skull] Searching: {query}")
-    return _search.web_search(query)
+    from skull import display
+    display.start_web_search()
+    try:
+        return _search.web_search(query)
+    finally:
+        display.stop_web_search()
 
 def _tool_news_search(i):
     query = i.get("query", "")
     print(f"[skull] Searching news: {query}")
-    return _search.news_search(query)
+    from skull import display
+    display.start_news_fetch()
+    try:
+        return _search.news_search(query)
+    finally:
+        display.stop_news_fetch()
 
 def _tool_necromunda_rules(i):
     query = i.get("query", "")
     print(f"[skull] Looking up Necromunda rules: {query}")
-    return _search.necromunda_rules(query)
+    from skull import display
+    display.start_rules_lookup()
+    try:
+        return _search.necromunda_rules(query)
+    finally:
+        display.stop_rules_lookup()
 
 def _tool_warhammer40k_rules(i):
     query = i.get("query", "")
     print(f"[skull] Looking up Warhammer 40k rules: {query}")
-    return _search.warhammer40k_rules(query)
+    from skull import display
+    display.start_rules_lookup()
+    try:
+        return _search.warhammer40k_rules(query)
+    finally:
+        display.stop_rules_lookup()
 
 def _tool_netepic_rules(i):
     query = i.get("query", "")
     print(f"[skull] Looking up NetEpic rules: {query}")
-    return _search.netepic_rules(query)
+    from skull import display
+    display.start_rules_lookup()
+    try:
+        return _search.netepic_rules(query)
+    finally:
+        display.stop_rules_lookup()
 
 def _tool_netea_rules(i):
     query = i.get("query", "")
     print(f"[skull] Looking up NetEA rules: {query}")
-    return _search.netea_rules(query)
+    from skull import display
+    display.start_rules_lookup()
+    try:
+        return _search.netea_rules(query)
+    finally:
+        display.stop_rules_lookup()
 
 def _tool_get_weather(i):
     from skull.config import WEATHER_LAT, WEATHER_LON
@@ -1915,9 +1945,14 @@ def _tool_purge_identity(i):
     return _execute_purge_identity(name_val)
 
 def _tool_get_daily_briefing(i):
-    briefing = generate_daily_briefing()
-    mark_daily_briefing_done()
-    return briefing
+    from skull import display
+    display.start_news_fetch()
+    try:
+        briefing = generate_daily_briefing()
+        mark_daily_briefing_done()
+        return briefing
+    finally:
+        display.stop_news_fetch()
 
 _TOOL_REGISTRY = {
     "web_search": _tool_web_search,
@@ -1976,23 +2011,20 @@ def _execute_tool(name: str, tool_input: dict) -> str:
 
 
 def _execute_display_art(search_query: str) -> str:
+    from skull import display
+    display.start_image_retrieval()
     try:
         import requests
         import xml.etree.ElementTree as ET
         import random
         from io import BytesIO
         from PIL import Image
-        from skull import display
 
         # 1. Search DeviantArt RSS feed sorted by popularity.
-        # order=9 is DeviantArt's "sort by popular" parameter for the RSS endpoint.
-        # NOTE: embedding "order:popular" in the query string silently returns 0 results;
-        # the correct approach is the separate &order=9 URL parameter.
         url = (f"https://backend.deviantart.com/rss.xml"
                f"?type=deviation&q={requests.utils.quote(search_query)}&order=9")
         r = requests.get(url, timeout=6.0)
         if r.status_code != 200 or b'<item>' not in r.content:
-            # Fall back to default (recency) sort if popularity sort fails or is empty
             url = f"https://backend.deviantart.com/rss.xml?type=deviation&q={requests.utils.quote(search_query)}"
             r = requests.get(url, timeout=6.0)
             if r.status_code != 200:
@@ -2004,9 +2036,6 @@ def _execute_display_art(search_query: str) -> str:
         if not items:
             return f"No artwork found matching query: {search_query}"
 
-        # 2. Build a scored candidate list from the first 20 results.
-        # Score = pixel area of the full-size image (larger images are more likely
-        # to be polished, professional pieces rather than quick sketches).
         candidates = []
         for it in items[:20]:
             media = it.find('.//media:content', ns)
@@ -2020,7 +2049,7 @@ def _execute_display_art(search_query: str) -> str:
                 h = int(media.get('height', 0) or 0)
             except (TypeError, ValueError):
                 w, h = 0, 0
-            score = w * h if w and h else 1  # fall back to 1 so item still eligible
+            score = w * h if w and h else 1
             title_el = it.find('title')
             title = title_el.text if title_el is not None else 'Unknown'
             candidates.append({'url': img_url, 'title': title, 'score': score})
@@ -2028,19 +2057,15 @@ def _execute_display_art(search_query: str) -> str:
         if not candidates:
             return "No image media links found in the search results."
 
-        # 3. Weighted-random pick from the top 10 by score (favours popular/large art
-        # while still providing variety across requests).
         candidates.sort(key=lambda c: c['score'], reverse=True)
         pool = candidates[:10]
         weights = [max(c['score'], 1) for c in pool]
         chosen = random.choices(pool, weights=weights, k=1)[0]
 
-        # 4. Download the chosen image
         img_res = requests.get(chosen['url'], timeout=8.0)
         if img_res.status_code != 200:
             return f"Failed to download image from {chosen['url']}"
 
-        # 5. Load and display
         img = Image.open(BytesIO(img_res.content))
         display.display_pil_image(img, duration=15.0)
         return f"Successfully projected artwork: '{chosen['title']}' on the eye display."
@@ -2048,6 +2073,8 @@ def _execute_display_art(search_query: str) -> str:
         import traceback
         traceback.print_exc()
         return f"Error displaying artwork: {e}"
+    finally:
+        display.stop_image_retrieval()
 
 
 def _execute_purge_identity(name: str) -> str:
