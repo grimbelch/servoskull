@@ -5,15 +5,15 @@ Claude Vision to describe what it sees in Omega-7 persona.
 Trigger source, chosen automatically at startup:
   * VL53L1X time-of-flight sensor (proximity.py) when present — fires on genuine
     physical approach and works in the dark.
-  * Frame-difference motion detection otherwise — the fallback used by the
-    Mac/Windows emulator and any Pi without the sensor wired.
+  * Frame-difference motion detection otherwise — the fallback used by non-Pi
+    dev hosts and any Pi without the sensor wired.
 
 Runs in a background thread; observations are queued for the main loop.
 Activate by setting CAMERA_ENABLED=true in .env (and PROXIMITY_ENABLED=true to
 use the ToF sensor).
 
 On Raspberry Pi with Camera Module 3: uses picamera2 (pre-installed on Pi OS).
-On Mac/Windows (emulator): falls back to cv2.VideoCapture.
+On non-Pi hosts: falls back to cv2.VideoCapture.
 """
 
 from __future__ import annotations
@@ -118,7 +118,7 @@ def _open_backend():
     close() releases the device.
 
     Prefers picamera2 (Pi Camera Module 3 / IMX708); falls back to
-    cv2.VideoCapture on the emulator. Returns None if no camera can be opened.
+    cv2.VideoCapture on non-Pi dev hosts. Returns None if no camera can be opened.
     """
     try:
         from picamera2 import Picamera2

@@ -6,7 +6,7 @@ with a slow idle "breathing" pulse when silent. Mood tints the iris colour.
 
 Self-contained driver (spidev + RPi.GPIO + Pillow) so it carries no dependency
 on luma/Adafruit supporting GC9A01. Mirrors eyes.py: if the hardware or libs are
-absent (e.g. the Mac/Windows emulator), every entry point is a silent no-op.
+absent (e.g. non-Pi dev hosts), every entry point is a silent no-op.
 
 Enable with DISPLAY_ENABLED=true in .env. Wiring lives in config.py.
 """

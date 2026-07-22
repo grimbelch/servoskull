@@ -141,7 +141,7 @@ SPOTIFY_DEVICE_NAME = _cfg("SPOTIFY_DEVICE_NAME", "Omega-7")
 
 # ── Google Home / Chromecast audio (optional) ────────────────────────────────────
 GOOGLE_HOME_DEVICE = _cfg("GOOGLE_HOME_DEVICE", "")
-# Casting is opt-in on macOS (emulator/dev) and opt-out on Linux/Pi, matching the
+# Casting is opt-in on macOS (dev) and opt-out on Linux/Pi, matching the
 # original behavior before this setting was centralized.
 CAST_ENABLED = _cfg("CAST_ENABLED", "false" if sys.platform == "darwin" else "true").lower() == "true"
 
@@ -165,7 +165,7 @@ CAMERA_MIN_BRIGHTNESS = int(os.getenv("CAMERA_MIN_BRIGHTNESS", "20"))
 # frame-difference motion — it doesn't false-trip on lighting/auto-exposure and it
 # works in a dark room (a laser rangefinder needs no ambient light). If disabled or
 # the sensor isn't found on the bus, camera.py transparently falls back to motion
-# detection, so the Mac/Windows emulator is unaffected.
+# detection.
 #
 # Wiring (DWEII VL53L1X breakout → Pi 5 40-pin header, I2C1):
 #   VIN → 3V3 (pin 1)   GND → GND (pin 6)   SDA → GPIO2 (pin 3)   SCL → GPIO3 (pin 5)
@@ -192,16 +192,16 @@ LED_PIN_RIGHT = int(os.getenv("LED_PIN_RIGHT", "27"))
 # ── Candle LEDs (self-flickering, GPIO-switched via transistor) — optional ────────
 # The EDGELEC 2V flicker LEDs atop the skull flicker on their own internal IC; the
 # GPIO only gates them on/off through a 2N2222 low-side switch, so the skull lights
-# its candles when it wakes and snuffs them on shutdown. Disabled by default so the
-# emulator and un-wired Pis are unaffected; set CANDLE_ENABLED=true in .env when
+# its candles when it wakes and snuffs them on shutdown. Disabled by default so non-Pi
+# dev hosts and un-wired Pis are unaffected; set CANDLE_ENABLED=true in .env when
 # wired. Current flows from the 5V rail through the transistor, not the GPIO, so the
 # candle count is limited only by the rail — not the Pi's per-pin current budget.
 CANDLE_ENABLED = _cfg("CANDLE_ENABLED", "false").lower() == "true"
 CANDLE_PIN = int(os.getenv("CANDLE_PIN", "17"))
 
 # ── Face display (GC9A01 1.28" round IPS, 240x240, 4-wire SPI) ───────────────────
-# Optional "machine-spirit" eye/face display. Disabled by default so the Mac/Windows
-# emulator and displayless Pis are unaffected; set DISPLAY_ENABLED=true in .env on the
+# Optional "machine-spirit" eye/face display. Disabled by default so non-Pi dev
+# hosts and displayless Pis are unaffected; set DISPLAY_ENABLED=true in .env on the
 # rig that has the panel wired.
 #
 # Audio is handled by a USB sound card (Ugreen), so the GPIO header is otherwise free

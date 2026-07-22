@@ -4,7 +4,7 @@ Internal temperature monitoring for Omega-7.
 On a Raspberry Pi this reads the SoC temperature and, when it climbs past a
 threshold, queues a spoken warning that main.py drains and voices — the same
 "background producer, main-loop speaks" pattern used by reminders and camera
-observations. On non-Pi hosts (the Mac/Windows emulator) there is no sensor, so
+observations. On non-Pi hosts there is no sensor, so
 the monitor disables itself and the skull is unaffected.
 
 Hysteresis + cooldown keep it from nagging:

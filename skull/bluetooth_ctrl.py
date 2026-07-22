@@ -1,7 +1,7 @@
 """
 Bluetooth speaker discovery and connection for Raspberry Pi.
 Uses bluetoothctl subprocess — requires BlueZ (pre-installed on Pi OS).
-Gracefully unavailable on Mac/Windows emulator.
+Gracefully unavailable on non-Linux hosts.
 """
 from __future__ import annotations
 import re
