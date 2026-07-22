@@ -34,7 +34,6 @@ def retry_spotify_call(max_retries=3):
 _SCOPES = " ".join([
     "user-read-playback-state",
     "user-modify-playback-state",
-    "user-read-currently-playing",
 ])
 
 _sp: spotipy.Spotify | None = None
