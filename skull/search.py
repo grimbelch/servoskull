@@ -52,7 +52,7 @@ _NECRO_ROUTES = [
         "seriously", "blaze", "burning",
     ]),
     ("gang-fighters-and-their-weaponry/skills", [
-        "skill", "agility", "brawn", "combat", "cunning", "ferocity",
+        "skills", "agility", "brawn", "combat", "cunning", "ferocity",
         "leadership", "savant", "shooting", "driving",
     ]),
     ("general-principles/fighter-actions", [
