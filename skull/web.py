@@ -41,12 +41,21 @@ def log_vox(speaker: str, text: str, timestamp: str | None = None) -> None:
         _vox_buffer.append(entry)
 
 
+_vox_history_loaded = False
+
+
 def clear_vox_logs() -> None:
+    global _vox_history_loaded
     with _vox_lock:
         _vox_buffer.clear()
+        _vox_history_loaded = True
 
 
 def load_vox_history_from_brain() -> None:
+    global _vox_history_loaded
+    if _vox_history_loaded:
+        return
+    _vox_history_loaded = True
     try:
         from skull import brain
         history = brain.get_history()
@@ -73,7 +82,7 @@ def load_vox_history_from_brain() -> None:
 
 def get_vox_logs() -> list[dict]:
     with _vox_lock:
-        if not _vox_buffer:
+        if not _vox_history_loaded:
             load_vox_history_from_brain()
         return list(_vox_buffer)
 
