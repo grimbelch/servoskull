@@ -19,10 +19,10 @@ _cancel_lock = threading.Lock()
 
 # Thread-safe log buffers (Telemetry vs Vox Channel)
 _log_buffer = collections.deque(maxlen=100)
-_log_lock = threading.Lock()
+_log_lock = threading.RLock()
 
 _vox_buffer = collections.deque(maxlen=100)
-_vox_lock = threading.Lock()
+_vox_lock = threading.RLock()
 
 
 def log_vox(speaker: str, text: str, timestamp: str | None = None) -> None:
