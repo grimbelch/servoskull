@@ -20,7 +20,7 @@ _history: list[dict] = []
 
 # Tools that hit the network/hardware and can take a noticeable moment. Omega-7
 # speaks a short "stand by" before running any of these so the user gets feedback.
-_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings", "register_face", "register_voice", "purge_identity", "connect_bambu_printer"}
+_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings", "register_face", "register_voice", "purge_identity", "connect_bambu_printer", "set_weather_location"}
 _HISTORY_PATH = config.data_path(config.HISTORY_FILE)
 _last_turn_tools: list[str] = []
 
@@ -287,6 +287,99 @@ def _build_tools() -> list[dict]:
                 "access_code": {
                     "type": "string",
                     "description": "Access code from printer settings e.g. '87c83659'",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "set_weather_location",
+        "description": (
+            "Set or update the user's location for weather forecasts. "
+            "Use when the user says 'set weather location to [City]', 'change weather location to [City]', "
+            "or 'update my location for weather'. Geocodes city names (e.g. 'Seattle, WA', 'Chicago', 'London') "
+            "to latitude and longitude and updates configuration."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "location": {
+                    "type": "string",
+                    "description": "City name and optional state/country e.g. 'Seattle, WA' or 'Chicago'",
+                },
+            },
+            "required": ["location"],
+        },
+    },
+    {
+        "name": "set_display_rotation",
+        "description": (
+            "Adjust or set the hardware eye display rotation and fine angle offset in degrees. "
+            "Use when the user says 'rotate eye 15 degrees clockwise', 'nudge display rotation counter-clockwise', "
+            "or 'flip eye display upside down'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "fine_rotation_delta": {
+                    "type": "number",
+                    "description": "Degrees to add to or subtract from current fine rotation offset e.g. 15.0 or -10.0",
+                },
+                "fine_rotation_exact": {
+                    "type": "number",
+                    "description": "Exact fine rotation angle in degrees e.g. 15.0 or 0.0",
+                },
+                "rotation_quadrant": {
+                    "type": "integer",
+                    "description": "Hardware quadrant orientation in degrees e.g. 0, 90, 180, 270",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "set_audio_sensitivity",
+        "description": (
+            "Adjust microphone recording sensitivity, noise floor threshold, or wake word sensitivity. "
+            "Use when the user says 'make microphone more sensitive', 'increase noise rejection for loud room', "
+            "or 'set wake word threshold to 0.7'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "sensitivity_level": {
+                    "type": "string",
+                    "description": "Predefined sensitivity level e.g. 'high' (more sensitive), 'medium' (standard), 'low' (less sensitive / higher noise rejection)",
+                },
+                "silence_threshold": {
+                    "type": "integer",
+                    "description": "Explicit RMS silence threshold e.g. 300 (very sensitive), 500 (normal), 800 (high noise rejection)",
+                },
+                "wake_word_threshold": {
+                    "type": "number",
+                    "description": "Explicit wake word sensitivity score (0.1 to 0.9) e.g. 0.5 (sensitive), 0.7 (strict)",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "set_cast_target",
+        "description": (
+            "Set or update the default Google Home / Chromecast audio speaker device target. "
+            "Use when the user says 'set default cast speaker to [Device Name]', 'cast to Kitchen speaker', "
+            "or 'enable/disable audio casting'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "device_name": {
+                    "type": "string",
+                    "description": "Name of the Google Home / Chromecast device e.g. 'Kitchen speaker', 'Living Room speaker'",
+                },
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Whether audio casting to Google Home / Chromecast is enabled",
                 },
             },
             "required": [],
@@ -1812,6 +1905,180 @@ def _tool_connect_bambu_printer(i):
     else:
         return f"Updated printer credentials (IP: {ip}, Serial: {serial}, Access Code: {access_code}), but background connection timed out. Verify the printer is powered on and connected to the local network."
 
+
+def _tool_set_weather_location(i):
+    import urllib.parse
+    import urllib.request
+    import json
+    import pathlib
+    from skull import config
+
+    loc_str = str(i.get("location", "") or "").strip()
+    if not loc_str:
+        return "Please specify a location, such as 'Seattle, WA' or 'Chicago'."
+
+    city_query = loc_str.split(",")[0].strip()
+    try:
+        url = f"https://geocoding-api.open-meteo.com/v1/search?name={urllib.parse.quote(city_query)}&count=1"
+        req = urllib.request.Request(url, headers={"User-Agent": "Omega7/1.0"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+            results = data.get("results", [])
+            if not results:
+                return f"Could not geocode location '{loc_str}'. Please check the city name."
+            res = results[0]
+            lat = float(res["latitude"])
+            lon = float(res["longitude"])
+            name = res.get("name", city_query)
+            region = res.get("admin1", "")
+            country = res.get("country", "")
+            display_name = f"{name}"
+            if region:
+                display_name += f", {region}"
+            elif country:
+                display_name += f", {country}"
+
+            # Save to .env
+            env_path = pathlib.Path(__file__).resolve().parent.parent / ".env"
+            if not env_path.exists():
+                env_path = pathlib.Path("~/.config/omega7/.env").expanduser()
+
+            content = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
+            lines = [l for l in content.splitlines() if not (l.startswith("WEATHER_LAT=") or l.startswith("WEATHER_LON="))]
+            lines.append(f"WEATHER_LAT={lat:.4f}")
+            lines.append(f"WEATHER_LON={lon:.4f}")
+            env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+            # Update in-memory config
+            config.WEATHER_LAT = lat
+            config.WEATHER_LON = lon
+
+            return f"Weather location updated to {display_name} (Coordinates: {lat:.4f}, {lon:.4f}). Future weather forecasts will reflect this location."
+    except Exception as e:
+        return f"Failed to set weather location: {e}"
+
+
+def _tool_set_display_rotation(i):
+    import pathlib
+    from skull import config
+
+    delta = i.get("fine_rotation_delta")
+    exact = i.get("fine_rotation_exact")
+    quad = i.get("rotation_quadrant")
+
+    current_fine = config.DISPLAY_FINE_ROTATION
+    current_rot = config.DISPLAY_ROTATION
+
+    if exact is not None:
+        new_fine = float(exact)
+    elif delta is not None:
+        new_fine = current_fine + float(delta)
+    else:
+        new_fine = current_fine
+
+    if quad is not None:
+        new_rot = int(quad)
+    else:
+        new_rot = current_rot
+
+    # Save to .env
+    try:
+        env_path = pathlib.Path(__file__).resolve().parent.parent / ".env"
+        if not env_path.exists():
+            env_path = pathlib.Path("~/.config/omega7/.env").expanduser()
+
+        content = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
+        lines = [l for l in content.splitlines() if not (l.startswith("DISPLAY_FINE_ROTATION=") or l.startswith("DISPLAY_ROTATION="))]
+        lines.append(f"DISPLAY_FINE_ROTATION={new_fine:.1f}")
+        lines.append(f"DISPLAY_ROTATION={new_rot}")
+        env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except Exception as e:
+        print(f"[brain] Warning: could not write display config to .env: {e}")
+
+    # Update in-memory config (immediately affects next rendered frame!)
+    config.DISPLAY_FINE_ROTATION = new_fine
+    config.DISPLAY_ROTATION = new_rot
+
+    return f"Eye display alignment updated: Fine Rotation offset set to {new_fine:.1f}° (Hardware Rotation: {new_rot}°). Display output re-aligned."
+
+
+def _tool_set_audio_sensitivity(i):
+    import pathlib
+    from skull import config
+
+    level = str(i.get("sensitivity_level", "") or "").lower().strip()
+    raw_rms = i.get("silence_threshold")
+    raw_wake = i.get("wake_word_threshold")
+
+    current_rms = config.SILENCE_THRESHOLD
+    current_wake = config.WAKE_WORD_THRESHOLD
+
+    if level in ("high", "more", "sensitive"):
+        new_rms = max(200, current_rms - 200)
+    elif level in ("low", "less", "quiet", "noise"):
+        new_rms = min(1500, current_rms + 200)
+    elif level == "medium":
+        new_rms = 500
+    elif raw_rms is not None:
+        new_rms = int(raw_rms)
+    else:
+        new_rms = current_rms
+
+    if raw_wake is not None:
+        new_wake = float(raw_wake)
+    else:
+        new_wake = current_wake
+
+    # Save to .env
+    try:
+        env_path = pathlib.Path(__file__).resolve().parent.parent / ".env"
+        if not env_path.exists():
+            env_path = pathlib.Path("~/.config/omega7/.env").expanduser()
+
+        content = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
+        lines = [l for l in content.splitlines() if not (l.startswith("SILENCE_THRESHOLD=") or l.startswith("WAKE_WORD_THRESHOLD="))]
+        lines.append(f"SILENCE_THRESHOLD={new_rms}")
+        lines.append(f"WAKE_WORD_THRESHOLD={new_wake:.2f}")
+        env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except Exception as e:
+        print(f"[brain] Warning: could not write audio config to .env: {e}")
+
+    config.SILENCE_THRESHOLD = new_rms
+    config.WAKE_WORD_THRESHOLD = new_wake
+
+    return f"Audio sensitivity updated: Microphone Noise Floor Threshold set to {new_rms} RMS, Wake Word Sensitivity set to {new_wake:.2f}."
+
+
+def _tool_set_cast_target(i):
+    import pathlib
+    from skull import config
+
+    device = str(i.get("device_name", "") or "").strip()
+    enabled = i.get("enabled")
+
+    new_device = device or config.GOOGLE_HOME_DEVICE
+    new_enabled = enabled if enabled is not None else config.CAST_ENABLED
+
+    # Save to .env
+    try:
+        env_path = pathlib.Path(__file__).resolve().parent.parent / ".env"
+        if not env_path.exists():
+            env_path = pathlib.Path("~/.config/omega7/.env").expanduser()
+
+        content = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
+        lines = [l for l in content.splitlines() if not (l.startswith("GOOGLE_HOME_DEVICE=") or l.startswith("CAST_ENABLED="))]
+        lines.append(f"GOOGLE_HOME_DEVICE='{new_device}'")
+        lines.append(f"CAST_ENABLED={'true' if new_enabled else 'false'}")
+        env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except Exception as e:
+        print(f"[brain] Warning: could not write cast config to .env: {e}")
+
+    config.GOOGLE_HOME_DEVICE = new_device
+    config.CAST_ENABLED = new_enabled
+
+    state_str = "enabled" if new_enabled else "disabled"
+    return f"Audio casting updated: Target device set to '{new_device}' ({state_str})."
+
 def _tool_remember_fact(i):
     return _memory.remember(str(i.get("fact", "")).strip())
 
@@ -2083,6 +2350,10 @@ _TOOL_REGISTRY = {
     "bluetooth_connect": _tool_bluetooth_connect,
     "get_bambu_status": _tool_get_bambu_status,
     "connect_bambu_printer": _tool_connect_bambu_printer,
+    "set_weather_location": _tool_set_weather_location,
+    "set_display_rotation": _tool_set_display_rotation,
+    "set_audio_sensitivity": _tool_set_audio_sensitivity,
+    "set_cast_target": _tool_set_cast_target,
     "remember_fact": _tool_remember_fact,
     "forget_fact": _tool_forget_fact,
     "update_fact": _tool_update_fact,
