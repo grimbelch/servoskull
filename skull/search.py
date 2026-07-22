@@ -148,6 +148,47 @@ def news_search(query: str, max_results: int = 7) -> str:
         return f"News search unavailable: {e}"
 
 
+def get_curated_news() -> str:
+    """Fetch top news specifically scanning Bloomberg and The Guardian UK."""
+    sections = []
+    
+    # 1. Bloomberg
+    try:
+        b_news = news_search("Bloomberg site:bloomberg.com", max_results=3)
+        if "unavailable" in b_news or "No news" in b_news:
+            b_news = news_search("Bloomberg", max_results=3)
+        sections.append(f"--- BLOOMBERG DISPATCHES ---\n{b_news}")
+    except Exception as e:
+        sections.append(f"--- BLOOMBERG DISPATCHES ---\nError scanning Bloomberg: {e}")
+        
+    # 2. The Guardian UK
+    try:
+        g_rss = _fetch_guardian_rss(max_items=3)
+        sections.append(f"--- THE GUARDIAN UK DISPATCHES ---\n{g_rss}")
+    except Exception as e:
+        sections.append(f"--- THE GUARDIAN UK DISPATCHES ---\nError scanning Guardian UK: {e}")
+        
+    return "\n\n".join(sections)
+
+
+def _fetch_guardian_rss(max_items: int = 3) -> str:
+    """Fetch headlines from The Guardian UK RSS feed."""
+    url = "https://www.theguardian.com/uk/rss"
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"})
+    content = urllib.request.urlopen(req, timeout=5).read()
+    import xml.etree.ElementTree as ET
+    root = ET.fromstring(content)
+    items = []
+    for item in root.findall(".//item")[:max_items]:
+        title = item.findtext("title", "").strip()
+        desc = item.findtext("description", "").strip()
+        clean_desc = re.sub(r'<[^>]+>', '', desc).strip()
+        items.append(f"• {title}\n  {clean_desc[:120]}...")
+    if not items:
+        return news_search("Guardian UK site:theguardian.com", max_results=max_items)
+    return "\n".join(items)
+
+
 # ── Text relevance extraction (shared helper) ─────────────────────────────────
 # Used by the offline rules-library engine below to pull the most query-relevant
 # paragraphs out of a page's full text.

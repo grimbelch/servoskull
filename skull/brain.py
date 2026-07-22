@@ -2433,7 +2433,7 @@ def generate_daily_briefing() -> str:
         weather_info = f"Failed to retrieve atmospheric readouts: {e}"
 
     try:
-        news_info = _search.news_search("global top headlines", max_results=5)
+        news_info = _search.get_curated_news()
     except Exception as e:
         news_info = f"Failed to poll the Noosphere headlines: {e}"
 
@@ -2441,11 +2441,12 @@ def generate_daily_briefing() -> str:
         system = (
             SYSTEM_PROMPT +
             "\n\nYou are compiling a daily briefing for the master (weather and news). "
+            "You MUST scan both Bloomberg dispatches and The Guardian UK dispatches provided in the prompt. "
             "Keep the briefing concise (under 75 words). "
             "Speak in your established Adeptus Mechanicus Servo-Skull persona, showing absolute reverence and using Tech-Priest terminology (e.g. atmospheric sensor readouts, Noosphere data packets, sacred telemetry). "
-            "Combine the weather and news into one brief paragraph."
+            "Combine the weather and news from Bloomberg / Guardian UK into one brief paragraph."
         )
-        user = f"WEATHER READOUTS:\n{weather_info}\n\nNOOSPHERE NEWS PACKETS:\n{news_info}\n\nGenerate the briefing."
+        user = f"WEATHER READOUTS:\n{weather_info}\n\nNOOSPHERE NEWS PACKETS (BLOOMBERG & GUARDIAN UK):\n{news_info}\n\nGenerate the briefing."
         briefing = _llm.simple(system, user, max_tokens=150)
         return (briefing or "").strip()
     except Exception as e:
