@@ -633,54 +633,59 @@ HTML_CLIENT = """<!DOCTYPE html>
         @media (max-width: 768px) {
             .screen {
                 padding: 4px;
+                overflow-x: hidden;
             }
             .container {
                 grid-template-columns: 1fr;
-                padding: 10px 8px;
+                padding: 8px 6px;
                 gap: 12px;
                 width: 100%;
                 max-width: 100%;
+                overflow-x: hidden;
             }
             .header h1 {
-                font-size: 16px;
+                font-size: 15px;
                 letter-spacing: 0.5px;
                 flex-wrap: wrap;
                 line-height: 1.3;
+                word-break: break-word;
             }
             .cog-logo {
-                width: 20px;
-                height: 20px;
+                width: 18px;
+                height: 18px;
                 flex-shrink: 0;
             }
             .telemetry {
                 gap: 6px;
-                padding: 6px;
+                padding: 4px;
             }
-            .telemetry-item {
-                flex: 1 1 calc(50% - 6px);
-                min-width: 110px;
+            .telemetry-item, .telemetry-item.text-only {
+                flex: 1 1 100%;
+                width: 100%;
+                min-width: 0;
+                box-sizing: border-box;
                 padding: 6px 8px;
             }
-            .telemetry-item.text-only {
-                flex: 1 1 calc(50% - 6px);
-                min-width: 100px;
-            }
             .alert-banner {
-                padding: 16px 8px 10px 8px;
+                padding: 14px 6px 10px 6px;
+                width: 100%;
+                box-sizing: border-box;
             }
             .alert-banner::before {
-                font-size: 9px;
+                font-size: 8px;
                 letter-spacing: 1px;
                 top: -9px;
                 content: "◆ MONITORING ACTIVE ◆";
             }
             .alert-title {
                 font-size: 10px;
-                letter-spacing: 2px;
+                letter-spacing: 1px;
             }
             .alert-value {
-                font-size: 17px;
-                letter-spacing: 2px;
+                font-size: 15px;
+                letter-spacing: 1px;
+                word-break: break-word;
+                white-space: normal;
             }
             .ocular-pane, .camera-pane, .control-pane, .console-container {
                 padding: 10px 8px;
