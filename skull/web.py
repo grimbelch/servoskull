@@ -574,9 +574,75 @@ HTML_CLIENT = """<!DOCTYPE html>
         .frame-bracket::after { bottom: -2px; right: -2px; border-width: 0 4px 4px 0; }
 
         @media (max-width: 768px) {
+            .screen {
+                padding: 8px;
+            }
             .container {
                 grid-template-columns: 1fr;
-                padding: 16px;
+                padding: 12px;
+                gap: 16px;
+            }
+            .header h1 {
+                font-size: 17px;
+                letter-spacing: 1px;
+                flex-wrap: wrap;
+                line-height: 1.3;
+            }
+            .cog-logo {
+                width: 22px;
+                height: 22px;
+                flex-shrink: 0;
+            }
+            .telemetry {
+                gap: 8px;
+                padding: 8px;
+            }
+            .telemetry-item {
+                flex: 1 1 calc(50% - 8px);
+                min-width: 120px;
+                padding: 6px 10px;
+            }
+            .telemetry-item.text-only {
+                flex: 1 1 calc(50% - 8px);
+                min-width: 110px;
+            }
+            .alert-banner {
+                padding: 16px 10px 10px 10px;
+            }
+            .alert-banner::before {
+                font-size: 9px;
+                letter-spacing: 1px;
+                top: -9px;
+                content: "◆ MONITORING ACTIVE ◆";
+            }
+            .alert-title {
+                font-size: 10px;
+                letter-spacing: 2px;
+            }
+            .alert-value {
+                font-size: 18px;
+                letter-spacing: 3px;
+            }
+            .ocular-pane, .camera-pane {
+                padding: 10px;
+            }
+            .ocular-ring, .camera-screen {
+                width: 100%;
+                max-width: 270px;
+                height: 270px;
+            }
+            .aux-panel {
+                padding: 8px 12px;
+            }
+            .aux-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .input-bar {
+                flex-wrap: wrap;
+            }
+            .input-bar input {
+                min-width: 120px;
             }
         }
 
@@ -694,7 +760,7 @@ HTML_CLIENT = """<!DOCTYPE html>
             border: 2px solid var(--bright-green);
             background-color: rgba(56, 255, 88, 0.07);
             box-shadow: 0 0 15px rgba(56, 255, 88, 0.15), inset 0 0 10px rgba(56, 255, 88, 0.08);
-            padding: 14px 20px;
+            padding: 18px 20px 14px 20px;
             text-align: center;
             border-radius: 2px;
             position: relative;
@@ -704,7 +770,7 @@ HTML_CLIENT = """<!DOCTYPE html>
         .alert-banner::before {
             content: "◆ COGITATOR MONITORING ACTIVE ◆";
             position: absolute;
-            top: -9px;
+            top: -10px;
             left: 50%;
             transform: translateX(-50%);
             background-color: var(--card-color);
@@ -712,6 +778,8 @@ HTML_CLIENT = """<!DOCTYPE html>
             font-size: 11px;
             color: var(--bright-green);
             letter-spacing: 2px;
+            white-space: nowrap;
+            z-index: 5;
         }
 
         .alert-title {
