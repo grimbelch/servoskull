@@ -1165,6 +1165,8 @@ HTML_CLIENT = """<!DOCTYPE html>
         }
         ::-webkit-scrollbar-thumb:hover {
             background: var(--bright-green);
+        }
+
         /* Mobile Responsive Overrides (Must stay at bottom of style block) */
         @media (max-width: 768px) {
             .screen {
