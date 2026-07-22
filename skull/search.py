@@ -201,51 +201,70 @@ def _fetch_guardian_rss(max_items: int = 3) -> str:
 def _extract_relevant(full_text: str, query: str, max_chars: int = 3000) -> str:
     """Return the most query-relevant paragraphs from a large text block."""
     words = [w for w in query.lower().split() if len(w) > 2]
-    # Split into double-newline paragraphs, merging bulleted lists/numbered lists with their intro
+    phrase = " ".join(words)
+    if not words:
+        return full_text[:max_chars]
+
+    # Split into double-newline paragraphs, merging bulleted lists/numbered lists with their intro,
+    # but NEVER merge lines that start with Markdown headings ('#') or tables ('|').
     raw_paras = full_text.split("\n\n")
     paragraphs = []
     for p in raw_paras:
         p_clean = p.strip()
         if not p_clean:
             continue
-        if set(p_clean) - set("|- "):
-            if paragraphs and (p_clean.startswith("-") or p_clean.startswith("*") or re.match(r"^\d+\.", p_clean)):
-                paragraphs[-1] = paragraphs[-1] + "\n\n" + p_clean
-            else:
-                paragraphs.append(p_clean)
+        is_list_item = (p_clean.startswith("- ") or p_clean.startswith("* ") or
+                        (re.match(r"^\d+\.\s", p_clean) and not p_clean.startswith("#")))
+        is_table = p_clean.startswith("|")
+        is_heading = p_clean.startswith("#")
 
-    # Score each paragraph by how many query words it contains
+        if paragraphs and is_list_item and not is_table and not is_heading:
+            paragraphs[-1] = paragraphs[-1] + "\n\n" + p_clean
+        else:
+            paragraphs.append(p_clean)
+
+    # Score each paragraph by query relevance
     scored = []
     for i, para in enumerate(paragraphs):
         pl = para.lower()
         score = sum(pl.count(w) for w in words)
+        lines = para.splitlines()
+        first_line = lines[0] if lines else ""
+        if first_line.startswith("#"):
+            fl_lower = first_line.lower()
+            if phrase and phrase in fl_lower:
+                score += 200.0
+            elif any(w in fl_lower for w in words):
+                score += 50.0
+        if para.startswith("|"):
+            score *= 0.01
+
         if score > 0:
             scored.append((score, i, para))
 
     if not scored:
         return ""
 
-    # Pick top paragraphs by score; include 1 paragraph of context before/after
+    # Pick highest scoring paragraphs first to fill character budget!
     scored.sort(key=lambda x: -x[0])
-    seen_indices: set = set()
-    result_parts: list = []
+    selected_indices: set = set()
     total = 0
 
-    for _, idx, _ in scored:
+    for score, idx, _ in scored:
         if total >= max_chars:
             break
-        # grab 1 paragraph before and 1 after the match
-        start = max(0, idx - 1)
+        start = idx
         end = min(len(paragraphs), idx + 2)
         for j in range(start, end):
-            if j not in seen_indices:
-                seen_indices.add(j)
-                p_text = paragraphs[j]
-                result_parts.append((j, p_text))
-                total += len(p_text) + 2
+            if j not in selected_indices:
+                p_len = len(paragraphs[j])
+                if total + p_len <= max_chars:
+                    selected_indices.add(j)
+                    total += p_len + 2
 
-    result_parts.sort(key=lambda x: x[0])
-    return "\n\n".join(p for _, p in result_parts)[:max_chars]
+    # Return selected paragraphs in original document order
+    sorted_indices = sorted(selected_indices)
+    return "\n\n".join(paragraphs[j] for j in sorted_indices)
 
 
 # ── Generic offline rules library ──────────────────────────────────────────────
