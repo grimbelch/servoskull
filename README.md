@@ -1,7 +1,7 @@
 # Omega-7 — The Servo Skull Assistant
 
 <p align="center">
-  <img src="images/servoskull_hero.jpg" width="100%" alt="Omega-7 Cybernetic Servo-Skull Assistant">
+  <img src="images/servoskull_hero_custom.jpg" width="100%" alt="Omega-7 Cybernetic Servo-Skull Assistant">
 </p>
 
 <p align="center">
