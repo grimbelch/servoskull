@@ -130,11 +130,15 @@ _load()
 
 def get() -> str:
     with _lock:
-        return _state["mood"]
+        m = _state.get("mood", _DEFAULT)
+        if m not in MOODS:
+            m = _DEFAULT
+            _state["mood"] = m
+        return m
 
 
 def label() -> str:
-    return MOODS[get()]["label"]
+    return MOODS.get(get(), MOODS[_DEFAULT])["label"]
 
 
 def set_mood(mood: str) -> str:
