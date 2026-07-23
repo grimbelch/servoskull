@@ -267,6 +267,25 @@ def _build_tools() -> list[dict]:
         },
     },
     {
+        "name": "set_voice_output",
+        "description": (
+            "Switch Omega-7's vocal output destination between its own internal speaker "
+            "and a connected Bluetooth speaker. Call when the user asks to 'speak through the Bluetooth speaker', "
+            "'switch voice to Bluetooth', 'return voice to internal speaker', 'speak on your own speaker', etc."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "target": {
+                    "type": "string",
+                    "enum": ["internal", "bluetooth"],
+                    "description": "'internal' to speak on Omega-7's own speaker, 'bluetooth' to speak on the Bluetooth speaker",
+                }
+            },
+            "required": ["target"],
+        },
+    },
+    {
         "name": "get_bambu_status",
         "description": (
             "Retrieve the current status of the Bambu 3D printer, including print state, "
@@ -1857,6 +1876,11 @@ def _tool_bluetooth_disconnect(i):
         else f"Could not disconnect from Bluetooth device '{identifier}'."
     )
 
+def _tool_set_voice_output(i):
+    from skull import audio
+    target = str(i.get("target", "internal")).strip()
+    return audio.set_voice_target(target)
+
 def _tool_get_bambu_status(i):
     from skull import bambu_ctrl
     if not bambu_ctrl.get_monitor() or not bambu_ctrl.get_monitor().is_configured():
@@ -2432,6 +2456,7 @@ _TOOL_REGISTRY = {
     "bluetooth_scan": _tool_bluetooth_scan,
     "bluetooth_connect": _tool_bluetooth_connect,
     "bluetooth_disconnect": _tool_bluetooth_disconnect,
+    "set_voice_output": _tool_set_voice_output,
     "get_bambu_status": _tool_get_bambu_status,
     "connect_bambu_printer": _tool_connect_bambu_printer,
     "set_weather_location": _tool_set_weather_location,
