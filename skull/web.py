@@ -717,16 +717,94 @@ HTML_CLIENT = """<!DOCTYPE html>
         }
 
         .telemetry {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
+            display: flex;
+            flex-direction: column;
             gap: 12px;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .pie-gauge-row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
             width: 100%;
             border: 2px double var(--border-color);
             background: rgba(17, 120, 35, 0.03);
-            padding: 14px;
+            padding: 12px;
             box-sizing: border-box;
             border-radius: 4px;
-            margin-top: 10px;
+        }
+
+        .pie-gauge-item {
+            border: 1px solid var(--border-color);
+            background: rgba(17, 120, 35, 0.05);
+            padding: 10px 4px;
+            border-radius: 2px;
+            box-shadow: inset 0 0 8px rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .gauge-label {
+            color: rgba(56, 255, 88, 0.85);
+            font-size: 10px;
+            letter-spacing: 1.5px;
+            font-weight: bold;
+            text-align: center;
+            text-shadow: 0 0 3px rgba(56, 255, 88, 0.4);
+            white-space: nowrap;
+        }
+
+        .pie-chart-container {
+            position: relative;
+            width: 58px;
+            height: 58px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .pie-chart {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+
+        .pie-bg {
+            fill: rgba(0, 0, 0, 0.6);
+            stroke: rgba(17, 120, 35, 0.3);
+            stroke-width: 3.5;
+        }
+
+        .pie-fill {
+            fill: none;
+            stroke: var(--bright-green);
+            stroke-width: 3.8;
+            stroke-linecap: round;
+            filter: drop-shadow(0 0 3px var(--bright-green));
+            transition: stroke-dasharray 0.4s ease;
+        }
+
+        .gauge-val {
+            position: absolute;
+            font-size: 11px;
+            font-weight: bold;
+            color: var(--bright-green);
+            text-shadow: 0 0 4px var(--glow-color);
+            text-align: center;
+        }
+
+        .status-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            width: 100%;
         }
 
         .telemetry-item {
@@ -744,6 +822,8 @@ HTML_CLIENT = """<!DOCTYPE html>
 
         .telemetry-item.text-only {
             justify-content: center;
+            align-items: center;
+            text-align: center;
             width: 100%;
             box-sizing: border-box;
         }
@@ -1255,11 +1335,31 @@ HTML_CLIENT = """<!DOCTYPE html>
                 flex-shrink: 0 !important;
             }
             .telemetry {
-                display: grid !important;
-                grid-template-columns: 1fr !important;
+                display: flex !important;
+                flex-direction: column !important;
                 gap: 8px !important;
                 width: 100% !important;
                 padding: 4px !important;
+            }
+            .pie-gauge-row {
+                grid-template-columns: repeat(5, 1fr) !important;
+                gap: 4px !important;
+                padding: 6px 2px !important;
+            }
+            .pie-chart-container {
+                width: 44px !important;
+                height: 44px !important;
+            }
+            .gauge-label {
+                font-size: 8px !important;
+                letter-spacing: 0px !important;
+            }
+            .gauge-val {
+                font-size: 9px !important;
+            }
+            .status-row {
+                grid-template-columns: 1fr !important;
+                gap: 6px !important;
             }
             .telemetry-item, .telemetry-item.text-only {
                 width: 100% !important;
@@ -1369,62 +1469,72 @@ HTML_CLIENT = """<!DOCTYPE html>
                 </div>
 
                 <div class="telemetry">
-                    <div class="telemetry-item">
-                        <div class="sensor-header">
-                            <span class="telemetry-label">CPU:</span>
-                            <span id="cpu-val" class="telemetry-value">--.-%</span>
+                    <div class="pie-gauge-row">
+                        <div class="pie-gauge-item">
+                            <span class="gauge-label">CPU</span>
+                            <div class="pie-chart-container">
+                                <svg class="pie-chart" viewBox="0 0 36 36">
+                                    <path class="pie-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                    <path id="cpu-pie" class="pie-fill" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                </svg>
+                                <span id="cpu-val" class="gauge-val">0%</span>
+                            </div>
                         </div>
-                        <div class="sensor-bar-container">
-                            <div id="cpu-bar" class="sensor-bar" style="width: 0%;"></div>
+                        <div class="pie-gauge-item">
+                            <span class="gauge-label">CORE TEMP</span>
+                            <div class="pie-chart-container">
+                                <svg class="pie-chart" viewBox="0 0 36 36">
+                                    <path class="pie-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                    <path id="temp-pie" class="pie-fill" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                </svg>
+                                <span id="temp-val" class="gauge-val">0°C</span>
+                            </div>
+                        </div>
+                        <div class="pie-gauge-item">
+                            <span class="gauge-label">RAM</span>
+                            <div class="pie-chart-container">
+                                <svg class="pie-chart" viewBox="0 0 36 36">
+                                    <path class="pie-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                    <path id="ram-pie" class="pie-fill" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                </svg>
+                                <span id="ram-val" class="gauge-val">0%</span>
+                            </div>
+                        </div>
+                        <div class="pie-gauge-item">
+                            <span class="gauge-label">STORAGE</span>
+                            <div class="pie-chart-container">
+                                <svg class="pie-chart" viewBox="0 0 36 36">
+                                    <path class="pie-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                    <path id="storage-pie" class="pie-fill" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                </svg>
+                                <span id="storage-val" class="gauge-val">0%</span>
+                            </div>
+                        </div>
+                        <div class="pie-gauge-item">
+                            <span class="gauge-label">FABRICATOR</span>
+                            <div class="pie-chart-container">
+                                <svg class="pie-chart" viewBox="0 0 36 36">
+                                    <path class="pie-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                    <path id="fabricator-pie" class="pie-fill" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                </svg>
+                                <span id="fabricator-val" class="gauge-val">0%</span>
+                            </div>
                         </div>
                     </div>
-                    <div class="telemetry-item">
-                        <div class="sensor-header">
-                            <span class="telemetry-label">CORE TEMP:</span>
-                            <span id="temp-val" class="telemetry-value">--.-°C</span>
+
+                    <div class="status-row">
+                        <div class="telemetry-item text-only">
+                            <span class="telemetry-label">SILENT MODE</span>
+                            <span id="silent-val" class="telemetry-value">INACTIVE</span>
                         </div>
-                        <div class="sensor-bar-container">
-                            <div id="temp-bar" class="sensor-bar" style="width: 0%;"></div>
+                        <div class="telemetry-item text-only">
+                            <span class="telemetry-label">DISPOSITION / MOOD</span>
+                            <span id="mood-val" class="telemetry-value">DUTIFUL</span>
                         </div>
-                    </div>
-                    <div class="telemetry-item">
-                        <div class="sensor-header">
-                            <span class="telemetry-label">RAM:</span>
-                            <span id="ram-val" class="telemetry-value">--.-%</span>
+                        <div class="telemetry-item text-only">
+                            <span class="telemetry-label">ACTIVE GAME</span>
+                            <span id="game-val" class="telemetry-value">NONE</span>
                         </div>
-                        <div class="sensor-bar-container">
-                            <div id="ram-bar" class="sensor-bar" style="width: 0%;"></div>
-                        </div>
-                    </div>
-                    <div class="telemetry-item">
-                        <div class="sensor-header">
-                            <span class="telemetry-label">STORAGE:</span>
-                            <span id="storage-val" class="telemetry-value">--.-%</span>
-                        </div>
-                        <div class="sensor-bar-container">
-                            <div id="storage-bar" class="sensor-bar" style="width: 0%;"></div>
-                        </div>
-                    </div>
-                    <div class="telemetry-item">
-                        <div class="sensor-header">
-                            <span class="telemetry-label">FABRICATOR:</span>
-                            <span id="fabricator-val" class="telemetry-value">UNCONFIGURED</span>
-                        </div>
-                        <div class="sensor-bar-container">
-                            <div id="fabricator-bar" class="sensor-bar" style="width: 0%;"></div>
-                        </div>
-                    </div>
-                    <div class="telemetry-item text-only">
-                        <span class="telemetry-label">SILENT MODE</span>
-                        <span id="silent-val" class="telemetry-value">INACTIVE</span>
-                    </div>
-                    <div class="telemetry-item text-only">
-                        <span class="telemetry-label">DISPOSITION / MOOD</span>
-                        <span id="mood-val" class="telemetry-value">DUTIFUL</span>
-                    </div>
-                    <div class="telemetry-item text-only">
-                        <span class="telemetry-label">ACTIVE GAME</span>
-                        <span id="game-val" class="telemetry-value">NONE</span>
                     </div>
                 </div>
             </div>
@@ -1599,37 +1709,46 @@ HTML_CLIENT = """<!DOCTYPE html>
                     }
                 }
                 
-                // Update basic telemetry
-                tempVal.innerText = data.temperature;
-                cpuVal.innerText = data.cpu;
-                ramVal.innerText = data.ram;
-                storageVal.innerText = data.storage;
-                fabricatorVal.innerText = data.fabricator.text;
+                // Update status values
                 masterVal.innerText = data.master;
                 silentVal.innerText = data.silent_mode;
                 if (moodVal && data.mood) moodVal.innerText = data.mood.toUpperCase();
                 gameVal.innerText = data.active_game.toUpperCase();
 
-                // Update progress bars
-                const tempFloat = parseFloat(data.temperature);
-                if (!isNaN(tempFloat)) {
-                    document.getElementById('temp-bar').style.width = Math.min(100, Math.max(0, tempFloat)) + '%';
-                }
-                const cpuFloat = parseFloat(data.cpu);
-                if (!isNaN(cpuFloat)) {
-                    document.getElementById('cpu-bar').style.width = Math.min(100, Math.max(0, cpuFloat)) + '%';
-                }
-                const ramFloat = parseFloat(data.ram);
-                if (!isNaN(ramFloat)) {
-                    document.getElementById('ram-bar').style.width = Math.min(100, Math.max(0, ramFloat)) + '%';
-                }
-                const storageFloat = parseFloat(data.storage);
-                if (!isNaN(storageFloat)) {
-                    document.getElementById('storage-bar').style.width = Math.min(100, Math.max(0, storageFloat)) + '%';
-                }
+                // Update CPU pie
+                const cpuFloat = parseFloat(data.cpu) || 0;
+                const cpuPie = document.getElementById('cpu-pie');
+                if (cpuVal) cpuVal.innerText = cpuFloat.toFixed(0) + '%';
+                if (cpuPie) cpuPie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, cpuFloat))}, 100`);
+
+                // Update CORE TEMP pie
+                const tempFloat = parseFloat(data.temperature) || 0;
+                const tempPie = document.getElementById('temp-pie');
+                if (tempVal) tempVal.innerText = tempFloat.toFixed(0) + '°C';
+                if (tempPie) tempPie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, tempFloat))}, 100`);
+
+                // Update RAM pie
+                const ramFloat = parseFloat(data.ram) || 0;
+                const ramPie = document.getElementById('ram-pie');
+                if (ramVal) ramVal.innerText = ramFloat.toFixed(0) + '%';
+                if (ramPie) ramPie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, ramFloat))}, 100`);
+
+                // Update STORAGE pie
+                const storageFloat = parseFloat(data.storage) || 0;
+                const storagePie = document.getElementById('storage-pie');
+                if (storageVal) storageVal.innerText = storageFloat.toFixed(0) + '%';
+                if (storagePie) storagePie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, storageFloat))}, 100`);
+
+                // Update FABRICATOR pie
+                let fabPercent = 0;
                 if (data.fabricator && typeof data.fabricator.percent === 'number') {
-                    document.getElementById('fabricator-bar').style.width = Math.min(100, Math.max(0, data.fabricator.percent)) + '%';
+                    fabPercent = data.fabricator.percent;
                 }
+                const fabPie = document.getElementById('fabricator-pie');
+                if (fabricatorVal) {
+                    fabricatorVal.innerText = (data.fabricator && data.fabricator.text ? data.fabricator.text.toUpperCase() : fabPercent.toFixed(0) + '%');
+                }
+                if (fabPie) fabPie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, fabPercent))}, 100`);
                 
                 // Update screensaver options if not already filled
                 if (screensaverSelect.options.length <= 1 && data.screensavers) {
