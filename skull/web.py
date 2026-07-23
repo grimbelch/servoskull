@@ -662,6 +662,15 @@ HTML_CLIENT = """<!DOCTYPE html>
             width: 100%;
         }
 
+        .header-title-row {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
         .header h1 {
             color: var(--bright-green);
             font-size: 26px;
@@ -670,6 +679,27 @@ HTML_CLIENT = """<!DOCTYPE html>
             display: flex;
             align-items: center;
             gap: 12px;
+        }
+
+        .master-header-tag {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            letter-spacing: 2px;
+            color: var(--bright-green);
+            text-shadow: 0 0 8px var(--glow-color);
+        }
+
+        .master-header-tag .master-label {
+            color: var(--dim-green);
+            font-size: 12px;
+            letter-spacing: 1.5px;
+        }
+
+        .master-header-tag .master-value {
+            color: var(--bright-green);
+            font-weight: bold;
         }
 
         /* SVG AdMech Logo */
@@ -1323,14 +1353,20 @@ HTML_CLIENT = """<!DOCTYPE html>
 
             <!-- Header -->
             <div class="header">
-                <h1>
-                    <!-- Wireframe SVG Cog Logo -->
-                    <svg class="cog-logo" viewBox="0 0 100 100">
-                        <path d="M50 20c-16.5 0-30 13.5-30 30s13.5 30 30 30 30-13.5 30-30-13.5-30-30-30zm0 10c11 0 20 9 20 20s-9 20-20 20-20-9-20-20 9-20 20-20z"/>
-                        <path d="M50 0l6 14h-12zM50 100l6-14h-12zM0 50l14-6v12zM100 50l-14-6v12zM15 15l10 10-8 8zM85 85l-10-10 8-8zM15 85l10-10-8-8zM85 15l-10 10 8 8z"/>
-                    </svg>
-                    OMEGA-7 COGITATOR TERMINAL
-                </h1>
+                <div class="header-title-row">
+                    <h1>
+                        <!-- Wireframe SVG Cog Logo -->
+                        <svg class="cog-logo" viewBox="0 0 100 100">
+                            <path d="M50 20c-16.5 0-30 13.5-30 30s13.5 30 30 30 30-13.5 30-30-13.5-30-30-30zm0 10c11 0 20 9 20 20s-9 20-20 20-20-9-20-20 9-20 20-20z"/>
+                            <path d="M50 0l6 14h-12zM50 100l6-14h-12zM0 50l14-6v12zM100 50l-14-6v12zM15 15l10 10-8 8zM85 85l-10-10 8-8zM15 85l10-10-8-8zM85 15l-10 10 8 8z"/>
+                        </svg>
+                        OMEGA-7 COGITATOR TERMINAL
+                    </h1>
+                    <div class="master-header-tag">
+                        <span class="master-label">MASTER:</span>
+                        <span id="master-val" class="master-value">UNKNOWN</span>
+                    </div>
+                </div>
 
                 <div class="telemetry">
                     <div class="telemetry-item">
@@ -1377,10 +1413,6 @@ HTML_CLIENT = """<!DOCTYPE html>
                         <div class="sensor-bar-container">
                             <div id="fabricator-bar" class="sensor-bar" style="width: 0%;"></div>
                         </div>
-                    </div>
-                    <div class="telemetry-item text-only">
-                        <span class="telemetry-label">MASTER</span>
-                        <span id="master-val" class="telemetry-value">UNKNOWN</span>
                     </div>
                     <div class="telemetry-item text-only">
                         <span class="telemetry-label">SILENT MODE</span>
