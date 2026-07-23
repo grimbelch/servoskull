@@ -56,8 +56,6 @@ def _client() -> spotipy.Spotify:
 def _normalize_name(name: str) -> str:
     import re
     return re.sub(r"[^a-zA-Z0-9]", "", name).lower()
-
-
 def _device_id(prefer_name: str = None) -> str | None:
     """Find a Spotify Connect device, optionally by name (partial, case-insensitive)."""
     devices = _client().devices().get("devices", [])
@@ -75,9 +73,10 @@ def _device_id(prefer_name: str = None) -> str | None:
             if norm_prefer in _normalize_name(d["name"]) and not d["is_restricted"]:
                 print(f"[spotify] Routing to requested device '{d['name']}'")
                 return d["id"]
-        print(f"[spotify] Device matching '{prefer_name}' not found — falling back to priority search")
+        print(f"[spotify] Requested device target '{prefer_name}' not found among active devices.")
+        return None
 
-    # Priority order when no specific device matches or none specified:
+    # Priority order when no specific device target given:
     # 1. Omega-7 / Raspotify local client
     for d in devices:
         if ("omega" in d["name"].lower() or "raspotify" in d["name"].lower()) and not d["is_restricted"]:
@@ -89,15 +88,7 @@ def _device_id(prefer_name: str = None) -> str | None:
         if d["type"].lower() == "speaker" and not d["is_restricted"]:
             return d["id"]
 
-    # 3. Computer device (desktop app)
-    for d in devices:
-        if d["type"].lower() == "computer" and not d["is_restricted"]:
-            return d["id"]
-
-    # 4. Any unrestricted device
-    for d in devices:
-        if not d["is_restricted"]:
-            return d["id"]
+    print("[spotify] No active device found.")
     return None
 
 
@@ -125,8 +116,9 @@ def search_and_play(query: str, device_name: str = None) -> str:
 
     dev = _device_id(prefer_name=device_name)
     if dev is None:
-        print("[spotify] No available device found. Is the Spotify app open?")
-        return "no-device"
+        target = device_name if device_name else "Omega-7"
+        print(f"[spotify] No available device found for target '{target}'.")
+        return f"no-device:{target}"ice"
 
     def _play():
         if use_context:
