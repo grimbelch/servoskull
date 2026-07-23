@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────────────────────
+# switch-personality  —  toggle between Jax and Omega-7 on this Pi
+#
+# Usage:
+#   switch-personality jax       # switch to Jax (golden retriever)
+#   switch-personality omega7    # switch to Omega-7 (servo skull)
+#   switch-personality           # show current active personality
+#
+# The script stops the active service, starts the new one, and updates the
+# systemd enable state so the selection persists through reboots.
+# ─────────────────────────────────────────────────────────────────────────────
+
+set -euo pipefail
+
+JAX_SVC="retriever"
+OMEGA_SVC="omega7"
+
+current_personality() {
+    if systemctl is-active --quiet "$JAX_SVC"; then
+        echo "jax"
+    elif systemctl is-active --quiet "$OMEGA_SVC"; then
+        echo "omega7"
+    else
+        echo "none"
+    fi
+}
+
+show_status() {
+    local cur
+    cur=$(current_personality)
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  Active personality : ${cur^^}"
+    echo "  retriever (Jax)    : $(systemctl is-enabled $JAX_SVC 2>/dev/null || echo disabled) / $(systemctl is-active $JAX_SVC 2>/dev/null || echo inactive)"
+    echo "  omega7 (Omega-7)   : $(systemctl is-enabled $OMEGA_SVC 2>/dev/null || echo disabled) / $(systemctl is-active $OMEGA_SVC 2>/dev/null || echo inactive)"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+}
+
+switch_to() {
+    local target="$1"         # jax | omega7
+    local start_svc stop_svc
+
+    if [[ "$target" == "jax" ]]; then
+        start_svc="$JAX_SVC"
+        stop_svc="$OMEGA_SVC"
+        label="Jax (Golden Retriever)"
+    elif [[ "$target" == "omega7" ]]; then
+        start_svc="$OMEGA_SVC"
+        stop_svc="$JAX_SVC"
+        label="Omega-7 (Servo Skull)"
+    else
+        echo "ERROR: unknown personality '$target'. Use 'jax' or 'omega7'." >&2
+        exit 1
+    fi
+
+    local cur
+    cur=$(current_personality)
+    if [[ "$cur" == "$target" ]]; then
+        echo "✅ Already running $label — nothing to do."
+        show_status
+        exit 0
+    fi
+
+    echo "🔄 Switching to $label ..."
+
+    # Stop the outgoing service (ignore if already stopped)
+    sudo systemctl stop "$stop_svc"  2>/dev/null || true
+
+    # Disable outgoing from boot
+    sudo systemctl disable "$stop_svc" 2>/dev/null || true
+
+    # Enable and start the incoming service
+    sudo systemctl enable "$start_svc"
+    sudo systemctl start  "$start_svc"
+
+    echo "✅ $label is now active and will start on every reboot."
+    echo ""
+    show_status
+}
+
+# ── main ──────────────────────────────────────────────────────────────────────
+case "${1:-status}" in
+    jax|JAX)         switch_to "jax"   ;;
+    omega7|OMEGA7)   switch_to "omega7" ;;
+    status|"")       show_status ;;
+    *)
+        echo "Usage: switch-personality [jax|omega7]"
+        exit 1
+        ;;
+esac
