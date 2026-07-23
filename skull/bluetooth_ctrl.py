@@ -135,9 +135,27 @@ def connect(mac: str) -> bool:
             child.expect(PROMPT, timeout=t)
             return child.before
 
+        def is_connected_check() -> bool:
+            try:
+                info_out = send_cmd(f"info {mac}")
+                return "Connected: yes" in info_out
+            except Exception:
+                return False
+
         send_cmd("power on")
         send_cmd("agent on")
         send_cmd("default-agent")
+
+        # Fast path: check if already connected
+        if is_connected_check():
+            print(f"[bluetooth] Device {mac} is already connected!")
+            try:
+                send_cmd("quit")
+                child.close()
+            except Exception:
+                pass
+            _route_audio(mac, local_out)
+            return True
 
         # Unblock and trust device
         send_cmd(f"unblock {mac}")
@@ -154,7 +172,7 @@ def connect(mac: str) -> bool:
                 r"Confirm passkey",
                 r"Authorize service",
                 r"Failed to pair"
-            ], timeout=8)
+            ], timeout=6)
             if p_idx in (3, 4):
                 print("[bluetooth] Auto-confirming passkey/service authorization prompt...")
                 child.sendline("yes")
@@ -170,17 +188,13 @@ def connect(mac: str) -> bool:
         # Attempt connection
         print(f"[bluetooth] Sending connect command to {mac}...")
         child.sendline(f"connect {mac}")
-
-        connected = False
         try:
-            c_idx = child.expect([r"Connection successful", r"Connected: yes", r"Failed to connect"], timeout=12)
-            if c_idx in (0, 1):
-                connected = True
-                print(f"[bluetooth] Connection successful for {mac}!")
-            else:
-                print(f"[bluetooth] Connection failed for {mac}")
-        except Exception as e:
-            print(f"[bluetooth] Connect expect error: {e}")
+            child.expect(PROMPT, timeout=8)
+        except Exception:
+            pass
+
+        connected = is_connected_check()
+        print(f"[bluetooth] Final connection status for {mac}: {connected}")
 
         try:
             send_cmd("quit")
