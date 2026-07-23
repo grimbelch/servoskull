@@ -198,7 +198,12 @@ def switch_personality(target: str) -> str:
     def _do_switch():
         time.sleep(2.5)  # Let the farewell finish speaking
         try:
-            subprocess.run(["/usr/local/bin/switch-personality", target], check=True)
+            subprocess.run([
+                "sudo", "systemd-run",
+                "--unit=personality-switcher",
+                "--replace",
+                "/usr/local/bin/switch-personality", target
+            ], check=True)
         except Exception as e:
             print(f"[skull] switch-personality error: {e}")
 
