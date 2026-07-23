@@ -118,7 +118,7 @@ def search_and_play(query: str, device_name: str = None) -> str:
     if dev is None:
         target = device_name if device_name else "Omega-7"
         print(f"[spotify] No available device found for target '{target}'.")
-        return f"no-device:{target}"ice"
+        return f"no-device:{target}"
 
     def _play():
         if use_context:
