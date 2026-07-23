@@ -42,14 +42,21 @@ _sp: spotipy.Spotify | None = None
 def _client() -> spotipy.Spotify:
     global _sp
     if _sp is None:
-        _sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
-            client_id=config.SPOTIFY_CLIENT_ID,
-            client_secret=config.SPOTIFY_CLIENT_SECRET,
-            redirect_uri=config.SPOTIFY_REDIRECT_URI,
-            scope=_SCOPES,
-            open_browser=False,
-            cache_path=str(config.data_path(".spotify_cache")),
-        ))
+        try:
+            _sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
+                client_id=config.SPOTIFY_CLIENT_ID,
+                client_secret=config.SPOTIFY_CLIENT_SECRET,
+                redirect_uri=config.SPOTIFY_REDIRECT_URI,
+                scope=_SCOPES,
+                open_browser=False,
+                cache_path=str(config.data_path(".spotify_cache")),
+            ))
+        except (EOFError, OSError, Exception) as e:
+            # Running headlessly — OAuth interactive flow is not available.
+            # Raise as a SpotifyException so callers can handle it cleanly
+            # without crashing the whole service process.
+            print(f"[spotify] Auth init failed (headless environment?): {e}")
+            raise spotipy.SpotifyException(0, -1, f"Spotify auth unavailable: {e}")
     return _sp
 
 
