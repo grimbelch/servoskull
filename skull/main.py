@@ -942,7 +942,9 @@ def main():
                 vol_handled = True
         else:
             import re
-            m = re.search(r"(?:set\s+)?(?:music|spotify)?\s*volume\s*(?:to\s+)?(\d+)", _t)
+            # Only intercept as Spotify if 'music' or 'spotify' is explicitly mentioned
+            # to avoid hijacking plain system-volume commands like "set your volume to 70%"
+            m = re.search(r"(?:music|spotify)\s*volume\s*(?:to\s+)?(\d+)", _t)
             if m:
                 level = int(m.group(1))
                 if 0 <= level <= 100:
