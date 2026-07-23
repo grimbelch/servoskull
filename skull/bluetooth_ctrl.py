@@ -273,13 +273,13 @@ def disconnect(identifier: str = "all") -> bool:
         return False
 
 
-def _route_audio(mac: str, local_device_idx: int) -> None:
+def _route_audio(mac: str, local_device_idx: int = None) -> None:
     """Route BT audio without disturbing TTS output.
 
     - Sets the BT device as the PulseAudio default sink so Spotify/system audio
       plays through it automatically.
-    - Pins config.VOICE_OUTPUT_DEVICE to the pre-BT local device so TTS/SFX
-      stay on Omega-7's own speaker regardless of the new default sink.
+    - Pins config.VOICE_OUTPUT_DEVICE to the local hardware output device so TTS/SFX
+      stay on Omega-7's own speaker by default.
     """
     time.sleep(1)  # give the sink a moment to register
 
@@ -308,11 +308,12 @@ def _route_audio(mac: str, local_device_idx: int) -> None:
     except Exception as e:
         print(f"[bluetooth] Audio routing error: {e}")
 
-    # Pin voice output to the pre-BT local device so TTS/SFX stay on Omega-7's speaker
-    from skull import config
-    if local_device_idx >= 0:
-        config.VOICE_OUTPUT_DEVICE = local_device_idx
-        print(f"[bluetooth] Voice pinned to local device {local_device_idx}")
+    # Pin voice output explicitly to Omega-7's local hardware speaker
+    from skull import config, audio
+    hw_idx = audio.find_local_hardware_output_device()
+    if hw_idx is not None:
+        config.VOICE_OUTPUT_DEVICE = hw_idx
+        print(f"[bluetooth] Voice pinned to local hardware device {hw_idx}")
 
 
 def _restore_local_audio() -> None:

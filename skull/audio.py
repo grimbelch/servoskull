@@ -214,5 +214,38 @@ def play_wav_bytes(
             time.sleep(0.05)
 
 
+def find_local_hardware_output_device() -> int | None:
+    """Locate the hardware card index for Omega-7's internal/USB speaker."""
+    try:
+        import sounddevice as sd
+        devices = sd.query_devices()
+        for idx, d in enumerate(devices):
+            if d["max_output_channels"] > 0:
+                name_lower = d["name"].lower()
+                if any(hw in name_lower for hw in ("usb", "hw:", "bcm2835", "headphone", "analog")) and "default" not in name_lower and "pipewire" not in name_lower:
+                    return idx
+        for idx, d in enumerate(devices):
+            if d["max_output_channels"] > 0 and "default" not in d["name"].lower() and "pipewire" not in d["name"].lower():
+                return idx
+    except Exception as e:
+        print(f"[audio] Error finding local hardware output device: {e}")
+    return None
+
+
+def set_voice_target(target: str) -> str:
+    """Switch TTS vocal output between internal speaker and Bluetooth speaker."""
+    from skull import config
+    t_lower = target.lower().strip()
+    if any(k in t_lower for k in ("bluetooth", "bt", "external", "remote", "other")):
+        config.VOICE_OUTPUT_DEVICE = None  # None routes to PulseAudio system default (Bluetooth)
+        print("[audio] Voice output target → Bluetooth / system default sink")
+        return "Voice output switched to the Bluetooth speaker."
+    else:
+        hw_idx = find_local_hardware_output_device()
+        config.VOICE_OUTPUT_DEVICE = hw_idx
+        print(f"[audio] Voice output target → Internal hardware device {hw_idx}")
+        return "Voice output returned to Omega-7's internal speaker."
+
+
 def cleanup() -> None:
     pass
