@@ -20,8 +20,14 @@ def is_supported() -> bool:
         return False
 
 
+def _is_mac(s: str) -> bool:
+    """Check if string is a raw MAC address formatted with colons or dashes."""
+    return bool(re.fullmatch(r"[0-9A-Fa-f]{2}([:\-][0-9A-Fa-f]{2}){5}", s.strip()))
+
+
 def scan(timeout: int = 8) -> list[dict]:
     """Scan for nearby Bluetooth devices using pexpect prompt synchronization.
+    Includes both active scan discoveries and cached known/paired devices.
     Caches results for bluetooth_connect.
     Returns list of {"name": str, "mac": str} dicts.
     """
@@ -44,25 +50,9 @@ def scan(timeout: int = 8) -> list[dict]:
         child.sendline("default-agent")
         child.expect(PROMPT)
 
-        child.sendline("scan on")
         devices_dict: dict[str, str] = {}
 
-        t0 = time.time()
-        while time.time() - t0 < timeout:
-            try:
-                idx = child.expect([r"Device ([0-9A-Fa-f:]{17})\s+(.+)", PROMPT, pexpect.TIMEOUT], timeout=1)
-                if idx == 0:
-                    mac = child.match.group(1).upper()
-                    name = child.match.group(2).strip()
-                    if name and not re.fullmatch(r"[0-9A-Fa-f:]{17}", name) and not name.startswith("RSSI:"):
-                        devices_dict[mac] = name
-            except Exception:
-                pass
-
-        child.sendline("scan off")
-        child.expect(PROMPT)
-
-        # Retrieve cached device list from bluetoothctl
+        # 1. Fetch existing known/paired devices from bluetoothctl
         child.sendline("devices")
         try:
             child.expect(PROMPT, timeout=3)
@@ -71,10 +61,27 @@ def scan(timeout: int = 8) -> list[dict]:
                 if m:
                     mac = m.group(1).upper()
                     name = m.group(2).strip()
-                    if name and not re.fullmatch(r"[0-9A-Fa-f:]{17}", name) and not name.startswith("RSSI:"):
+                    if name and not _is_mac(name) and not name.startswith("RSSI:"):
                         devices_dict[mac] = name
         except Exception:
             pass
+
+        # 2. Perform live RF scan
+        child.sendline("scan on")
+        t0 = time.time()
+        while time.time() - t0 < timeout:
+            try:
+                idx = child.expect([r"Device ([0-9A-Fa-f:]{17})\s+(.+)", PROMPT, pexpect.TIMEOUT], timeout=1)
+                if idx == 0:
+                    mac = child.match.group(1).upper()
+                    name = child.match.group(2).strip()
+                    if name and not _is_mac(name) and not name.startswith("RSSI:"):
+                        devices_dict[mac] = name
+            except Exception:
+                pass
+
+        child.sendline("scan off")
+        child.expect(PROMPT)
 
         child.sendline("quit")
         try:
@@ -84,7 +91,7 @@ def scan(timeout: int = 8) -> list[dict]:
 
         devices = [{"name": name, "mac": mac} for mac, name in devices_dict.items()]
         _last_scan = devices
-        print(f"[bluetooth] Discovered {len(devices)} device(s): {[d['name'] for d in devices]}")
+        print(f"[bluetooth] Discovered/cached {len(devices)} device(s): {[d['name'] for d in devices]}")
         return devices
 
     except Exception as e:

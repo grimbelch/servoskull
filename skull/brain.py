@@ -1811,15 +1811,22 @@ def _tool_bluetooth_connect(i):
     from skull import bluetooth_ctrl
     identifier = str(i.get("identifier", "")).strip()
     devices = bluetooth_ctrl.get_last_scan()
+    
+    # Auto-scan if cache is empty or if identifier is not in the cached scan
+    if not devices or not _resolve_bt_device(identifier, devices):
+        print(f"[skull] Refreshing Bluetooth scan for '{identifier}'...")
+        devices = bluetooth_ctrl.scan(timeout=4)
+
     device = _resolve_bt_device(identifier, devices)
     if device is None:
-        return f"Could not find '{identifier}' in the last scan."
+        return f"Could not find '{identifier}' among nearby or paired Bluetooth devices."
+
     print(f"[skull] Connecting to {device['name']} ({device['mac']})...")
     success = bluetooth_ctrl.connect(device["mac"])
     return (
         f"Connected to {device['name']}. Music routes through the speaker via system audio; vocalizations remain on {config.SKULL_NAME}'s own output."
         if success
-        else f"Failed to connect to {device['name']}. It may be out of range or need pairing."
+        else f"Failed to connect to {device['name']}. It may be powered off or out of range."
     )
 
 def _tool_get_bambu_status(i):
