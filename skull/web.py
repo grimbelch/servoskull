@@ -238,9 +238,9 @@ def get_fabricator_status() -> dict:
         
         state = status.get("gcode_state", "UNKNOWN").upper()
         percent = float(status.get("percent", 0))
-        if state in ("RUNNING", "PREPARE"):
-            return {"text": f"{state} ({percent:.0f}%)", "percent": percent}
-        return {"text": state, "percent": 0.0}
+        if state in ("RUNNING", "PREPARE") or percent > 0:
+            return {"text": f"{percent:.0f}%", "percent": percent}
+        return {"text": state, "percent": percent}
     except Exception:
         return {"text": "UNAVAILABLE", "percent": 0.0}
 
@@ -1746,7 +1746,14 @@ HTML_CLIENT = """<!DOCTYPE html>
                 }
                 const fabPie = document.getElementById('fabricator-pie');
                 if (fabricatorVal) {
-                    fabricatorVal.innerText = (data.fabricator && data.fabricator.text ? data.fabricator.text.toUpperCase() : fabPercent.toFixed(0) + '%');
+                    if (fabPercent > 0) {
+                        fabricatorVal.innerText = fabPercent.toFixed(0) + '%';
+                    } else if (data.fabricator && data.fabricator.text) {
+                        let txt = data.fabricator.text.replace(/^(RUNNING|PREPARE)\s*/i, '').trim();
+                        fabricatorVal.innerText = txt.toUpperCase() || '0%';
+                    } else {
+                        fabricatorVal.innerText = '0%';
+                    }
                 }
                 if (fabPie) fabPie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, fabPercent))}, 100`);
                 
