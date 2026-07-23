@@ -899,6 +899,26 @@ def _build_tools() -> list[dict]:
         }
     },
     {
+        "name": "switch_personality",
+        "description": (
+            "Switch the active AI personality on this device. Use when the user asks to switch to, "
+            "activate, or talk to the other assistant — either Jax (the Golden Retriever) or Omega-7 "
+            "(the Servo-Skull). The switch persists through reboots. The current assistant will say a "
+            "goodbye and then hand off to the requested personality."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "personality": {
+                    "type": "string",
+                    "enum": ["jax", "omega7"],
+                    "description": "Which personality to switch to: 'jax' for the Golden Retriever assistant, 'omega7' for the Servo-Skull."
+                }
+            },
+            "required": ["personality"]
+        }
+    },
+    {
         "name": "cancel_printer_alerts",
         "description": "Cancel and stop any repeating verbal alerts/notifications about the 3D printer status (such as completion alerts or health errors).",
         "input_schema": {
@@ -2395,6 +2415,13 @@ def _tool_shutdown_system(i):
         return _SHUTDOWN_CB()
     return "Shutdown callback not registered."
 
+
+def _tool_switch_personality(i):
+    target = str(i.get("personality", "")).strip().lower()
+    if _SWITCH_PERSONALITY_CB:
+        return _SWITCH_PERSONALITY_CB(target)
+    return "Personality switch callback not registered."
+
 def _tool_cancel_printer_alerts(i):
     from skull import bambu_ctrl
     monitor = bambu_ctrl.get_monitor()
@@ -2487,6 +2514,7 @@ _TOOL_REGISTRY = {
     "self_update": _tool_self_update,
     "reboot_system": _tool_reboot_system,
     "shutdown_system": _tool_shutdown_system,
+    "switch_personality": _tool_switch_personality,
     "cancel_printer_alerts": _tool_cancel_printer_alerts,
     "display_art": _tool_display_art,
     "capture_and_describe_surroundings": _tool_capture_and_describe_surroundings,
@@ -2635,6 +2663,7 @@ _RELOAD_VOICE_CACHE_CB = None
 _SELF_UPDATE_CB = None
 _REBOOT_CB = None
 _SHUTDOWN_CB = None
+_SWITCH_PERSONALITY_CB = None
 
 
 def register_reload_cb(cb):
@@ -2655,6 +2684,11 @@ def register_reboot_cb(cb):
 def register_shutdown_cb(cb):
     global _SHUTDOWN_CB
     _SHUTDOWN_CB = cb
+
+
+def register_switch_personality_cb(cb):
+    global _SWITCH_PERSONALITY_CB
+    _SWITCH_PERSONALITY_CB = cb
 
 
 _MOOD_KEYWORDS = {
