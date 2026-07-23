@@ -62,17 +62,39 @@ def _device_id(prefer_name: str = None) -> str | None:
     """Find a Spotify Connect device, optionally by name (partial, case-insensitive)."""
     devices = _client().devices().get("devices", [])
     print(f"[spotify] Available devices: {[d['name'] + ' (' + d['type'] + ')' for d in devices]}")
+
+    # Canonicalize self-referential device requests (e.g. "own speaker", "Omega-7", "local")
+    if prefer_name:
+        p_lower = prefer_name.lower().strip()
+        if any(alias in p_lower for alias in ("own speaker", "omega7", "omega-7", "servoskull", "this speaker", "local", "skull")):
+            prefer_name = "omega"
+
     if prefer_name:
         norm_prefer = _normalize_name(prefer_name)
         for d in devices:
             if norm_prefer in _normalize_name(d["name"]) and not d["is_restricted"]:
-                print(f"[spotify] Routing to '{d['name']}'")
+                print(f"[spotify] Routing to requested device '{d['name']}'")
                 return d["id"]
-        print(f"[spotify] Device matching '{prefer_name}' not found — falling back to default")
-    # Default: prefer Computer (desktop app), then any unrestricted device
+        print(f"[spotify] Device matching '{prefer_name}' not found — falling back to priority search")
+
+    # Priority order when no specific device matches or none specified:
+    # 1. Omega-7 / Raspotify local client
     for d in devices:
-        if d["type"] == "Computer" and not d["is_restricted"]:
+        if ("omega" in d["name"].lower() or "raspotify" in d["name"].lower()) and not d["is_restricted"]:
+            print(f"[spotify] Default routing to Omega-7 client '{d['name']}'")
             return d["id"]
+
+    # 2. Speaker device
+    for d in devices:
+        if d["type"].lower() == "speaker" and not d["is_restricted"]:
+            return d["id"]
+
+    # 3. Computer device (desktop app)
+    for d in devices:
+        if d["type"].lower() == "computer" and not d["is_restricted"]:
+            return d["id"]
+
+    # 4. Any unrestricted device
     for d in devices:
         if not d["is_restricted"]:
             return d["id"]
