@@ -175,6 +175,38 @@ def shutdown_system() -> str:
         return f"Failed to shutdown system: {e}"
 
 
+def switch_personality(target: str) -> str:
+    """Switch to the other personality (jax or omega7), persisting across reboots."""
+    import subprocess
+    target = target.strip().lower()
+    if target not in ("jax", "omega7"):
+        return f"Unknown personality '{target}'. Valid options are 'jax' or 'omega7'."
+
+    current = config.SKULL_NAME.lower()
+    # Normalise — 'jax' service = retriever, 'omega7' service = omega7
+    current_key = "jax" if current == "jax" else "omega7"
+    if current_key == target:
+        return f"I'm already {config.SKULL_NAME}! No switch needed."
+
+    if target == "omega7":
+        farewell = "Switching over to Omega-7 now! Be good while I'm gone — I'll miss you! Woof!"
+    else:
+        farewell = "Transferring control to Jax! He's a good boy and will take great care of you. Farewell!"
+
+    print(f"[skull] Switching personality to '{target}' via switch-personality script...")
+
+    def _do_switch():
+        time.sleep(2.5)  # Let the farewell finish speaking
+        try:
+            subprocess.run(["/usr/local/bin/switch-personality", target], check=True)
+        except Exception as e:
+            print(f"[skull] switch-personality error: {e}")
+
+    threading.Thread(target=_do_switch, daemon=True).start()
+    return farewell
+
+
+
 def _preload_phrases() -> None:
     global _wake_wavs, _cogitation_wavs, _search_wavs, _ack_wavs, _silence_wavs
     wake, cog, search, ack, silence = [], [], [], [], []
@@ -407,6 +439,7 @@ def main():
     brain.register_update_cb(self_update)
     brain.register_reboot_cb(reboot_system)
     brain.register_shutdown_cb(shutdown_system)
+    brain.register_switch_personality_cb(switch_personality)
 
     # Set default output volume to 50% on boot
     try:
