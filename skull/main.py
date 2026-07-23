@@ -1138,12 +1138,16 @@ def main():
                         device_name = cmd[2] if len(cmd) > 2 else config.SPOTIFY_DEVICE_NAME
                         result = spotify_ctrl.search_and_play(cmd[1], device_name=device_name)
                         print(f"[skull] Spotify: {result}")
-                        if result in ("no-device", "not-found") or result.startswith(("error", "spotify-error", "playback-error")):
-                            _error_phrases = {
-                                "no-device": "This unit cannot locate the Spotify cogitator. Ensure the application is active.",
-                                "not-found": "The requested composition could not be found in the Spotify archives.",
-                            }
-                            err_text = _error_phrases.get(result, "The Spotify cogitator has reported a malfunction.")
+                        if result in ("no-device", "not-found") or result.startswith(("error", "spotify-error", "playback-error", "no-device:")):
+                            if result.startswith("no-device:"):
+                                target_name = result.split(":", 1)[1]
+                                err_text = f"This unit cannot locate the requested Spotify device '{target_name}'. Ensure the device is active and online."
+                            else:
+                                _error_phrases = {
+                                    "no-device": "This unit cannot locate the Spotify cogitator. Ensure the application is active.",
+                                    "not-found": "The requested composition could not be found in the Spotify archives.",
+                                }
+                                err_text = _error_phrases.get(result, "The Spotify cogitator has reported a malfunction.")
                             try:
                                 audio.play_wav_bytes(tts.synthesize(err_text), output_device=config.VOICE_OUTPUT_DEVICE)
                             except Exception:
