@@ -296,7 +296,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             except Exception:
                 temp = "Unavailable"
                 
-            from skull import quiet
+            from skull import quiet, mood
             master_name = config._OWNER_PROFILE.get("name", "Unknown").upper()
             state_data = {
                 "skull_name": config.SKULL_NAME,
@@ -307,6 +307,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                 "storage": get_storage_usage(),
                 "master": master_name,
                 "silent_mode": "ACTIVE" if quiet.is_silent() else "INACTIVE",
+                "mood": mood.label(),
                 "fabricator": get_fabricator_status(),
                 "active_game": brain.get_current_game() if hasattr(brain, "get_current_game") else "None",
                 "screensavers": display.get_screensaver_names() if hasattr(display, "get_screensaver_names") else [],
@@ -1386,6 +1387,10 @@ HTML_CLIENT = """<!DOCTYPE html>
                         <span id="silent-val" class="telemetry-value">INACTIVE</span>
                     </div>
                     <div class="telemetry-item text-only">
+                        <span class="telemetry-label">DISPOSITION / MOOD</span>
+                        <span id="mood-val" class="telemetry-value">DUTIFUL</span>
+                    </div>
+                    <div class="telemetry-item text-only">
                         <span class="telemetry-label">ACTIVE GAME</span>
                         <span id="game-val" class="telemetry-value">NONE</span>
                     </div>
@@ -1487,6 +1492,7 @@ HTML_CLIENT = """<!DOCTYPE html>
         const fabricatorVal = document.getElementById('fabricator-val');
         const masterVal = document.getElementById('master-val');
         const silentVal = document.getElementById('silent-val');
+        const moodVal = document.getElementById('mood-val');
         const gameVal = document.getElementById('game-val');
         const eyeRing = document.getElementById('eye-ring');
         const chatContainer = document.getElementById('chat-container');
@@ -1569,6 +1575,7 @@ HTML_CLIENT = """<!DOCTYPE html>
                 fabricatorVal.innerText = data.fabricator.text;
                 masterVal.innerText = data.master;
                 silentVal.innerText = data.silent_mode;
+                if (moodVal && data.mood) moodVal.innerText = data.mood.toUpperCase();
                 gameVal.innerText = data.active_game.toUpperCase();
 
                 // Update progress bars
