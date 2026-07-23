@@ -310,10 +310,9 @@ def _route_audio(mac: str, local_device_idx: int = None) -> None:
 
     # Pin voice output explicitly to Omega-7's local hardware speaker
     from skull import config, audio
-    hw_idx = audio.find_local_hardware_output_device()
-    if hw_idx is not None:
-        config.VOICE_OUTPUT_DEVICE = hw_idx
-        print(f"[bluetooth] Voice pinned to local hardware device {hw_idx}")
+    int_sink = audio.get_internal_speaker_sink()
+    config.VOICE_OUTPUT_DEVICE = int_sink
+    print(f"[bluetooth] Voice pinned to internal speaker sink: {int_sink}")
 
 
 def _restore_local_audio() -> None:

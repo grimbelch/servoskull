@@ -205,13 +205,47 @@ def play_wav_bytes(
             _current_amp[0] = rms
 
     sd_kwargs = {"samplerate": rate, "channels": 1, "callback": callback, "blocksize": chunk_size}
-    if output_device is not None and output_device >= 0:
-        sd_kwargs["device"] = output_device
+    if output_device is not None:
+        if isinstance(output_device, str):
+            os.environ["PULSE_SINK"] = output_device
+        elif isinstance(output_device, int) and output_device >= 0:
+            os.environ.pop("PULSE_SINK", None)
+            sd_kwargs["device"] = output_device
+    else:
+        os.environ.pop("PULSE_SINK", None)
+
     duration = len(data) / rate + 5.0  # audio duration + 5s safety margin
     deadline = time.monotonic() + duration
     with sd.OutputStream(**sd_kwargs) as stream:
         while stream.active and time.monotonic() < deadline:
             time.sleep(0.05)
+
+
+def get_pulseaudio_sinks() -> dict[str, str]:
+    """Returns a dict mapping sink type ('internal' or 'bluetooth') to PulseAudio sink name."""
+    sinks = {}
+    try:
+        out = subprocess.run(["pactl", "list", "short", "sinks"], capture_output=True, text=True, timeout=5).stdout
+        for line in out.splitlines():
+            parts = line.split()
+            if len(parts) >= 2:
+                name = parts[1]
+                name_lower = name.lower()
+                if "bluez" in name_lower or "bt" in name_lower:
+                    sinks["bluetooth"] = name
+                elif "usb" in name_lower or "alsa" in name_lower:
+                    sinks["internal"] = name
+    except Exception as e:
+        print(f"[audio] Error listing PulseAudio sinks: {e}")
+    return sinks
+
+
+def get_internal_speaker_sink() -> str | int | None:
+    """Find Omega-7's internal hardware speaker sink or card index."""
+    sinks = get_pulseaudio_sinks()
+    if "internal" in sinks:
+        return sinks["internal"]
+    return find_local_hardware_output_device()
 
 
 def find_local_hardware_output_device() -> int | None:
@@ -236,14 +270,16 @@ def set_voice_target(target: str) -> str:
     """Switch TTS vocal output between internal speaker and Bluetooth speaker."""
     from skull import config
     t_lower = target.lower().strip()
+    sinks = get_pulseaudio_sinks()
     if any(k in t_lower for k in ("bluetooth", "bt", "external", "remote", "other")):
-        config.VOICE_OUTPUT_DEVICE = None  # None routes to PulseAudio system default (Bluetooth)
-        print("[audio] Voice output target → Bluetooth / system default sink")
+        bt_sink = sinks.get("bluetooth")
+        config.VOICE_OUTPUT_DEVICE = bt_sink  # String sink name or None (PulseAudio default)
+        print(f"[audio] Voice output target → Bluetooth ({bt_sink or 'system default'})")
         return "Voice output switched to the Bluetooth speaker."
     else:
-        hw_idx = find_local_hardware_output_device()
-        config.VOICE_OUTPUT_DEVICE = hw_idx
-        print(f"[audio] Voice output target → Internal hardware device {hw_idx}")
+        int_sink = get_internal_speaker_sink()
+        config.VOICE_OUTPUT_DEVICE = int_sink
+        print(f"[audio] Voice output target → Internal speaker ({int_sink})")
         return "Voice output returned to Omega-7's internal speaker."
 
 
