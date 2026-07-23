@@ -4,6 +4,8 @@ import time
 import wave
 import threading
 
+import os
+import subprocess
 import numpy as np
 import sounddevice as sd
 import scipy.io.wavfile as wavfile
