@@ -30,15 +30,17 @@ def _load(name: str) -> bytes | None:
         return None
 
 
-def play(name: str, output_device: int = -1) -> None:
-    """Fire-and-forget: play a sound effect on a daemon thread."""
+def play(name: str, output_device=None) -> None:
+    """Play a sound effect asynchronously in a background thread."""
     wav = _load(name)
     if wav is None:
         return
     from skull import audio as _audio
+
     kwargs: dict = {}
-    if output_device >= 0:
-        kwargs["output_device"] = output_device
+    if output_device is not None:
+        if isinstance(output_device, str) or (isinstance(output_device, int) and output_device >= 0):
+            kwargs["output_device"] = output_device
     threading.Thread(
         target=_audio.play_wav_bytes,
         args=(wav,),
@@ -47,13 +49,14 @@ def play(name: str, output_device: int = -1) -> None:
     ).start()
 
 
-def play_blocking(name: str, output_device: int = -1) -> None:
+def play_blocking(name: str, output_device=None) -> None:
     """Play a sound effect and block until it finishes."""
     wav = _load(name)
     if wav is None:
         return
     from skull import audio as _audio
     kwargs: dict = {}
-    if output_device >= 0:
-        kwargs["output_device"] = output_device
+    if output_device is not None:
+        if isinstance(output_device, str) or (isinstance(output_device, int) and output_device >= 0):
+            kwargs["output_device"] = output_device
     _audio.play_wav_bytes(wav, **kwargs)
