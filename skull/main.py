@@ -437,8 +437,8 @@ def main():
     try:
         import sounddevice as sd
         devices = sd.query_devices()
-        mic_label = f"device {config.MIC_DEVICE_INDEX}" if config.MIC_DEVICE_INDEX >= 0 else "system default"
-        out_label = f"device {config.VOICE_OUTPUT_DEVICE}" if config.VOICE_OUTPUT_DEVICE >= 0 else "system default"
+        mic_label = f"device {config.MIC_DEVICE_INDEX}" if config.MIC_DEVICE_INDEX is not None and config.MIC_DEVICE_INDEX >= 0 else "system default"
+        out_label = f"device {config.VOICE_OUTPUT_DEVICE}" if config.VOICE_OUTPUT_DEVICE is not None else "system default"
         print(f"[skull] Mic: {mic_label}  |  Output: {out_label}")
         print(f"[skull] Available devices:\n{devices}")
     except Exception:
