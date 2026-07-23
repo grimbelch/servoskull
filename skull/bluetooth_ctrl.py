@@ -20,12 +20,18 @@ def is_supported() -> bool:
         return False
 
 
+def _clean_name(s: str) -> str:
+    """Strip ANSI color sequences and trailing prompt lines from device names."""
+    clean = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", s)
+    return clean.splitlines()[0].strip()
+
+
 def _is_mac(s: str) -> bool:
     """Check if string is a raw MAC address formatted with colons or dashes."""
     return bool(re.fullmatch(r"[0-9A-Fa-f]{2}([:\-][0-9A-Fa-f]{2}){5}", s.strip()))
 
 
-def scan(timeout: int = 8) -> list[dict]:
+def scan(timeout: int = 6) -> list[dict]:
     """Scan for nearby Bluetooth devices using pexpect prompt synchronization.
     Includes both active scan discoveries and cached known/paired devices.
     Caches results for bluetooth_connect.
@@ -40,50 +46,46 @@ def scan(timeout: int = 8) -> list[dict]:
     try:
         import pexpect
         child = pexpect.spawn("bluetoothctl", encoding="utf-8", timeout=15)
-        
-        # Wait for initial daemon connection & prompt
         child.expect(PROMPT)
-        child.sendline("power on")
-        child.expect(PROMPT)
-        child.sendline("agent on")
-        child.expect(PROMPT)
-        child.sendline("default-agent")
-        child.expect(PROMPT)
+
+        def send_cmd(cmd: str, t: float = 10.0) -> str:
+            child.sendline(cmd)
+            child.expect(re.escape(cmd), timeout=t)
+            child.expect(PROMPT, timeout=t)
+            return child.before
+
+        send_cmd("power on")
+        send_cmd("agent on")
+        send_cmd("default-agent")
 
         devices_dict: dict[str, str] = {}
 
         # 1. Fetch existing known/paired devices from bluetoothctl
-        child.sendline("devices")
-        try:
-            child.expect(PROMPT, timeout=3)
-            for line in child.before.splitlines():
-                m = re.search(r"Device ([0-9A-Fa-f:]{17})\s+(.+)", line)
-                if m:
-                    mac = m.group(1).upper()
-                    name = m.group(2).strip()
-                    if name and not _is_mac(name) and not name.startswith("RSSI:"):
-                        devices_dict[mac] = name
-        except Exception:
-            pass
+        dev_out = send_cmd("devices")
+        for line in dev_out.splitlines():
+            m = re.search(r"Device ([0-9A-Fa-f:]{17})\s+(.+)", line)
+            if m:
+                mac = m.group(1).upper()
+                name = _clean_name(m.group(2))
+                if name and not _is_mac(name) and not name.startswith("RSSI:"):
+                    devices_dict[mac] = name
 
         # 2. Perform live RF scan
         child.sendline("scan on")
         t0 = time.time()
         while time.time() - t0 < timeout:
             try:
-                idx = child.expect([r"Device ([0-9A-Fa-f:]{17})\s+(.+)", PROMPT, pexpect.TIMEOUT], timeout=1)
+                idx = child.expect([r"Device ([0-9A-Fa-f:]{17})\s+(.+)", pexpect.TIMEOUT], timeout=1)
                 if idx == 0:
                     mac = child.match.group(1).upper()
-                    name = child.match.group(2).strip()
+                    name = _clean_name(child.match.group(2))
                     if name and not _is_mac(name) and not name.startswith("RSSI:"):
                         devices_dict[mac] = name
             except Exception:
                 pass
 
-        child.sendline("scan off")
-        child.expect(PROMPT)
-
-        child.sendline("quit")
+        send_cmd("scan off")
+        send_cmd("quit")
         try:
             child.close()
         except Exception:
@@ -123,84 +125,65 @@ def connect(mac: str) -> bool:
 
     try:
         import pexpect
-        print(f"[bluetooth] Initiating interactive pairing sequence for {mac}...")
+        print(f"[bluetooth] Initiating interactive pairing/connection sequence for {mac}...")
         child = pexpect.spawn("bluetoothctl", encoding="utf-8", timeout=20)
-        
-        # Wait for daemon ready
-        child.expect(PROMPT)
-        child.sendline("power on")
-        child.expect(PROMPT)
-        child.sendline("agent on")
-        child.expect(PROMPT)
-        child.sendline("default-agent")
         child.expect(PROMPT)
 
+        def send_cmd(cmd: str, t: float = 10.0) -> str:
+            child.sendline(cmd)
+            child.expect(re.escape(cmd), timeout=t)
+            child.expect(PROMPT, timeout=t)
+            return child.before
+
+        send_cmd("power on")
+        send_cmd("agent on")
+        send_cmd("default-agent")
+
         # Unblock and trust device
-        child.sendline(f"unblock {mac}")
-        child.expect(PROMPT)
-        child.sendline(f"trust {mac}")
-        child.expect(PROMPT)
+        send_cmd(f"unblock {mac}")
+        send_cmd(f"trust {mac}")
 
         # Attempt pairing with auto-confirmation loop
         print(f"[bluetooth] Sending pair command to {mac}...")
         child.sendline(f"pair {mac}")
+        try:
+            p_idx = child.expect([
+                r"Paired: yes",
+                r"Pairing successful",
+                r"AlreadyExists",
+                r"Confirm passkey",
+                r"Authorize service",
+                r"Failed to pair"
+            ], timeout=8)
+            if p_idx in (3, 4):
+                print("[bluetooth] Auto-confirming passkey/service authorization prompt...")
+                child.sendline("yes")
+        except Exception as e:
+            print(f"[bluetooth] Pair status note: {e}")
 
-        paired = False
-        t0 = time.time()
-        while time.time() - t0 < 15:
-            try:
-                idx = child.expect([
-                    r"Paired: yes",
-                    r"Pairing successful",
-                    r"AlreadyExists",
-                    r"Confirm passkey",
-                    r"Authorize service",
-                    r"Failed to pair",
-                    PROMPT,
-                    pexpect.TIMEOUT
-                ], timeout=2)
-
-                if idx in (0, 1, 2):
-                    paired = True
-                    print(f"[bluetooth] Pairing confirmed for {mac}")
-                    break
-                elif idx in (3, 4):
-                    print(f"[bluetooth] Auto-confirming passkey/service authorization prompt...")
-                    child.sendline("yes")
-                elif idx == 5:
-                    print(f"[bluetooth] Pairing error received for {mac}")
-                    break
-            except Exception:
-                pass
+        # Wait for prompt after pair command finishes
+        try:
+            child.expect(PROMPT, timeout=5)
+        except Exception:
+            pass
 
         # Attempt connection
         print(f"[bluetooth] Sending connect command to {mac}...")
         child.sendline(f"connect {mac}")
 
         connected = False
-        t0 = time.time()
-        while time.time() - t0 < 15:
-            try:
-                idx = child.expect([
-                    r"Connection successful",
-                    r"Connected: yes",
-                    r"Failed to connect",
-                    PROMPT,
-                    pexpect.TIMEOUT
-                ], timeout=2)
-
-                if idx in (0, 1):
-                    connected = True
-                    print(f"[bluetooth] Connection successful for {mac}!")
-                    break
-                elif idx == 2:
-                    print(f"[bluetooth] Connection failed for {mac}")
-                    break
-            except Exception:
-                pass
-
-        child.sendline("quit")
         try:
+            c_idx = child.expect([r"Connection successful", r"Connected: yes", r"Failed to connect"], timeout=12)
+            if c_idx in (0, 1):
+                connected = True
+                print(f"[bluetooth] Connection successful for {mac}!")
+            else:
+                print(f"[bluetooth] Connection failed for {mac}")
+        except Exception as e:
+            print(f"[bluetooth] Connect expect error: {e}")
+
+        try:
+            send_cmd("quit")
             child.close()
         except Exception:
             pass
