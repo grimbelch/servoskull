@@ -212,6 +212,67 @@ def connect(mac: str) -> bool:
         return False
 
 
+def disconnect(identifier: str = "all") -> bool:
+    """Disconnect from a Bluetooth device by MAC, name, or disconnect all active devices."""
+    if not is_supported():
+        return False
+
+    target_mac = None
+    ident = identifier.lower().strip()
+    if ident not in ("all", "*", "", "everything"):
+        devices = get_last_scan() or scan(timeout=2)
+        for d in devices:
+            if ident in d["name"].lower() or ident in d["mac"].lower():
+                target_mac = d["mac"]
+                break
+        if not target_mac and _is_mac(identifier):
+            target_mac = identifier.upper()
+
+    try:
+        import pexpect
+        print(f"[bluetooth] Disconnecting Bluetooth device(s) (target: {identifier})...")
+        child = pexpect.spawn("bluetoothctl", encoding="utf-8", timeout=15)
+        child.expect(PROMPT)
+
+        def send_cmd(cmd: str, t: float = 8.0) -> str:
+            child.sendline(cmd)
+            child.expect(re.escape(cmd), timeout=t)
+            child.expect(PROMPT, timeout=t)
+            return child.before
+
+        send_cmd("power on")
+
+        if target_mac:
+            print(f"[bluetooth] Disconnecting {target_mac}...")
+            send_cmd(f"disconnect {target_mac}")
+        else:
+            dev_out = send_cmd("devices")
+            for line in dev_out.splitlines():
+                m = re.search(r"Device ([0-9A-Fa-f:]{17})", line)
+                if m:
+                    mac = m.group(1).upper()
+                    try:
+                        info_out = send_cmd(f"info {mac}")
+                        if "Connected: yes" in info_out:
+                            print(f"[bluetooth] Disconnecting active device {mac}...")
+                            send_cmd(f"disconnect {mac}")
+                    except Exception:
+                        pass
+
+        try:
+            send_cmd("quit")
+            child.close()
+        except Exception:
+            pass
+
+        _restore_local_audio()
+        return True
+
+    except Exception as e:
+        print(f"[bluetooth] Disconnect error: {e}")
+        return False
+
+
 def _route_audio(mac: str, local_device_idx: int) -> None:
     """Route BT audio without disturbing TTS output.
 
@@ -220,7 +281,7 @@ def _route_audio(mac: str, local_device_idx: int) -> None:
     - Pins config.VOICE_OUTPUT_DEVICE to the pre-BT local device so TTS/SFX
       stay on Omega-7's own speaker regardless of the new default sink.
     """
-    time.sleep(2)  # give the sink a moment to register
+    time.sleep(1)  # give the sink a moment to register
 
     mac_under = mac.replace(":", "_").lower()
     try:
@@ -252,4 +313,26 @@ def _route_audio(mac: str, local_device_idx: int) -> None:
     if local_device_idx >= 0:
         config.VOICE_OUTPUT_DEVICE = local_device_idx
         print(f"[bluetooth] Voice pinned to local device {local_device_idx}")
+
+
+def _restore_local_audio() -> None:
+    """Restore default PulseAudio/PipeWire sink to local hardware audio card."""
+    try:
+        sinks = subprocess.run(
+            ["pactl", "list", "short", "sinks"],
+            capture_output=True, text=True, timeout=5
+        ).stdout
+        for line in sinks.splitlines():
+            parts = line.split()
+            if len(parts) >= 2:
+                s_name = parts[1]
+                if ("usb" in s_name.lower() or "alsa" in s_name.lower()) and "bluez" not in s_name.lower():
+                    subprocess.run(["pactl", "set-default-sink", s_name], capture_output=True, timeout=5)
+                    print(f"[bluetooth] Restored system default sink → {s_name}")
+                    break
+    except Exception as e:
+        print(f"[bluetooth] Restore audio error: {e}")
+
+    from skull import config
+    config.VOICE_OUTPUT_DEVICE = None
 

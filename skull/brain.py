@@ -249,6 +249,24 @@ def _build_tools() -> list[dict]:
         },
     },
     {
+        "name": "bluetooth_disconnect",
+        "description": (
+            "Disconnect from a connected Bluetooth speaker or device, or disconnect all. "
+            "Call when the user asks to disconnect from Bluetooth, stop playing on the Bluetooth speaker, "
+            "or unpair/disconnect from a speaker."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "identifier": {
+                    "type": "string",
+                    "description": "Optional device name, number, or 'all' to disconnect all Bluetooth devices",
+                }
+            },
+            "required": [],
+        },
+    },
+    {
         "name": "get_bambu_status",
         "description": (
             "Retrieve the current status of the Bambu 3D printer, including print state, "
@@ -1829,6 +1847,16 @@ def _tool_bluetooth_connect(i):
         else f"Failed to connect to {device['name']}. It may be powered off or out of range."
     )
 
+def _tool_bluetooth_disconnect(i):
+    from skull import bluetooth_ctrl
+    identifier = str(i.get("identifier", "all")).strip()
+    success = bluetooth_ctrl.disconnect(identifier)
+    return (
+        "Disconnected from Bluetooth speaker. Default system audio output restored to Omega-7."
+        if success
+        else f"Could not disconnect from Bluetooth device '{identifier}'."
+    )
+
 def _tool_get_bambu_status(i):
     from skull import bambu_ctrl
     if not bambu_ctrl.get_monitor() or not bambu_ctrl.get_monitor().is_configured():
@@ -2403,6 +2431,7 @@ _TOOL_REGISTRY = {
     "set_volume": _tool_set_volume,
     "bluetooth_scan": _tool_bluetooth_scan,
     "bluetooth_connect": _tool_bluetooth_connect,
+    "bluetooth_disconnect": _tool_bluetooth_disconnect,
     "get_bambu_status": _tool_get_bambu_status,
     "connect_bambu_printer": _tool_connect_bambu_printer,
     "set_weather_location": _tool_set_weather_location,
