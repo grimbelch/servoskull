@@ -196,7 +196,7 @@ def switch_personality(target: str) -> str:
     print(f"[skull] Switching personality to '{target}' via switch-personality script...")
 
     def _do_switch():
-        time.sleep(2.5)  # Let the farewell finish speaking
+        time.sleep(5.5)  # Allow farewell audio to fully finish playing before stopping service
         try:
             subprocess.run([
                 "sudo", "systemd-run",
