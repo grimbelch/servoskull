@@ -201,7 +201,6 @@ def switch_personality(target: str) -> str:
             subprocess.run([
                 "sudo", "systemd-run",
                 "--unit=personality-switcher",
-                "--replace",
                 "/usr/local/bin/switch-personality", target
             ], check=True)
         except Exception as e:
