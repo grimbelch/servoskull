@@ -1036,8 +1036,30 @@ def main():
                     pass
                 dice_handled = True
                 
-        if dice_handled:
-            continue
+        # ── 3a-6. Detect Personality Switch commands ──────────────
+        import re
+        _t_norm = _t.lower()
+        if "switch" in _t_norm or "change" in _t_norm or "turn into" in _t_norm or "become" in _t_norm:
+            if "omega" in _t_norm or "servo" in _t_norm or "skull" in _t_norm:
+                print("[skull] Local personality switch to 'omega7' detected.")
+                msg = switch_personality("omega7")
+                try:
+                    speech_wav = tts.synthesize(msg)
+                    eyes.on()
+                    _speak_interruptible(speech_wav, on_wake)
+                except Exception:
+                    pass
+                continue
+            elif "jax" in _t_norm or "dog" in _t_norm or "retriever" in _t_norm:
+                print("[skull] Local personality switch to 'jax' detected.")
+                msg = switch_personality("jax")
+                try:
+                    speech_wav = tts.synthesize(msg)
+                    eyes.on()
+                    _speak_interruptible(speech_wav, on_wake)
+                except Exception:
+                    pass
+                continue
 
         # ── 3a-5. Detect Voice Cache Refresh and Self-Update ──────────
         _REFRESH_VOICE_PHRASES = (
