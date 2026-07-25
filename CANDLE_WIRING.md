@@ -47,15 +47,15 @@ If using the **SN74AHCT125N** high-speed 3.3V-to-5.0V bus buffer IC in DIP-14 fo
 
 ### SN74AHCT125N Dead-Bug Pin Connection Table
 
-| (1) Pi Pin # | (2) Dead Bug Pin # | (3) Dead Bug Pin Name | (4) Selected Wire Color / Action |
+| (1) Pi Pin # | (2) Dead Bug Pin # | (3) Dead Bug Pin Name | (4) Selected Wire Color |
 |---|---|---|---|
-| **Pin 2** (5V Power) | **Pin 14** | `VCC` | **Red** Wire (5V IC Power Input) |
-| **Pin 9** (GND) | **Pin 7** | `GND` | **Black** Wire (Common Ground) |
-| — (Internal Bridge) | **Pin 1** | `1OE` (Output Enable 1) | **Bare Solder Bridge** directly to Pin 7 (GND) |
-| **Pin 12** (GPIO 18 / PWM0) | **Pin 2** | `1A` (Data Input 1) | **Green** Wire (3.3V Data Signal from Pi) |
-| ➔ Candle 1 `DIN` | **Pin 3** | `1Y` (Data Output 1) | **White** Wire (via **330 Ω Inline Resistor**) |
-| — (Internal Bridge) | **Pins 4, 10, 13** | `2OE, 3OE, 4OE` | **Bare Solder Bridges** to Pin 7 (GND) |
-| — (Unused) | **Pins 5, 6, 8, 9, 11, 12** | `2A, 2Y, 3A, 3Y, 4A, 4Y` | **None** (Leave Disconnected / Unused) |
+| Pin 2 | Pin 14 | VCC | Red |
+| Pin 9 | Pin 7 | GND | Black |
+| — | Pin 1 | 1OE | Bare Solder Bridge (Pin 7) |
+| Pin 12 | Pin 2 | 1A | Green |
+| Candle 1 DIN | Pin 3 | 1Y | White (via 330 Ω resistor) |
+| — | Pins 4, 10, 13 | 2OE, 3OE, 4OE | Bare Solder Bridge (Pin 7) |
+| — | Pins 5, 6, 8, 9, 11, 12 | 2A, 2Y, 3A, 3Y, 4A, 4Y | None |
 
 ---
 
@@ -77,13 +77,13 @@ If using the **SN74AHCT125N** high-speed 3.3V-to-5.0V bus buffer IC in DIP-14 fo
 
 ### 1. Raspberry Pi ➔ 4-Channel MOSFET Breakout Module (Alternative Dead Bug)
 
-| (1) Pi Pin # | (2) Dead Bug Pin # / Pad | (3) Dead Bug Pin Name | (4) Selected Wire Color / Action |
+| (1) Pi Pin # | (2) Dead Bug Pin # / Pad | (3) Dead Bug Pin Name | (4) Selected Wire Color |
 |---|---|---|---|
-| **Pin 2** (5V Power) | Pad 1 (High VCC) | `HV` | **Red** Wire (5V High Power Rail) |
-| **Pin 17** (3.3V Power) | Pad 2 (Low VCC) | `LV` | **Orange** Wire (3.3V Low Power Reference) |
-| **Pin 9** (GND) | Pad 3 (Ground) | `GND` | **Black** Wire (Common Ground) |
-| **Pin 12** (GPIO 18 / PWM0) | Pad 4 (Low Data 1) | `LV1` | **Green** Wire (3.3V Data Signal from Pi) |
-| ➔ Candle 1 `DIN` | Pad 5 (High Data 1) | `HV1` | **White** Wire (via **330 Ω Inline Resistor**) |
+| Pin 2 | Pad 1 (High VCC) | HV | Red |
+| Pin 17 | Pad 2 (Low VCC) | LV | Orange |
+| Pin 9 | Pad 3 (Ground) | GND | Black |
+| Pin 12 | Pad 4 (Low Data 1) | LV1 | Green |
+| Candle 1 DIN | Pad 5 (High Data 1) | HV1 | White (via 330 Ω resistor) |
 
 > [!TIP]
 > **No Pin Collision with Laser Rangefinder**:
