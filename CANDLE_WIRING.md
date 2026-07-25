@@ -30,12 +30,18 @@ A **"Dead Bug"** setup means soldering wires directly to the pins of the tiny lo
 
 ### 1. Raspberry Pi ➔ Level Converter ("Dead Bug" Module)
 
-| Raspberry Pi Pin | Function | Level Converter Pin | Wire Color |
-|---|---|---|---|
-| **Pin 2 or Pin 4** | **5V Power** | **HV** (High Voltage VCC) | Red |
-| **Pin 1 or Pin 17** | **3.3V Power** | **LV** (Low Voltage VCC) | Orange / Yellow |
-| **Pin 6, 9, 14, or 20** | **Ground (GND)** | **GND** (Common Ground) | Black / White |
-| **Pin 12 (GPIO 18 / PWM0)** | **3.3V Data Signal** | **LV1** (Low Voltage Input) | Blue / Green |
+| Raspberry Pi Pin | Function | Level Converter Pin | Wire Color | Notes |
+|---|---|---|---|---|
+| **Pin 2 or Pin 4** | **5V Power** | **HV** (High Voltage VCC) | Red | 5V Rail |
+| **Pin 17** | **3.3V Power** | **LV** (Low Voltage VCC) | Orange / Yellow | **Dedicated 3.3V for Shifter** (Pin 1 is for Laser Rangefinder) |
+| **Pin 9 or Pin 14** | **Ground (GND)** | **GND** (Common Ground) | Black / White | Common Ground |
+| **Pin 12 (GPIO 18 / PWM0)** | **3.3V Data Signal** | **LV1** (Low Voltage Input) | Blue / Green | Dedicated PWM Data Pin |
+
+> [!TIP]
+> **No Pin Collision with Laser Rangefinder**:
+> - The **Laser Rangefinder** uses **Pin 1 (3.3V)**, **Pin 3 (GPIO 2 / SDA)**, **Pin 5 (GPIO 3 / SCL)**, and **Pin 7 (GPIO 4 / XSHUT)**.
+> - The **Dead Bug Shifter** uses **Pin 17 (3.3V)**, **Pin 2 (5V)**, **Pin 9 (GND)**, and **Pin 12 (GPIO 18 / PWM0)**.
+> - Using **Pin 17** for the shifter keeps both components completely separate without needing wire splices!
 
 ### 2. Level Converter ➔ WS2812B Candle LED Chain
 
