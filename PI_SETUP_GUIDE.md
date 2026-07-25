@@ -150,23 +150,24 @@ Wiring is optimized into a single contiguous **2x5 (10-pin) header block** (Pins
 | VCC | 3.3 V Power | — | 17 | Header Pin 17 |
 | RES | Reset | GPIO24 | 18 | Header Pin 18 |
 | SDA (MOSI) | SPI Data | GPIO10 | 19 | Header Pin 19 |
-| GND | Ground | — | 20 | Header Pin 20 |
+| GND | Ground | — | 20 | Header Pin 20 *(Display GND wire)* |
 | DC | Data/Command | GPIO25 | 22 | Header Pin 22 |
 | SCL (SCK) | SPI Clock | GPIO11 | 23 | Header Pin 23 |
 | CS | SPI Chip Select | GPIO8 | 24 | Header Pin 24 (CE0) |
-| GND | Ground | — | 25 | Header Pin 25 |
+| (Unused) | Pi GND Pin | — | 25 | Header Pin 25 *(Auxiliary Pi GND pin, leave open)* |
 | BLK | Backlight | GPIO7 | 26 | Header Pin 26 (`DISPLAY_BL_PIN=7`) |
 
-> **VCC goes to 3.3 V (Pin 17), not 5 V.** The GC9A01's logic is 3.3 V; 5 V can damage it.
+> [!NOTE]
+> **Single Ground Wire**: The GC9A01 display has only **one `GND` wire**. Connect it to **Pin 20**. Pin 25 is an auxiliary Ground pin on the Pi header that can remain open.
 
 ```
- GC9A01 (10-pin ribbon connector) ──► Raspberry Pi 5 Header (Pins 17-26 block)
- ────────────────────────────────     ─────────────────────────────────────────
-  VCC  ───────────► 3V3   (pin 17)     RES  ───────────► GPIO24      (pin 18)
-  SDA  ───────────► GPIO10(pin 19)     GND  ───────────► GND         (pin 20)
-  (NC) ───────────► GPIO9 (pin 21)     DC   ───────────► GPIO25      (pin 22)
-  SCL  ───────────► GPIO11(pin 23)     CS   ───────────► GPIO8  CE0  (pin 24)
-  GND  ───────────► GND   (pin 25)     BLK  ───────────► GPIO7       (pin 26)
+ GC9A01 Display          Raspberry Pi 5 Header (Block Pins 17-26)
+ ──────────────          ────────────────────────────────────────
+  VCC  ───────────────►  3V3   (pin 17)     RES  ───────────────► GPIO24      (pin 18)
+  SDA  ───────────────►  GPIO10(pin 19)     GND  ───────────────► GND         (pin 20)
+  (NC) ───────────────►  GPIO9 (pin 21)     DC   ───────────────► GPIO25      (pin 22)
+  SCL  ───────────────►  GPIO11(pin 23)     CS   ───────────────► GPIO8  CE0  (pin 24)
+  (NC) ───────────────►  GND   (pin 25)     BLK  ───────────────► GPIO7       (pin 26)
 ```
 
 ### 4.4 Camera — Arducam IMX708 (CSI ribbon)
