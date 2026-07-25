@@ -211,26 +211,27 @@ is genuinely optional.
 Four wires to the free I2C1 bus. **VIN → 3.3 V, not 5 V** — the breakout has a regulator
 but the SDA/SCL lines idle at the Pi's 3.3 V and there's no level-shifting on the Pi side.
 
-| Breakout pin | Connects to | GPIO (BCM) | Physical pin |
-|---|---|---|---|
-| VIN | 3.3 V | — | 1 |
-| GND | Ground | — | 6 |
-| SDA | I2C data | GPIO2 | 3 |
-| SCL | I2C clock | GPIO3 | 5 |
+| Breakout pin | Connects to | GPIO (BCM) | Physical pin | Notes |
+|---|---|---|---|---|
+| VIN | 3.3 V Power | — | 1 | Powers sensor |
+| GND | Ground | — | 6 | Common Ground |
+| SDA | I2C Data | GPIO2 | 3 | I2C1 Data line |
+| SCL | I2C Clock | GPIO3 | 5 | I2C1 Clock line |
+| XSHUT (Enable) | GPIO4 / Enable | GPIO4 | 7 | Driven HIGH by software *(or tie to 3.3 V)* |
 
 ```
- VL53L1X           Raspberry Pi 5 header
- ───────           ─────────────────────
-  VIN  ───────────► 3V3    (pin 1)
-  GND  ───────────► GND    (pin 6)
-  SDA  ───────────► GPIO2  (pin 3)
-  SCL  ───────────► GPIO3  (pin 5)
+ VL53L1X Rangefinder      Raspberry Pi 5 header (Block Pins 1,3,5,7,9)
+ ───────────────────      ────────────────────────────────────────────
+  VIN   ───────────────►  3V3     (pin 1)
+  SDA   ───────────────►  GPIO2   (pin 3)
+  SCL   ───────────────►  GPIO3   (pin 5)
+  XSHUT ───────────────►  GPIO4   (pin 7)
+  GND   ───────────────►  GND     (pin 9)
 ```
 
 `pi_setup.sh` enables the I2C bus and installs the `VL53L1X` package. Confirm the sensor
 is on the bus with `i2cdetect -y 1` — it should show up at address **0x29**. Then set
-`PROXIMITY_ENABLED=true` (and `CAMERA_ENABLED=true`) in `.env`. Leftover pins (XSHUT/GPIO1
-on the breakout) are unused.
+`PROXIMITY_ENABLED=true` (and `CAMERA_ENABLED=true`) in `.env`. Leftover interrupt pin (GPIO1 on breakout) is unused.
 
 ### 4.7 Candle LEDs (self-flickering, GPIO-switched) — `candles.py`
 
