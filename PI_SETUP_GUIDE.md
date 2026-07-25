@@ -91,31 +91,33 @@ Only the pins this build uses are annotated. Physical pin 1 is the corner neares
 microSD/Wi-Fi end, with the SD card facing you and USB ports to the right.
 
 ```
-PROX VIN●   3V3  (1) (2)  5V    ● ←CANDLE 5V (LED supply)
-PROX SDA● GPIO2  (3) (4)  5V
-PROX SCL● GPIO3  (5) (6)  GND   ● ←PROX GND
-          GPIO4  (7) (8)  GPIO14
-CANDLE● ←  GND  (9) (10) GPIO15   (transistor emitter GND)
-CANDLE● ← GPIO17(11) (12) GPIO18   (transistor base via 1kΩ)
-  LED→ ●  GPIO27(13) (14) GND  ● ←LED cathodes common GND
-  LED→ ●  GPIO22(15) (16) GPIO23  ● ←LED
-DISP VCC● 3V3  (17) (18) GPIO24 ● ←DISP RES
-DISP SDA● GPIO10(19) (20) GND   ● ←DISP GND
-         GPIO9 (21) (22) GPIO25 ● ←DISP DC
-DISP SCL● GPIO11(23) (24) GPIO8  ● ←DISP CS (CE0)
-            GND(25) (26) GPIO7
-         ID_SD (27) (28) ID_SC
-          GPIO5(29) (30) GND
-          GPIO6(31) (32) GPIO12 ● ←DISP BLK (backlight)
-         GPIO13(33) (34) GND
-         GPIO19(35) (36) GPIO16
-         GPIO26(37) (38) GPIO20
-            GND(39) (40) GPIO21
+PROX VIN  ●  3V3  (1) (2)  5V    ● ←CANDLE 5V (HV Power)
+PROX SDA  ● GPIO2 (3) (4)  5V
+PROX SCL  ● GPIO3 (5) (6)  GND   ● ←PROX GND
+PROX XSHUT● GPIO4 (7) (8)  GPIO14
+PROX GND  ●  GND  (9) (10) GPIO15
+            GPIO17(11) (12) GPIO18● ←CANDLE DATA (LV1 Data)
+EYE RIGHT ● GPIO27(13) (14) GND   ● ←EYE / CANDLE GND
+EYE LEFT  ● GPIO22(15) (16) GPIO23● ←EYE CENTER
+DISP VCC  ●  3V3  (17) (18) GPIO24● ←DISP RES
+DISP SDA  ● GPIO10(19) (20) GND   ● ←DISP GND
+            GPIO9 (21) (22) GPIO25● ←DISP DC
+DISP SCL  ● GPIO11(23) (24) GPIO8 ● ←DISP CS (CE0)
+DISP GND  ●  GND  (25) (26) GPIO7 ● ←DISP BLK (Backlight)
+            ID_SD (27) (28) ID_SC
+            GPIO5 (29) (30) GND
+            GPIO6 (31) (32) GPIO12
+           GPIO13 (33) (34) GND
+           GPIO19 (35) (36) GPIO16
+           GPIO26 (37) (38) GPIO20
+              GND (39) (40) GPIO21
 ```
 
-There are **no pin conflicts**: the eye LEDs use plain GPIO (13/15/16), the candle LEDs
-one more (GPIO17, pin 11), the display uses the SPI0 bus (19/23/24) plus three control pins
-(18/22/32), and the proximity sensor uses the I2C1 bus (3/5).
+There are **no pin conflicts**:
+- **Proximity Sensor (I2C1)**: Pins 1, 3, 5, 7, 9 (contiguous 5-pin block on upper left).
+- **Addressable Candle LEDs**: Pins 2 (5V), 12 (GPIO18 PWM Data), 14 (GND), 17 (3.3V LV).
+- **Eye LEDs**: Pins 13, 15, 16 (GPIO27, 22, 23) + Pin 14 GND.
+- **Round Face Display (SPI0)**: Pins 17 to 26 (contiguous 2x5 dual-row 10-pin header block!).
 
 ### 4.2 Eye LEDs (3× red, GPIO PWM) — `eyes.py`
 
@@ -136,40 +138,35 @@ The resistors in the EDGELEC pack are sized for 6–12 V — **don't use them.**
                                └──── common ──► GND (pin 14)
 ```
 
-Build this on the mini breadboard/perfboard. Tie all three cathodes to ne GND rail, run a
-single wire from that rail to **pin 14 (GND)**. "Center" can drive a third LED or be left for a
-future eye — wire all three now to match the code.
+Build this on the mini breadboard/perfboard. Tie all three cathodes to one GND rail, run a
+single wire from that rail to **pin 14 (GND)**.
 
 ### 4.3 Round face display — GC9A01 1.28" (4-wire SPI) — `display.py`
 
-Wiring is exactly as documented in [skull/config.py](skull/config.py) (lines 25–28):
+Wiring is optimized into a single contiguous **2x5 (10-pin) header block** (Pins 17–26):
 
-| Panel pin | Connects to | GPIO (BCM) | Physical pin |
-|---|---|---|---|
-| GND | Ground | — | 20 |
-| VCC | 3.3 V | — | 17 |
-| SCL (SCK) | SPI clock | GPIO11 | 23 |
-| SDA (MOSI) | SPI data | GPIO10 | 19 |
-| RES | Reset | GPIO24 | 18 |
-| DC | Data/command | GPIO25 | 22 |
-| CS | SPI chip-select (CE0) | GPIO8 | 24 |
-| BLK | Backlight | GPIO12 | 32 |
+| Panel pin | Connects to | GPIO (BCM) | Physical pin | Notes |
+|---|---|---|---|---|
+| VCC | 3.3 V Power | — | 17 | Header Pin 17 |
+| RES | Reset | GPIO24 | 18 | Header Pin 18 |
+| SDA (MOSI) | SPI Data | GPIO10 | 19 | Header Pin 19 |
+| GND | Ground | — | 20 | Header Pin 20 |
+| DC | Data/Command | GPIO25 | 22 | Header Pin 22 |
+| SCL (SCK) | SPI Clock | GPIO11 | 23 | Header Pin 23 |
+| CS | SPI Chip Select | GPIO8 | 24 | Header Pin 24 (CE0) |
+| GND | Ground | — | 25 | Header Pin 25 |
+| BLK | Backlight | GPIO7 | 26 | Header Pin 26 (`DISPLAY_BL_PIN=7`) |
 
-> **VCC goes to 3.3 V, not 5 V.** The GC9A01's logic is 3.3 V; 5 V can damage it.
-> If your panel's backlight is always-on you may instead tie BLK → 3.3 V and set
-> `DISPLAY_BL_PIN=-1` in `.env`, freeing pin 32.
+> **VCC goes to 3.3 V (Pin 17), not 5 V.** The GC9A01's logic is 3.3 V; 5 V can damage it.
 
 ```
- GC9A01            Raspberry Pi 5 header
- ───────           ─────────────────────
-  VCC  ───────────► 3V3   (pin 17)
-  GND  ───────────► GND   (pin 20)
-  SCL  ───────────► GPIO11 SCLK (pin 23)
-  SDA  ───────────► GPIO10 MOSI (pin 19)
-  CS   ───────────► GPIO8  CE0  (pin 24)
-  DC   ───────────► GPIO25      (pin 22)
-  RES  ───────────► GPIO24      (pin 18)
-  BLK  ───────────► GPIO12      (pin 32)
+ GC9A01 (10-pin ribbon connector) ──► Raspberry Pi 5 Header (Pins 17-26 block)
+ ────────────────────────────────     ─────────────────────────────────────────
+  VCC  ───────────► 3V3   (pin 17)     RES  ───────────► GPIO24      (pin 18)
+  SDA  ───────────► GPIO10(pin 19)     GND  ───────────► GND         (pin 20)
+  (NC) ───────────► GPIO9 (pin 21)     DC   ───────────► GPIO25      (pin 22)
+  SCL  ───────────► GPIO11(pin 23)     CS   ───────────► GPIO8  CE0  (pin 24)
+  GND  ───────────► GND   (pin 25)     BLK  ───────────► GPIO7       (pin 26)
 ```
 
 ### 4.4 Camera — Arducam IMX708 (CSI ribbon)
