@@ -75,29 +75,13 @@ If using the **SN74AHCT125N** high-speed 3.3V-to-5.0V bus buffer IC in DIP-14 fo
 
 ## 🔌 Complete Wiring Pinout Table
 
-### 1. Raspberry Pi ➔ 4-Channel MOSFET Breakout Module (Alternative Dead Bug)
-
-| (1) Pi Pin # | (2) Dead Bug Pin # / Pad | (3) Dead Bug Pin Name | (4) Selected Wire Color |
-|---|---|---|---|
-| Pin 2 | Pad 1 (High VCC) | HV | Red |
-| Pin 17 | Pad 2 (Low VCC) | LV | Orange |
-| Pin 9 | Pad 3 (Ground) | GND | Black |
-| Pin 12 | Pad 4 (Low Data 1) | LV1 | Green |
-| Candle 1 DIN | Pad 5 (High Data 1) | HV1 | White (via 330 Ω resistor) |
-
-> [!TIP]
-> **No Pin Collision with Laser Rangefinder**:
-> - The **Laser Rangefinder** uses **Pin 1 (3.3V)**, **Pin 3 (GPIO 2 / SDA)**, **Pin 5 (GPIO 3 / SCL)**, and **Pin 7 (GPIO 4 / XSHUT)**.
-> - The **Dead Bug Shifter** uses **Pin 17 (3.3V)**, **Pin 2 (5V)**, **Pin 9 (GND)**, and **Pin 12 (GPIO 18 / PWM0)**.
-> - Using **Pin 17** for the shifter keeps both components completely separate without needing wire splices!
-
-### 2. Level Converter ➔ WS2812B Candle LED Chain
+### 1. SN74AHCT125N IC ➔ WS2812B Candle LED Chain
 
 | Level Converter Output Pin | Connection | Destination |
 |---|---|---|
-| **HV1** (High Voltage Output) | 330 Ω Resistor ➔ | **DIN** (Data In) of **Candle 1** |
-| **HV** (5V Rail Pass-through) | Direct ➔ | **+5V** (VCC) of **ALL Candles** (Parallel Bus) |
-| **GND** (Ground Pass-through) | Direct ➔ | **GND** of **ALL Candles** (Parallel Bus) |
+| **Pin 3 (1Y Data Output)** | 330 Ω Resistor ➔ | **DIN** (Data In) of **Candle 1** |
+| **Pin 14 (5V Rail Pass-through)** | Direct ➔ | **+5V** (VCC) of **ALL Candles** (Parallel Bus) |
+| **Pin 7 (GND Pass-through)** | Direct ➔ | **GND** of **ALL Candles** (Parallel Bus) |
 
 ### 3. Daisy-Chaining Candle LEDs in Series (Data Line)
 
