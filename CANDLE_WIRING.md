@@ -26,6 +26,39 @@ A **"Dead Bug"** setup means soldering wires directly to the pins of the tiny lo
 
 ---
 
+## 📌 SN74AHCT125N DIP-14 IC Pinout & Dead-Bug Map
+
+If using the **SN74AHCT125N** high-speed 3.3V-to-5.0V bus buffer IC in DIP-14 format (instead of a breakout module), use the following pinout and dead-bug connection map.
+
+### DIP-14 Package Pinout Diagram
+
+```text
+               SN74AHCT125N DIP-14 Top View
+                     ┌───┬───┐
+(GND Enable 1)  1OE 1│●  └── │14 VCC (5V Power)
+(3.3V Data IN)   1A 2│       │13 4OE (Tie to GND)
+(5V Data OUT)    1Y 3│       │12 4A  (Unused)
+(Tie to GND)    2OE 4│       │11 4Y  (Unused)
+(Unused)         2A 5│       │10 3OE (Tie to GND)
+(Unused)         2Y 6│       │9  3A  (Unused)
+(Ground)        GND 7│       │8  3Y  (Unused)
+                     └───────┘
+```
+
+### SN74AHCT125N Pin Connection Summary
+
+| IC Pin | Pin Name | Function | Connects To | Notes |
+|---|---|---|---|---|
+| **Pin 14** | **VCC** | IC Power (5.0V) | Raspberry Pi **Pin 2 or 4 (5V)** | Powers internal 5V output drivers |
+| **Pin 7** | **GND** | Ground (0V) | Raspberry Pi **Pin 9 or 14 (GND)** | Common Ground |
+| **Pin 1** | **1OE** | Output Enable 1 | **Pin 7 (GND)** | Active-LOW: Bridge Pin 1 to Pin 7 |
+| **Pin 2** | **1A** | Channel 1 Data Input | Raspberry Pi **Pin 12 (GPIO 18 / PWM0)** | Accepts 3.3V logic level from Pi |
+| **Pin 3** | **1Y** | Channel 1 Data Output | **330 Ω Resistor ➔ Candle 1 DIN** | Outputs clean 5.0V logic signal |
+| **Pins 4, 10, 13** | **2OE, 3OE, 4OE** | Unused Enables | **Pin 7 (GND)** | Tie to GND to prevent floating inputs |
+| **Pins 5, 6, 8, 9, 11, 12** | **2A, 2Y, 3Y, 3A, 4Y, 4A** | Unused Channels | Leave Disconnected | Reserved / Unused |
+
+---
+
 ## 🔌 Complete Wiring Pinout Table
 
 ### 1. Raspberry Pi ➔ Level Converter ("Dead Bug" Module)
