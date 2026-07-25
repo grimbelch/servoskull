@@ -59,6 +59,20 @@ If using the **SN74AHCT125N** high-speed 3.3V-to-5.0V bus buffer IC in DIP-14 fo
 
 ---
 
+## 💡 Resistor Location & 3.3V Power vs. Data Pin Clarification
+
+### 1. Where Does the 330 Ω Resistor Go?
+> [!IMPORTANT]
+> The **330 Ω resistor is placed ONLY on the 5.0V Data Output line** (`1Y` on the IC / `HV1` on the module), **BEFORE Candle 1's `DIN` pin**.
+> - **Input Side (3.3V)**: Connect Raspberry Pi GPIO 18 (Pin 12) **directly** to Data Input (`1A` on the IC / `LV1` on the breakout module). **No resistor is used on the 3.3V input side.**
+> - **Output Side (5.0V)**: Connect Data Output (`1Y` / `HV1`) ➔ **330 Ω Resistor** ➔ **Candle 1 DIN**. (This dampens signal reflections and protects the first LED).
+
+### 2. Why Does Breakout Module Have `LV (3.3V VCC)` While SN74AHCT125N Does Not?
+- **4-Channel MOSFET Breakout Module**: Requires a 3.3V power reference wire connected to its `LV` pin to bias internal transistors.
+- **SN74AHCT125N IC Chip**: Powered **exclusively by 5.0V `VCC` (Pin 14)**. It has TTL-compatible input thresholds ($V_{IH} \ge 2.0\text{V}$), so it recognizes 3.3V GPIO data signals on Pin 2 (`1A`) directly **without needing any 3.3V power wire!**
+
+---
+
 ## 🔌 Complete Wiring Pinout Table
 
 ### 1. Raspberry Pi ➔ Level Converter ("Dead Bug" Module)
