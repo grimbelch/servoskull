@@ -45,17 +45,17 @@ If using the **SN74AHCT125N** high-speed 3.3V-to-5.0V bus buffer IC in DIP-14 fo
                      └───────┘
 ```
 
-### SN74AHCT125N Pin Connection Summary
+### SN74AHCT125N Dead-Bug Pin Connection Table
 
-| IC Pin | Pin Name | Function | Connects To | Notes |
-|---|---|---|---|---|
-| **Pin 14** | **VCC** | IC Power (5.0V) | Raspberry Pi **Pin 2 or 4 (5V)** | Powers internal 5V output drivers |
-| **Pin 7** | **GND** | Ground (0V) | Raspberry Pi **Pin 9 or 14 (GND)** | Common Ground |
-| **Pin 1** | **1OE** | Output Enable 1 | **Pin 7 (GND)** | Active-LOW: Bridge Pin 1 to Pin 7 |
-| **Pin 2** | **1A** | Channel 1 Data Input | Raspberry Pi **Pin 12 (GPIO 18 / PWM0)** | Accepts 3.3V logic level from Pi |
-| **Pin 3** | **1Y** | Channel 1 Data Output | **330 Ω Resistor ➔ Candle 1 DIN** | Outputs clean 5.0V logic signal |
-| **Pins 4, 10, 13** | **2OE, 3OE, 4OE** | Unused Enables | **Pin 7 (GND)** | Tie to GND to prevent floating inputs |
-| **Pins 5, 6, 8, 9, 11, 12** | **2A, 2Y, 3Y, 3A, 4Y, 4A** | Unused Channels | Leave Disconnected | Reserved / Unused |
+| (1) Pi Pin # | (2) Dead Bug Pin # | (3) Dead Bug Pin Name | (4) Selected Wire Color / Action |
+|---|---|---|---|
+| **Pin 2** (5V Power) | **Pin 14** | `VCC` | **Red** Wire (5V IC Power Input) |
+| **Pin 9** (GND) | **Pin 7** | `GND` | **Black** Wire (Common Ground) |
+| — (Internal Bridge) | **Pin 1** | `1OE` (Output Enable 1) | **Bare Solder Bridge** directly to Pin 7 (GND) |
+| **Pin 12** (GPIO 18 / PWM0) | **Pin 2** | `1A` (Data Input 1) | **Green** Wire (3.3V Data Signal from Pi) |
+| ➔ Candle 1 `DIN` | **Pin 3** | `1Y` (Data Output 1) | **White** Wire (via **330 Ω Inline Resistor**) |
+| — (Internal Bridge) | **Pins 4, 10, 13** | `2OE, 3OE, 4OE` | **Bare Solder Bridges** to Pin 7 (GND) |
+| — (Unused) | **Pins 5, 6, 8, 9, 11, 12** | `2A, 2Y, 3A, 3Y, 4A, 4Y` | **None** (Leave Disconnected / Unused) |
 
 ---
 
@@ -75,14 +75,15 @@ If using the **SN74AHCT125N** high-speed 3.3V-to-5.0V bus buffer IC in DIP-14 fo
 
 ## 🔌 Complete Wiring Pinout Table
 
-### 1. Raspberry Pi ➔ Level Converter ("Dead Bug" Module)
+### 1. Raspberry Pi ➔ 4-Channel MOSFET Breakout Module (Alternative Dead Bug)
 
-| Raspberry Pi Pin | Function | Level Converter Pin | Wire Color | Notes |
-|---|---|---|---|---|
-| **Pin 2 or Pin 4** | **5V Power** | **HV** (High Voltage VCC) | Red | 5V Rail |
-| **Pin 17** | **3.3V Power** | **LV** (Low Voltage VCC) | Orange / Yellow | **Dedicated 3.3V for Shifter** (Pin 1 is for Laser Rangefinder) |
-| **Pin 9 or Pin 14** | **Ground (GND)** | **GND** (Common Ground) | Black / White | Common Ground |
-| **Pin 12 (GPIO 18 / PWM0)** | **3.3V Data Signal** | **LV1** (Low Voltage Input) | Blue / Green | Dedicated PWM Data Pin |
+| (1) Pi Pin # | (2) Dead Bug Pin # / Pad | (3) Dead Bug Pin Name | (4) Selected Wire Color / Action |
+|---|---|---|---|
+| **Pin 2** (5V Power) | Pad 1 (High VCC) | `HV` | **Red** Wire (5V High Power Rail) |
+| **Pin 17** (3.3V Power) | Pad 2 (Low VCC) | `LV` | **Orange** Wire (3.3V Low Power Reference) |
+| **Pin 9** (GND) | Pad 3 (Ground) | `GND` | **Black** Wire (Common Ground) |
+| **Pin 12** (GPIO 18 / PWM0) | Pad 4 (Low Data 1) | `LV1` | **Green** Wire (3.3V Data Signal from Pi) |
+| ➔ Candle 1 `DIN` | Pad 5 (High Data 1) | `HV1` | **White** Wire (via **330 Ω Inline Resistor**) |
 
 > [!TIP]
 > **No Pin Collision with Laser Rangefinder**:
