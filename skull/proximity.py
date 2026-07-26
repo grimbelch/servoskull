@@ -98,6 +98,8 @@ def start() -> bool:
     global _tof, _available
     if not config.PROXIMITY_ENABLED:
         return False
+    if _available and _tof is not None:
+        return True
     try:
         # Drive XSHUT pin HIGH to boot up the sensor
         try:
@@ -176,6 +178,41 @@ def read_cm() -> float | None:
     if mm is None or mm <= 0:
         return None
     return mm / 10.0
+
+
+def read_cm_average(samples: int = 3, sample_delay: float = 0.03) -> float | None:
+    """Take multiple distance readings in cm and return average, or None if no valid target."""
+    import time
+    readings = []
+    for _ in range(samples):
+        cm = read_cm()
+        if cm is not None and cm > 0:
+            readings.append(cm)
+        time.sleep(sample_delay)
+    if not readings:
+        return None
+    return sum(readings) / len(readings)
+
+
+def is_target_within(max_feet: float = 5.0) -> bool | None:
+    """Check if a target is detected by the rangefinder within max_feet (default 5.0 ft / 152.4 cm).
+
+    Returns:
+        True  — sensor is active and target is detected <= max_feet.
+        False — sensor is active and target is > max_feet or out of range / no target (None).
+        None  — sensor is disabled or unavailable on hardware.
+    """
+    if not available():
+        start()
+    if not available():
+        return None
+
+    max_cm = max_feet * 12.0 * 2.54  # 5 feet = 152.4 cm
+    avg_cm = read_cm_average(samples=3)
+
+    if avg_cm is None or avg_cm > max_cm:
+        return False
+    return True
 
 
 def stop() -> None:
