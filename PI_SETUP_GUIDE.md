@@ -215,7 +215,7 @@ but the SDA/SCL lines idle at the Pi's 3.3 V and there's no level-shifting on th
 | Breakout pin | Connects to | GPIO (BCM) | Physical pin | Notes |
 |---|---|---|---|---|
 | VIN | 3.3 V Power | — | 1 | Powers sensor |
-| GND | Ground | — | 6 | Common Ground |
+| GND | Ground | — | 9 | Header Pin 9 (Common Ground) |
 | SDA | I2C Data | GPIO2 | 3 | I2C1 Data line |
 | SCL | I2C Clock | GPIO3 | 5 | I2C1 Clock line |
 | XSHUT (Enable) | GPIO4 / Enable | GPIO4 | 7 | Driven HIGH by software *(or tie to 3.3 V)* |
