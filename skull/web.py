@@ -76,9 +76,11 @@ def load_vox_history_from_brain() -> None:
     _vox_history_loaded = True
     try:
         from skull import brain
-        history = brain.get_history()
+        history = list(brain.get_history() or [])
         import re
         for item in history:
+            if not isinstance(item, dict):
+                continue
             role = item.get("role")
             content = item.get("content", "")
             if not content:
@@ -110,32 +112,39 @@ class WebLogRedirect:
         self.original_stdout = original_stdout
 
     def write(self, s):
-        self.original_stdout.write(s)
-        if s.strip():
-            import re
-            clean_s = re.sub(r'\x1b\[[0-9;]*[mK]', '', s.strip())
-            now_str = time.strftime("%H:%M:%S")
+        try:
+            self.original_stdout.write(s)
+        except Exception:
+            pass
+        if s and s.strip():
+            try:
+                import re
+                clean_s = re.sub(r'\x1b\[[0-9;]*[mK]', '', s.strip())
+                now_str = time.strftime("%H:%M:%S")
 
-            m_heard = re.match(r'^\[skull\]\s+Heard(?:\s*\(([^)]+)\))?:\s*(.+)$', clean_s)
-            m_skull = re.match(r'^\[skull\]\s+([^:]+):\s*(.+)$', clean_s)
+                m_heard = re.match(r'^\[skull\]\s+Heard(?:\s*\(([^)]+)\))?:\s*(.+)$', clean_s)
+                m_skull = re.match(r'^\[skull\]\s+([^:]+):\s*(.+)$', clean_s)
 
-            if m_heard:
-                spk = m_heard.group(1) or "User"
-                txt = m_heard.group(2)
-                log_vox(spk, txt, timestamp=now_str)
-            elif clean_s.startswith("[skull] Idle:"):
-                txt = clean_s[len("[skull] Idle:"):].strip()
-                log_vox(config.SKULL_NAME, txt, timestamp=now_str)
-            elif clean_s.startswith("[skull] Daily Briefing:"):
-                txt = clean_s[len("[skull] Daily Briefing:"):].strip()
-                log_vox(config.SKULL_NAME, txt, timestamp=now_str)
-            elif m_skull and m_skull.group(1).strip() in (config.SKULL_NAME, "Omega-7", "Servo-Skull"):
-                spk = m_skull.group(1).strip()
-                txt = m_skull.group(2)
-                log_vox(spk, txt, timestamp=now_str)
-            else:
-                with _log_lock:
-                    _log_buffer.append(f"[{now_str}] {clean_s}")
+                if m_heard:
+                    spk = m_heard.group(1) or "User"
+                    txt = m_heard.group(2)
+                    log_vox(spk, txt, timestamp=now_str)
+                elif clean_s.startswith("[skull] Idle:"):
+                    txt = clean_s[len("[skull] Idle:"):].strip()
+                    log_vox(config.SKULL_NAME, txt, timestamp=now_str)
+                elif clean_s.startswith("[skull] Daily Briefing:"):
+                    txt = clean_s[len("[skull] Daily Briefing:"):].strip()
+                    log_vox(config.SKULL_NAME, txt, timestamp=now_str)
+                elif m_skull and m_skull.group(1).strip() in (config.SKULL_NAME, "Omega-7", "Servo-Skull"):
+                    spk = m_skull.group(1).strip()
+                    txt = m_skull.group(2)
+                    log_vox(spk, txt, timestamp=now_str)
+                else:
+                    with _log_lock:
+                        _log_buffer.append(f"[{now_str}] {clean_s}")
+            except Exception:
+                pass
+        return len(s) if s else 0
 
     def flush(self):
         self.original_stdout.flush()
@@ -186,24 +195,29 @@ def pop_wake_request() -> bool:
     return False
 
 
+_psutil_lock = threading.Lock()
+
+
 def get_ram_usage() -> str:
     try:
-        import psutil
-        mem = psutil.virtual_memory()
-        used_gb = mem.used / (1024**3)
-        total_gb = mem.total / (1024**3)
-        return f"{mem.percent:.1f}% ({used_gb:.1f}G/{total_gb:.1f}G)"
+        with _psutil_lock:
+            import psutil
+            mem = psutil.virtual_memory()
+            used_gb = mem.used / (1024**3)
+            total_gb = mem.total / (1024**3)
+            return f"{mem.percent:.1f}% ({used_gb:.1f}G/{total_gb:.1f}G)"
     except Exception:
         return "42.5% (1.7G/4.0G) [Virtual]"
 
 
 def get_storage_usage() -> str:
     try:
-        import psutil
-        disk = psutil.disk_usage('/')
-        used_gb = disk.used / (1024**3)
-        total_gb = disk.total / (1024**3)
-        return f"{disk.percent:.1f}% ({used_gb:.1f}G/{total_gb:.1f}G)"
+        with _psutil_lock:
+            import psutil
+            disk = psutil.disk_usage('/')
+            used_gb = disk.used / (1024**3)
+            total_gb = disk.total / (1024**3)
+            return f"{disk.percent:.1f}% ({used_gb:.1f}G/{total_gb:.1f}G)"
     except Exception:
         try:
             import os
@@ -219,9 +233,10 @@ def get_storage_usage() -> str:
 
 def get_cpu_usage() -> str:
     try:
-        import psutil
-        pct = psutil.cpu_percent(interval=None)
-        return f"{pct:.1f}%"
+        with _psutil_lock:
+            import psutil
+            pct = psutil.cpu_percent(interval=None)
+            return f"{pct:.1f}%"
     except Exception:
         return "12.4% [Virtual]"
 
@@ -254,7 +269,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
 
     def _send_json(self, data: dict, status_code: int = 200) -> None:
         try:
-            body = json.dumps(data).encode("utf-8")
+            body = json.dumps(data, default=str).encode("utf-8")
             self.send_response(status_code)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
@@ -313,12 +328,12 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                 "screensavers": display.get_screensaver_names() if hasattr(display, "get_screensaver_names") else [],
                 "logs": get_logs(),
                 "vox_logs": get_vox_logs(),
-                "camera_active": __import__("skull.camera", fromlist=["is_camera_active"]).is_camera_active() if hasattr(__import__("skull.camera", fromlist=["is_camera_active"]), "is_camera_active") else False,
+                "camera_active": (lambda: getattr(sys.modules.get("skull.camera"), "is_camera_active", lambda: False)())() if "skull.camera" in sys.modules else False,
                 "audio_id": get_latest_web_audio()[1],
                 "proximity": {
                     "enabled": config.PROXIMITY_ENABLED,
                     "available": proximity.available(),
-                    "distance_cm": proximity.get_latest_distance_cm(),
+                    "distance_cm": round(proximity.get_latest_distance_cm(), 1) if proximity.get_latest_distance_cm() is not None else None,
                     "summary": proximity.get_distance_summary_short(),
                 },
             }
