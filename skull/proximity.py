@@ -200,3 +200,37 @@ def stop() -> None:
 
     _tof = None
     _available = False
+
+
+def get_distance_summary() -> str:
+    """Return a human-readable distance measurement string."""
+    if not available():
+        start()
+    if not available():
+        return "Laser rangefinder sensor is disabled or unavailable."
+    
+    import time
+    readings = []
+    for _ in range(4):
+        cm = read_cm()
+        if cm is not None and cm > 0:
+            readings.append(cm)
+        time.sleep(0.05)
+        
+    if not readings:
+        return "Target is out of range or no obstacle was detected by the rangefinder."
+        
+    avg_cm = sum(readings) / len(readings)
+    inches = avg_cm / 2.54
+    feet = inches / 12.0
+    
+    if feet >= 1.0:
+        feet_int = int(feet)
+        rem_inches = round(inches % 12)
+        if rem_inches == 12:
+            feet_int += 1
+            rem_inches = 0
+        return f"{avg_cm:.1f} cm ({feet_int} feet, {rem_inches} inches)"
+    else:
+        return f"{avg_cm:.1f} cm ({inches:.1f} inches)"
+

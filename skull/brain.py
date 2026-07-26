@@ -286,6 +286,19 @@ def _build_tools() -> list[dict]:
         },
     },
     {
+        "name": "get_distance",
+        "description": (
+            "Measure the exact physical distance to the user or an obstacle using the laser rangefinder "
+            "/ Time-of-Flight sensor. Call when the user asks 'how far away am I', 'how far is that object', "
+            "'check rangefinder', 'measure distance', 'how close am I', or asks about distance/range."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
         "name": "get_bambu_status",
         "description": (
             "Retrieve the current status of the Bambu 3D printer, including print state, "
@@ -2470,6 +2483,10 @@ def _tool_get_daily_briefing(i):
     finally:
         display.stop_news_fetch()
 
+def _tool_get_distance(i):
+    from skull import proximity
+    return proximity.get_distance_summary()
+
 _TOOL_REGISTRY = {
     "web_search": _tool_web_search,
     "news_search": _tool_news_search,
@@ -2478,6 +2495,7 @@ _TOOL_REGISTRY = {
     "netepic_rules": _tool_netepic_rules,
     "netea_rules": _tool_netea_rules,
     "get_weather": _tool_get_weather,
+    "get_distance": _tool_get_distance,
     "get_daily_briefing": _tool_get_daily_briefing,
     "set_volume": _tool_set_volume,
     "bluetooth_scan": _tool_bluetooth_scan,
