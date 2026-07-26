@@ -294,7 +294,6 @@ def _vision_loop() -> None:
     finally:
         _read_frame_fn = None
         close()
-        proximity.stop()
 
 
 def start() -> None:

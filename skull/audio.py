@@ -219,7 +219,12 @@ def play_wav_bytes(
     duration = len(data) / rate + 5.0  # audio duration + 5s safety margin
     deadline = time.monotonic() + duration
     with sd.OutputStream(**sd_kwargs) as stream:
-        while stream.active and time.monotonic() < deadline:
+        while time.monotonic() < deadline:
+            try:
+                if not stream.active:
+                    break
+            except Exception:
+                break
             time.sleep(0.05)
 
 

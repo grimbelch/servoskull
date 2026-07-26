@@ -1,13 +1,6 @@
 """
-VL53L1X time-of-flight proximity sensor (I2C) — tells the camera and idle loops when someone is
-physically close, replacing frame-difference motion as the vision trigger.
-
-Why ToF over the old motion approach: a laser rangefinder fires only on genuine
-physical approach (no false trips from auto-exposure or a changing scene) and it
-works in a dark room, where frame differencing sees nothing. If the sensor or its
-library is absent (non-Pi dev hosts, or a Pi without the sensor wired),
-every entry point is a silent no-op and camera.py falls back to motion detection.
-Mirrors the defensive pattern in eyes.py / display.py.
+VL53L1X time-of-flight proximity sensor (I2C) — tells the camera, web interface,
+and idle loops when someone is physically close.
 
 Enable with PROXIMITY_ENABLED=true in .env. Wiring lives in config.py.
 """
@@ -21,7 +14,7 @@ from skull import config
 
 _tof = None
 _available = False
-_lock = threading.Lock()  # I2C transactions aren't reentrant; serialize reads
+_lock = threading.Lock()  # I2C transactions serialization
 
 _polling_thread: threading.Thread | None = None
 _polling_active: bool = False
@@ -31,95 +24,17 @@ _readings_buffer = collections.deque(maxlen=10)
 _poll_lock = threading.Lock()
 
 
-def _patch_vl53l1x():
-    """Monkeypatch VL53L1X to catch I2C errors in ctypes callbacks."""
-    try:
-        import VL53L1X
-        from ctypes import CFUNCTYPE, c_int, c_ubyte, POINTER, c_uint16
-        from smbus2 import i2c_msg
-    except ImportError:
-        return
-
-    _I2C_MULTI_FUNC = CFUNCTYPE(c_int, c_ubyte, c_uint16)
-    _I2C_READ_FUNC = CFUNCTYPE(c_int, c_ubyte, c_uint16, POINTER(c_ubyte), c_ubyte)
-    _I2C_WRITE_FUNC = CFUNCTYPE(c_int, c_ubyte, c_uint16, POINTER(c_ubyte), c_ubyte)
-
-    def custom_configure(self):
-        self._i2c_error = False
-
-        def _i2c_read(address, reg, data_p, length):
-            if self._i2c_error:
-                return -1
-            try:
-                msg_w = i2c_msg.write(address, [reg >> 8, reg & 0xff])
-                msg_r = i2c_msg.read(address, length)
-                self._i2c.i2c_rdwr(msg_w, msg_r)
-                for index in range(length):
-                    data_p[index] = ord(msg_r.buf[index])
-                return 0
-            except Exception as e:
-                self._i2c_error = True
-                print(f"[proximity] I2C read error: {e}")
-                return -1
-
-        def _i2c_write(address, reg, data_p, length):
-            if self._i2c_error:
-                return -1
-            try:
-                data = [data_p[index] for index in range(length)]
-                msg_w = i2c_msg.write(address, [reg >> 8, reg & 0xff] + data)
-                self._i2c.i2c_rdwr(msg_w)
-                return 0
-            except Exception as e:
-                self._i2c_error = True
-                print(f"[proximity] I2C write error: {e}")
-                return -1
-
-        def _i2c_multi(address, reg):
-            if self._i2c_error:
-                return -1
-            try:
-                self._i2c.write_byte(address, reg)
-                return 0
-            except Exception as e:
-                self._i2c_error = True
-                print(f"[proximity] I2C multi-write error: {e}")
-                return -1
-
-        self._i2c_multi_func = _I2C_MULTI_FUNC(_i2c_multi)
-        self._i2c_read_func = _I2C_READ_FUNC(_i2c_read)
-        self._i2c_write_func = _I2C_WRITE_FUNC(_i2c_write)
-        VL53L1X._TOF_LIBRARY.VL53L1_set_i2c(self._i2c_multi_func, self._i2c_read_func, self._i2c_write_func)
-
-    VL53L1X.VL53L1X._configure_i2c_library_functions = custom_configure
-
-
 def _raw_read_cm() -> float | None:
-    """Read a single raw measurement from hardware."""
+    """Read a single raw measurement from hardware in cm."""
     global _available
     if not _available or _tof is None:
-        return None
-
-    if getattr(_tof, "_i2c_error", False):
-        print("[proximity] VL53L1X flagged I2C error. Disabling proximity sensor.")
-        _available = False
-        try:
-            with _lock:
-                _tof.stop_ranging()
-                _tof.close()
-        except Exception:
-            pass
         return None
 
     try:
         with _lock:
             mm = _tof.get_distance()
     except Exception as e:
-        print(f"[proximity] Error reading sensor: {e}. Disabling sensor.")
-        _available = False
-        return None
-
-    if getattr(_tof, "_i2c_error", False):
+        print(f"[proximity] Error reading sensor: {e}.")
         return None
 
     if mm is None or mm <= 0:
@@ -154,50 +69,40 @@ def start() -> bool:
     global _tof, _available, _polling_thread, _polling_active
     if not config.PROXIMITY_ENABLED:
         return False
-    if _available and _tof is not None and _polling_active:
-        return True
-    try:
-        # Drive XSHUT pin HIGH to boot up the sensor
+
+    with _lock:
+        if _available and _tof is not None and _polling_active:
+            return True
         try:
-            import RPi.GPIO as GPIO
-            GPIO.setmode(GPIO.BCM)
-            GPIO.setwarnings(False)
-            GPIO.setup(config.PROXIMITY_XSHUT_PIN, GPIO.OUT, initial=GPIO.HIGH)
-            time.sleep(0.1)  # 100ms to allow VL53L1X to boot up and initialize I2C
-            print(f"[proximity] Driven XSHUT (GPIO {config.PROXIMITY_XSHUT_PIN}) HIGH.")
-        except Exception as ge:
-            print(f"[proximity] GPIO setup warning (XSHUT pin {config.PROXIMITY_XSHUT_PIN}): {ge}")
+            import VL53L1X
+            tof = VL53L1X.VL53L1X(
+                i2c_bus=config.PROXIMITY_I2C_BUS,
+                i2c_address=config.PROXIMITY_I2C_ADDR,
+            )
+            tof.open()
+            if not getattr(tof, "_dev", True):
+                raise RuntimeError("Sensor not responding on I2C bus")
+            tof.start_ranging(config.PROXIMITY_RANGE_MODE)
+            _tof = tof
+            _available = True
 
-        _patch_vl53l1x()
-        import VL53L1X
-        tof = VL53L1X.VL53L1X(
-            i2c_bus=config.PROXIMITY_I2C_BUS,
-            i2c_address=config.PROXIMITY_I2C_ADDR,
-        )
-        tof.open()
-        if getattr(tof, "_i2c_error", False) or not tof._dev:
-            raise RuntimeError("Sensor not responding on I2C bus")
-        tof.start_ranging(config.PROXIMITY_RANGE_MODE)
-        _tof = tof
-        _available = True
+            # Start continuous background polling thread
+            if not _polling_active:
+                _polling_active = True
+                _polling_thread = threading.Thread(target=_continuous_poll_loop, daemon=True)
+                _polling_thread.start()
 
-        # Start continuous background polling thread
-        if not _polling_active:
-            _polling_active = True
-            _polling_thread = threading.Thread(target=_continuous_poll_loop, daemon=True)
-            _polling_thread.start()
-
-        print(
-            f"[proximity] VL53L1X ranging on i2c-{config.PROXIMITY_I2C_BUS} "
-            f"@ 0x{config.PROXIMITY_I2C_ADDR:02x} "
-            f"(mode {config.PROXIMITY_RANGE_MODE}, poll interval {config.PROXIMITY_POLL_INTERVAL}s)"
-        )
-        return True
-    except Exception as e:
-        print(f"[proximity] Sensor unavailable ({e})")
-        _available = False
-        _polling_active = False
-        return False
+            print(
+                f"[proximity] VL53L1X ranging on i2c-{config.PROXIMITY_I2C_BUS} "
+                f"@ 0x{config.PROXIMITY_I2C_ADDR:02x} "
+                f"(mode {config.PROXIMITY_RANGE_MODE}, poll interval {config.PROXIMITY_POLL_INTERVAL}s)"
+            )
+            return True
+        except Exception as e:
+            print(f"[proximity] Sensor unavailable ({e})")
+            _available = False
+            _polling_active = False
+            return False
 
 
 def available() -> bool:
@@ -282,14 +187,6 @@ def stop() -> None:
     except Exception:
         pass
 
-    # Drive XSHUT low to put sensor back in shutdown/low-power state
-    try:
-        import RPi.GPIO as GPIO
-        GPIO.setup(config.PROXIMITY_XSHUT_PIN, GPIO.OUT)
-        GPIO.output(config.PROXIMITY_XSHUT_PIN, GPIO.LOW)
-    except Exception:
-        pass
-
     _tof = None
     _available = False
 
@@ -334,11 +231,3 @@ def get_distance_summary() -> str:
         return f"{avg_cm:.1f} cm ({feet_int} feet, {rem_inches} inches)"
     else:
         return f"{avg_cm:.1f} cm ({inches:.1f} inches)"
-
-
-# Auto-start continuous polling if proximity is enabled in config
-if config.PROXIMITY_ENABLED:
-    try:
-        threading.Thread(target=start, daemon=True).start()
-    except Exception as _e:
-        print(f"[proximity] Auto-start error: {_e}")

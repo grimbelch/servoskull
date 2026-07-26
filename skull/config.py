@@ -122,9 +122,11 @@ def _resolve_input_device(raw: str) -> int:
 
 # ── Audio devices ────────────────────────────────────────────────────────────────
 MIC_DEVICE_INDEX = _resolve_input_device(_cfg("MIC_DEVICE_INDEX", "-1"))
-AUDIO_OUTPUT_DEVICE = int(_cfg("AUDIO_OUTPUT_DEVICE", "-1"))
+_raw_out = int(_cfg("AUDIO_OUTPUT_DEVICE", "-1"))
+AUDIO_OUTPUT_DEVICE = _raw_out if _raw_out >= 0 else None
 # Pinned device for TTS/SFX — stays on the skull's own speaker even when BT is the PulseAudio default
-VOICE_OUTPUT_DEVICE = int(_cfg("VOICE_OUTPUT_DEVICE", str(AUDIO_OUTPUT_DEVICE)))
+_raw_voice_out = int(_cfg("VOICE_OUTPUT_DEVICE", str(_raw_out)))
+VOICE_OUTPUT_DEVICE = _raw_voice_out if _raw_voice_out >= 0 else None
 # Set to true to print per-chunk RMS values during recording
 AUDIO_DEBUG = os.getenv("AUDIO_DEBUG", "false").lower() == "true"
 
