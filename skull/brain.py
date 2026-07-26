@@ -3036,3 +3036,27 @@ def generate_daily_briefing() -> str:
     except Exception as e:
         print(f"[brain] Error generating daily briefing LLM response: {e}")
         return f"Warning: Noosphere link degraded. Weather reports: {weather_info}."
+
+
+def generate_morning_greeting(detected_name: str | None) -> str:
+    """Generate a persona-appropriate morning greeting for an identified person or unknown visitor.
+
+    If detected_name is provided (e.g. "Sean"), greets them by name.
+    If detected_name is None, greets them as an unrecognized visitor.
+    """
+    import random
+    if detected_name:
+        name_clean = detected_name.strip()
+        greetings = [
+            f"Good morning, Master {name_clean}. The Omnissiah's light shines upon a new day. All machine spirits stand ready for your commands.",
+            f"Greetings, Master {name_clean}. Morning telemetry is nominal. The machine spirit observes your return to the cogitator.",
+            f"Good morning, {name_clean}. Rangefinder telemetry confirmed your approach. How may this servitor assist you today?",
+        ]
+        return random.choice(greetings)
+    else:
+        greetings = [
+            "Good morning. Rangefinder optics detect an unrecognized biological entity. State your identity and purpose before the machine spirit.",
+            "Good morning, visitor. Biometric scan indicates an uncatalogued profile near the cogitator console. Identify yourself.",
+            "Greetings, unidentified unit. The servoskull observes your presence. Please state your designation.",
+        ]
+        return random.choice(greetings)

@@ -438,6 +438,72 @@ def _spotify_poller_loop():
         time.sleep(4.0)
 
 
+_last_morning_greeting_date: str | None = None
+_morning_greeting_lock = threading.Lock()
+
+
+def _morning_greeting_watcher() -> None:
+    """Background loop checking rangefinder distance in the morning (after 4:00 AM).
+
+    If target is detected <= 1.5 meters (150 cm) and morning greeting has not yet
+    fired today, captures a frame, identifies the person, and delivers a greeting.
+    """
+    global _last_morning_greeting_date
+    print("[morning] Proximity morning greeting watcher active (after 4:00 AM, <= 1.5m)")
+    while True:
+        time.sleep(0.5)
+        try:
+            from datetime import datetime
+            now = datetime.now()
+            # Morning condition: between 4:00 AM and 11:59 AM
+            if not (4 <= now.hour < 12):
+                continue
+
+            today_str = now.strftime("%Y-%m-%d")
+            with _morning_greeting_lock:
+                if _last_morning_greeting_date == today_str:
+                    continue
+
+            from skull import proximity, quiet
+            if quiet.is_silent():
+                continue
+
+            cm = proximity.get_latest_distance_cm()
+            if cm is None or cm <= 0 or cm > 150.0:  # 1.5 meters = 150 cm
+                continue
+
+            # Mark today's morning greeting as completed
+            with _morning_greeting_lock:
+                _last_morning_greeting_date = today_str
+
+            print(f"[morning] Morning target detected at {cm:.1f} cm (<= 150 cm) — running face identification...")
+            
+            # Activate visual targeting indicator
+            display.on()
+            eyes.on()
+            
+            # Capture frame and identify
+            from skull import camera, brain, tts, audio, web
+            _, detected_name = camera.capture_and_identify()
+
+            greeting_text = brain.generate_morning_greeting(detected_name)
+            print(f"[morning] Morning greeting ({'identified: ' + str(detected_name) if detected_name else 'unrecognized'}): {greeting_text}")
+
+            brain.record_assistant_turn(greeting_text)
+            web.log_vox(config.SKULL_NAME, greeting_text)
+
+            try:
+                speech_wav = tts.synthesize(greeting_text)
+                audio.play_wav_bytes(speech_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+            except Exception as se:
+                print(f"[morning] Greeting speech delivery error: {se}")
+            finally:
+                display.idle()
+                eyes.off()
+        except Exception as e:
+            print(f"[morning] Error in morning greeting watcher: {e}")
+
+
 def main():
     brain.register_reload_cb(refresh_voice_cache)
     brain.register_update_cb(self_update)
@@ -469,6 +535,7 @@ def main():
     bambu_ctrl.init(_speak_bambu_notification)
     bambu_ctrl.get_monitor().start()
     threading.Thread(target=_spotify_poller_loop, daemon=True).start()
+    threading.Thread(target=_morning_greeting_watcher, daemon=True).start()
     from skull import web
     web.start()
     print(f"[skull] {config.SKULL_NAME} online. Awaiting the Emperor's commands.")
