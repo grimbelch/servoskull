@@ -462,7 +462,8 @@ def main():
     candles.on()  # ambient — flicker for as long as the skull is powered
     display.setup()
     display.start_omnissiah_glyph(4.0)
-    display.set_mood(mood.get())
+    from skull import proximity
+    proximity.start()
     camera.start()
     temperature.start()
     bambu_ctrl.init(_speak_bambu_notification)

@@ -321,24 +321,25 @@ def _blit(img) -> None:
     except Exception:
         pass
 
-    if not _available or _spi is None:
-        return
+    with _frame_lock:
+        if not _available or _spi is None:
+            return
 
-    if config.DISPLAY_FINE_ROTATION != 0.0:
-        # PIL rotate is counter-clockwise. Pass -angle to rotate clockwise.
-        img = img.rotate(-config.DISPLAY_FINE_ROTATION, resample=Image.BICUBIC)
-    arr = np.asarray(img, dtype=np.uint16)
-    r = (arr[..., 0] & 0xF8) << 8
-    g = (arr[..., 1] & 0xFC) << 3
-    b = (arr[..., 2] & 0xF8) >> 3
-    rgb565 = (r | g | b).astype(">u2")  # big-endian: MSB first on the wire
-    buf = rgb565.tobytes()
-    _set_window(0, 0, W - 1, H - 1)
-    _GPIO.output(config.DISPLAY_DC_PIN, 1)
-    # spidev caps a single transfer at its bufsiz (commonly 4096 bytes); chunk.
-    step = 4096
-    for i in range(0, len(buf), step):
-        _spi.writebytes(buf[i:i + step])
+        if config.DISPLAY_FINE_ROTATION != 0.0:
+            # PIL rotate is counter-clockwise. Pass -angle to rotate clockwise.
+            img = img.rotate(-config.DISPLAY_FINE_ROTATION, resample=Image.BICUBIC)
+        arr = np.asarray(img, dtype=np.uint16)
+        r = (arr[..., 0] & 0xF8) << 8
+        g = (arr[..., 1] & 0xFC) << 3
+        b = (arr[..., 2] & 0xF8) >> 3
+        rgb565 = (r | g | b).astype(">u2")  # big-endian: MSB first on the wire
+        buf = rgb565.tobytes()
+        _set_window(0, 0, W - 1, H - 1)
+        _GPIO.output(config.DISPLAY_DC_PIN, 1)
+        # spidev caps a single transfer at its bufsiz (commonly 4096 bytes); chunk.
+        step = 4096
+        for i in range(0, len(buf), step):
+            _spi.writebytes(buf[i:i + step])
 
 
 # ── frame composition ─────────────────────────────────────────────────────────────

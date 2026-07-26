@@ -148,6 +148,9 @@ def pcm_to_wav_bytes(pcm: bytes, sample_rate: int) -> bytes:
     return buf.getvalue()
 
 
+_audio_play_lock = threading.Lock()
+
+
 def play_wav_bytes(
     wav_bytes: bytes,
     amplitude_cb=None,
@@ -160,11 +163,12 @@ def play_wav_bytes(
     stop_event: if set mid-playback, audio stops immediately (barge-in interruption).
     """
     import time
-    try:
-        from skull import web
-        web.publish_web_audio(wav_bytes)
-    except Exception:
-        pass
+    with _audio_play_lock:
+        try:
+            from skull import web
+            web.publish_web_audio(wav_bytes)
+        except Exception:
+            pass
 
     buf = io.BytesIO(wav_bytes)
     rate, data = wavfile.read(buf)

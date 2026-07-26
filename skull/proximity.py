@@ -112,8 +112,6 @@ def available() -> bool:
 
 def get_latest_distance_cm() -> float | None:
     """Return the latest distance in cm from constant background polling."""
-    if not _available and config.PROXIMITY_ENABLED:
-        start()
     if not _available:
         return None
     with _poll_lock:
@@ -127,9 +125,7 @@ def read_cm() -> float | None:
 
 def read_cm_average(samples: int = 3, sample_delay: float = 0.03) -> float | None:
     """Return average of recent distance readings from continuous polling or fresh samples."""
-    if not available() and config.PROXIMITY_ENABLED:
-        start()
-    if not available():
+    if not _available:
         return None
 
     with _poll_lock:
@@ -159,11 +155,7 @@ def is_target_within(max_feet: float = 5.0) -> bool | None:
         False — sensor is active and target is > max_feet or out of range / no target (None).
         None  — sensor is disabled or unavailable on hardware.
     """
-    if not config.PROXIMITY_ENABLED:
-        return None
-    if not available():
-        start()
-    if not available():
+    if not config.PROXIMITY_ENABLED or not _available:
         return None
 
     max_cm = max_feet * 12.0 * 2.54  # 5 feet = 152.4 cm
@@ -195,9 +187,7 @@ def get_distance_summary_short() -> str:
     """Return a short distance summary string for UI displays."""
     if not config.PROXIMITY_ENABLED:
         return "DISABLED"
-    if not available():
-        start()
-    if not available():
+    if not _available:
         return "UNAVAILABLE"
 
     cm = get_latest_distance_cm()
@@ -210,9 +200,7 @@ def get_distance_summary_short() -> str:
 
 def get_distance_summary() -> str:
     """Return a human-readable distance measurement string."""
-    if not available() and config.PROXIMITY_ENABLED:
-        start()
-    if not available():
+    if not config.PROXIMITY_ENABLED or not _available:
         return "Laser rangefinder sensor is disabled or unavailable."
 
     avg_cm = read_cm_average(samples=4)

@@ -101,22 +101,29 @@ def _resolve_input_device(raw: str) -> int:
     re-enumeration across rebuilds, where a fixed index silently points elsewhere.
     Returns -1 (system default) if a name can't be matched or audio isn't queryable.
     """
+def _resolve_input_device(raw: str) -> int:
     raw = (raw or "").strip()
-    if raw == "":
-        return -1
-    try:
-        return int(raw)  # plain numeric index (incl. -1) — use verbatim
-    except ValueError:
-        pass
     try:
         import sounddevice as sd
-        for idx, dev in enumerate(sd.query_devices()):
-            if dev.get("max_input_channels", 0) > 0 and raw.lower() in dev["name"].lower():
-                print(f"[config] MIC_DEVICE_INDEX '{raw}' matched device {idx}: {dev['name']!r}")
+        devices = sd.query_devices()
+        if raw != "" and raw != "-1":
+            try:
+                val = int(raw)
+                if val >= 0:
+                    return val
+            except ValueError:
+                for idx, dev in enumerate(devices):
+                    if dev.get("max_input_channels", 0) > 0 and raw.lower() in dev["name"].lower():
+                        print(f"[config] MIC_DEVICE_INDEX '{raw}' matched device {idx}: {dev['name']!r}")
+                        return idx
+
+        # Default fallback: prefer hardware USB mic if present
+        for idx, dev in enumerate(devices):
+            if dev.get("max_input_channels", 0) > 0 and "usb" in dev["name"].lower():
+                print(f"[config] Auto-selected USB mic device {idx}: {dev['name']!r}")
                 return idx
-        print(f"[config] WARNING: no input device name contains '{raw}'; using system default.")
     except Exception as e:
-        print(f"[config] mic name resolution failed ({e}); using system default.")
+        print(f"[config] mic resolution error ({e})")
     return -1
 
 
