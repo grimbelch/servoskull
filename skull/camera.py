@@ -434,3 +434,51 @@ def register_face(name: str) -> str:
         _display.set_targeting(False)
         if close:
             close()
+
+
+def capture_and_identify() -> tuple[any, str | None]:
+    """Capture a single camera frame and run biometric face recognition.
+
+    Returns (frame, detected_name) where detected_name is the matched profile name or None.
+    """
+    if not config.CAMERA_ENABLED:
+        return None, None
+
+    frame = None
+    close_fn = None
+    try:
+        if _read_frame_fn is None:
+            backend = _open_backend()
+            if backend is None:
+                return None, None
+            read, close_fn = backend
+            with _camera_lock:
+                frame = read()
+        else:
+            with _camera_lock:
+                frame = _read_frame_fn()
+
+        if frame is None:
+            return None, None
+
+        import cv2
+        from skull import face_rec
+        detected_name = face_rec.recognize(frame)
+
+        # Publish latest frame for web streaming
+        try:
+            _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
+            publish_camera_frame(buf.tobytes(), 5.0)
+        except Exception:
+            pass
+
+        return frame, detected_name
+    except Exception as e:
+        print(f"[camera] capture_and_identify error: {e}")
+        return None, None
+    finally:
+        if close_fn:
+            try:
+                close_fn()
+            except Exception:
+                pass
