@@ -93,7 +93,7 @@ microSD/Wi-Fi end, with the SD card facing you and USB ports to the right.
 ```
 PROX VIN  ●  3V3  (1) (2)  5V    ● ←CANDLE 5V (HV Power)
 PROX SDA  ● GPIO2 (3) (4)  5V
-PROX SCL  ● GPIO3 (5) (6)  GND   ● ←PROX GND
+PROX SCL  ● GPIO3 (5) (6)  GND
 PROX XSHUT● GPIO4 (7) (8)  GPIO14
 PROX GND  ●  GND  (9) (10) GPIO15
             GPIO17(11) (12) GPIO18● ←CANDLE DATA (LV1 Data)
@@ -103,10 +103,10 @@ DISP VCC  ●  3V3  (17) (18) GPIO24● ←DISP RES
 DISP SDA  ● GPIO10(19) (20) GND   ● ←DISP GND
             GPIO9 (21) (22) GPIO25● ←DISP DC
 DISP SCL  ● GPIO11(23) (24) GPIO8 ● ←DISP CS (CE0)
-DISP GND  ●  GND  (25) (26) GPIO7 ● ←DISP BLK (Backlight)
+             GND  (25) (26) GPIO7
             ID_SD (27) (28) ID_SC
             GPIO5 (29) (30) GND
-            GPIO6 (31) (32) GPIO12
+            GPIO6 (31) (32) GPIO12● ←DISP BLK (Backlight)
            GPIO13 (33) (34) GND
            GPIO19 (35) (36) GPIO16
            GPIO26 (37) (38) GPIO20
