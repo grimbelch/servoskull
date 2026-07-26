@@ -111,6 +111,20 @@ def _run_observation(jpeg_bytes: bytes) -> None:
         _display.set_targeting(False)
 
 
+def _apply_rotation(frame):
+    if frame is None:
+        return None
+    import cv2
+    rot = config.CAMERA_ROTATION % 360
+    if rot == 90:
+        return cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+    elif rot == 180:
+        return cv2.rotate(frame, cv2.ROTATE_180)
+    elif rot == 270:
+        return cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    return frame
+
+
 def _open_backend():
     """Set up a frame source and return (read, close).
 
@@ -134,7 +148,7 @@ def _open_backend():
     print("[camera] Frame source: picamera2 / IMX708")
 
     def read():
-        return picam2.capture_array()
+        return _apply_rotation(picam2.capture_array())
 
     def close():
         picam2.stop()
@@ -154,12 +168,13 @@ def _open_cv2_backend():
         ret, frame = cap.read()
         if not ret or frame is None:
             return None
-        return frame
+        return _apply_rotation(frame)
 
     def close():
         cap.release()
 
     return read, close
+
 
 
 def _capture_and_observe(read, reason: str) -> None:
