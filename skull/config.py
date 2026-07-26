@@ -208,16 +208,16 @@ CANDLE_PIN = int(os.getenv("CANDLE_PIN", "17"))
 # except the eye LEDs (22/23/27) — SPI0 is fully available for the panel.
 #
 # Wiring (BCM):
-#   VCC->3V3 (pin 17)   GND->GND (pin 20/25)
+#   VCC->3V3 (pin 17)   GND->GND (pin 20)
 #   SCL(SCK)->GPIO11 (pin 23)   SDA(MOSI)->GPIO10 (pin 19)   CS->GPIO8 (pin 24)
-#   DC->GPIO25 (pin 22)   RES->GPIO24 (pin 18)   BLK->GPIO7 (pin 26, or tie to 3V3 and set DISPLAY_BL_PIN=-1)
+#   DC->GPIO25 (pin 22)   RES->GPIO24 (pin 18)   BLK->GPIO12 (pin 32, or tie to 3V3 and set DISPLAY_BL_PIN=-1)
 DISPLAY_ENABLED = os.getenv("DISPLAY_ENABLED", "false").lower() == "true"
 DISPLAY_SPI_BUS = int(os.getenv("DISPLAY_SPI_BUS", "0"))       # spidev<bus>.<device>
 DISPLAY_SPI_DEVICE = int(os.getenv("DISPLAY_SPI_DEVICE", "0")) # 0 -> CE0/GPIO8
 DISPLAY_SPI_HZ = int(os.getenv("DISPLAY_SPI_HZ", "40000000"))  # 40 MHz; lower if flaky
 DISPLAY_DC_PIN = int(os.getenv("DISPLAY_DC_PIN", "25"))
 DISPLAY_RST_PIN = int(os.getenv("DISPLAY_RST_PIN", "24"))
-DISPLAY_BL_PIN = int(os.getenv("DISPLAY_BL_PIN", "7"))         # GPIO 7 (pin 26) -1 if BLK tied to 3V3
+DISPLAY_BL_PIN = int(os.getenv("DISPLAY_BL_PIN", "12"))        # GPIO 12 (pin 32) -1 if BLK tied to 3V3
 DISPLAY_ROTATION = int(os.getenv("DISPLAY_ROTATION", "0"))     # 0/90/180/270
 DISPLAY_FINE_ROTATION = float(os.getenv("DISPLAY_FINE_ROTATION", "0.0"))  # software rotation offset (degrees, positive = clockwise)
 DISPLAY_IDLE_TIMEOUT = float(os.getenv("DISPLAY_IDLE_TIMEOUT", "300.0"))  # seconds before showing idle animations (default: 5 minutes)
