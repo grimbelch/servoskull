@@ -296,7 +296,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             except Exception:
                 temp = "Unavailable"
                 
-            from skull import quiet, mood
+            from skull import quiet, mood, proximity
             master_name = config._OWNER_PROFILE.get("name", "Unknown").upper()
             state_data = {
                 "skull_name": config.SKULL_NAME,
@@ -315,6 +315,12 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                 "vox_logs": get_vox_logs(),
                 "camera_active": __import__("skull.camera", fromlist=["is_camera_active"]).is_camera_active() if hasattr(__import__("skull.camera", fromlist=["is_camera_active"]), "is_camera_active") else False,
                 "audio_id": get_latest_web_audio()[1],
+                "proximity": {
+                    "enabled": config.PROXIMITY_ENABLED,
+                    "available": proximity.available(),
+                    "distance_cm": proximity.get_latest_distance_cm(),
+                    "summary": proximity.get_distance_summary_short(),
+                },
             }
             self._send_json(state_data)
             return
@@ -1536,6 +1542,23 @@ HTML_CLIENT = """<!DOCTYPE html>
                             <span id="game-val" class="telemetry-value">NONE</span>
                         </div>
                     </div>
+
+                    <div class="telemetry-item" style="margin-top: 6px;">
+                        <div class="sensor-header">
+                            <span class="telemetry-label">LASER RANGEFINDER (MAX 8.0 METERS)</span>
+                            <span id="range-val" class="telemetry-value">-- cm (-- m)</span>
+                        </div>
+                        <div class="sensor-bar-container" style="height: 10px; margin-top: 4px;">
+                            <div id="range-bar" class="sensor-bar" style="width: 0%;"></div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 9px; color: var(--dim-green); margin-top: 2px; font-weight: bold;">
+                            <span>0m</span>
+                            <span>2m</span>
+                            <span>4m</span>
+                            <span>6m</span>
+                            <span>8m</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1756,6 +1779,28 @@ HTML_CLIENT = """<!DOCTYPE html>
                     }
                 }
                 if (fabPie) fabPie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, fabPercent))}, 100`);
+
+                // Update Rangefinder Gauge & Bar Graph (8m limit)
+                const rangeVal = document.getElementById('range-val');
+                const rangeBar = document.getElementById('range-bar');
+                if (data.proximity) {
+                    if (!data.proximity.enabled) {
+                        if (rangeVal) rangeVal.innerText = "DISABLED";
+                        if (rangeBar) rangeBar.style.width = "0%";
+                    } else if (!data.proximity.available) {
+                        if (rangeVal) rangeVal.innerText = "UNAVAILABLE";
+                        if (rangeBar) rangeBar.style.width = "0%";
+                    } else if (data.proximity.distance_cm !== null && data.proximity.distance_cm !== undefined) {
+                        const cm = parseFloat(data.proximity.distance_cm);
+                        const meters = (cm / 100.0).toFixed(2);
+                        if (rangeVal) rangeVal.innerText = `${cm.toFixed(1)} cm (${meters} m)`;
+                        const pct = Math.min(100, Math.max(0, (cm / 800.0) * 100.0));
+                        if (rangeBar) rangeBar.style.width = `${pct.toFixed(1)}%`;
+                    } else {
+                        if (rangeVal) rangeVal.innerText = "OUT OF RANGE (> 8.0 m)";
+                        if (rangeBar) rangeBar.style.width = "0%";
+                    }
+                }
                 
                 // Update screensaver options if not already filled
                 if (screensaverSelect.options.length <= 1 && data.screensavers) {
