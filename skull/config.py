@@ -160,6 +160,7 @@ CAMERA_MAX_PER_HOUR = int(os.getenv("CAMERA_MAX_PER_HOUR", "15"))
 # dark and is never sent to Claude. Guards against covered-lens / night frames.
 CAMERA_MIN_BRIGHTNESS = int(os.getenv("CAMERA_MIN_BRIGHTNESS", "20"))
 CAMERA_ROTATION = int(os.getenv("CAMERA_ROTATION", "270"))  # 0, 90, 180, 270 (degrees clockwise)
+CAMERA_FINE_ROTATION = float(os.getenv("CAMERA_FINE_ROTATION", "25.0"))  # fine angle offset (degrees clockwise)
 
 # ── Proximity trigger — VL53L1X time-of-flight sensor (I2C, optional) ─────────────
 # When present, the camera fires vision on genuine physical approach instead of

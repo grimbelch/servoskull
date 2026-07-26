@@ -117,11 +117,19 @@ def _apply_rotation(frame):
     import cv2
     rot = config.CAMERA_ROTATION % 360
     if rot == 90:
-        return cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+        frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
     elif rot == 180:
-        return cv2.rotate(frame, cv2.ROTATE_180)
+        frame = cv2.rotate(frame, cv2.ROTATE_180)
     elif rot == 270:
-        return cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+
+    fine_rot = getattr(config, "CAMERA_FINE_ROTATION", 0.0)
+    if abs(fine_rot) > 0.01:
+        h, w = frame.shape[:2]
+        center = (w // 2, h // 2)
+        M = cv2.getRotationMatrix2D(center, fine_rot, 1.0)
+        frame = cv2.warpAffine(frame, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0))
+
     return frame
 
 
