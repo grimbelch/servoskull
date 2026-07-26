@@ -104,17 +104,15 @@ If using the **SN74AHCT125N** high-speed 3.3V-to-5.0V bus buffer IC in DIP-14 fo
 graph TD
     subgraph Pi ["Raspberry Pi 4 / 5 Header"]
         P5V["5V Power (Pin 2 / 4)"]
-        P3V3["3.3V Power (Pin 1 / 17)"]
         PGND["GND (Pin 6 / 9 / 14)"]
         GPIO18["GPIO 18 / PWM0 (Pin 12)"]
     end
 
-    subgraph DeadBug ["Inline Dead-Bug Level Shifter Module"]
-        HV["HV (5V VCC)"]
-        LV["LV (3.3V VCC)"]
-        GND_S["GND (Common)"]
-        LV1["LV1 (Input 3.3V)"]
-        HV1["HV1 (Output 5.0V)"]
+    subgraph DeadBug ["Inline Dead-Bug Level Shifter (SN74AHCT125N)"]
+        HV["VCC 5V (Pin 14)"]
+        GND_S["GND (Pin 7)"]
+        LV1["1A Input (Pin 2)"]
+        HV1["1Y Output (Pin 3)"]
     end
 
     subgraph Protection ["Inline Protection"]
@@ -128,7 +126,6 @@ graph TD
     end
 
     P5V -->|Red Wire| HV
-    P3V3 -->|Yellow Wire| LV
     PGND -->|Black Wire| GND_S
     GPIO18 -->|Green Wire| LV1
 
@@ -146,15 +143,16 @@ graph TD
 
 ## 🛠️ Step-by-Step "Dead Bug" Assembly Instructions
 
-### Step 1: Prepare the Level Shifter Module
-1. Place the Level Converter module upside down (pins sticking up like a dead bug).
-2. Tin all required pin pads (`HV`, `LV`, `GND`, `LV1`, `HV1`) with a small dab of solder.
+### Step 1: Prepare the Level Shifter IC (SN74AHCT125N)
+1. Place the 14-pin DIP chip upside down (pins sticking up like a dead bug).
+2. Solder bridge **Pin 1 (1OE)** directly to **Pin 7 (GND)**.
+3. Solder bridge unused OE pins **(Pins 4, 10, 13)** to **Pin 7 (GND)**.
 
-### Step 2: Solder the Input Side (Raspberry Pi Wires)
-1. Solder a **Red wire** from Raspberry Pi **5V (Pin 2)** to the **HV** pin.
-2. Solder an **Orange/Yellow wire** from Raspberry Pi **3.3V (Pin 1)** to the **LV** pin.
-3. Solder a **Black wire** from Raspberry Pi **GND (Pin 6)** to the **GND** pin.
-4. Solder a **Green wire** from Raspberry Pi **GPIO 18 (Pin 12)** to the **LV1** input pin.
+### Step 2: Solder the Input Side (Only 3 Wires from Raspberry Pi!)
+1. Solder a **Red wire** from Raspberry Pi **5V (Pin 2 or 4)** to **Pin 14 (VCC)**.
+2. Solder a **Black wire** from Raspberry Pi **GND (Pin 6 or 9)** to **Pin 7 (GND)**.
+3. Solder a **Green wire** from Raspberry Pi **GPIO 18 (Pin 12)** to **Pin 2 (1A)**.
+> *(Note: No 3.3V power wire is needed! The chip is powered by 5V and recognizes 3.3V GPIO logic natively.)*
 
 ### Step 3: Solder the Output Side & Inline Resistor
 1. Solder one leg of the **330 Ω resistor** directly to the **HV1** output pin.
