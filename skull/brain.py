@@ -3026,12 +3026,12 @@ def generate_daily_briefing() -> str:
             SYSTEM_PROMPT +
             "\n\nYou are compiling a daily briefing for the master (weather and news). "
             "You MUST scan both Bloomberg dispatches and The Guardian UK dispatches provided in the prompt. "
-            "Keep the briefing concise (under 75 words). "
+            "Keep the briefing clear, complete, and engaging (under 120 words). Ensure every sentence is fully completed with proper punctuation. "
             "Speak in your established Adeptus Mechanicus Servo-Skull persona, showing absolute reverence and using Tech-Priest terminology (e.g. atmospheric sensor readouts, Noosphere data packets, sacred telemetry). "
-            "Combine the weather and news from Bloomberg / Guardian UK into one brief paragraph."
+            "Combine the weather and news into one cohesive paragraph."
         )
         user = f"WEATHER READOUTS:\n{weather_info}\n\nNOOSPHERE NEWS PACKETS (BLOOMBERG & GUARDIAN UK):\n{news_info}\n\nGenerate the briefing."
-        briefing = _llm.simple(system, user, max_tokens=150)
+        briefing = _llm.simple(system, user, max_tokens=400)
         return (briefing or "").strip()
     except Exception as e:
         print(f"[brain] Error generating daily briefing LLM response: {e}")
