@@ -2900,13 +2900,20 @@ def idle_utterance() -> str:
     
     Can either search and reinterpret a real news item (25% chance) or
     make a quick observation, ask the user a question, recite a prayer, or engage in idle chat (75% chance).
+    
+    If the rangefinder is active and detects no target within 5 feet, the utterance is suppressed.
     """
+    from skull import proximity
+    if proximity.is_target_within(5.0) is False:
+        print("[brain] Rangefinder indicates no target within 5ft — suppressing idle utterance.")
+        return ""
+
     import random as _rand
     bias = _mood.idle_bias()
     
     # 25% chance to do news, 75% to do custom idle chat / prayers / observations
     do_news = _rand.random() < 0.25
-    
+
     if do_news:
         scope = _rand.choice(_IDLE_SCOPES)
         print(f"[brain] Idle news scope: {scope!r}  mood bias: {_mood.get()}")
