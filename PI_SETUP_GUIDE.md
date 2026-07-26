@@ -154,20 +154,20 @@ Wiring is optimized into a single contiguous **2x5 (10-pin) header block** (Pins
 | DC | Data/Command | GPIO25 | 22 | Header Pin 22 |
 | SCL (SCK) | SPI Clock | GPIO11 | 23 | Header Pin 23 |
 | CS | SPI Chip Select | GPIO8 | 24 | Header Pin 24 (CE0) |
-| (Unused) | Pi GND Pin | — | 25 | Header Pin 25 *(Auxiliary Pi GND pin, leave open)* |
-| BLK | Backlight | GPIO7 | 26 | Header Pin 26 (`DISPLAY_BL_PIN=7`) |
+| BLK | Backlight | GPIO12 | 32 | Header Pin 32 (`DISPLAY_BL_PIN=12`) |
 
 > [!NOTE]
-> **Single Ground Wire**: The GC9A01 display has only **one `GND` wire**. Connect it to **Pin 20**. Pin 25 is an auxiliary Ground pin on the Pi header that can remain open.
+> **Single Ground Wire**: The GC9A01 display has only **one `GND` wire**. Connect it to **Pin 20**.
+> **Backlight Control Pin**: `BLK` is connected to **GPIO 12 (Pin 32)** (or tied to 3.3 V with `DISPLAY_BL_PIN=-1`). Pin 7 cannot be used for BLK on Pi 5 because GPIO 7 is reserved by the Linux kernel as SPI0 CE1.
 
 ```
- GC9A01 Display          Raspberry Pi 5 Header (Block Pins 17-26)
- ──────────────          ────────────────────────────────────────
+ GC9A01 Display          Raspberry Pi 5 Header (Pins 17-24 Block + Pin 32 BLK)
+ ──────────────          ─────────────────────────────────────────────────────
   VCC  ───────────────►  3V3   (pin 17)     RES  ───────────────► GPIO24      (pin 18)
   SDA  ───────────────►  GPIO10(pin 19)     GND  ───────────────► GND         (pin 20)
   (NC) ───────────────►  GPIO9 (pin 21)     DC   ───────────────► GPIO25      (pin 22)
   SCL  ───────────────►  GPIO11(pin 23)     CS   ───────────────► GPIO8  CE0  (pin 24)
-  (NC) ───────────────►  GND   (pin 25)     BLK  ───────────────► GPIO7       (pin 26)
+  BLK  ───────────────►  GPIO12(pin 32)
 ```
 
 ### 4.4 Camera — Arducam IMX708 (CSI ribbon)
