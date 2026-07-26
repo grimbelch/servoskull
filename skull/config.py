@@ -159,6 +159,7 @@ CAMERA_MAX_PER_HOUR = int(os.getenv("CAMERA_MAX_PER_HOUR", "15"))
 # Mean grayscale brightness (0-255) below which a frame is considered blank/
 # dark and is never sent to Claude. Guards against covered-lens / night frames.
 CAMERA_MIN_BRIGHTNESS = int(os.getenv("CAMERA_MIN_BRIGHTNESS", "20"))
+CAMERA_ROTATION = int(os.getenv("CAMERA_ROTATION", "270"))  # 0, 90, 180, 270 (degrees clockwise)
 
 # ── Proximity trigger — VL53L1X time-of-flight sensor (I2C, optional) ─────────────
 # When present, the camera fires vision on genuine physical approach instead of
