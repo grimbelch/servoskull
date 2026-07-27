@@ -464,9 +464,7 @@ def _morning_greeting_watcher() -> None:
                 if _last_morning_greeting_date == today_str:
                     continue
 
-            from skull import proximity, quiet
-            if quiet.is_silent():
-                continue
+            from skull import proximity
 
             cm = proximity.get_latest_distance_cm()
             if cm is None or cm <= 0 or cm > 150.0:  # 1.5 meters = 150 cm
