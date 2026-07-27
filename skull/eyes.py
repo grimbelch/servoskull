@@ -32,6 +32,8 @@ _stop = threading.Event()
 _anim_thread: threading.Thread | None = None
 _speaking = False         # True while speech/attention is driving the eyes directly
 
+import atexit
+
 try:
     import RPi.GPIO as GPIO
     GPIO.setmode(GPIO.BCM)
@@ -39,6 +41,7 @@ try:
     _gpio_available = True
 except (ImportError, RuntimeError):
     pass
+
 
 
 def setup(pin_left: int, pin_center: int, pin_right: int) -> None:
@@ -111,11 +114,26 @@ def set_amplitude(amp: float) -> None:
 
 def cleanup() -> None:
     _stop.set()
-    if _anim_thread is not None:
-        _anim_thread.join(timeout=1.0)
+    if _anim_thread is not None and _anim_thread.is_alive():
+        try:
+            _anim_thread.join(timeout=0.5)
+        except Exception:
+            pass
     if _gpio_available:
-        set_brightness(0)
-        for pwm in (_pwm_left, _pwm_center, _pwm_right):
-            if pwm:
-                pwm.stop()
-        GPIO.cleanup()
+        try:
+            set_brightness(0)
+            for pwm in (_pwm_left, _pwm_center, _pwm_right):
+                if pwm:
+                    try:
+                        pwm.stop()
+                    except Exception:
+                        pass
+            try:
+                GPIO.cleanup()
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+atexit.register(cleanup)
+
