@@ -318,45 +318,57 @@ def get_observation() -> str | None:
         return None
 
 
+_backend_lock = threading.Lock()
+_shared_backend: tuple[any, any] | None = None
+
+
+def get_camera_backend() -> tuple[any, any] | None:
+    """Return a shared, persistent camera backend (read_fn, close_fn).
+
+    Keeps the Picamera2 / OpenCV device initialized to avoid repeated libcamera
+    state machine corruption (Running -> acquire error) and file descriptor leaks.
+    """
+    global _shared_backend
+    with _backend_lock:
+        if _shared_backend is None:
+            _shared_backend = _open_backend()
+        return _shared_backend
+
+
+def release_camera_backend() -> None:
+    """Close and release the shared camera device on process exit."""
+    global _shared_backend
+    with _backend_lock:
+        if _shared_backend is not None:
+            _, close_fn = _shared_backend
+            try:
+                close_fn()
+            except Exception:
+                pass
+            _shared_backend = None
+
+
+import atexit
+atexit.register(release_camera_backend)
+
+
 def capture_on_demand() -> str:
     """Capture a single frame using the active camera backend and describe it."""
     if not config.CAMERA_ENABLED:
         return "Camera interface is disabled in configuration."
     
-    # If the background loop is not running, open/close the backend on-demand
-    if _read_frame_fn is None:
-        backend = _open_backend()
-        if backend is None:
-            return "No camera backend could be initialized."
-        read, close = backend
-        try:
-            import cv2
-            from skull import display as _display
-            from skull import face_rec
-            _display.set_targeting(True)
-            frame = read()
-            if frame is None:
-                return "Failed to capture frame from camera."
-            
-            detected_name = face_rec.recognize(frame)
-            _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
-            publish_camera_frame(buf.tobytes(), 5.0)
-            desc = _ask_vision(buf.tobytes(), detected_name)
-            return desc
-        except Exception as e:
-            return f"Failed to capture or describe image: {e}"
-        finally:
-            _display.set_targeting(False)
-            close()
-            
-    # If the background loop is already running, share its reader using the lock
+    backend = get_camera_backend()
+    if backend is None:
+        return "No camera backend could be initialized."
+    read, _ = backend
+
     import cv2
     from skull import display as _display
     from skull import face_rec
     _display.set_targeting(True)
     try:
         with _camera_lock:
-            frame = _read_frame_fn()
+            frame = read()
         if frame is None:
             return "Failed to capture frame from camera."
         
@@ -376,15 +388,10 @@ def register_face(name: str) -> str:
     if not config.CAMERA_ENABLED:
         return "Camera interface is disabled in configuration."
     
-    # Check if reader is available
-    if _read_frame_fn is None:
-        backend = _open_backend()
-        if backend is None:
-            return "No camera backend could be initialized for visage calibration."
-        read, close = backend
-    else:
-        read = _read_frame_fn
-        close = None
+    backend = get_camera_backend()
+    if backend is None:
+        return "No camera backend could be initialized for visage calibration."
+    read, _ = backend
         
     import cv2
     from skull import display as _display
@@ -440,8 +447,6 @@ def register_face(name: str) -> str:
         return f"Visage registration failed due to error: {e}"
     finally:
         _display.set_targeting(False)
-        if close:
-            close()
 
 
 def capture_and_identify() -> tuple[any, str | None, bool]:
@@ -454,19 +459,15 @@ def capture_and_identify() -> tuple[any, str | None, bool]:
     if not config.CAMERA_ENABLED:
         return None, None, False
 
+    backend = get_camera_backend()
+    if backend is None:
+        return None, None, False
+    read, _ = backend
+
     frame = None
-    close_fn = None
     try:
-        if _read_frame_fn is None:
-            backend = _open_backend()
-            if backend is None:
-                return None, None, False
-            read, close_fn = backend
-            with _camera_lock:
-                frame = read()
-        else:
-            with _camera_lock:
-                frame = _read_frame_fn()
+        with _camera_lock:
+            frame = read()
 
         if frame is None:
             return None, None, False
@@ -488,10 +489,5 @@ def capture_and_identify() -> tuple[any, str | None, bool]:
     except Exception as e:
         print(f"[camera] capture_and_identify error: {e}")
         return None, None, False
-    finally:
-        if close_fn:
-            try:
-                close_fn()
-            except Exception:
-                pass
+
 
