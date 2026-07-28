@@ -210,6 +210,64 @@ def switch_personality(target: str) -> str:
     return farewell
 
 
+_speech_activation_active = False
+_speech_active_lock = threading.Lock()
+_pending_bambu_lock = threading.Lock()
+_pending_bambu_notifications: list[tuple[str, str]] = []
+
+
+def set_speech_active(active: bool) -> None:
+    global _speech_activation_active
+    with _speech_active_lock:
+        _speech_activation_active = bool(active)
+
+
+def is_speech_active() -> bool:
+    with _speech_active_lock:
+        return _speech_activation_active
+
+
+def _deliver_bambu_notification(event_type: str, text: str) -> None:
+    try:
+        wav_bytes = tts.synthesize(text)
+        with _speech_lock:
+            try:
+                sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
+            except Exception:
+                pass
+            eyes.on()
+            display.on()
+            try:
+                audio.play_wav_bytes(wav_bytes, output_device=config.VOICE_OUTPUT_DEVICE)
+            finally:
+                eyes.off()
+                display.idle()
+    except Exception as e:
+        print(f"[skull] Bambu notification error: {e}")
+
+
+def _speak_bambu_notification(event_type: str, text: str) -> None:
+    """Announce a Bambu 3D printer event verbally, queuing if speech is active."""
+    print(f"[skull] Bambu notification ({event_type}): {text}")
+    if is_speech_active():
+        print(f"[skull] Speech activation in progress — queuing Bambu notification ({event_type})")
+        with _pending_bambu_lock:
+            _pending_bambu_notifications.append((event_type, text))
+        return
+
+    _deliver_bambu_notification(event_type, text)
+
+
+def _flush_pending_bambu_notifications() -> None:
+    with _pending_bambu_lock:
+        if not _pending_bambu_notifications:
+            return
+        pending = list(_pending_bambu_notifications)
+        _pending_bambu_notifications.clear()
+
+    for event_type, text in pending:
+        _deliver_bambu_notification(event_type, text)
+
 
 def _preload_phrases() -> None:
     global _wake_wavs, _cogitation_wavs, _search_wavs, _ack_wavs, _silence_wavs
@@ -246,27 +304,6 @@ def _preload_phrases() -> None:
     _ack_wavs = ack
     _silence_wavs = silence
     print("[skull] Phrases preloaded (elevenlabs voice, cached)")
-
-
-def _speak_bambu_notification(event_type: str, text: str) -> None:
-    """Announce a Bambu 3D printer event verbally."""
-    print(f"[skull] Bambu notification ({event_type}): {text}")
-    try:
-        wav_bytes = tts.synthesize(text)
-        with _speech_lock:
-            try:
-                sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
-            except Exception:
-                pass
-            eyes.on()
-            display.on()
-            try:
-                audio.play_wav_bytes(wav_bytes, output_device=config.VOICE_OUTPUT_DEVICE)
-            finally:
-                eyes.off()
-                display.idle()
-    except Exception as e:
-        print(f"[skull] Bambu notification error: {e}")
 
 
 def _announce_search(tool_names) -> None:
@@ -588,10 +625,16 @@ def main():
         # Back at idle — undo any music ducking from the previous interaction.
         spotify_ctrl.restore()
 
+        if not skip_wake_word:
+            set_speech_active(False)
+
+        _flush_pending_bambu_notifications()
+
         # Immediate feedback the moment the wake word fires: dip music, ping, light
         # the eyes. Defined once per loop so every speech path — replies and the
         # unprompted observations/utterances below — can hand it to the barge-in listener.
         def on_wake():
+            set_speech_active(True)
             spotify_ctrl.duck()  # dip any playing music for the whole interaction
             sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
             eyes.on()
@@ -1335,29 +1378,31 @@ def main():
             display.stop_auspex_scan()
 
         # ── 7. Morning briefing offer (once per day, after first interaction) ───────
-        # Only fires on the first completed turn of the day and only once per session.
+        # Only fires when the first turn of the day completes cleanly at idle
+        # (not mid-question, not mid-barge-in, and not during active auto-listen).
         if brain.is_daily_briefing_due() and not _briefing_offered:
-            _briefing_offered = True
-            _briefing_awaiting_response = True
-            print("[skull] First interaction of the day complete. Offering morning briefing.")
-            try:
-                offer_text = (
-                    "Master. This unit has compiled your morning cogitations — "
-                    "weather data, hive dispatches, and machine-spirit telemetry. "
-                    "Are you ready to receive your daily briefing?"
-                )
-                brain.record_assistant_turn(offer_text)
-                offer_wav = tts.synthesize(offer_text)
-                eyes.on()
-                interrupted = _speak_interruptible(offer_wav, on_wake)
-                skip_wake_word = True  # listen immediately for yes/no
-                if interrupted:
-                    # They barged in — treat it as listening for the answer
-                    pass
-                skip_ack = True  # suppress the normal wake ack for this response
-            except Exception as e:
-                print(f"[skull] Briefing offer failed: {e}")
-                _briefing_awaiting_response = False
+            if not skip_wake_word and not interrupted and "?" not in reply:
+                _briefing_offered = True
+                _briefing_awaiting_response = True
+                print("[skull] First interaction of the day complete. Offering morning briefing.")
+                try:
+                    set_speech_active(True)
+                    offer_text = (
+                        "Master. This unit has compiled your morning cogitations — "
+                        "weather data, hive dispatches, and machine-spirit telemetry. "
+                        "Are you ready to receive your daily briefing?"
+                    )
+                    brain.record_assistant_turn(offer_text)
+                    offer_wav = tts.synthesize(offer_text)
+                    eyes.on()
+                    interrupted = _speak_interruptible(offer_wav, on_wake)
+                    skip_wake_word = True  # listen immediately for yes/no
+                    skip_ack = True  # suppress the normal wake ack for this response
+                except Exception as e:
+                    print(f"[skull] Briefing offer failed: {e}")
+                    _briefing_awaiting_response = False
+                    set_speech_active(False)
+
 
 
 if __name__ == "__main__":
