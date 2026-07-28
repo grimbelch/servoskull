@@ -155,6 +155,11 @@ def _open_backend():
     picam2.start()
     print("[camera] Frame source: picamera2 / IMX708")
 
+    def read():
+        return _apply_rotation(picam2.capture_array())
+
+
+
     def close():
         try:
             picam2.stop()
@@ -166,6 +171,7 @@ def _open_backend():
             pass
 
     return read, close
+
 
 
 def _open_cv2_backend():
