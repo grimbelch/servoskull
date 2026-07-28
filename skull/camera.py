@@ -436,13 +436,15 @@ def register_face(name: str) -> str:
             close()
 
 
-def capture_and_identify() -> tuple[any, str | None]:
+def capture_and_identify() -> tuple[any, str | None, bool]:
     """Capture a single camera frame and run biometric face recognition.
 
-    Returns (frame, detected_name) where detected_name is the matched profile name or None.
+    Returns (frame, detected_name, face_found) where:
+      - detected_name is the matched profile name or None
+      - face_found is True if any human face was detected in the frame
     """
     if not config.CAMERA_ENABLED:
-        return None, None
+        return None, None, False
 
     frame = None
     close_fn = None
@@ -450,7 +452,7 @@ def capture_and_identify() -> tuple[any, str | None]:
         if _read_frame_fn is None:
             backend = _open_backend()
             if backend is None:
-                return None, None
+                return None, None, False
             read, close_fn = backend
             with _camera_lock:
                 frame = read()
@@ -459,10 +461,12 @@ def capture_and_identify() -> tuple[any, str | None]:
                 frame = _read_frame_fn()
 
         if frame is None:
-            return None, None
+            return None, None, False
 
         import cv2
         from skull import face_rec
+        res = face_rec.detect_face(frame)
+        face_found = res is not None
         detected_name = face_rec.recognize(frame)
 
         # Publish latest frame for web streaming
@@ -472,13 +476,14 @@ def capture_and_identify() -> tuple[any, str | None]:
         except Exception:
             pass
 
-        return frame, detected_name
+        return frame, detected_name, face_found
     except Exception as e:
         print(f"[camera] capture_and_identify error: {e}")
-        return None, None
+        return None, None, False
     finally:
         if close_fn:
             try:
                 close_fn()
             except Exception:
                 pass
+
