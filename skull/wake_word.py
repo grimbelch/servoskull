@@ -64,25 +64,32 @@ def wait_for_wake_word(on_detected=None, cancel=None) -> bool:
         q.put(indata.copy())
 
     print(f"[skull] Listening for wake word ({WAKE_WORD_MODEL}) at {native}Hz...")
-    with sd.InputStream(samplerate=native, channels=1, dtype="int16",
-                        blocksize=native_chunk, device=dev, callback=_cb):
-        while True:
-            if cancel and cancel.is_set():
-                return False
-            try:
-                raw = q.get(timeout=0.1)
-            except queue.Empty:
-                continue
-            audio = _to_target(raw.flatten(), native)
-            rms = float(np.sqrt(np.mean(audio.astype(np.float32) ** 2)))
-            predictions = oww.predict(audio)
-            score = max(predictions.values())
-            from skull import config as _cfg
-            if _cfg.AUDIO_DEBUG and (rms > 50 or score > 0.1):
-                print(f"[ww] rms={rms:.0f} score={score:.3f} (need >={THRESHOLD})")
-            if score >= THRESHOLD:
-                print("[skull] Wake word detected!")
-                oww.reset()
-                if on_detected:
-                    on_detected()
-                return True
+    try:
+        with sd.InputStream(samplerate=native, channels=1, dtype="int16",
+                            blocksize=native_chunk, device=dev, callback=_cb):
+            while True:
+                if cancel and cancel.is_set():
+                    return False
+                try:
+                    raw = q.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+                audio = _to_target(raw.flatten(), native)
+                rms = float(np.sqrt(np.mean(audio.astype(np.float32) ** 2)))
+                predictions = oww.predict(audio)
+                score = max(predictions.values())
+                from skull import config as _cfg
+                if _cfg.AUDIO_DEBUG and (rms > 50 or score > 0.1):
+                    print(f"[ww] rms={rms:.0f} score={score:.3f} (need >={THRESHOLD})")
+                if score >= THRESHOLD:
+                    print("[skull] Wake word detected!")
+                    oww.reset()
+                    if on_detected:
+                        on_detected()
+                    return True
+    except Exception as e:
+        print(f"[wake_word] Audio InputStream error: {e}")
+        import time
+        time.sleep(1.0)
+        return False
+
