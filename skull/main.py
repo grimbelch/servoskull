@@ -470,19 +470,24 @@ def _morning_greeting_watcher() -> None:
             if cm is None or cm <= 0 or cm > 150.0:  # 1.5 meters = 150 cm
                 continue
 
+            from skull import camera, brain, tts, audio, web
+            _, detected_name, face_found = camera.capture_and_identify()
+
+            if not face_found:
+                # Rangefinder was triggered by a static object (e.g. chair, monitor), not a human face.
+                # Do NOT mark today's morning greeting as completed so it fires when a person arrives.
+                time.sleep(10.0)
+                continue
+
             # Mark today's morning greeting as completed
             with _morning_greeting_lock:
                 _last_morning_greeting_date = today_str
 
-            print(f"[morning] Morning target detected at {cm:.1f} cm (<= 150 cm) — running face identification...")
+            print(f"[morning] Morning human target detected at {cm:.1f} cm (<= 150 cm) — running face identification...")
             
             # Activate visual targeting indicator
             display.on()
             eyes.on()
-            
-            # Capture frame and identify
-            from skull import camera, brain, tts, audio, web
-            _, detected_name = camera.capture_and_identify()
 
             greeting_text = brain.generate_morning_greeting(detected_name)
             print(f"[morning] Morning greeting ({'identified: ' + str(detected_name) if detected_name else 'unrecognized'}): {greeting_text}")
