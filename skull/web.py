@@ -336,11 +336,24 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                     "distance_cm": round(proximity.get_latest_distance_cm(), 1) if proximity.get_latest_distance_cm() is not None else None,
                     "summary": proximity.get_distance_summary_short(),
                 },
+                "wifi": (lambda: getattr(sys.modules.get("skull.wifi_provisioner"), "get_status", lambda: {})())() if "skull.wifi_provisioner" in sys.modules else {},
             }
             self._send_json(state_data)
             return
 
+        elif self.path == "/api/wifi/status":
+            from skull import wifi_provisioner
+            self._send_json(wifi_provisioner.get_status())
+            return
+
+        elif self.path == "/api/wifi/scan":
+            from skull import wifi_provisioner
+            networks = wifi_provisioner.scan_networks()
+            self._send_json({"networks": networks})
+            return
+
         elif self.path.startswith("/api/last_speech.wav"):
+
             wav_bytes, _ = get_latest_web_audio()
             if wav_bytes:
                 self.send_response(200)
@@ -442,7 +455,31 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self) -> None:
-        if self.path == "/api/wake":
+        if self.path == "/api/wifi/connect":
+            try:
+                content_length = int(self.headers.get('Content-Length', 0))
+                post_data = self.rfile.read(content_length).decode('utf-8')
+                data = json.loads(post_data)
+                ssid = data.get("ssid", "")
+                password = data.get("password", "")
+                from skull import wifi_provisioner
+                success, msg = wifi_provisioner.connect_network(ssid, password)
+                self._send_json({"status": "ok" if success else "error", "message": msg})
+            except Exception as e:
+                self._send_json({"status": "error", "message": str(e)}, 500)
+            return
+
+        elif self.path == "/api/wifi/hotspot":
+            try:
+                from skull import wifi_provisioner
+                success, msg = wifi_provisioner.start_hotspot()
+                self._send_json({"status": "ok" if success else "error", "message": msg})
+            except Exception as e:
+                self._send_json({"status": "error", "message": str(e)}, 500)
+            return
+
+        elif self.path == "/api/wake":
+
             request_wake()
             self._send_json({"status": "ok", "message": "Wake request triggered."})
             return
@@ -1648,8 +1685,15 @@ HTML_CLIENT = """<!DOCTYPE html>
                         <span class="aux-label">VOX AUDIO OUTPUT:</span>
                         <button id="web-audio-btn" onclick="toggleWebAudio()">🔊 WEB AUDIO: ENABLED</button>
                     </div>
+                    <div class="aux-item">
+                        <span class="aux-label">WI-FI PROVISIONING:</span>
+                        <span id="wifi-status-text" style="font-size: 11px; margin-right: 8px;">[ DISCONNECTED ]</span>
+                        <button onclick="scanWifiNetworks()">📶 SCAN</button>
+                        <button onclick="toggleHotspot()">📡 AP HOTSPOT</button>
+                    </div>
                 </div>
             </div>
+
 
             <!-- Console Log Panel -->
             <div class="console-container">
@@ -1752,6 +1796,22 @@ HTML_CLIENT = """<!DOCTYPE html>
                 silentVal.innerText = data.silent_mode;
                 if (moodVal && data.mood) moodVal.innerText = data.mood.toUpperCase();
                 gameVal.innerText = data.active_game.toUpperCase();
+
+                // Update Wi-Fi Status text
+                const wifiText = document.getElementById('wifi-status-text');
+                if (wifiText && data.wifi) {
+                    if (data.wifi.is_ap) {
+                        wifiText.innerText = `[ AP HOTSPOT: ${data.wifi.ssid || 'Omega-7-Setup'} ]`;
+                        wifiText.style.color = '#ff9900';
+                    } else if (data.wifi.connected) {
+                        wifiText.innerText = `[ ${data.wifi.ssid} (${data.wifi.ip || 'Connected'}) ]`;
+                        wifiText.style.color = 'var(--bright-green)';
+                    } else {
+                        wifiText.innerText = '[ DISCONNECTED ]';
+                        wifiText.style.color = '#ff3838';
+                    }
+                }
+
 
                 // Update CPU pie
                 const cpuFloat = parseFloat(data.cpu) || 0;
@@ -2150,7 +2210,64 @@ HTML_CLIENT = """<!DOCTYPE html>
                 view.setUint8(offset + i, string.charCodeAt(i));
             }
         }
+
+        async function scanWifiNetworks() {
+            const wifiText = document.getElementById('wifi-status-text');
+            if (wifiText) wifiText.innerText = '[ SCANNING... ]';
+            try {
+                const res = await fetch('/api/wifi/scan');
+                const data = await res.json();
+                if (!data.networks || data.networks.length === 0) {
+                    alert("No Wi-Fi networks found nearby.");
+                    return;
+                }
+                let choice = prompt(
+                    "AVAILABLE WI-FI NETWORKS:\n" +
+                    data.networks.map((n, i) => `${i + 1}. ${n.ssid} (Signal: ${n.signal}%, Security: ${n.security})`).join("\n") +
+                    "\n\nEnter number or SSID to connect:"
+                );
+                if (!choice) return;
+                let targetSsid = choice.trim();
+                let idx = parseInt(targetSsid) - 1;
+                if (!isNaN(idx) && data.networks[idx]) {
+                    targetSsid = data.networks[idx].ssid;
+                }
+                let password = prompt(`Enter password for Wi-Fi network '${targetSsid}':`);
+                if (password === null) return;
+                await connectWifi(targetSsid, password);
+            } catch (err) {
+                alert("Wi-Fi scan failed: " + err);
+            }
+        }
+
+        async function connectWifi(ssid, password) {
+            const wifiText = document.getElementById('wifi-status-text');
+            if (wifiText) wifiText.innerText = `[ CONNECTING TO ${ssid}... ]`;
+            try {
+                const res = await fetch('/api/wifi/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ssid, password })
+                });
+                const data = await res.json();
+                alert(data.message);
+            } catch (err) {
+                alert("Connection failed: " + err);
+            }
+        }
+
+        async function toggleHotspot() {
+            if (!confirm("Start AP Hotspot 'Omega-7-Setup'?")) return;
+            try {
+                const res = await fetch('/api/wifi/hotspot', { method: 'POST' });
+                const data = await res.json();
+                alert(data.message);
+            } catch (err) {
+                alert("Hotspot trigger failed: " + err);
+            }
+        }
     </script>
+
 </body>
 </html>
 """

@@ -31,7 +31,9 @@ sudo apt-get install -y \
     libopenblas-dev \
     ffmpeg \
     python3-opencv \
-    i2c-tools
+    i2c-tools \
+    network-manager
+
 
 # Enable the SPI bus for the GC9A01 face display and the I2C bus for the VL53L1X
 # proximity sensor (both no-ops if already on).
