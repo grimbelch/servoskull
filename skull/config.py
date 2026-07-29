@@ -49,7 +49,11 @@ def _load_settings() -> dict:
     return {}
 
 
+_SETTINGS = _load_settings()
+
+
 def is_configured() -> bool:
+
     """Check if the appliance has completed initial setup (configured flag is True and Anthropic API key is set)."""
     if _SETTINGS.get("configured") is True:
         return True
