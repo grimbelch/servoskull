@@ -408,29 +408,49 @@ def _build_tools() -> list[dict]:
     {
         "name": "set_audio_sensitivity",
         "description": (
-            "Adjust microphone recording sensitivity, noise floor threshold, or wake word sensitivity. "
-            "Use when the user says 'make microphone more sensitive', 'increase noise rejection for loud room', "
-            "or 'set wake word threshold to 0.7'."
+            "Adjust microphone recording sensitivity, noise floor threshold, or silence detection threshold. "
+            "Use ONLY when the user asks about microphone recording sensitivity, audio pickup, mic noise floor, or silence threshold "
+            "(e.g. 'make microphone more sensitive', 'increase mic noise rejection'). Do NOT use for wake word threshold queries."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "sensitivity_level": {
                     "type": "string",
-                    "description": "Predefined sensitivity level e.g. 'high' (more sensitive), 'medium' (standard), 'low' (less sensitive / higher noise rejection)",
+                    "description": "Predefined sensitivity level e.g. 'high' (more sensitive pickup), 'medium' (standard), 'low' (higher noise rejection)",
                 },
                 "silence_threshold": {
                     "type": "integer",
                     "description": "Explicit RMS silence threshold e.g. 300 (very sensitive), 500 (normal), 800 (high noise rejection)",
                 },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "set_wake_word_sensitivity",
+        "description": (
+            "Adjust wake word detection trigger sensitivity or threshold. "
+            "Use ONLY when the user explicitly asks about wake word sensitivity, wake word threshold, trigger sensitivity, "
+            "stopping false wake ups, or making the wake word more/less sensitive "
+            "(e.g. 'increase wake word sensitivity', 'make wake word less sensitive', 'set wake word threshold to 0.70', 'stop false wake ups')."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "sensitivity_level": {
+                    "type": "string",
+                    "description": "Predefined wake sensitivity e.g. 'high' or 'more_sensitive' (wakes up easier), 'medium' (standard 0.65), 'low', 'strict', or 'less_sensitive' (reduces false triggers)",
+                },
                 "wake_word_threshold": {
                     "type": "number",
-                    "description": "Explicit wake word sensitivity score (0.1 to 0.9) e.g. 0.5 (sensitive), 0.7 (strict)",
+                    "description": "Explicit wake word sensitivity threshold (0.1 to 0.9) e.g. 0.5 (sensitive / low threshold), 0.75 (strict / high threshold)",
                 },
             },
             "required": [],
         },
     },
+
     {
         "name": "set_cast_target",
         "description": (
@@ -2144,24 +2164,19 @@ def _tool_set_audio_sensitivity(i):
 
     level = str(i.get("sensitivity_level", "") or "").lower().strip()
     raw_rms = i.get("silence_threshold")
-    raw_wake = i.get("wake_word_threshold")
 
     current_rms = config.SILENCE_THRESHOLD
-    current_wake = config.WAKE_WORD_THRESHOLD
 
     if level in ("high", "more", "sensitive"):
         new_rms = max(200, current_rms - 200)
-        new_wake = max(0.40, current_wake - 0.10)
     elif level in ("low", "less", "quiet", "noise"):
         new_rms = min(1500, current_rms + 200)
-        new_wake = min(0.85, current_wake + 0.10)
     elif level == "medium":
         new_rms = 500
-        new_wake = 0.65
+    elif raw_rms is not None:
+        new_rms = int(raw_rms)
     else:
-        new_rms = int(raw_rms) if raw_rms is not None else current_rms
-        new_wake = float(raw_wake) if raw_wake is not None else current_wake
-
+        new_rms = current_rms
 
     # Save to .env
     try:
@@ -2170,17 +2185,57 @@ def _tool_set_audio_sensitivity(i):
             env_path = pathlib.Path("~/.config/omega7/.env").expanduser()
 
         content = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
-        lines = [l for l in content.splitlines() if not (l.startswith("SILENCE_THRESHOLD=") or l.startswith("WAKE_WORD_THRESHOLD="))]
+        lines = [l for l in content.splitlines() if not l.startswith("SILENCE_THRESHOLD=")]
         lines.append(f"SILENCE_THRESHOLD={new_rms}")
+        env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except Exception as e:
+        print(f"[brain] Warning: could not write SILENCE_THRESHOLD to .env: {e}")
+
+    config.SILENCE_THRESHOLD = new_rms
+
+    return f"Microphone audio recording sensitivity updated: SILENCE_THRESHOLD set to {new_rms} RMS."
+
+
+def _tool_set_wake_word_sensitivity(i):
+    import pathlib
+    from skull import config
+
+    level = str(i.get("sensitivity_level", "") or "").lower().strip()
+    raw_wake = i.get("wake_word_threshold")
+
+    current_wake = config.WAKE_WORD_THRESHOLD
+
+    if raw_wake is not None:
+        new_wake = float(raw_wake)
+    elif level in ("high", "more", "sensitive", "more_sensitive"):
+        # More sensitive = lower threshold (wakes up easier)
+        new_wake = max(0.40, current_wake - 0.10)
+    elif level in ("low", "less", "quiet", "noise", "strict", "less_sensitive", "false_positives"):
+        # Less sensitive / strict = higher threshold (reduces false triggers)
+        new_wake = min(0.85, current_wake + 0.10)
+    elif level in ("medium", "default", "normal"):
+        new_wake = 0.65
+    else:
+        new_wake = current_wake
+
+    # Save to .env
+    try:
+        env_path = pathlib.Path(__file__).resolve().parent.parent / ".env"
+        if not env_path.exists():
+            env_path = pathlib.Path("~/.config/omega7/.env").expanduser()
+
+        content = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
+        lines = [l for l in content.splitlines() if not l.startswith("WAKE_WORD_THRESHOLD=")]
         lines.append(f"WAKE_WORD_THRESHOLD={new_wake:.2f}")
         env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     except Exception as e:
-        print(f"[brain] Warning: could not write audio config to .env: {e}")
+        print(f"[brain] Warning: could not write WAKE_WORD_THRESHOLD to .env: {e}")
 
-    config.SILENCE_THRESHOLD = new_rms
     config.WAKE_WORD_THRESHOLD = new_wake
 
-    return f"Audio sensitivity updated: Microphone Noise Floor Threshold set to {new_rms} RMS, Wake Word Sensitivity set to {new_wake:.2f}."
+    desc = "stricter / lower false positive rate" if new_wake > 0.65 else ("more sensitive / easier activation" if new_wake < 0.65 else "standard")
+    return f"Wake word trigger sensitivity updated: WAKE_WORD_THRESHOLD set to {new_wake:.2f} ({desc})."
+
 
 
 def _tool_set_cast_target(i):
@@ -2506,6 +2561,8 @@ _TOOL_REGISTRY = {
     "set_display_rotation": _tool_set_display_rotation,
     "show_display_alignment": _tool_show_display_alignment,
     "set_audio_sensitivity": _tool_set_audio_sensitivity,
+    "set_wake_word_sensitivity": _tool_set_wake_word_sensitivity,
+
     "set_cast_target": _tool_set_cast_target,
     "remember_fact": _tool_remember_fact,
     "forget_fact": _tool_forget_fact,
