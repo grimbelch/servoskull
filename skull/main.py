@@ -597,17 +597,41 @@ def main():
     threading.Thread(target=_preload_phrases, daemon=True).start()
 
     sfx.play("skull_boot", config.VOICE_OUTPUT_DEVICE)
-    try:
-        boot_wav = _load_or_record_boot_wav()
+
+    # ── First-Boot / Unconfigured Appliance Check ──────────────────────────────
+    from skull import wifi_provisioner
+    wifi_status = wifi_provisioner.get_status()
+    if not config.is_configured() or not wifi_status.get("connected") or wifi_status.get("is_ap"):
+        print("[skull] Appliance is in unconfigured or AP mode — raising setup hotspot AP...")
+        wifi_provisioner.start_hotspot()
         eyes.on()
         display.on()
-        audio.play_wav_bytes(boot_wav, output_device=config.VOICE_OUTPUT_DEVICE)
-    except Exception as e:
-        print(f"[skull] Boot phrase error: {e}")
-        time.sleep(0.5)
-    finally:
-        eyes.off()
-        display.idle()
+        setup_text = "SETUP MODE\nAP: Omega-7-Setup\nIP: 192.168.4.1:8080"
+        display.show_text(setup_text)
+        try:
+            setup_announcement = (
+                "Greetings. I am an unconfigured Servo Skull unit. "
+                "Please connect your mobile device or cogitator to my Wi-Fi access point, "
+                "Omega-7-Setup, to begin initialization."
+            )
+            print("[skull] Speaking setup vocal announcement via Piper local TTS...")
+            setup_wav = tts.synthesize_piper(setup_announcement)
+            audio.play_wav_bytes(setup_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+        except Exception as e:
+            print(f"[skull] Setup vocal announcement error: {e}")
+    else:
+        try:
+            boot_wav = _load_or_record_boot_wav()
+            eyes.on()
+            display.on()
+            audio.play_wav_bytes(boot_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+        except Exception as e:
+            print(f"[skull] Boot phrase error: {e}")
+            time.sleep(0.5)
+        finally:
+            eyes.off()
+            display.idle()
+
 
     skip_wake_word = False
     skip_ack = False

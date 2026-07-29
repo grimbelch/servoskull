@@ -337,8 +337,10 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                     "summary": proximity.get_distance_summary_short(),
                 },
                 "wifi": (lambda: getattr(sys.modules.get("skull.wifi_provisioner"), "get_status", lambda: {})())() if "skull.wifi_provisioner" in sys.modules else {},
+                "is_configured": config.is_configured(),
             }
             self._send_json(state_data)
+
             return
 
         elif self.path == "/api/wifi/status":
@@ -454,8 +456,108 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_response(404)
         self.end_headers()
 
+def test_api_key(provider: str, key: str) -> tuple[bool, str]:
+    """Test an API key live with its respective provider."""
+    if not key or not key.strip():
+        return False, "API key cannot be empty."
+    key = key.strip()
+    provider = provider.lower().strip()
+
+    try:
+        if provider == "anthropic":
+            import anthropic
+            client = anthropic.Anthropic(api_key=key)
+            msg = client.messages.create(
+                model=config.CLAUDE_MODEL,
+                max_tokens=10,
+                messages=[{"role": "user", "content": "ping"}]
+            )
+            return True, f"Anthropic API key valid! Response: '{msg.content[0].text.strip()}'"
+        elif provider == "elevenlabs":
+            import requests
+            r = requests.get("https://api.elevenlabs.io/v1/voices", headers={"xi-api-key": key}, timeout=8)
+            if r.status_code == 200:
+                voices = len(r.json().get("voices", []))
+                return True, f"ElevenLabs API key valid! Access to {voices} voice profiles."
+            else:
+                return False, f"ElevenLabs API key invalid (HTTP {r.status_code})."
+        elif provider == "openai":
+            import requests
+            r = requests.get("https://api.openai.com/v1/models", headers={"Authorization": f"Bearer {key}"}, timeout=8)
+            if r.status_code == 200:
+                return True, "OpenAI API key valid!"
+            else:
+                return False, f"OpenAI API key invalid (HTTP {r.status_code})."
+        else:
+            return False, f"Unknown API provider: '{provider}'."
+    except Exception as e:
+        return False, f"Verification failed: {e}"
+
+
     def do_POST(self) -> None:
-        if self.path == "/api/wifi/connect":
+        if self.path == "/api/setup/test_key":
+            try:
+                content_length = int(self.headers.get('Content-Length', 0))
+                post_data = self.rfile.read(content_length).decode('utf-8')
+                data = json.loads(post_data)
+                provider = data.get("provider", "")
+                key = data.get("key", "")
+                success, msg = test_api_key(provider, key)
+                self._send_json({"status": "ok" if success else "error", "message": msg})
+            except Exception as e:
+                self._send_json({"status": "error", "message": str(e)}, 500)
+            return
+
+        elif self.path == "/api/setup/save":
+            try:
+                content_length = int(self.headers.get('Content-Length', 0))
+                post_data = self.rfile.read(content_length).decode('utf-8')
+                data = json.loads(post_data)
+
+                # Save settings
+                settings_data = {}
+                if "skull_name" in data:
+                    settings_data["SKULL_NAME"] = data["skull_name"]
+                if "keys" in data:
+                    keys = data["keys"]
+                    if "anthropic" in keys and keys["anthropic"]:
+                        settings_data["ANTHROPIC_API_KEY"] = keys["anthropic"]
+                    if "elevenlabs" in keys and keys["elevenlabs"]:
+                        settings_data["ELEVENLABS_API_KEY"] = keys["elevenlabs"]
+                    if "elevenlabs_voice_id" in keys and keys["elevenlabs_voice_id"]:
+                        settings_data["ELEVENLABS_VOICE_ID"] = keys["elevenlabs_voice_id"]
+                    if "openai" in keys and keys["openai"]:
+                        settings_data["OPENAI_API_KEY"] = keys["openai"]
+
+                config.save_settings(settings_data)
+
+                # Save owner profile
+                if "owner" in data:
+                    config.save_owner_profile(data["owner"])
+
+                # Connect Wi-Fi if provided
+                if "wifi" in data and data["wifi"].get("ssid"):
+                    from skull import wifi_provisioner
+                    wifi_provisioner.connect_network(data["wifi"]["ssid"], data["wifi"].get("password"))
+                    wifi_provisioner.stop_hotspot()
+
+                # Speak confirmation via local audio
+                try:
+                    from skull import tts, audio
+                    owner_name = data.get("owner", {}).get("name", "Master")
+                    announcement = f"Initialization complete, Master {owner_name}. Machine spirit online."
+                    wav = tts.synthesize_piper(announcement)
+                    audio.play_wav_bytes(wav, output_device=config.VOICE_OUTPUT_DEVICE)
+                except Exception as e:
+                    print(f"[web] Post-setup speech error: {e}")
+
+                self._send_json({"status": "ok", "message": "Appliance initialized successfully!"})
+            except Exception as e:
+                self._send_json({"status": "error", "message": str(e)}, 500)
+            return
+
+        elif self.path == "/api/wifi/connect":
+
             try:
                 content_length = int(self.headers.get('Content-Length', 0))
                 post_data = self.rfile.read(content_length).decode('utf-8')
@@ -1705,6 +1807,116 @@ HTML_CLIENT = """<!DOCTYPE html>
         </div>
     </div>
 
+    <!-- Onboarding Setup Wizard Overlay Modal -->
+    <div id="wizard-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.92); z-index: 20000; padding: 20px; box-sizing: border-box; overflow-y: auto;">
+        <div style="max-width: 650px; margin: 40px auto; border: 2px solid var(--bright-green); background-color: var(--card-color); padding: 24px; box-shadow: 0 0 25px var(--glow-color);">
+            <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-weight: bold; font-size: 16px; color: var(--bright-green); letter-spacing: 1.5px;">◆ APPLIANCE INITIALIZATION WIZARD ◆</div>
+                <div id="wizard-step-label" style="font-size: 11px; color: rgba(56,255,88,0.8); font-weight: bold;">STEP 1 OF 4</div>
+            </div>
+
+            <!-- Step 1: Wi-Fi Setup -->
+            <div class="wizard-step" id="w-step-1">
+                <p style="margin-bottom: 16px; font-size: 13px; color: rgba(56,255,88,0.9);">Welcome! Connect your Servo Skull to your home Wi-Fi network to enable remote access and machine spirit updates.</p>
+                <div style="margin-bottom: 14px;">
+                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">WI-FI NETWORK (SSID):</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="w-wifi-ssid" placeholder="Home Wi-Fi Name" style="flex-grow: 1; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
+                        <button onclick="scanWizardWifi()">📶 SCAN</button>
+                    </div>
+                </div>
+                <div style="margin-bottom: 14px;">
+                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">WI-FI PASSWORD:</label>
+                    <input type="password" id="w-wifi-pass" placeholder="Network Password" style="width: 100%; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
+                </div>
+                <div id="w-wifi-result" style="font-size: 11px; margin-bottom: 14px; min-height: 16px;"></div>
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                    <button style="background: rgba(56,255,88,0.2);" onclick="nextWizardStep(2)">NEXT: IDENTITY ➔</button>
+                </div>
+            </div>
+
+            <!-- Step 2: Skull Identity & Archetype -->
+            <div class="wizard-step" id="w-step-2" style="display: none;">
+                <p style="margin-bottom: 16px; font-size: 13px; color: rgba(56,255,88,0.9);">Designate the unit's name and primary vocal personality archetype.</p>
+                <div style="margin-bottom: 14px;">
+                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">SKULL NAME / DESIGNATION:</label>
+                    <input type="text" id="w-skull-name" value="Omega-7" style="width: 100%; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
+                </div>
+                <div style="margin-bottom: 14px;">
+                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">PERSONALITY ARCHETYPE:</label>
+                    <select id="w-personality" style="width: 100%; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
+                        <option value="Imperial Servo Skull">Imperial Servo Skull (Adeptus Mechanicus / Warhammer 40k)</option>
+                        <option value="Golden Retriever">Golden Retriever (Upbeat, Loyal & Enthusiastic)</option>
+                        <option value="Custom Archetype">Custom Archetype</option>
+                    </select>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-top: 20px;">
+                    <button onclick="nextWizardStep(1)">⬅ BACK</button>
+                    <button style="background: rgba(56,255,88,0.2);" onclick="nextWizardStep(3)">NEXT: MASTER PROFILE ➔</button>
+                </div>
+            </div>
+
+            <!-- Step 3: Master Personalization Profile -->
+            <div class="wizard-step" id="w-step-3" style="display: none;">
+                <p style="margin-bottom: 16px; font-size: 13px; color: rgba(56,255,88,0.9);">Tell the skull who it serves so it can address you by name and provide localized information.</p>
+                <div style="margin-bottom: 14px;">
+                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">YOUR NAME (MASTER):</label>
+                    <input type="text" id="w-master-name" placeholder="e.g. Sean, Sarah" style="width: 100%; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
+                </div>
+                <div style="margin-bottom: 14px;">
+                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">CITY / LOCATION (FOR WEATHER):</label>
+                    <input type="text" id="w-master-city" placeholder="e.g. Seattle, WA" style="width: 100%; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
+                </div>
+                <div style="margin-bottom: 14px;">
+                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">PRIMARY INTERESTS / HOBBIES:</label>
+                    <input type="text" id="w-master-interests" placeholder="e.g. 3D Printing, Warhammer 40k" style="width: 100%; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-top: 20px;">
+                    <button onclick="nextWizardStep(2)">⬅ BACK</button>
+                    <button style="background: rgba(56,255,88,0.2);" onclick="nextWizardStep(4)">NEXT: API CREDENTIALS ➔</button>
+                </div>
+            </div>
+
+            <!-- Step 4: API Credentials (BYO-Keys) -->
+            <div class="wizard-step" id="w-step-4" style="display: none;">
+                <p style="margin-bottom: 16px; font-size: 13px; color: rgba(56,255,88,0.9);">Enter your cloud API keys. Test each key to verify before finishing initialization.</p>
+                
+                <div style="margin-bottom: 14px;">
+                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">ANTHROPIC API KEY (REQUIRED FOR CLAUDE BRAIN):</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="password" id="w-key-anthropic" placeholder="sk-ant-api03-..." style="flex-grow: 1; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
+                        <button onclick="testWizardKey('anthropic')">TEST KEY</button>
+                    </div>
+                    <div id="w-res-anthropic" style="font-size: 11px; margin-top: 4px; min-height: 14px;"></div>
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">ELEVENLABS API KEY (OPTIONAL CLOUD VOICE):</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="password" id="w-key-elevenlabs" placeholder="Optional ElevenLabs API Key" style="flex-grow: 1; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
+                        <button onclick="testWizardKey('elevenlabs')">TEST KEY</button>
+                    </div>
+                    <div id="w-res-elevenlabs" style="font-size: 11px; margin-top: 4px; min-height: 14px;"></div>
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">OPENAI API KEY (OPTIONAL):</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="password" id="w-key-openai" placeholder="Optional OpenAI API Key" style="flex-grow: 1; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
+                        <button onclick="testWizardKey('openai')">TEST KEY</button>
+                    </div>
+                    <div id="w-res-openai" style="font-size: 11px; margin-top: 4px; min-height: 14px;"></div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; margin-top: 20px;">
+                    <button onclick="nextWizardStep(3)">⬅ BACK</button>
+                    <button style="background: var(--bright-green); color: #000; font-size: 13px;" onclick="finishWizard()">⚙️ INITIALIZE MACHINE SPIRIT</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
     <script>
         const alertTitle = document.getElementById('alert-title');
         const alertValue = document.getElementById('alert-value');
@@ -1811,6 +2023,15 @@ HTML_CLIENT = """<!DOCTYPE html>
                         wifiText.style.color = '#ff3838';
                     }
                 }
+
+                // Auto-trigger Onboarding Wizard if unconfigured or AP mode
+                if (data.is_configured === false || (data.wifi && data.wifi.is_ap)) {
+                    const wiz = document.getElementById('wizard-modal');
+                    if (wiz && wiz.style.display === 'none' && !window.wizardClosedManually) {
+                        wiz.style.display = 'block';
+                    }
+                }
+
 
 
                 // Update CPU pie
@@ -2266,7 +2487,142 @@ HTML_CLIENT = """<!DOCTYPE html>
                 alert("Hotspot trigger failed: " + err);
             }
         }
+
+        // Onboarding Setup Wizard Functions
+        let wizardCurrentStep = 1;
+
+        function nextWizardStep(step) {
+            wizardCurrentStep = step;
+            document.querySelectorAll('.wizard-step').forEach(el => el.style.display = 'none');
+            const target = document.getElementById(`w-step-${step}`);
+            if (target) target.style.display = 'block';
+            const label = document.getElementById('wizard-step-label');
+            const stepNames = ["WI-FI PROVISIONING", "IDENTITY & ARCHETYPE", "MASTER PROFILE", "API CREDENTIALS"];
+            if (label && stepNames[step - 1]) {
+                label.innerText = `STEP ${step} OF 4: ${stepNames[step - 1]}`;
+            }
+        }
+
+        async function scanWizardWifi() {
+            const resBox = document.getElementById('w-wifi-result');
+            if (resBox) {
+                resBox.innerText = 'Scanning for nearby Wi-Fi access points...';
+                resBox.style.color = 'var(--bright-green)';
+            }
+            try {
+                const res = await fetch('/api/wifi/scan');
+                const data = await res.json();
+                if (!data.networks || data.networks.length === 0) {
+                    if (resBox) {
+                        resBox.innerText = 'No Wi-Fi networks found. Enter SSID manually.';
+                        resBox.style.color = '#ff3838';
+                    }
+                    return;
+                }
+                let choice = prompt(
+                    "AVAILABLE WI-FI NETWORKS:\n" +
+                    data.networks.map((n, i) => `${i + 1}. ${n.ssid} (${n.signal}% signal)`).join("\n") +
+                    "\n\nEnter number or SSID:"
+                );
+                if (choice) {
+                    let targetSsid = choice.trim();
+                    let idx = parseInt(targetSsid) - 1;
+                    if (!isNaN(idx) && data.networks[idx]) {
+                        targetSsid = data.networks[idx].ssid;
+                    }
+                    document.getElementById('w-wifi-ssid').value = targetSsid;
+                    if (resBox) {
+                        resBox.innerText = `Selected SSID: '${targetSsid}'. Enter password and proceed.`;
+                        resBox.style.color = 'var(--bright-green)';
+                    }
+                }
+            } catch (err) {
+                if (resBox) {
+                    resBox.innerText = 'Scan error: ' + err;
+                    resBox.style.color = '#ff3838';
+                }
+            }
+        }
+
+        async function testWizardKey(provider) {
+            const input = document.getElementById(`w-key-${provider}`);
+            const badge = document.getElementById(`w-res-${provider}`);
+            if (!input || !badge) return;
+            const key = input.value.trim();
+            if (!key) {
+                badge.innerText = '⚠️ Please enter an API key first.';
+                badge.style.color = '#ff9900';
+                return;
+            }
+            badge.innerText = 'Testing key...';
+            badge.style.color = 'var(--bright-green)';
+            try {
+                const res = await fetch('/api/setup/test_key', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ provider, key })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    badge.innerText = '✅ ' + data.message;
+                    badge.style.color = 'var(--bright-green)';
+                } else {
+                    badge.innerText = '❌ ' + data.message;
+                    badge.style.color = '#ff3838';
+                }
+            } catch (err) {
+                badge.innerText = '❌ Verification error: ' + err;
+                badge.style.color = '#ff3838';
+            }
+        }
+
+        async function finishWizard() {
+            const anthropicKey = document.getElementById('w-key-anthropic').value.trim();
+            if (!anthropicKey) {
+                alert("Anthropic API key is required to power the Claude brain. Please enter and test your Anthropic API key.");
+                return;
+            }
+
+            const payload = {
+                skull_name: document.getElementById('w-skull-name').value.trim() || 'Omega-7',
+                personality: document.getElementById('w-personality').value,
+                owner: {
+                    name: document.getElementById('w-master-name').value.trim() || 'Master',
+                    city: document.getElementById('w-master-city').value.trim() || 'Local',
+                    interests: document.getElementById('w-master-interests').value.trim() || ''
+                },
+                wifi: {
+                    ssid: document.getElementById('w-wifi-ssid').value.trim(),
+                    password: document.getElementById('w-wifi-pass').value.trim()
+                },
+                keys: {
+                    anthropic: anthropicKey,
+                    elevenlabs: document.getElementById('w-key-elevenlabs').value.trim(),
+                    openai: document.getElementById('w-key-openai').value.trim()
+                }
+            };
+
+            try {
+                const res = await fetch('/api/setup/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    alert("Initialization Complete! Connecting to your Wi-Fi network...");
+                    window.wizardClosedManually = true;
+                    document.getElementById('wizard-modal').style.display = 'none';
+                    setTimeout(() => window.location.reload(), 3000);
+                } else {
+                    alert("Save failed: " + data.message);
+                }
+            } catch (err) {
+                alert("Setup failed: " + err);
+            }
+        }
     </script>
+
 
 </body>
 </html>
