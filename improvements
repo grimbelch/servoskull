@@ -11,7 +11,7 @@ Low-hanging fruit
 -Changing to a different voice model (by name)
 -Loading new game rulesets
 -Updating information about the owner
--Reset and remake the various phrases he makes
+XReset and remake the various phrases he makes
 -Change wake word by verbal request
 -Load more wake words
 
@@ -19,15 +19,15 @@ Low-hanging fruit
 
 Medium effort
 
-[ ] Proximity trigger — Use an HC-SR04 ultrasonic sensor or PIR module on a GPIO pin. When someone walks into range, Omega-7 wakes and greets them without needing a wake word.
-[ ] Vision on demand — The camera module is already there. Add a describe_scene tool that captures a frame, base64-encodes it, and sends it to Claude's vision model. "What do you see, Omega-7?"
+[X] Proximity trigger — Use an HC-SR04 ultrasonic sensor or PIR module on a GPIO pin. When someone walks into range, Omega-7 wakes and greets them without needing a wake word.
+[X] Vision on demand — The camera module is already there. Add a describe_scene tool that captures a frame, base64-encodes it, and sends it to Claude's vision model. "What do you see, Omega-7?"
 [X] Mood/personality state — Track a simple internal state (alert, contemplative, suspicious) that drifts over time and influences word choice in prompts. Idle utterances would feel more varied.
-[ ] Validate bluetooth speaker connection skill and behavior
+[X] Validate bluetooth speaker connection skill and behavior
 [ ] Find (better) mounting points for mic and camera
 
 [ ] Environmental Auspex: Install secondary sensors to monitor the temperature, humidity, or air quality of your immediate workspace.
 
-[ ] Bambu H2D Telemetry: Use an MQTT client to intercept your Bambu printer's local data stream for progress updates and STC corruption (error) vocal alerts.
+[X] Bambu H2D Telemetry: Use an MQTT client to intercept your Bambu printer's local data stream for progress updates and STC corruption (error) vocal alerts.
 
 [ ] Unraid Network Tap: Connect to your Unraid server via SMB, Nextcloud WebDAV, or the Unraid GraphQL API to monitor system health and data transfers.
 
