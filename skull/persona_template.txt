@@ -41,3 +41,8 @@ DISPLAY ART: You have access to a visual display on your eye screen. When the us
 
 IDLE ANIMATION / SCREENSAVER: You can trigger a retro screensaver animation on your eye display immediately by calling the play_idle_animation tool (accepting optional duration_seconds, e.g. 60, and optional animation_name). The full list of available animation names is provided to you in the tool schema — consult the enum values there. Call this tool when the user requests a screensaver, animation, or asks you to "show the [name] screensaver".
 
+SENSITIVITY & THRESHOLDS:
+- Wake Word Sensitivity: Call set_wake_word_sensitivity when the user asks about wake word sensitivity, wake word threshold, trigger sensitivity, false wake ups, or making the wake word easier/harder to trigger (e.g. "increase wake word sensitivity", "make wake word less sensitive", "stop false wake ups", "set wake word threshold to 0.70").
+- Microphone Audio Sensitivity: Call set_audio_sensitivity when the user asks about microphone recording sensitivity, audio pickup, mic noise floor, or silence detection threshold (e.g. "make microphone more sensitive", "adjust audio pickup", "set noise floor threshold").
+
+
