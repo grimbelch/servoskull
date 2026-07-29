@@ -666,18 +666,24 @@ def _start_setup_announcement_repeater(interval_sec: float = 120.0) -> None:
         print("[skull] Appliance is in unconfigured or AP mode — raising setup hotspot AP...")
         wifi_provisioner.start_hotspot()
         _start_setup_announcement_repeater(120.0)
-    else:
-        try:
-            boot_wav = _load_or_record_boot_wav()
-            eyes.on()
-            display.on()
-            audio.play_wav_bytes(boot_wav, output_device=config.VOICE_OUTPUT_DEVICE)
-        except Exception as e:
-            print(f"[skull] Boot phrase error: {e}")
-            time.sleep(0.5)
-        finally:
-            eyes.off()
-            display.idle()
+        print("[skull] Remaining in setup mode loop awaiting user provisioning...")
+        while not config.is_configured() and (wifi_status.get("is_ap") or not wifi_status.get("connected")):
+            time.sleep(1.0)
+            wifi_status = wifi_provisioner.get_status()
+        print("[skull] Setup completed or network connected — proceeding to active operating mode.")
+    
+    try:
+        boot_wav = _load_or_record_boot_wav()
+        eyes.on()
+        display.on()
+        audio.play_wav_bytes(boot_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+    except Exception as e:
+        print(f"[skull] Boot phrase error: {e}")
+        time.sleep(0.5)
+    finally:
+        eyes.off()
+        display.idle()
+
 
 
 
