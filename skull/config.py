@@ -49,7 +49,46 @@ def _load_settings() -> dict:
     return {}
 
 
-_SETTINGS = _load_settings()
+def is_configured() -> bool:
+    """Check if the appliance has completed initial setup (configured flag is True and Anthropic API key is set)."""
+    if _SETTINGS.get("configured") is True:
+        return True
+    # If ANTHROPIC_API_KEY is non-empty, consider it configured
+    if ANTHROPIC_API_KEY and len(ANTHROPIC_API_KEY.strip()) > 10:
+        return True
+    return False
+
+
+def save_settings(new_settings: dict) -> None:
+    """Merge and save new settings into USER_DATA_DIR/settings.json, updating module globals."""
+    global _SETTINGS, ANTHROPIC_API_KEY, OPENAI_API_KEY, ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID, SKULL_NAME
+    p = USER_DATA_DIR / "settings.json"
+    current = _load_settings()
+    current.update(new_settings)
+    current["configured"] = True
+    
+    p.write_text(json.dumps(current, indent=2), encoding="utf-8")
+    _SETTINGS = current
+    
+    # Update active globals
+    if "ANTHROPIC_API_KEY" in current:
+        ANTHROPIC_API_KEY = str(current["ANTHROPIC_API_KEY"])
+    if "OPENAI_API_KEY" in current:
+        OPENAI_API_KEY = str(current["OPENAI_API_KEY"])
+    if "ELEVENLABS_API_KEY" in current:
+        ELEVENLABS_API_KEY = str(current["ELEVENLABS_API_KEY"])
+    if "ELEVENLABS_VOICE_ID" in current:
+        ELEVENLABS_VOICE_ID = str(current["ELEVENLABS_VOICE_ID"])
+    if "SKULL_NAME" in current:
+        SKULL_NAME = str(current["SKULL_NAME"])
+
+
+def save_owner_profile(data: dict) -> None:
+    """Save updated owner profile data to USER_DATA_DIR/owner.json."""
+    global _OWNER_PROFILE
+    p = USER_DATA_DIR / "owner.json"
+    p.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    _OWNER_PROFILE = data
 
 
 def _cfg(key: str, default: str = "") -> str:
@@ -61,6 +100,7 @@ def _cfg(key: str, default: str = "") -> str:
     if v is not None and str(v) != "":
         return str(v)
     return os.getenv(key, default)
+
 
 
 # ── Secrets / API keys (user-provided via the setup wizard) ──────────────────────
