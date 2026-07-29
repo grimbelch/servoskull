@@ -531,7 +531,15 @@ def test_api_key(provider: str, key: str) -> tuple[bool, str]:
 
                 config.save_settings(settings_data)
 
+                # Stop setup announcement repeater thread if active
+                if "skull.main" in sys.modules and hasattr(sys.modules["skull.main"], "stop_setup_repeater"):
+                    try:
+                        sys.modules["skull.main"].stop_setup_repeater()
+                    except Exception:
+                        pass
+
                 # Save owner profile
+
                 if "owner" in data:
                     config.save_owner_profile(data["owner"])
 

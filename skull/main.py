@@ -598,33 +598,63 @@ def main():
 
     sfx.play("skull_boot", config.VOICE_OUTPUT_DEVICE)
 
+_setup_repeater_stop = threading.Event()
+
+
+def stop_setup_repeater() -> None:
+    """Signal the setup announcement repeater to stop."""
+    _setup_repeater_stop.set()
+
+
+def _play_setup_announcement() -> None:
+    try:
+        eyes.on()
+        display.on()
+        setup_text = "SETUP MODE\nAP: Omega-7-Setup\nIP: 192.168.4.1:8080"
+        display.show_text(setup_text)
+
+        cached_setup_wav = pathlib.Path("models/phrase_cache/setup_announcement.wav")
+        if cached_setup_wav.exists():
+            print("[skull] Playing pre-cached ElevenLabs setup vocal announcement from disk...")
+            setup_bytes = cached_setup_wav.read_bytes()
+        else:
+            setup_announcement = (
+                "Greetings. I am an unconfigured Servo Skull unit. "
+                "Please connect your mobile device or cogitator to my Wi-Fi access point, "
+                "Omega-7-Setup, to begin initialization."
+            )
+            print("[skull] Speaking setup vocal announcement via Piper local TTS...")
+            setup_bytes = tts.synthesize_piper(setup_announcement)
+        audio.play_wav_bytes(setup_bytes, output_device=config.VOICE_OUTPUT_DEVICE)
+    except Exception as e:
+        print(f"[skull] Setup vocal announcement error: {e}")
+
+
+def _start_setup_announcement_repeater(interval_sec: float = 120.0) -> None:
+    """Repeat the setup announcement phrase every 2 minutes while unconfigured."""
+    def _loop():
+        print(f"[skull] Launching setup announcement repeater loop (every {interval_sec}s)...")
+        _play_setup_announcement()
+
+        while not _setup_repeater_stop.is_set():
+            if _setup_repeater_stop.wait(timeout=interval_sec):
+                break
+            if config.is_configured():
+                print("[skull] Appliance configured — stopping setup announcement repeater.")
+                break
+            print("[skull] 2-minute setup repeater timer elapsed — repeating setup announcement...")
+            _play_setup_announcement()
+
+    threading.Thread(target=_loop, daemon=True).start()
+
+
     # ── First-Boot / Unconfigured Appliance Check ──────────────────────────────
     from skull import wifi_provisioner
     wifi_status = wifi_provisioner.get_status()
     if not config.is_configured() or not wifi_status.get("connected") or wifi_status.get("is_ap"):
         print("[skull] Appliance is in unconfigured or AP mode — raising setup hotspot AP...")
         wifi_provisioner.start_hotspot()
-        eyes.on()
-        display.on()
-        setup_text = "SETUP MODE\nAP: Omega-7-Setup\nIP: 192.168.4.1:8080"
-        display.show_text(setup_text)
-        try:
-            cached_setup_wav = pathlib.Path("models/phrase_cache/setup_announcement.wav")
-            if cached_setup_wav.exists():
-                print("[skull] Playing pre-cached ElevenLabs setup vocal announcement from disk...")
-                setup_bytes = cached_setup_wav.read_bytes()
-            else:
-                setup_announcement = (
-                    "Greetings. I am an unconfigured Servo Skull unit. "
-                    "Please connect your mobile device or cogitator to my Wi-Fi access point, "
-                    "Omega-7-Setup, to begin initialization."
-                )
-                print("[skull] Speaking setup vocal announcement via Piper local TTS...")
-                setup_bytes = tts.synthesize_piper(setup_announcement)
-            audio.play_wav_bytes(setup_bytes, output_device=config.VOICE_OUTPUT_DEVICE)
-        except Exception as e:
-            print(f"[skull] Setup vocal announcement error: {e}")
-
+        _start_setup_announcement_repeater(120.0)
     else:
         try:
             boot_wav = _load_or_record_boot_wav()
@@ -637,6 +667,7 @@ def main():
         finally:
             eyes.off()
             display.idle()
+
 
 
     skip_wake_word = False
