@@ -262,6 +262,14 @@ def get_fabricator_status() -> dict:
 class ThreadingHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
 
+_web_client_connected = False
+
+
+def has_web_client_connected() -> bool:
+    """Return True if any web client has connected to the Web Remote server."""
+    return _web_client_connected
+
+
 class WebRequestHandler(http.server.BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         # Suppress automatic logging to console to keep main logs readable
@@ -287,6 +295,8 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:
+        global _web_client_connected
+        _web_client_connected = True
         from skull import display, temperature, brain
         
         if self.path == "/":

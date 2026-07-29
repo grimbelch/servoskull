@@ -631,21 +631,32 @@ def _play_setup_announcement() -> None:
 
 
 def _start_setup_announcement_repeater(interval_sec: float = 120.0) -> None:
-    """Repeat the setup announcement phrase every 2 minutes while unconfigured."""
+    """Repeat the setup announcement phrase every 2 minutes until a client connects to the Wi-Fi AP or web portal."""
     def _loop():
+        from skull import wifi_provisioner, web
         print(f"[skull] Launching setup announcement repeater loop (every {interval_sec}s)...")
         _play_setup_announcement()
 
+        elapsed = 0.0
         while not _setup_repeater_stop.is_set():
-            if _setup_repeater_stop.wait(timeout=interval_sec):
+            if _setup_repeater_stop.wait(timeout=1.0):
                 break
-            if config.is_configured():
-                print("[skull] Appliance configured — stopping setup announcement repeater.")
+            
+            # Stop repeating once user connects to the AP or opens web page
+            if (hasattr(wifi_provisioner, "has_ap_client") and wifi_provisioner.has_ap_client()) or \
+               (hasattr(web, "has_web_client_connected") and web.has_web_client_connected()) or \
+               config.is_configured():
+                print("[skull] User connected to Wi-Fi AP / Web portal — stopping setup announcement repeater.")
                 break
-            print("[skull] 2-minute setup repeater timer elapsed — repeating setup announcement...")
-            _play_setup_announcement()
+
+            elapsed += 1.0
+            if elapsed >= interval_sec:
+                elapsed = 0.0
+                print("[skull] 2-minute setup repeater timer elapsed — repeating setup announcement...")
+                _play_setup_announcement()
 
     threading.Thread(target=_loop, daemon=True).start()
+
 
 
     # ── First-Boot / Unconfigured Appliance Check ──────────────────────────────

@@ -52,6 +52,20 @@ def get_status() -> dict:
     return res
 
 
+def has_ap_client() -> bool:
+    """Check if any client device is currently associated or active on wlan0 AP."""
+    try:
+        p = subprocess.run(["ip", "neighbor", "show", "dev", "wlan0"], capture_output=True, text=True, timeout=3)
+        if p.returncode == 0:
+            for line in p.stdout.splitlines():
+                if "REACHABLE" in line or "DELAY" in line:
+                    return True
+    except Exception as e:
+        print(f"[wifi] Error checking AP client association: {e}")
+    return False
+
+
+
 def scan_networks() -> list[dict]:
     """Scan for available Wi-Fi access points and return sorted list by signal strength."""
     networks: list[dict] = []
