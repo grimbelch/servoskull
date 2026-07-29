@@ -609,16 +609,22 @@ def main():
         setup_text = "SETUP MODE\nAP: Omega-7-Setup\nIP: 192.168.4.1:8080"
         display.show_text(setup_text)
         try:
-            setup_announcement = (
-                "Greetings. I am an unconfigured Servo Skull unit. "
-                "Please connect your mobile device or cogitator to my Wi-Fi access point, "
-                "Omega-7-Setup, to begin initialization."
-            )
-            print("[skull] Speaking setup vocal announcement via Piper local TTS...")
-            setup_wav = tts.synthesize_piper(setup_announcement)
-            audio.play_wav_bytes(setup_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+            cached_setup_wav = pathlib.Path("models/phrase_cache/setup_announcement.wav")
+            if cached_setup_wav.exists():
+                print("[skull] Playing pre-cached ElevenLabs setup vocal announcement from disk...")
+                setup_bytes = cached_setup_wav.read_bytes()
+            else:
+                setup_announcement = (
+                    "Greetings. I am an unconfigured Servo Skull unit. "
+                    "Please connect your mobile device or cogitator to my Wi-Fi access point, "
+                    "Omega-7-Setup, to begin initialization."
+                )
+                print("[skull] Speaking setup vocal announcement via Piper local TTS...")
+                setup_bytes = tts.synthesize_piper(setup_announcement)
+            audio.play_wav_bytes(setup_bytes, output_device=config.VOICE_OUTPUT_DEVICE)
         except Exception as e:
             print(f"[skull] Setup vocal announcement error: {e}")
+
     else:
         try:
             boot_wav = _load_or_record_boot_wav()
