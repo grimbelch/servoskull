@@ -544,60 +544,6 @@ def _morning_greeting_watcher() -> None:
             print(f"[morning] Error in morning greeting watcher: {e}")
 
 
-def main():
-    brain.register_reload_cb(refresh_voice_cache)
-    brain.register_update_cb(self_update)
-    brain.register_reboot_cb(reboot_system)
-    brain.register_shutdown_cb(shutdown_system)
-    brain.register_switch_personality_cb(switch_personality)
-
-    # Set default output volume to 50% on boot
-    try:
-        import sys
-        import subprocess
-        if sys.platform == "darwin":
-            subprocess.run(["osascript", "-e", "set volume output volume 50"], capture_output=True)
-        else:
-            subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", "50%"], capture_output=True)
-        print("[skull] Boot volume initialized to 50%")
-    except Exception as e:
-        print(f"[skull] Failed to set boot volume: {e}")
-
-    eyes.setup(config.LED_PIN_LEFT, config.LED_PIN_CENTER, config.LED_PIN_RIGHT)
-    candles.setup(config.CANDLE_PIN)
-    candles.on()  # ambient — flicker for as long as the skull is powered
-    display.setup()
-    display.start_omnissiah_glyph(4.0)
-    from skull import proximity
-    proximity.start()
-    camera.start()
-    temperature.start()
-    bambu_ctrl.init(_speak_bambu_notification)
-    bambu_ctrl.get_monitor().start()
-    threading.Thread(target=_spotify_poller_loop, daemon=True).start()
-    threading.Thread(target=_morning_greeting_watcher, daemon=True).start()
-    from skull import web
-    web.start()
-    print(f"[skull] {config.SKULL_NAME} online. Awaiting the Emperor's commands.")
-    try:
-        import sounddevice as sd
-        devices = sd.query_devices()
-        mic_label = f"device {config.MIC_DEVICE_INDEX}" if config.MIC_DEVICE_INDEX is not None and config.MIC_DEVICE_INDEX >= 0 else "system default"
-        out_label = f"device {config.VOICE_OUTPUT_DEVICE}" if config.VOICE_OUTPUT_DEVICE is not None else "system default"
-        print(f"[skull] Mic: {mic_label}  |  Output: {out_label}")
-        print(f"[skull] Available devices:\n{devices}")
-    except Exception:
-        pass
-
-    # Honour RESET_VOICE_CACHE before anything reads the cache, so the boot phrase
-    # and preloaded phrases regenerate with the current ElevenLabs voice this run.
-    reset_voice_cache_if_requested()
-
-    # Pre-synthesize phrases in background while boot phrase is being generated
-    threading.Thread(target=_preload_phrases, daemon=True).start()
-
-    sfx.play("skull_boot", config.VOICE_OUTPUT_DEVICE)
-
 _setup_repeater_stop = threading.Event()
 
 
@@ -658,8 +604,63 @@ def _start_setup_announcement_repeater(interval_sec: float = 120.0) -> None:
     threading.Thread(target=_loop, daemon=True).start()
 
 
+def main():
+
+    brain.register_reload_cb(refresh_voice_cache)
+    brain.register_update_cb(self_update)
+    brain.register_reboot_cb(reboot_system)
+    brain.register_shutdown_cb(shutdown_system)
+    brain.register_switch_personality_cb(switch_personality)
+
+    # Set default output volume to 50% on boot
+    try:
+        import sys
+        import subprocess
+        if sys.platform == "darwin":
+            subprocess.run(["osascript", "-e", "set volume output volume 50"], capture_output=True)
+        else:
+            subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", "50%"], capture_output=True)
+        print("[skull] Boot volume initialized to 50%")
+    except Exception as e:
+        print(f"[skull] Failed to set boot volume: {e}")
+
+    eyes.setup(config.LED_PIN_LEFT, config.LED_PIN_CENTER, config.LED_PIN_RIGHT)
+    candles.setup(config.CANDLE_PIN)
+    candles.on()  # ambient — flicker for as long as the skull is powered
+    display.setup()
+    display.start_omnissiah_glyph(4.0)
+    from skull import proximity
+    proximity.start()
+    camera.start()
+    temperature.start()
+    bambu_ctrl.init(_speak_bambu_notification)
+    bambu_ctrl.get_monitor().start()
+    threading.Thread(target=_spotify_poller_loop, daemon=True).start()
+    threading.Thread(target=_morning_greeting_watcher, daemon=True).start()
+    from skull import web
+    web.start()
+    print(f"[skull] {config.SKULL_NAME} online. Awaiting the Emperor's commands.")
+    try:
+        import sounddevice as sd
+        devices = sd.query_devices()
+        mic_label = f"device {config.MIC_DEVICE_INDEX}" if config.MIC_DEVICE_INDEX is not None and config.MIC_DEVICE_INDEX >= 0 else "system default"
+        out_label = f"device {config.VOICE_OUTPUT_DEVICE}" if config.VOICE_OUTPUT_DEVICE is not None else "system default"
+        print(f"[skull] Mic: {mic_label}  |  Output: {out_label}")
+        print(f"[skull] Available devices:\n{devices}")
+    except Exception:
+        pass
+
+    # Honour RESET_VOICE_CACHE before anything reads the cache, so the boot phrase
+    # and preloaded phrases regenerate with the current ElevenLabs voice this run.
+    reset_voice_cache_if_requested()
+
+    # Pre-synthesize phrases in background while boot phrase is being generated
+    threading.Thread(target=_preload_phrases, daemon=True).start()
+
+    sfx.play("skull_boot", config.VOICE_OUTPUT_DEVICE)
 
     # ── First-Boot / Unconfigured Appliance Check ──────────────────────────────
+
     from skull import wifi_provisioner
     wifi_status = wifi_provisioner.get_status()
     if not config.is_configured() or not wifi_status.get("connected") or wifi_status.get("is_ap"):
