@@ -90,7 +90,8 @@ RESET_VOICE_CACHE = _cfg("RESET_VOICE_CACHE", "false").lower() == "true"
 # ── Wake word (openWakeWord) ─────────────────────────────────────────────────────
 # A built-in model name (e.g. "hey_jarvis") or a path to a custom .onnx model.
 WAKE_WORD_MODEL = _cfg("WAKE_WORD_MODEL", "hey_jarvis")
-WAKE_WORD_THRESHOLD = float(_cfg("WAKE_WORD_THRESHOLD", "0.5"))
+WAKE_WORD_THRESHOLD = float(_cfg("WAKE_WORD_THRESHOLD", "0.65"))
+
 
 
 def _resolve_input_device(raw: str) -> int:

@@ -77,16 +77,17 @@ def wait_for_wake_word(on_detected=None, cancel=None) -> bool:
                 audio = _to_target(raw.flatten(), native)
                 rms = float(np.sqrt(np.mean(audio.astype(np.float32) ** 2)))
                 predictions = oww.predict(audio)
-                score = max(predictions.values())
                 from skull import config as _cfg
+                threshold = float(getattr(_cfg, "WAKE_WORD_THRESHOLD", 0.65))
                 if _cfg.AUDIO_DEBUG and (rms > 50 or score > 0.1):
-                    print(f"[ww] rms={rms:.0f} score={score:.3f} (need >={THRESHOLD})")
-                if score >= THRESHOLD:
-                    print("[skull] Wake word detected!")
+                    print(f"[ww] rms={rms:.0f} score={score:.3f} (need >={threshold:.2f})")
+                if score >= threshold:
+                    print(f"[skull] Wake word detected! (score={score:.3f} >= {threshold:.2f})")
                     oww.reset()
                     if on_detected:
                         on_detected()
                     return True
+
     except Exception as e:
         print(f"[wake_word] Audio InputStream error: {e}")
         import time

@@ -2151,19 +2151,17 @@ def _tool_set_audio_sensitivity(i):
 
     if level in ("high", "more", "sensitive"):
         new_rms = max(200, current_rms - 200)
+        new_wake = max(0.40, current_wake - 0.10)
     elif level in ("low", "less", "quiet", "noise"):
         new_rms = min(1500, current_rms + 200)
+        new_wake = min(0.85, current_wake + 0.10)
     elif level == "medium":
         new_rms = 500
-    elif raw_rms is not None:
-        new_rms = int(raw_rms)
+        new_wake = 0.65
     else:
-        new_rms = current_rms
+        new_rms = int(raw_rms) if raw_rms is not None else current_rms
+        new_wake = float(raw_wake) if raw_wake is not None else current_wake
 
-    if raw_wake is not None:
-        new_wake = float(raw_wake)
-    else:
-        new_wake = current_wake
 
     # Save to .env
     try:
