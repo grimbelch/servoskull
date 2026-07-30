@@ -486,7 +486,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                         self.wfile.write(f"Content-Length: {len(img_bytes)}\r\n\r\n".encode())
                         self.wfile.write(img_bytes)
                         self.wfile.write(b"\r\n")
-                    time.sleep(0.066)  # ~15 FPS matching display thread
+                    time.sleep(0.033)  # ~30 FPS streaming speed
             except Exception:
                 pass
             return
@@ -509,7 +509,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                         self.wfile.write(f"Content-Length: {len(img_bytes)}\r\n\r\n".encode())
                         self.wfile.write(img_bytes)
                         self.wfile.write(b"\r\n")
-                    time.sleep(0.1)
+                    time.sleep(0.04)  # ~25 FPS camera streaming
             except Exception:
                 pass
             return
@@ -1826,7 +1826,7 @@ HTML_CLIENT = """<!DOCTYPE html>
                     <div class="ocular-bezel-text bezel-bl">SENS: IR/NV</div>
                     <div class="ocular-bezel-text bezel-br">RA: 18h36m</div>
 
-                    <img class="ocular-canvas" id="eye-stream" src="/api/ocular_frame.jpg" alt="Ocular View">
+                    <img class="ocular-canvas" id="eye-stream" src="/api/ocular_stream.mjpeg" alt="Ocular View">
 
                 </div>
             </div>
