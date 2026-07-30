@@ -645,7 +645,10 @@ def main():
     bambu_ctrl.get_monitor().start()
     threading.Thread(target=_spotify_poller_loop, daemon=True).start()
     threading.Thread(target=_morning_greeting_watcher, daemon=True).start()
+    from skull import ambient_music
+    ambient_music.start()
     from skull import web
+
     web.start()
     print(f"[skull] {config.SKULL_NAME} online. Awaiting the Emperor's commands.")
     try:
