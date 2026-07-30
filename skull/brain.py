@@ -2369,13 +2369,19 @@ def _tool_set_sleep_schedule(i):
     _, _, summary = _quiet.set_sleep_schedule(start_hour, end_hour, enabled)
     return summary
 
+_last_hymn_success = False
+
 def _tool_play_ambient_hymn(i):
+    global _last_hymn_success
     from skull import ambient_music
     track_name = i.get("track_name")
     res = ambient_music.play_random_snippet(specific_name=track_name, duration_sec=30.0, force=True)
     if res:
-        return res
-    return "No sacred music tracks were found in the archive directory."
+        _last_hymn_success = True
+        return f"[SUCCESS] {res}. INSTRUCTION: Do NOT generate any spoken text. Output nothing so only the music plays."
+    _last_hymn_success = False
+    return "Unable to play sacred music track from the archive directory."
+
 
 
 
@@ -2941,6 +2947,11 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
 
     spoken = _SPOTIFY_RE.sub(_extract_spotify, raw)
     spoken = _strip_actions(spoken).strip()
+
+    if "play_ambient_hymn" in tools_called and _last_hymn_success:
+        print("[brain] Hymn played successfully — silencing assistant spoken response as requested.")
+        spoken = ""
+
 
     # Store only the clean conversational turns in history
     _history.append({"role": "user", "content": formatted_user_text})
