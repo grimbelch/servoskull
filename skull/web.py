@@ -2089,8 +2089,9 @@ HTML_CLIENT = """<!DOCTYPE html>
                     if (fabPercent > 0) {
                         fabricatorVal.innerText = fabPercent.toFixed(0) + '%';
                     } else if (data.fabricator && data.fabricator.text) {
-                        let txt = data.fabricator.text.replace(/^(RUNNING|PREPARE)\s*/i, '').trim();
+                        let txt = data.fabricator.text.replace(/^(RUNNING|PREPARE)\\s*/i, '').trim();
                         fabricatorVal.innerText = txt.toUpperCase() || '0%';
+
                     } else {
                         fabricatorVal.innerText = '0%';
                     }
