@@ -396,7 +396,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                 self.end_headers()
             return
             
-        elif self.path == "/api/custom_image.jpg":
+        elif path_clean == "/api/custom_image.jpg" or path_clean == "/api/ocular_frame.jpg":
             img_bytes = display.get_ocular_frame_bytes()
             if img_bytes:
                 self.send_response(200)
@@ -405,12 +405,14 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                 self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
                 self.send_header("Pragma", "no-cache")
                 self.send_header("Expires", "0")
+                self.send_header("Connection", "close")
                 self.end_headers()
                 self.wfile.write(img_bytes)
             else:
                 self.send_response(404)
                 self.end_headers()
             return
+
             
         elif self.path == "/api/ocular_stream.mjpeg":
             self.send_response(200)
@@ -1769,7 +1771,8 @@ HTML_CLIENT = """<!DOCTYPE html>
                     <div class="ocular-bezel-text bezel-bl">SENS: IR/NV</div>
                     <div class="ocular-bezel-text bezel-br">RA: 18h36m</div>
 
-                    <img class="ocular-canvas" id="eye-stream" src="/api/ocular_stream.mjpeg" alt="Ocular View">
+                    <img class="ocular-canvas" id="eye-stream" src="/api/ocular_frame.jpg" alt="Ocular View">
+
                 </div>
             </div>
 
@@ -2280,6 +2283,13 @@ HTML_CLIENT = """<!DOCTYPE html>
                 // Pulsate eye ring glow matching the speaker amplitude
                 const elEyeRing = document.getElementById('eye-ring');
                 if (elEyeRing) elEyeRing.style.boxShadow = `0 0 ${15 + (brightness/100)*25}px var(--glow-color)`;
+
+                // Update ocular eye display frame
+                const eyeStream = document.getElementById('eye-stream');
+                if (eyeStream) {
+                    eyeStream.src = '/api/ocular_frame.jpg?t=' + Date.now();
+                }
+
 
             } catch (err) {
                 console.error("Error fetching state:", err);
