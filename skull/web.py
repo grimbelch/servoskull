@@ -2018,8 +2018,12 @@ HTML_CLIENT = """<!DOCTYPE html>
 
         document.addEventListener('click', function unlockAudio() {
             const dummy = new Audio();
-            dummy.play        // Fetch State loop
+            dummy.play().catch(() => {});
+        }, { once: true });
+
+        // Fetch State loop
         async function fetchState() {
+
             try {
                 const res = await fetch('/api/state?t=' + Date.now());
                 if (!res.ok) {
