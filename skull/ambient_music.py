@@ -61,11 +61,15 @@ def get_file_duration(file_path: pathlib.Path) -> float:
     return 180.0
 
 
-def extract_random_snippet_wav(file_path: pathlib.Path, duration_sec: float = 15.0) -> bytes | None:
-    """Extract a random duration_sec WAV snippet from the given audio file using ffmpeg."""
+def extract_random_snippet_wav(file_path: pathlib.Path, duration_sec: float = 30.0, fade_sec: float = 2.5) -> bytes | None:
+    """Extract a random duration_sec WAV snippet with smooth audio fade in/out using ffmpeg."""
     total_dur = get_file_duration(file_path)
     max_start = max(0.0, total_dur - duration_sec)
     start_sec = random.uniform(0.0, max_start) if max_start > 0 else 0.0
+
+    fade_dur = min(fade_sec, duration_sec / 4.0)
+    fade_out_start = max(0.0, duration_sec - fade_dur)
+    af_filter = f"afade=t=in:st=0:d={fade_dur:.1f},afade=t=out:st={fade_out_start:.1f}:d={fade_dur:.1f}"
 
     cmd = [
         "ffmpeg",
@@ -75,6 +79,8 @@ def extract_random_snippet_wav(file_path: pathlib.Path, duration_sec: float = 15
         str(file_path),
         "-t",
         f"{duration_sec:.2f}",
+        "-af",
+        af_filter,
         "-ar",
         "44100",
         "-ac",
@@ -84,7 +90,7 @@ def extract_random_snippet_wav(file_path: pathlib.Path, duration_sec: float = 15
         "-",
     ]
     try:
-        res = subprocess.run(cmd, capture_output=True, timeout=10.0)
+        res = subprocess.run(cmd, capture_output=True, timeout=12.0)
         if res.returncode == 0 and res.stdout:
             return res.stdout
     except Exception as e:
@@ -92,7 +98,7 @@ def extract_random_snippet_wav(file_path: pathlib.Path, duration_sec: float = 15
     return None
 
 
-def play_random_snippet(specific_name: str | None = None, duration_sec: float = 15.0, force: bool = False) -> str | None:
+def play_random_snippet(specific_name: str | None = None, duration_sec: float = 30.0, force: bool = False) -> str | None:
     """Extract and play a snippet from a music file. Returns a descriptive string or None if unplayable."""
     global _is_playing_snippet
     from skull import quiet, audio, spotify_ctrl
@@ -120,7 +126,7 @@ def play_random_snippet(specific_name: str | None = None, duration_sec: float = 
     if not chosen_file:
         chosen_file = random.choice(files)
 
-    print(f"[ambient_music] Extracting {duration_sec}s snippet from '{chosen_file.name}'...")
+    print(f"[ambient_music] Extracting {duration_sec}s snippet (with fade in/out) from '{chosen_file.name}'...")
     wav_bytes = extract_random_snippet_wav(chosen_file, duration_sec=duration_sec)
     if not wav_bytes:
         print(f"[ambient_music] Failed to extract WAV bytes from '{chosen_file.name}'")
@@ -135,7 +141,7 @@ def play_random_snippet(specific_name: str | None = None, duration_sec: float = 
         eyes.on()
         print(f"[ambient_music] Playing sacred ambient music snippet: '{chosen_file.name}'")
         audio.play_wav_bytes(wav_bytes, output_device=config.VOICE_OUTPUT_DEVICE)
-        return f"Played sacred music snippet from '{chosen_file.name}'."
+        return f"Played 30-second sacred music snippet from '{chosen_file.name}'."
     except Exception as e:
         print(f"[ambient_music] Error playing snippet: {e}")
         return None
@@ -170,7 +176,8 @@ def _ambient_music_loop() -> None:
         if hasattr(main, "is_speech_active") and main.is_speech_active():
             continue
 
-        play_random_snippet(duration_sec=15.0)
+        play_random_snippet(duration_sec=30.0)
+
 
 
 def start() -> None:

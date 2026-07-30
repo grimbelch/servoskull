@@ -2372,10 +2372,11 @@ def _tool_set_sleep_schedule(i):
 def _tool_play_ambient_hymn(i):
     from skull import ambient_music
     track_name = i.get("track_name")
-    res = ambient_music.play_random_snippet(specific_name=track_name, duration_sec=15.0, force=True)
+    res = ambient_music.play_random_snippet(specific_name=track_name, duration_sec=30.0, force=True)
     if res:
         return res
     return "No sacred music tracks were found in the archive directory."
+
 
 
 
