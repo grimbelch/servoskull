@@ -697,16 +697,19 @@ def _run_server(port: int) -> None:
 
         if use_https:
             if not os.path.exists(cert_file) or not os.path.exists(key_file):
-                print("[web] Generating self-signed SSL certificate for secure audio capture context...")
+                print("[web] Generating self-signed SSL certificate with SAN for secure audio capture context...")
                 try:
+                    san_ext = "subjectAltName=DNS:omega7,DNS:omega7.local,DNS:omega7.panther-firefighter.ts.net,IP:127.0.0.1"
                     subprocess.run([
-                        "openssl", "req", "-new", "-newkey", "rsa:2048", "-days", "365",
+                        "openssl", "req", "-new", "-newkey", "rsa:2048", "-days", "3650",
                         "-nodes", "-x509", "-keyout", key_file, "-out", cert_file,
-                        "-subj", "/C=US/ST=Mars/L=Mechanicus/O=Adeptus/CN=omega7"
+                        "-subj", "/C=US/ST=Mars/L=Mechanicus/O=Adeptus/CN=omega7.panther-firefighter.ts.net",
+                        "-addext", san_ext
                     ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 except Exception as e:
                     print(f"[web] Failed to generate self-signed certificate: {e}")
                     use_https = False
+
 
         server = ThreadingHTTPServer(("0.0.0.0", port), WebRequestHandler)
 
