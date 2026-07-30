@@ -303,6 +303,9 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         if not path_clean:
             path_clean = "/"
 
+        print(f"[web-req] GET {self.path} -> path_clean={path_clean}")
+
+
         if path_clean == "/":
             body = HTML_CLIENT.encode("utf-8")
             self.send_response(200)
