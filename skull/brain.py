@@ -2945,6 +2945,9 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
             cmds.append((action.lower(),))
         return ""
 
+    spoken = _SPOTIFY_RE.sub(_extract_spotify, raw)
+    spoken = _strip_actions(spoken).strip()
+
     _HYMN_INTENT_RE = re.compile(r"\b(?:hymn|hymnos|sacred music|sacred chant|binary chant)\b", re.I)
 
     if "play_ambient_hymn" not in tools_called and _HYMN_INTENT_RE.search(user_text):
