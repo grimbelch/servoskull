@@ -606,6 +606,35 @@ def _build_tools() -> list[dict]:
         },
     },
     {
+        "name": "set_sleep_schedule",
+        "description": (
+            f"Set or adjust {config.SKULL_NAME}'s quiet hours / sleep schedule. During sleep hours, "
+            f"{config.SKULL_NAME} is completely silent (no unprompted observations or morning greetings). "
+            "Use when the user asks to adjust sleep hours, quiet hours, or night mode (e.g., "
+            "'set your sleep schedule from 11 PM to 7 AM', 'change quiet hours to midnight until 8am', "
+            "'your sleep hours are 0 to 7'). Hours must be in 24-hour format (0 = Midnight, 23 = 11 PM)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "start_hour": {
+                    "type": "integer",
+                    "description": "Start hour of sleep schedule in 24-hour format (0–23, e.g. 0 for Midnight, 23 for 11 PM).",
+                },
+                "end_hour": {
+                    "type": "integer",
+                    "description": "End hour of sleep schedule in 24-hour format (0–23, e.g. 7 for 7 AM, 8 for 8 AM).",
+                },
+                "enabled": {
+                    "type": "boolean",
+                    "description": "true to enable the sleep schedule (default true).",
+                },
+            },
+            "required": ["start_hour", "end_hour"],
+        },
+    },
+
+    {
         "name": "shift_mood",
         "description": (
             f"Update {config.SKULL_NAME}'s current personality disposition. Call this OCCASIONALLY — "
@@ -2313,6 +2342,14 @@ def _tool_set_quiet_mode(i):
         else "Silent mode lifted. This unit will resume its periodic observations."
     )
 
+def _tool_set_sleep_schedule(i):
+    start_hour = int(i.get("start_hour", 0))
+    end_hour = int(i.get("end_hour", 7))
+    enabled = bool(i.get("enabled", True))
+    _, _, summary = _quiet.set_sleep_schedule(start_hour, end_hour, enabled)
+    return summary
+
+
 def _tool_shift_mood(i):
     new_mood = _mood.set_mood(str(i.get("mood", "DUTIFUL")))
     _display.set_mood(new_mood)  # sync iris colour immediately
@@ -2572,7 +2609,9 @@ _TOOL_REGISTRY = {
     "cancel_reminder": _tool_cancel_reminder,
     "acknowledge_reminders": _tool_acknowledge_reminders,
     "set_quiet_mode": _tool_set_quiet_mode,
+    "set_sleep_schedule": _tool_set_sleep_schedule,
     "shift_mood": _tool_shift_mood,
+
     "set_candles": _tool_set_candles,
     "roll_dice": _tool_roll_dice,
     "auspex_scan": _tool_auspex_scan,

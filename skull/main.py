@@ -492,11 +492,12 @@ def _morning_greeting_watcher() -> None:
         try:
             from datetime import datetime
             now = datetime.now()
-            # Morning condition: between 4:00 AM and 11:59 AM
-            if not (4 <= now.hour < 12):
+            from skull import quiet
+            if quiet.is_in_sleep_hours():
                 continue
 
             today_str = now.strftime("%Y-%m-%d")
+
             with _morning_greeting_lock:
                 if _last_morning_greeting_date == today_str:
                     continue
