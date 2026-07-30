@@ -2945,8 +2945,13 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
             cmds.append((action.lower(),))
         return ""
 
-    spoken = _SPOTIFY_RE.sub(_extract_spotify, raw)
-    spoken = _strip_actions(spoken).strip()
+    _HYMN_INTENT_RE = re.compile(r"\b(?:hymn|hymnos|sacred music|sacred chant|binary chant)\b", re.I)
+
+    if "play_ambient_hymn" not in tools_called and _HYMN_INTENT_RE.search(user_text):
+        print(f"[brain] Hymn request detected but model skipped tool — triggering play_ambient_hymn fallback.")
+        cmds[:] = [c for c in cmds if not (c[0] == "play" and c[1] and _HYMN_INTENT_RE.search(str(c[1])))]
+        _tool_play_ambient_hymn({"track_name": user_text})
+        tools_called.add("play_ambient_hymn")
 
     if "play_ambient_hymn" in tools_called and _last_hymn_success:
         print("[brain] Hymn played successfully — silencing assistant spoken response as requested.")
