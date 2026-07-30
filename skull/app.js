@@ -270,7 +270,9 @@
 
                 if (camStream && camStandby) {
                     if (camActive) {
-                        camStream.src = '/api/camera_frame.jpg?t=' + Date.now();
+                        if (!camStream.src || !camStream.src.includes('/api/camera_stream.mjpeg')) {
+                            camStream.src = '/api/camera_stream.mjpeg';
+                        }
                         camStream.style.display = 'block';
                         camStandby.style.display = 'none';
                         if (camMode) camMode.innerText = 'MODE: LIVE';
@@ -348,10 +350,10 @@
                 const elEyeRing = document.getElementById('eye-ring');
                 if (elEyeRing) elEyeRing.style.boxShadow = `0 0 ${15 + (brightness/100)*25}px var(--glow-color)`;
 
-                // Update ocular eye display frame
+                // Update ocular eye display stream
                 const eyeStream = document.getElementById('eye-stream');
-                if (eyeStream) {
-                    eyeStream.src = '/api/ocular_frame.jpg?t=' + Date.now();
+                if (eyeStream && (!eyeStream.src || !eyeStream.src.includes('/api/ocular_stream.mjpeg'))) {
+                    eyeStream.src = '/api/ocular_stream.mjpeg';
                 }
 
 
