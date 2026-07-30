@@ -1743,10 +1743,11 @@ HTML_CLIENT = """<!DOCTYPE html>
             </div>
 
             <!-- Thematic Warning/Status Banner (Secret Level Style) -->
-            <div class="alert-banner">
+            <div class="alert-banner" id="alert-banner">
                 <div class="alert-title" id="alert-title">SYSTEM STATUS</div>
                 <div class="alert-value" id="alert-value">SYSTEM OPTIMAL</div>
             </div>
+
 
             <!-- Left column: Ocular Feed -->
             <div class="ocular-pane">
@@ -2124,14 +2125,17 @@ HTML_CLIENT = """<!DOCTYPE html>
                 }
                 
                 // Update screensaver options if not already filled
-                if (screensaverSelect && screensaverSelect.options.length <= 1 && data.screensavers) {
+                const scSelect = screensaverSelect || document.getElementById('screensaver-select');
+                if (scSelect && scSelect.options.length <= 1 && data.screensavers && data.screensavers.length > 0) {
+                    scSelect.innerHTML = '<option value="">-- SELECT SCREENSAVER --</option>';
                     data.screensavers.forEach(s => {
                         const opt = document.createElement('option');
                         opt.value = s;
-                        opt.innerText = s.replace('_', ' ').toUpperCase();
-                        screensaverSelect.appendChild(opt);
+                        opt.innerText = String(s).replace(/_/g, ' ').toUpperCase();
+                        scSelect.appendChild(opt);
                     });
                 }
+
 
                 // Update Logs Console (Telemetry Console Feed)
                 if (consoleBox && data.logs) {
