@@ -45,3 +45,14 @@ Bigger projects
 [ ] Home Assistant integration — A control_lights tool that calls the HA REST API. "Dim the living room" fits the 40k theme perfectly ("Reconfigure the lumens of Sector 4, servitor").
 [X] Custom ElevenLabs voice — Clone a voice trained specifically to sound like a servo-skull. ElevenLabs' voice design tools can get you a raspy, mechanical 40k tone that Piper can't match.
 [ ] Multi-skull network — If you ever build a second skull, a shared MQTT or Redis channel lets them exchange "cogitator dispatches" and respond to each other.
+
+## 🎙️ Audio & Voice Capabilities
+
+- [ ] **Full-Duplex Voice & Real-Time Interruption (Barge-In)**
+  - **Concept**: Allow continuous real-time listening while the assistant is actively speaking or processing audio, enabling natural conversation and instant user interruption.
+  - **Acoustic Echo Cancellation (AEC)**: Enable PipeWire `module-echo-cancel` (`aec_source`) on the Raspberry Pi so speaker playback is subtracted from microphone input in real time.
+  - **Background Silero VAD**: Run a lightweight Silero VAD (ONNX) thread checking 30ms mic audio buffers for human speech (`confidence > 0.8`).
+  - **Instant Interruption**: When user speech is detected while the assistant is speaking, immediately cut off TTS playback (`audio.stop_playback()`), transition the screen to listening mode, and capture the new user prompt.
+  - **Streaming Pipeline**: Stream LLM tokens sentence-by-sentence to ElevenLabs WebSocket TTS API to reduce end-to-end voice latency to under 500ms.
+
+---
