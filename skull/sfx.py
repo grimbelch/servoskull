@@ -10,7 +10,8 @@ from __future__ import annotations
 import pathlib
 import threading
 
-SOUNDS_DIR = pathlib.Path(__file__).parent.parent / "sounds"
+SOUNDS_DIR = pathlib.Path(__file__).parent.parent / "sounds" / "SystemSounds"
+
 
 # Lazy cache: loaded on first play, not at import time, to keep startup fast.
 _cache: dict[str, bytes] = {}
