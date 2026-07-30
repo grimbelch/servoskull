@@ -322,19 +322,23 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                 temp = "Unavailable"
                 
             from skull import quiet, mood, proximity
-            master_name = config._OWNER_PROFILE.get("name", "Unknown").upper()
+            master_name = str(config._OWNER_PROFILE.get("name") or "Unknown").upper()
+            active_game = brain.get_current_game() if hasattr(brain, "get_current_game") else "None"
+            if not active_game:
+                active_game = "None"
+
             state_data = {
                 "skull_name": config.SKULL_NAME,
-                "display": disp_state,
-                "temperature": temp,
+                "display": disp_state if isinstance(disp_state, dict) else {},
+                "temperature": temp or "Unavailable",
                 "cpu": get_cpu_usage(),
                 "ram": get_ram_usage(),
                 "storage": get_storage_usage(),
                 "master": master_name,
                 "silent_mode": "ACTIVE" if quiet.is_silent() else "INACTIVE",
-                "mood": mood.label(),
+                "mood": mood.label() if hasattr(mood, "label") else "DUTIFUL",
                 "fabricator": get_fabricator_status(),
-                "active_game": brain.get_current_game() if hasattr(brain, "get_current_game") else "None",
+                "active_game": str(active_game),
                 "screensavers": display.get_screensaver_names() if hasattr(display, "get_screensaver_names") else [],
                 "logs": get_logs(),
                 "vox_logs": get_vox_logs(),
@@ -352,6 +356,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             self._send_json(state_data)
 
             return
+
 
         elif self.path == "/api/wifi/status":
             from skull import wifi_provisioner
@@ -2022,10 +2027,10 @@ HTML_CLIENT = """<!DOCTYPE html>
                 }
                 
                 // Update status values
-                masterVal.innerText = data.master;
-                silentVal.innerText = data.silent_mode;
-                if (moodVal && data.mood) moodVal.innerText = data.mood.toUpperCase();
-                gameVal.innerText = data.active_game.toUpperCase();
+                if (masterVal && data.master) masterVal.innerText = data.master;
+                if (silentVal && data.silent_mode) silentVal.innerText = data.silent_mode;
+                if (moodVal && data.mood) moodVal.innerText = String(data.mood).toUpperCase();
+                if (gameVal && data.active_game) gameVal.innerText = String(data.active_game).toUpperCase();
 
                 // Update Wi-Fi Status text
                 const wifiText = document.getElementById('wifi-status-text');
@@ -2050,30 +2055,28 @@ HTML_CLIENT = """<!DOCTYPE html>
                     }
                 }
 
-
-
                 // Update CPU pie
                 const cpuFloat = parseFloat(data.cpu) || 0;
                 const cpuPie = document.getElementById('cpu-pie');
-                if (cpuVal) cpuVal.innerText = cpuFloat.toFixed(0) + '%';
+                if (cpuVal) cpuVal.innerText = (typeof data.cpu === 'string' && data.cpu) ? data.cpu : (cpuFloat.toFixed(1) + '%');
                 if (cpuPie) cpuPie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, cpuFloat))}, 100`);
 
                 // Update CORE TEMP pie
                 const tempFloat = parseFloat(data.temperature) || 0;
                 const tempPie = document.getElementById('temp-pie');
-                if (tempVal) tempVal.innerText = tempFloat.toFixed(0) + '°C';
+                if (tempVal) tempVal.innerText = (typeof data.temperature === 'string' && data.temperature) ? data.temperature : (tempFloat.toFixed(1) + '°C');
                 if (tempPie) tempPie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, tempFloat))}, 100`);
 
                 // Update RAM pie
                 const ramFloat = parseFloat(data.ram) || 0;
                 const ramPie = document.getElementById('ram-pie');
-                if (ramVal) ramVal.innerText = ramFloat.toFixed(0) + '%';
+                if (ramVal) ramVal.innerText = (typeof data.ram === 'string' && data.ram) ? data.ram : (ramFloat.toFixed(1) + '%');
                 if (ramPie) ramPie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, ramFloat))}, 100`);
 
                 // Update STORAGE pie
                 const storageFloat = parseFloat(data.storage) || 0;
                 const storagePie = document.getElementById('storage-pie');
-                if (storageVal) storageVal.innerText = storageFloat.toFixed(0) + '%';
+                if (storageVal) storageVal.innerText = (typeof data.storage === 'string' && data.storage) ? data.storage : (storageFloat.toFixed(1) + '%');
                 if (storagePie) storagePie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, storageFloat))}, 100`);
 
                 // Update FABRICATOR pie
@@ -2117,7 +2120,7 @@ HTML_CLIENT = """<!DOCTYPE html>
                 }
                 
                 // Update screensaver options if not already filled
-                if (screensaverSelect.options.length <= 1 && data.screensavers) {
+                if (screensaverSelect && screensaverSelect.options.length <= 1 && data.screensavers) {
                     data.screensavers.forEach(s => {
                         const opt = document.createElement('option');
                         opt.value = s;
@@ -2127,7 +2130,7 @@ HTML_CLIENT = """<!DOCTYPE html>
                 }
 
                 // Update Logs Console (Telemetry Console Feed)
-                if (data.logs) {
+                if (consoleBox && data.logs) {
                     consoleBox.innerHTML = '';
                     data.logs.forEach(line => {
                         const div = document.createElement('div');
@@ -2139,7 +2142,7 @@ HTML_CLIENT = """<!DOCTYPE html>
                 }
 
                 // Update Vox Channel Logs
-                if (data.vox_logs && data.vox_logs.length > 0) {
+                if (chatContainer && data.vox_logs && data.vox_logs.length > 0) {
                     const voxHash = JSON.stringify(data.vox_logs);
                     if (window._lastVoxHash !== voxHash) {
                         window._lastVoxHash = voxHash;
@@ -2180,7 +2183,7 @@ HTML_CLIENT = """<!DOCTYPE html>
                 }
 
                 // Check state transitions
-                currentState = data.display;
+                if (data.display) currentState = data.display;
 
                 // Update Warning/Status Banner (Secret Level Style)
                 let headerTitle = "SYSTEM STATUS";
@@ -2188,56 +2191,57 @@ HTML_CLIENT = """<!DOCTYPE html>
                 let bannerBg = "rgba(56, 255, 88, 0.07)";
                 let bannerBorder = "2px solid var(--bright-green)";
 
-                if (currentState.thinking) {
+                if (currentState && currentState.thinking) {
                     headerTitle = "COGITATION PROTOCOL";
                     headerValue = "ACTIVE";
                     bannerBg = "rgba(56, 255, 88, 0.15)";
-                } else if (currentState.speaking) {
+                } else if (currentState && currentState.speaking) {
                     headerTitle = "VOCAL TRANSMISSION";
                     headerValue = "ACTIVE";
                     bannerBg = "rgba(56, 255, 88, 0.25)";
                     bannerBorder = "3px double var(--bright-green)";
-                } else if (currentState.searching_web) {
+                } else if (currentState && currentState.searching_web) {
                     headerTitle = "NOOSPHERE SEARCH";
                     headerValue = "QUERYING NETWORK";
                     bannerBg = "rgba(56, 255, 88, 0.2)";
-                } else if (currentState.looking_up_rules) {
+                } else if (currentState && currentState.looking_up_rules) {
                     headerTitle = "LIBRARIUM CODEX";
                     headerValue = "RULES DATABASE";
                     bannerBg = "rgba(56, 255, 88, 0.2)";
-                } else if (currentState.fetching_news) {
+                } else if (currentState && currentState.fetching_news) {
                     headerTitle = "VOX TRANSMISSION";
                     headerValue = "SCANNING BROADCASTS";
                     bannerBg = "rgba(56, 255, 88, 0.2)";
-                } else if (currentState.retrieving_image) {
+                } else if (currentState && currentState.retrieving_image) {
                     headerTitle = "PICT-FEED RASTER";
                     headerValue = "FETCHING ARTWORK";
                     bannerBg = "rgba(56, 255, 88, 0.2)";
-                } else if (currentState.scanning_auspex || currentState.scanning_noosphere) {
+                } else if (currentState && (currentState.scanning_auspex || currentState.scanning_noosphere)) {
                     headerTitle = "AUSPEX SCANNING MODE";
                     headerValue = "ACTIVE";
                     bannerBg = "rgba(56, 255, 88, 0.15)";
-                } else if (currentState.active_idle_anim) {
+                } else if (currentState && currentState.active_idle_anim) {
                     headerTitle = "VISUAL EMULATION";
                     headerValue = currentState.active_idle_anim.toUpperCase().replace(/_/g, ' ');
                 }
                 
-                alertTitle.innerText = headerTitle;
-                alertValue.innerText = headerValue;
-                alertBanner.style.background = bannerBg;
-                alertBanner.style.border = bannerBorder;
+                if (alertTitle) alertTitle.innerText = headerTitle;
+                if (alertValue) alertValue.innerText = headerValue;
+                if (alertBanner) alertBanner.style.background = bannerBg;
+                if (alertBanner) alertBanner.style.border = bannerBorder;
 
                 // Adjust glows/shadows based on speech amplitude
-                const amp = currentState.amplitude || 0;
+                const amp = (currentState && currentState.amplitude) || 0;
                 let brightness = 15;
-                if (currentState.speaking) {
+                if (currentState && currentState.speaking) {
                     brightness = 30 + amp * 70;
-                } else if (currentState.thinking) {
+                } else if (currentState && currentState.thinking) {
                     brightness = 40 + Math.sin(Date.now() / 150) * 20;
                 }
                 
                 // Pulsate eye ring glow matching the speaker amplitude
-                eyeRing.style.boxShadow = `0 0 ${15 + (brightness/100)*25}px var(--glow-color)`;
+                if (eyeRing) eyeRing.style.boxShadow = `0 0 ${15 + (brightness/100)*25}px var(--glow-color)`;
+
 
             } catch (err) {
                 console.error("Error fetching state:", err);
