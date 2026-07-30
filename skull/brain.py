@@ -633,6 +633,26 @@ def _build_tools() -> list[dict]:
             "required": ["start_hour", "end_hour"],
         },
     },
+    {
+        "name": "play_ambient_hymn",
+        "description": (
+            f"Play a sacred hymn / ambient music snippet from {config.SKULL_NAME}'s sacred audio archive "
+            "(sounds/Music/, e.g. Hymnos Ecclesianum). Call this when the user asks to play a hymn, "
+            "sacred music, binary chant, or music snippet from the archive (e.g., 'play a hymn', "
+            "'sing a sacred chant', 'play Hymnos Ecclesianum')."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "track_name": {
+                    "type": "string",
+                    "description": "Optional specific file/track name or keyword (e.g. 'Hymnos Ecclesianum').",
+                },
+            },
+            "required": [],
+        },
+    },
+
 
     {
         "name": "shift_mood",
@@ -2349,6 +2369,15 @@ def _tool_set_sleep_schedule(i):
     _, _, summary = _quiet.set_sleep_schedule(start_hour, end_hour, enabled)
     return summary
 
+def _tool_play_ambient_hymn(i):
+    from skull import ambient_music
+    track_name = i.get("track_name")
+    res = ambient_music.play_random_snippet(specific_name=track_name, duration_sec=15.0, force=True)
+    if res:
+        return res
+    return "No sacred music tracks were found in the archive directory."
+
+
 
 def _tool_shift_mood(i):
     new_mood = _mood.set_mood(str(i.get("mood", "DUTIFUL")))
@@ -2610,7 +2639,9 @@ _TOOL_REGISTRY = {
     "acknowledge_reminders": _tool_acknowledge_reminders,
     "set_quiet_mode": _tool_set_quiet_mode,
     "set_sleep_schedule": _tool_set_sleep_schedule,
+    "play_ambient_hymn": _tool_play_ambient_hymn,
     "shift_mood": _tool_shift_mood,
+
 
     "set_candles": _tool_set_candles,
     "roll_dice": _tool_roll_dice,
