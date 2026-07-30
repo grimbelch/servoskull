@@ -729,6 +729,9 @@ def main():
             sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
             eyes.on()
 
+        ambient_music.register_on_wake_cb(on_wake)
+
+
         # ── 0. Speak any internal-temperature warning ───────────────────────────
         # Fires regardless of silent mode — an overheating cogitator is a hardware
         # safety issue the master should always hear about.
