@@ -208,6 +208,20 @@ def get_ram_usage() -> str:
         return "42.5%"
 
 
+def get_ram_total() -> str:
+    try:
+        with _psutil_lock:
+            import psutil
+            mem = psutil.virtual_memory()
+            total_gb = mem.total / (1024**3)
+            val = f"{total_gb:.1f}"
+            if val.endswith('.0'):
+                val = val[:-2]
+            return f"{val} GB"
+    except Exception:
+        return "2 GB"
+
+
 def get_storage_usage() -> str:
     try:
         with _psutil_lock:
@@ -225,6 +239,29 @@ def get_storage_usage() -> str:
             return f"{percent:.1f}%"
         except Exception:
             return "61.2%"
+
+
+def get_storage_total() -> str:
+    try:
+        with _psutil_lock:
+            import psutil
+            disk = psutil.disk_usage('/')
+            total_gb = disk.total / (1024**3)
+            val = f"{total_gb:.1f}"
+            if val.endswith('.0'):
+                val = val[:-2]
+            return f"{val} GB"
+    except Exception:
+        try:
+            import os
+            st = os.statvfs('/')
+            total = st.f_blocks * st.f_frsize
+            val = f"{total / (1024**3):.1f}"
+            if val.endswith('.0'):
+                val = val[:-2]
+            return f"{val} GB"
+        except Exception:
+            return "64 GB"
 
 
 def get_cpu_usage() -> str:
@@ -360,7 +397,9 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                 "temperature": temp or "Unavailable",
                 "cpu": get_cpu_usage(),
                 "ram": get_ram_usage(),
+                "ram_total": get_ram_total(),
                 "storage": get_storage_usage(),
+                "storage_total": get_storage_total(),
                 "master": master_name,
                 "silent_mode": "ACTIVE" if quiet.is_silent() else "INACTIVE",
                 "mood": mood.label() if hasattr(mood, "label") else "DUTIFUL",
@@ -1705,7 +1744,7 @@ HTML_CLIENT = """<!DOCTYPE html>
                             </div>
                         </div>
                         <div class="pie-gauge-item">
-                            <span class="gauge-label">RAM</span>
+                            <span class="gauge-label" id="ram-label">RAM</span>
                             <div class="pie-chart-container">
                                 <svg class="pie-chart" viewBox="0 0 36 36">
                                     <path class="pie-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
@@ -1715,7 +1754,7 @@ HTML_CLIENT = """<!DOCTYPE html>
                             </div>
                         </div>
                         <div class="pie-gauge-item">
-                            <span class="gauge-label">STORAGE</span>
+                            <span class="gauge-label" id="storage-label">STORAGE</span>
                             <div class="pie-chart-container">
                                 <svg class="pie-chart" viewBox="0 0 36 36">
                                     <path class="pie-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
