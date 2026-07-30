@@ -579,10 +579,10 @@ def test_api_key(provider: str, key: str) -> tuple[bool, str]:
                 except Exception as e:
                     print(f"[web] Post-setup speech error: {e}")
 
-                self._send_json({"status": "ok", "message": "Appliance initialized successfully!"})
-            except Exception as e:
-                self._send_json({"status": "error", "message": str(e)}, 500)
-            return        elif path_clean == "/api/wifi/connect":
+            return
+
+        elif path_clean == "/api/wifi/connect":
+
             try:
                 content_length = int(self.headers.get('Content-Length', 0))
                 post_data = self.rfile.read(content_length).decode('utf-8')
