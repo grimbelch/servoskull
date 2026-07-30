@@ -27,7 +27,17 @@ _is_playing_snippet = False
 _snippet_lock = threading.Lock()
 
 
+_on_wake_cb = None
+
+
+def register_on_wake_cb(cb) -> None:
+    """Register on_wake callback for barge-in interruption during music playback."""
+    global _on_wake_cb
+    _on_wake_cb = cb
+
+
 def get_music_files() -> list[pathlib.Path]:
+
     """Return a list of available music files in sounds/Music/."""
     files: list[pathlib.Path] = []
     dirs_to_check = [MUSIC_DIR, MUSIC_DIR_ALT]
@@ -136,12 +146,18 @@ def play_random_snippet(specific_name: str | None = None, duration_sec: float = 
         _is_playing_snippet = True
 
     try:
-        from skull import eyes, display
+        from skull import eyes, display, main
         display.on()
         eyes.on()
         print(f"[ambient_music] Playing sacred ambient music snippet: '{chosen_file.name}'")
-        audio.play_wav_bytes(wav_bytes, output_device=config.VOICE_OUTPUT_DEVICE)
+        if hasattr(main, "_speak_interruptible") and callable(main._speak_interruptible):
+            interrupted = main._speak_interruptible(wav_bytes, on_wake=_on_wake_cb)
+            if interrupted:
+                print(f"[ambient_music] Music snippet interrupted by barge-in wake word.")
+        else:
+            audio.play_wav_bytes(wav_bytes, output_device=config.VOICE_OUTPUT_DEVICE)
         return f"Played 30-second sacred music snippet from '{chosen_file.name}'."
+
     except Exception as e:
         print(f"[ambient_music] Error playing snippet: {e}")
         return None
