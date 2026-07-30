@@ -203,11 +203,9 @@ def get_ram_usage() -> str:
         with _psutil_lock:
             import psutil
             mem = psutil.virtual_memory()
-            used_gb = mem.used / (1024**3)
-            total_gb = mem.total / (1024**3)
-            return f"{mem.percent:.1f}% ({used_gb:.1f}G/{total_gb:.1f}G)"
+            return f"{mem.percent:.1f}%"
     except Exception:
-        return "42.5% (1.7G/4.0G) [Virtual]"
+        return "42.5%"
 
 
 def get_storage_usage() -> str:
@@ -215,20 +213,18 @@ def get_storage_usage() -> str:
         with _psutil_lock:
             import psutil
             disk = psutil.disk_usage('/')
-            used_gb = disk.used / (1024**3)
-            total_gb = disk.total / (1024**3)
-            return f"{disk.percent:.1f}% ({used_gb:.1f}G/{total_gb:.1f}G)"
+            return f"{disk.percent:.1f}%"
     except Exception:
         try:
             import os
             st = os.statvfs('/')
-            free = st.f_bavail * st.f_frsize
             total = st.f_blocks * st.f_frsize
+            free = st.f_bavail * st.f_frsize
             used = total - free
-            pct = (used / total) * 100
-            return f"{pct:.1f}% ({used / (1024**3):.1f}G/{total / (1024**3):.1f}G)"
+            percent = (used / total) * 100
+            return f"{percent:.1f}%"
         except Exception:
-            return "18.2% (11.6G/64.0G) [Virtual]"
+            return "61.2%"
 
 
 def get_cpu_usage() -> str:
