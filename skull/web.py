@@ -304,11 +304,15 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             path_clean = "/"
 
         if path_clean == "/":
+            body = HTML_CLIENT.encode("utf-8")
             self.send_response(200)
-            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Connection", "close")
             self.end_headers()
-            self.wfile.write(HTML_CLIENT.encode("utf-8"))
+            self.wfile.write(body)
             return
+
 
         elif path_clean == "/api/state":
             try:
@@ -2005,14 +2009,16 @@ HTML_CLIENT = """<!DOCTYPE html>
 
         document.addEventListener('click', function unlockAudio() {
             const dummy = new Audio();
-            dummy.play().catch(() => {});
-        }, { once: true });
-
-        // Fetch State loop
+            dummy.play        // Fetch State loop
         async function fetchState() {
             try {
-                const res = await fetch('/api/state');
+                const res = await fetch('/api/state?t=' + Date.now());
+                if (!res.ok) {
+                    console.error("fetchState HTTP error:", res.status);
+                    return;
+                }
                 const data = await res.json();
+                if (!data) return;
                 
                 // Stream Web Vox Audio if new speech generated
                 if (data.audio_id && data.audio_id > lastAudioId) {
@@ -2030,11 +2036,18 @@ HTML_CLIENT = """<!DOCTYPE html>
                     }
                 }
                 
-                // Update status values
-                if (masterVal && data.master) masterVal.innerText = data.master;
-                if (silentVal && data.silent_mode) silentVal.innerText = data.silent_mode;
-                if (moodVal && data.mood) moodVal.innerText = String(data.mood).toUpperCase();
-                if (gameVal && data.active_game) gameVal.innerText = String(data.active_game).toUpperCase();
+                // Dynamic DOM element queries
+                const elMaster = document.getElementById('master-val');
+                if (elMaster && data.master) elMaster.innerText = String(data.master).toUpperCase();
+
+                const elSilent = document.getElementById('silent-val');
+                if (elSilent && data.silent_mode) elSilent.innerText = String(data.silent_mode).toUpperCase();
+
+                const elMood = document.getElementById('mood-val');
+                if (elMood && data.mood) elMood.innerText = String(data.mood).toUpperCase();
+
+                const elGame = document.getElementById('game-val');
+                if (elGame && data.active_game) elGame.innerText = String(data.active_game).toUpperCase();
 
                 // Update Wi-Fi Status text
                 const wifiText = document.getElementById('wifi-status-text');
@@ -2062,25 +2075,29 @@ HTML_CLIENT = """<!DOCTYPE html>
                 // Update CPU pie
                 const cpuFloat = parseFloat(data.cpu) || 0;
                 const cpuPie = document.getElementById('cpu-pie');
-                if (cpuVal) cpuVal.innerText = (typeof data.cpu === 'string' && data.cpu) ? data.cpu : (cpuFloat.toFixed(1) + '%');
+                const cpuValEl = document.getElementById('cpu-val');
+                if (cpuValEl && data.cpu) cpuValEl.innerText = String(data.cpu);
                 if (cpuPie) cpuPie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, cpuFloat))}, 100`);
 
                 // Update CORE TEMP pie
                 const tempFloat = parseFloat(data.temperature) || 0;
                 const tempPie = document.getElementById('temp-pie');
-                if (tempVal) tempVal.innerText = (typeof data.temperature === 'string' && data.temperature) ? data.temperature : (tempFloat.toFixed(1) + '°C');
+                const tempValEl = document.getElementById('temp-val');
+                if (tempValEl && data.temperature) tempValEl.innerText = String(data.temperature);
                 if (tempPie) tempPie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, tempFloat))}, 100`);
 
                 // Update RAM pie
                 const ramFloat = parseFloat(data.ram) || 0;
                 const ramPie = document.getElementById('ram-pie');
-                if (ramVal) ramVal.innerText = (typeof data.ram === 'string' && data.ram) ? data.ram : (ramFloat.toFixed(1) + '%');
+                const ramValEl = document.getElementById('ram-val');
+                if (ramValEl && data.ram) ramValEl.innerText = String(data.ram);
                 if (ramPie) ramPie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, ramFloat))}, 100`);
 
                 // Update STORAGE pie
                 const storageFloat = parseFloat(data.storage) || 0;
                 const storagePie = document.getElementById('storage-pie');
-                if (storageVal) storageVal.innerText = (typeof data.storage === 'string' && data.storage) ? data.storage : (storageFloat.toFixed(1) + '%');
+                const storageValEl = document.getElementById('storage-val');
+                if (storageValEl && data.storage) storageValEl.innerText = String(data.storage);
                 if (storagePie) storagePie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, storageFloat))}, 100`);
 
                 // Update FABRICATOR pie
@@ -2089,15 +2106,15 @@ HTML_CLIENT = """<!DOCTYPE html>
                     fabPercent = data.fabricator.percent;
                 }
                 const fabPie = document.getElementById('fabricator-pie');
-                if (fabricatorVal) {
+                const fabValEl = document.getElementById('fabricator-val');
+                if (fabValEl) {
                     if (fabPercent > 0) {
-                        fabricatorVal.innerText = fabPercent.toFixed(0) + '%';
+                        fabValEl.innerText = fabPercent.toFixed(0) + '%';
                     } else if (data.fabricator && data.fabricator.text) {
-                        let txt = data.fabricator.text.replace(/^(RUNNING|PREPARE)\\s*/i, '').trim();
-                        fabricatorVal.innerText = txt.toUpperCase() || '0%';
-
+                        let txt = data.fabricator.text.replace(/^(RUNNING|PREPARE)\s*/i, '').trim();
+                        fabValEl.innerText = txt.toUpperCase() || '0%';
                     } else {
-                        fabricatorVal.innerText = '0%';
+                        fabValEl.innerText = '0%';
                     }
                 }
                 if (fabPie) fabPie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, fabPercent))}, 100`);
@@ -2125,45 +2142,48 @@ HTML_CLIENT = """<!DOCTYPE html>
                 }
                 
                 // Update screensaver options if not already filled
-                const scSelect = screensaverSelect || document.getElementById('screensaver-select');
-                if (scSelect && scSelect.options.length <= 1 && data.screensavers && data.screensavers.length > 0) {
-                    scSelect.innerHTML = '<option value="">-- SELECT SCREENSAVER --</option>';
-                    data.screensavers.forEach(s => {
-                        const opt = document.createElement('option');
-                        opt.value = s;
-                        opt.innerText = String(s).replace(/_/g, ' ').toUpperCase();
-                        scSelect.appendChild(opt);
-                    });
+                const scSelect = document.getElementById('screensaver-select');
+                if (scSelect && data.screensavers && data.screensavers.length > 0) {
+                    if (scSelect.options.length <= 1) {
+                        scSelect.innerHTML = '<option value="">-- SELECT SCREENSAVER --</option>';
+                        data.screensavers.forEach(s => {
+                            const opt = document.createElement('option');
+                            opt.value = s;
+                            opt.innerText = String(s).replace(/_/g, ' ').toUpperCase();
+                            scSelect.appendChild(opt);
+                        });
+                    }
                 }
 
-
                 // Update Logs Console (Telemetry Console Feed)
-                if (consoleBox && data.logs) {
-                    consoleBox.innerHTML = '';
+                const elConsoleBox = document.getElementById('console-box');
+                if (elConsoleBox && data.logs) {
+                    elConsoleBox.innerHTML = '';
                     data.logs.forEach(line => {
                         const div = document.createElement('div');
                         div.className = 'console-line';
                         div.innerText = line;
-                        consoleBox.appendChild(div);
+                        elConsoleBox.appendChild(div);
                     });
-                    consoleBox.scrollTop = consoleBox.scrollHeight;
+                    elConsoleBox.scrollTop = elConsoleBox.scrollHeight;
                 }
 
                 // Update Vox Channel Logs
-                if (chatContainer && data.vox_logs && data.vox_logs.length > 0) {
+                const elChatContainer = document.getElementById('chat-container');
+                if (elChatContainer && data.vox_logs && data.vox_logs.length > 0) {
                     const voxHash = JSON.stringify(data.vox_logs);
                     if (window._lastVoxHash !== voxHash) {
                         window._lastVoxHash = voxHash;
-                        chatContainer.innerHTML = '';
+                        elChatContainer.innerHTML = '';
                         data.vox_logs.forEach(msg => {
                             const bubble = document.createElement('div');
                             const isSkull = (msg.speaker === data.skull_name || msg.speaker === 'Omega-7' || msg.speaker === 'Servo-Skull');
                             bubble.className = `chat-bubble ${isSkull ? 'chat-skull' : 'chat-user'}`;
                             const timeTag = msg.time ? `[${msg.time}] ` : '';
                             bubble.innerText = `${timeTag}${msg.speaker}: ${msg.text}`;
-                            chatContainer.appendChild(bubble);
+                            elChatContainer.appendChild(bubble);
                         });
-                        chatContainer.scrollTop = chatContainer.scrollHeight;
+                        elChatContainer.scrollTop = elChatContainer.scrollHeight;
                     }
                 }
 
@@ -2233,10 +2253,13 @@ HTML_CLIENT = """<!DOCTYPE html>
                     headerValue = currentState.active_idle_anim.toUpperCase().replace(/_/g, ' ');
                 }
                 
-                if (alertTitle) alertTitle.innerText = headerTitle;
-                if (alertValue) alertValue.innerText = headerValue;
-                if (alertBanner) alertBanner.style.background = bannerBg;
-                if (alertBanner) alertBanner.style.border = bannerBorder;
+                const elAlertTitle = document.getElementById('alert-title');
+                const elAlertValue = document.getElementById('alert-value');
+                const elAlertBanner = document.getElementById('alert-banner');
+                if (elAlertTitle) elAlertTitle.innerText = headerTitle;
+                if (elAlertValue) elAlertValue.innerText = headerValue;
+                if (elAlertBanner) elAlertBanner.style.background = bannerBg;
+                if (elAlertBanner) elAlertBanner.style.border = bannerBorder;
 
                 // Adjust glows/shadows based on speech amplitude
                 const amp = (currentState && currentState.amplitude) || 0;
@@ -2248,15 +2271,20 @@ HTML_CLIENT = """<!DOCTYPE html>
                 }
                 
                 // Pulsate eye ring glow matching the speaker amplitude
-                if (eyeRing) eyeRing.style.boxShadow = `0 0 ${15 + (brightness/100)*25}px var(--glow-color)`;
-
+                const elEyeRing = document.getElementById('eye-ring');
+                if (elEyeRing) elEyeRing.style.boxShadow = `0 0 ${15 + (brightness/100)*25}px var(--glow-color)`;
 
             } catch (err) {
                 console.error("Error fetching state:", err);
             }
         }
 
-        setInterval(fetchState, 300);
+        // Trigger immediately on load and on interval
+        fetchState();
+        document.addEventListener('DOMContentLoaded', fetchState);
+        window.addEventListener('load', fetchState);
+        setInterval(fetchState, 500);
+
 
         // Control API Calls
         async function triggerWake() {
