@@ -312,6 +312,9 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Connection", "close")
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Expires", "0")
             self.end_headers()
             self.wfile.write(body)
             return
@@ -1958,9 +1961,24 @@ HTML_CLIENT = """<!DOCTYPE html>
 
 
     <script>
+        window.addEventListener('error', function(e) {
+            const errDiv = document.createElement('div');
+            errDiv.style.cssText = 'position:fixed; top:0; left:0; width:100%; background:red; color:white; z-index:9999; padding:20px; font-size:24px; font-weight:bold; word-wrap:break-word;';
+            errDiv.innerText = 'JS FATAL ERROR: ' + e.message + ' at line ' + e.lineno;
+            document.body.appendChild(errDiv);
+        });
+        window.addEventListener('unhandledrejection', function(e) {
+            const errDiv = document.createElement('div');
+            errDiv.style.cssText = 'position:fixed; top:80px; left:0; width:100%; background:darkred; color:white; z-index:9999; padding:20px; font-size:24px; font-weight:bold; word-wrap:break-word;';
+            errDiv.innerText = 'PROMISE ERROR: ' + (e.reason ? e.reason.message : e.reason);
+            document.body.appendChild(errDiv);
+        });
+
         const alertTitle = document.getElementById('alert-title');
         const alertValue = document.getElementById('alert-value');
         const alertBanner = document.getElementById('alert-banner');
+        if (alertTitle) alertTitle.innerText = "V3 DIAGNOSTICS ACTIVE";
+        
         const tempVal = document.getElementById('temp-val');
         const cpuVal = document.getElementById('cpu-val');
         const ramVal = document.getElementById('ram-val');
