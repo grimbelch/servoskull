@@ -2315,6 +2315,10 @@ HTML_CLIENT = """<!DOCTYPE html>
 
             } catch (err) {
                 console.error("Error fetching state:", err);
+                const errDiv = document.createElement('div');
+                errDiv.style.cssText = 'position:fixed; top:160px; left:0; width:100%; background:orange; color:black; z-index:9999; padding:20px; font-size:24px; font-weight:bold; word-wrap:break-word;';
+                errDiv.innerText = 'FETCH STATE ERROR: ' + err.toString();
+                document.body.appendChild(errDiv);
             }
         }
 
