@@ -514,8 +514,9 @@ def _morning_greeting_watcher() -> None:
 
                 # Rangefinder was triggered by a static object or an unrecognized face scan.
                 # Do NOT mark today's morning greeting as completed so it fires when the master arrives.
-                time.sleep(15.0)
+                time.sleep(300.0)  # 5 minutes
                 continue
+
 
             # Mark today's morning greeting as completed
             with _morning_greeting_lock:
