@@ -23,7 +23,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-SOUNDS_DIR = pathlib.Path(__file__).parent / "sounds"
+SOUNDS_DIR = pathlib.Path(__file__).parent / "sounds" / "SystemSounds"
+
 
 # (filename, ElevenLabs prompt, duration_seconds)
 SOUNDS: list[tuple[str, str, float]] = [
