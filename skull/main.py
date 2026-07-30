@@ -1370,14 +1370,22 @@ def main():
             continue  # skip normal brain.respond(); idle timer resets on next loop
 
         # ── 4. Generate response ───────────────────────────────────────────────
-        # Acknowledge the request immediately, then think (cogitation loop fills
-        # longer waits with periodic phrases).
-        _acknowledge()
+        # Acknowledge the request immediately (unless a hymn is requested, where
+        # silence is preferred), then think.
+        _HYMN_TRIGGERS = ("hymn", "hymnos", "sacred music", "sacred chant", "play a hymn", "play hymn", "sing a hymn")
+        _is_hymn_req = any(tr in user_text.lower() for tr in _HYMN_TRIGGERS)
+
+        if not _is_hymn_req:
+            _acknowledge()
+
         print("[skull] Consulting the Machine God...")
         display.think()  # spin the cog while the brain cogitates
         _cancel_cog = threading.Event()
+        if _is_hymn_req:
+            _cancel_cog.set()  # suppress cogitation thinking phrases for hymn requests
         cog_thread = threading.Thread(target=_cogitation_loop, args=(_cancel_cog,), daemon=True)
         cog_thread.start()
+
         try:
             reply, spotify_cmds = brain.respond(user_text, speaker_name=speaker_name, on_tool_use=_announce_search)
         except Exception as e:
