@@ -575,13 +575,16 @@ def test_api_key(provider: str, key: str) -> tuple[bool, str]:
                     owner_name = data.get("owner", {}).get("name", "Master")
                     announcement = f"Initialization complete, Master {owner_name}. Machine spirit online."
                     wav = tts.synthesize_piper(announcement)
-                    audio.play_wav_bytes(wav, output_device=config.VOICE_OUTPUT_DEVICE)
                 except Exception as e:
                     print(f"[web] Post-setup speech error: {e}")
 
+                self._send_json({"status": "ok", "message": "Appliance initialized successfully!"})
+            except Exception as e:
+                self._send_json({"status": "error", "message": str(e)}, 500)
             return
 
         elif path_clean == "/api/wifi/connect":
+
 
             try:
                 content_length = int(self.headers.get('Content-Length', 0))
