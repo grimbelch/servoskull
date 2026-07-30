@@ -298,20 +298,24 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         global _web_client_connected
         _web_client_connected = True
         from skull import display, temperature, brain
-        
-        if self.path == "/":
+
+        path_clean = self.path.split("?")[0].rstrip("/")
+        if not path_clean:
+            path_clean = "/"
+
+        if path_clean == "/":
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
             self.end_headers()
             self.wfile.write(HTML_CLIENT.encode("utf-8"))
             return
-            
-        elif self.path == "/api/state":
+
+        elif path_clean == "/api/state":
             try:
                 disp_state = display.get_state()
             except Exception:
                 disp_state = {}
-                
+
             try:
                 t_val = temperature.read_temp_c()
                 if t_val is not None:
@@ -320,7 +324,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                     temp = "42.0°C (Virtual)"
             except Exception:
                 temp = "Unavailable"
-                
+
             from skull import quiet, mood, proximity
             master_name = str(config._OWNER_PROFILE.get("name") or "Unknown").upper()
             active_game = brain.get_current_game() if hasattr(brain, "get_current_game") else "None"
@@ -354,20 +358,19 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                 "is_configured": config.is_configured(),
             }
             self._send_json(state_data)
-
             return
 
-
-        elif self.path == "/api/wifi/status":
+        elif path_clean == "/api/wifi/status":
             from skull import wifi_provisioner
             self._send_json(wifi_provisioner.get_status())
             return
 
-        elif self.path == "/api/wifi/scan":
+        elif path_clean == "/api/wifi/scan":
             from skull import wifi_provisioner
             networks = wifi_provisioner.scan_networks()
             self._send_json({"networks": networks})
             return
+
 
         elif self.path.startswith("/api/last_speech.wav"):
 
@@ -510,7 +513,8 @@ def test_api_key(provider: str, key: str) -> tuple[bool, str]:
 
 
     def do_POST(self) -> None:
-        if self.path == "/api/setup/test_key":
+        path_clean = self.path.split("?")[0].rstrip("/")
+        if path_clean == "/api/setup/test_key":
             try:
                 content_length = int(self.headers.get('Content-Length', 0))
                 post_data = self.rfile.read(content_length).decode('utf-8')
@@ -523,7 +527,8 @@ def test_api_key(provider: str, key: str) -> tuple[bool, str]:
                 self._send_json({"status": "error", "message": str(e)}, 500)
             return
 
-        elif self.path == "/api/setup/save":
+        elif path_clean == "/api/setup/save":
+
             try:
                 content_length = int(self.headers.get('Content-Length', 0))
                 post_data = self.rfile.read(content_length).decode('utf-8')
@@ -577,10 +582,7 @@ def test_api_key(provider: str, key: str) -> tuple[bool, str]:
                 self._send_json({"status": "ok", "message": "Appliance initialized successfully!"})
             except Exception as e:
                 self._send_json({"status": "error", "message": str(e)}, 500)
-            return
-
-        elif self.path == "/api/wifi/connect":
-
+            return        elif path_clean == "/api/wifi/connect":
             try:
                 content_length = int(self.headers.get('Content-Length', 0))
                 post_data = self.rfile.read(content_length).decode('utf-8')
@@ -594,7 +596,7 @@ def test_api_key(provider: str, key: str) -> tuple[bool, str]:
                 self._send_json({"status": "error", "message": str(e)}, 500)
             return
 
-        elif self.path == "/api/wifi/hotspot":
+        elif path_clean == "/api/wifi/hotspot":
             try:
                 from skull import wifi_provisioner
                 success, msg = wifi_provisioner.start_hotspot()
@@ -603,13 +605,12 @@ def test_api_key(provider: str, key: str) -> tuple[bool, str]:
                 self._send_json({"status": "error", "message": str(e)}, 500)
             return
 
-        elif self.path == "/api/wake":
-
+        elif path_clean == "/api/wake":
             request_wake()
             self._send_json({"status": "ok", "message": "Wake request triggered."})
             return
-            
-        elif self.path == "/api/screensaver":
+
+        elif path_clean == "/api/screensaver":
             try:
                 content_length = int(self.headers.get('Content-Length', 0))
                 post_data = self.rfile.read(content_length).decode('utf-8')
@@ -624,10 +625,9 @@ def test_api_key(provider: str, key: str) -> tuple[bool, str]:
                     self._send_json({"status": "error", "message": "Animation parameter is empty."}, 400)
             except Exception as e:
                 self._send_json({"status": "error", "message": str(e)}, 500)
-            return
-
-        elif self.path == "/api/command":
+        elif path_clean == "/api/command":
             try:
+
                 content_length = int(self.headers.get('Content-Length', 0))
                 post_data = self.rfile.read(content_length).decode('utf-8')
                 data = json.loads(post_data)
