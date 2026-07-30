@@ -510,24 +510,27 @@ def _morning_greeting_watcher() -> None:
             from skull import camera, brain, tts, audio, web
             _, detected_name, face_found = camera.capture_and_identify()
 
-            if not face_found:
-                # Rangefinder was triggered by a static object (e.g. chair, monitor), not a human face.
-                # Do NOT mark today's morning greeting as completed so it fires when a person arrives.
-                time.sleep(10.0)
+            if not face_found or not detected_name:
+
+                # Rangefinder was triggered by a static object or an unrecognized face scan.
+                # Do NOT mark today's morning greeting as completed so it fires when the master arrives.
+                time.sleep(15.0)
                 continue
 
             # Mark today's morning greeting as completed
             with _morning_greeting_lock:
                 _last_morning_greeting_date = today_str
 
-            print(f"[morning] Morning human target detected at {cm:.1f} cm (<= 150 cm) — running face identification...")
+            print(f"[morning] Morning target identified as '{detected_name}' at {cm:.1f} cm (<= 150 cm) — delivering morning greeting...")
             
-            # Activate visual targeting indicator
+            # Activate visual targeting indicator & duck music (bypasses silent mode for morning greeting)
+            set_speech_active(True)
+            spotify_ctrl.duck()
             display.on()
             eyes.on()
 
             greeting_text = brain.generate_morning_greeting(detected_name)
-            print(f"[morning] Morning greeting ({'identified: ' + str(detected_name) if detected_name else 'unrecognized'}): {greeting_text}")
+            print(f"[morning] Morning greeting ({detected_name}): {greeting_text}")
 
             brain.record_assistant_turn(greeting_text)
             web.log_vox(config.SKULL_NAME, greeting_text)
@@ -538,8 +541,11 @@ def _morning_greeting_watcher() -> None:
             except Exception as se:
                 print(f"[morning] Greeting speech delivery error: {se}")
             finally:
+                set_speech_active(False)
+                spotify_ctrl.restore()
                 display.idle()
                 eyes.off()
+
         except Exception as e:
             print(f"[morning] Error in morning greeting watcher: {e}")
 
