@@ -155,18 +155,22 @@
                 if (tempValEl && data.temperature) tempValEl.innerText = String(data.temperature);
                 if (tempPie) tempPie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, tempFloat))}, 100`);
 
-                // Update RAM pie
+                // Update RAM pie & label
                 const ramFloat = parseFloat(data.ram) || 0;
                 const ramPie = document.getElementById('ram-pie');
                 const ramValEl = document.getElementById('ram-val');
+                const ramLabelEl = document.getElementById('ram-label');
                 if (ramValEl && data.ram) ramValEl.innerText = String(data.ram);
+                if (ramLabelEl && data.ram_total) ramLabelEl.innerText = `RAM: ${data.ram_total}`;
                 if (ramPie) ramPie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, ramFloat))}, 100`);
 
-                // Update STORAGE pie
+                // Update STORAGE pie & label
                 const storageFloat = parseFloat(data.storage) || 0;
                 const storagePie = document.getElementById('storage-pie');
                 const storageValEl = document.getElementById('storage-val');
+                const storageLabelEl = document.getElementById('storage-label');
                 if (storageValEl && data.storage) storageValEl.innerText = String(data.storage);
+                if (storageLabelEl && data.storage_total) storageLabelEl.innerText = `STORAGE: ${data.storage_total}`;
                 if (storagePie) storagePie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, storageFloat))}, 100`);
 
                 // Update FABRICATOR pie
