@@ -10,7 +10,7 @@ to this project's actual code (pin assignments come straight from [skull/config.
 
 ## 0. Inventory check — what should be in front of you
 
-From [SHOPPING_LIST.txt](SHOPPING_LIST.txt), you should have:
+From [`Shopping list.md`](<Shopping list.md>), you should have:
 
 | Group | Item |
 |---|---|

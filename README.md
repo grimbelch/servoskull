@@ -136,7 +136,7 @@ The circular GC9A01 IPS panel serves as Omega-7's main visual feedback element, 
 
 Complete step-by-step documentation is included in the repository:
 
-1. **Bill of Materials — [`SHOPPING_LIST.md`](SHOPPING_LIST.md)**
+1. **Bill of Materials — [`Shopping list.md`](<Shopping list.md>)**
    - Complete hardware checklist (~$167 total for electronics).
    - Designed around the **[Servo Skull LED Candlelit Lantern 3D model](https://www.printables.com/model/1457078-servo-skull-led-candlelit-lantern)**.
    - Highlights: Raspberry Pi 5 (4GB), Official Active Cooler, 27W Power Supply, GC9A01 1.28" IPS Display, Arducam IMX708, VL53L1X Laser Rangefinder, UGREEN USB Sound Card, Candle LEDs.
@@ -175,7 +175,7 @@ omega7.service         systemd service descriptor
 
 ## 📜 Requirements & Licensing
 
-- **Hardware:** Raspberry Pi 5 (4 GB) + components listed in [`SHOPPING_LIST.txt`](SHOPPING_LIST.txt).
+- **Hardware:** Raspberry Pi 5 (4 GB) + components listed in [`Shopping list.md`](<Shopping list.md>).
 - **OS:** Raspberry Pi OS 64-bit (Debian *Trixie*, Python 3.13, PipeWire).
 - **API Keys:** Anthropic Claude (required); OpenAI, ElevenLabs, Spotify (optional).
 
