@@ -274,16 +274,16 @@ def _game_loop() -> None:
     # ── Fast boot sequence ────────────────────────────────────────────────────
     # Quickly press space twice to clear title/credits, then 'S' and Return for Start Game
     print("[bardstale] Executing fast boot sequence (space -> space -> S -> Return)...")
-    _stop.wait(timeout=1.5)
+    _stop.wait(timeout=3.5)
     if not _stop.is_set():
         emulator.send_key("space")
-        _stop.wait(timeout=0.6)
+        _stop.wait(timeout=0.8)
     if not _stop.is_set():
         emulator.send_key("space")
-        _stop.wait(timeout=0.6)
+        _stop.wait(timeout=0.8)
     if not _stop.is_set():
         emulator.send_key("S")
-        _stop.wait(timeout=0.6)
+        _stop.wait(timeout=0.8)
     if not _stop.is_set():
         emulator.send_key("Return")
         _stop.wait(timeout=1.0)
