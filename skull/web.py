@@ -551,6 +551,8 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             _bt_agent.start(disk_path, _main._game_narrate)
             self._send_json({"ok": True, "disk": disk_path})
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             self._send_json({"ok": False, "error": str(e)}, 500)
 
     def _handle_game_stop(self) -> None:
