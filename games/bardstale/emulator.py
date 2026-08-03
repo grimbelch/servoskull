@@ -126,6 +126,7 @@ def start(disk_path: str) -> bool:
                 ["Xvfb", DISPLAY_NUM, "-screen", "0", _XVFB_GEOM],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                restore_signals=False,
             )
         except FileNotFoundError:
             print("[emulator] Xvfb not found. Install: sudo apt install xvfb")
@@ -153,6 +154,7 @@ def start(disk_path: str) -> bool:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 env=_build_env(),
+                restore_signals=False,
             )
         except FileNotFoundError:
             print("[emulator] mame not found. Install: sudo apt install mame")
@@ -177,6 +179,7 @@ def start(disk_path: str) -> bool:
                 ["xdotool", "search", "--pid", str(_mame_proc.pid)],
                 capture_output=True, text=True,
                 env=_build_env(), timeout=5,
+                restore_signals=False,
             )
             wids = result.stdout.strip().split()
             _window_id = wids[0] if wids else None
@@ -233,7 +236,7 @@ def send_key(key: str) -> None:
         if _window_id:
             cmd += ["--window", _window_id]
         cmd.append(key)
-        subprocess.run(cmd, capture_output=True, env=env, timeout=2)
+        subprocess.run(cmd, capture_output=True, env=env, timeout=2, restore_signals=False)
     except Exception as e:
         print(f"[emulator] send_key({key!r}) error: {e}")
 
