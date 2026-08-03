@@ -18,7 +18,7 @@ SCREENSAVER_ANIMS = [
     "bouncing_cog", "fractal_tree", "hud_status", "orbitals", "spectrum_bars",
     "plasma", "lissajous", "voronoi", "data_stream", "mandala",
     "rune_wheel", "glitch", "dna_helix", "neural_net", "gravity_well",
-    "void_shield", "hex_grid", "kaleidoscope", "particle_burst", "asteroids", "battlezone", "trench_run"
+    "void_shield", "hex_grid", "kaleidoscope", "particle_burst", "asteroids", "battlezone", "trench_run", "vector_dungeon"
 ]
 
 
@@ -1382,10 +1382,246 @@ def render_screensaver_frame(anim_name: str, bezel, mask, now: float) -> Image.I
             return _render_battlezone_frame(bezel, mask, now)
         elif anim_name == "trench_run":
             return _render_trench_run_frame(bezel, mask, now)
+        elif anim_name == "vector_dungeon":
+            return _render_vector_dungeon_frame(bezel, mask, now)
         else:
             return _render_starfield_frame(bezel, mask, now)
     except Exception as e:
         return _render_starfield_frame(bezel, mask, now)
+
+
+# Vector Dungeon State
+_dng_map = []
+_dng_px = 1.5
+_dng_py = 1.5
+_dng_dir = 0
+_dng_target_dir = 0
+_dng_turn_t = 1.0
+_dng_move_t = 0.0
+_dng_monster = None
+_dng_sparks = []
+_dng_score = 0
+_dng_last_action = 0.0
+
+def _init_vector_dungeon():
+    global _dng_map, _dng_px, _dng_py, _dng_dir, _dng_target_dir, _dng_turn_t, _dng_move_t, _dng_monster, _dng_sparks, _dng_score, _dng_last_action
+    _dng_map = [
+        [1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,1,0,0,0,0,1],
+        [1,0,1,0,1,0,1,1,0,1],
+        [1,0,1,0,0,0,0,1,0,1],
+        [1,0,1,1,1,1,0,1,0,1],
+        [1,0,0,0,0,1,0,0,0,1],
+        [1,1,1,1,0,1,1,1,0,1],
+        [1,0,0,0,0,0,0,1,0,1],
+        [1,0,1,1,1,1,0,0,0,1],
+        [1,1,1,1,1,1,1,1,1,1]
+    ]
+    _dng_px = 1.5
+    _dng_py = 1.5
+    _dng_dir = 0
+    _dng_target_dir = 0
+    _dng_turn_t = 1.0
+    _dng_move_t = 0.0
+    _dng_monster = None
+    _dng_sparks = []
+    _dng_score = 0
+    _dng_last_action = 0.0
+
+
+def _render_vector_dungeon_frame(bezel, mask, now):
+    """80s Retro Vector 3D Wireframe Dungeon Crawler Screensaver."""
+    global _dng_map, _dng_px, _dng_py, _dng_dir, _dng_target_dir, _dng_turn_t, _dng_move_t, _dng_monster, _dng_sparks, _dng_score, _dng_last_action
+
+    if not _dng_map:
+        _init_vector_dungeon()
+
+    img = Image.new("RGB", (240, 240), (0, 8, 3))
+    d = ImageDraw.Draw(img)
+
+    DIRS = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+
+    # 1. Process Exploration Movement & AI Navigation
+    if now - _dng_last_action > 0.12:
+        _dng_last_action = now
+
+        if _dng_turn_t < 1.0:
+            _dng_turn_t += 0.25
+            if _dng_turn_t >= 1.0:
+                _dng_dir = _dng_target_dir
+
+        elif _dng_monster is not None:
+            _dng_monster["timer"] += 0.15
+            if _dng_monster["timer"] >= 0.8:
+                _dng_score += 2500
+                mx, my = _dng_monster["sx"], _dng_monster["sy"]
+                for _ in range(25):
+                    a = random.uniform(0, 2 * math.pi)
+                    spd = random.uniform(2.0, 6.0)
+                    _dng_sparks.append({"x": mx, "y": my, "vx": math.cos(a)*spd, "vy": math.sin(a)*spd, "life": 1.0})
+                _dng_monster = None
+        else:
+            dx, dy = DIRS[_dng_dir]
+            next_x = int(_dng_px + dx)
+            next_y = int(_dng_py + dy)
+
+            if 0 <= next_x < 10 and 0 <= next_y < 10 and _dng_map[next_y][next_x] == 0 and random.random() > 0.15:
+                _dng_move_t += 0.2
+                if _dng_move_t >= 1.0:
+                    _dng_move_t = 0.0
+                    _dng_px = float(next_x) + 0.5
+                    _dng_py = float(next_y) + 0.5
+
+                    if random.random() < 0.30:
+                        m_type = random.choice([0, 1, 2])
+                        _dng_monster = {"type": m_type, "depth": 2, "timer": 0.0, "sx": 120, "sy": 120}
+            else:
+                _dng_move_t = 0.0
+                valid_turns = []
+                for turn_dir in range(4):
+                    tx = int(_dng_px + DIRS[turn_dir][0])
+                    ty = int(_dng_py + DIRS[turn_dir][1])
+                    if 0 <= tx < 10 and 0 <= ty < 10 and _dng_map[ty][tx] == 0:
+                        valid_turns.append(turn_dir)
+                if valid_turns:
+                    back_dir = (_dng_dir + 2) % 4
+                    if len(valid_turns) > 1 and back_dir in valid_turns:
+                        valid_turns.remove(back_dir)
+                    _dng_target_dir = random.choice(valid_turns)
+                    _dng_turn_t = 0.0
+
+    # 2. Render First-Person 3D Vector Wireframe Corridor
+    cur_x = int(_dng_px)
+    cur_y = int(_dng_py)
+    dx, dy = DIRS[_dng_dir]
+    lx, ly = DIRS[(_dng_dir - 1) % 4]
+    rx, ry = DIRS[(_dng_dir + 1) % 4]
+
+    for depth in range(4, 0, -1):
+        z_near = depth - 0.5 - _dng_move_t * 0.5
+        z_far = depth + 0.5 - _dng_move_t * 0.5
+
+        if z_near <= 0.1:
+            continue
+
+        scale_n = 140.0 / z_near
+        scale_f = 140.0 / z_far
+
+        w_half, h_half = 45.0, 35.0
+
+        nl = int(120 - w_half * scale_n)
+        nr = int(120 + w_half * scale_n)
+        nt = int(120 - h_half * scale_n)
+        nb = int(120 + h_half * scale_n)
+
+        fl = int(120 - w_half * scale_f)
+        fr = int(120 + w_half * scale_f)
+        ft = int(120 - h_half * scale_f)
+        fb = int(120 + h_half * scale_f)
+
+        cx = cur_x + dx * depth
+        cy = cur_y + dy * depth
+
+        if not (0 <= cx < 10 and 0 <= cy < 10) or _dng_map[cy][cx] == 1:
+            d.rectangle([fl, ft, fr, fb], outline=(0, 220, 80), width=1)
+            d.line([(fl, ft), (fr, fb)], fill=(0, 100, 40), width=1)
+            d.line([(fl, fb), (fr, ft)], fill=(0, 100, 40), width=1)
+            continue
+
+        l_cell_x = cx + lx
+        l_cell_y = cy + ly
+        is_left_wall = not (0 <= l_cell_x < 10 and 0 <= l_cell_y < 10) or _dng_map[l_cell_y][l_cell_x] == 1
+
+        if is_left_wall:
+            d.polygon([(nl, nt), (fl, ft), (fl, fb), (nl, nb)], outline=(0, 220, 80), width=1)
+        else:
+            d.line([(nl, nt), (fl, ft)], fill=(0, 140, 50), width=1)
+            d.line([(nl, nb), (fl, fb)], fill=(0, 140, 50), width=1)
+
+        r_cell_x = cx + rx
+        r_cell_y = cy + ry
+        is_right_wall = not (0 <= r_cell_x < 10 and 0 <= r_cell_y < 10) or _dng_map[r_cell_y][r_cell_x] == 1
+
+        if is_right_wall:
+            d.polygon([(fr, ft), (nr, nt), (nr, nb), (fr, fb)], outline=(0, 220, 80), width=1)
+        else:
+            d.line([(nr, nt), (fr, ft)], fill=(0, 140, 50), width=1)
+            d.line([(nr, nb), (fr, fb)], fill=(0, 140, 50), width=1)
+
+        d.line([(nl, nt), (nr, nt)], fill=(0, 180, 60), width=1)
+        d.line([(nl, nb), (nr, nb)], fill=(0, 180, 60), width=1)
+
+    # 3. Render 3D Vector Monster Encounter
+    if _dng_monster is not None:
+        m_type = _dng_monster["type"]
+        timer = _dng_monster["timer"]
+        md = _dng_monster["depth"]
+        m_scale = 130.0 / md
+        mc_x, mc_y = 120, 120
+
+        col_m = (220, 140, 20) if timer < 0.4 else (220, 30, 30)
+
+        if m_type == 0:
+            r_orb = int(22 * m_scale)
+            d.ellipse([mc_x - r_orb, mc_y - r_orb, mc_x + r_orb, mc_y + r_orb], outline=col_m, width=2)
+            d.ellipse([mc_x - r_orb//2, mc_y - r_orb//2, mc_x + r_orb//2, mc_y + r_orb//2], outline=(0, 255, 100), width=1)
+            for i in range(8):
+                ang = i * (math.pi / 4)
+                ex = int(mc_x + (r_orb + 12 * m_scale) * math.cos(ang))
+                ey = int(mc_y + (r_orb + 12 * m_scale) * math.sin(ang))
+                d.line([(mc_x + r_orb * math.cos(ang), mc_y + r_orb * math.sin(ang)), (ex, ey)], fill=col_m, width=1)
+                d.ellipse([ex - 2, ey - 2, ex + 2, ey + 2], fill=(220, 30, 30))
+
+        elif m_type == 1:
+            w_body = int(24 * m_scale)
+            h_body = int(32 * m_scale)
+            d.polygon([(mc_x, mc_y - h_body), (mc_x - 10, mc_y - h_body + 10), (mc_x + 10, mc_y - h_body + 10)], outline=col_m)
+            d.line([(mc_x - 8, mc_y - h_body + 5), (mc_x - 16, mc_y - h_body - 8)], fill=col_m, width=2)
+            d.line([(mc_x + 8, mc_y - h_body + 5), (mc_x + 16, mc_y - h_body - 8)], fill=col_m, width=2)
+            d.polygon([(mc_x - 10, mc_y - h_body + 10), (mc_x - w_body - 15, mc_y - 15), (mc_x - 10, mc_y + 10)], outline=col_m)
+            d.polygon([(mc_x + 10, mc_y - h_body + 10), (mc_x + w_body + 15, mc_y - 15), (mc_x + 10, mc_y + 10)], outline=col_m)
+
+        else:
+            r_sk = int(18 * m_scale)
+            d.ellipse([mc_x - r_sk, mc_y - r_sk - 8, mc_x + r_sk, mc_y + r_sk - 8], outline=col_m, width=2)
+            d.ellipse([mc_x - 10, mc_y - 12, mc_x - 3, mc_y - 5], fill=(220, 30, 30))
+            d.ellipse([mc_x + 3, mc_y - 12, mc_x + 10, mc_y - 5], fill=(220, 30, 30))
+            for ry in range(mc_y + 5, mc_y + 35, 7):
+                d.line([(mc_x - 14, ry), (mc_x + 14, ry)], fill=col_m, width=1)
+
+        if timer >= 0.4:
+            d.line([(120, 240), (mc_x, mc_y)], fill=(0, 255, 120), width=3)
+            d.ellipse([mc_x - 15, mc_y - 15, mc_x + 15, mc_y + 15], outline=(220, 140, 20), width=2)
+
+    # 4. Render Sparks / Explosions
+    new_sparks = []
+    for sp in _dng_sparks:
+        sp["x"] += sp["vx"]
+        sp["y"] += sp["vy"]
+        sp["life"] -= 0.06
+        if sp["life"] > 0:
+            alpha = sp["life"]
+            d.point((int(sp["x"]), int(sp["y"])), fill=(0, int(230*alpha), int(80*alpha)))
+            new_sparks.append(sp)
+    _dng_sparks = new_sparks
+
+    # 5. Render HUD Overlay & Compass
+    try:
+        font = ImageFont.load_default()
+    except Exception:
+        font = None
+
+    dirs_lbl = ["NORTH", "EAST", "SOUTH", "WEST"]
+    if font:
+        d.text((15, 16), "COG-DUNGEON", fill=(0, 220, 80), font=font)
+        d.text((155, 16), f"POS:({cur_x:02d},{cur_y:02d})", fill=(220, 140, 20), font=font)
+        d.text((15, 215), f"DIR: {dirs_lbl[_dng_dir]}", fill=(0, 180, 60), font=font)
+        d.text((150, 215), f"SCORE: {_dng_score:05d}", fill=(220, 140, 20), font=font)
+
+        if _dng_monster is not None:
+            d.text((65, 34), "[ HOSTILE ENCOUNTER ]", fill=(220, 30, 30), font=font)
+
+    return img
 
 
 # Trench Run Arcade State
