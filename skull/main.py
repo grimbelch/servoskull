@@ -1104,12 +1104,17 @@ def main():
         # ── 3a-0b. Bard's Tale autonomous play intents ─────────────────────
         if _RE_GAME_START.search(_t):
             from games.bardstale import agent as _bt_agent
-            disk_dir = pathlib.Path(__file__).resolve().parent.parent / "games" / "bardstale" / "disks"
-            disks = sorted(
-                list(disk_dir.glob("*.dsk")) + list(disk_dir.glob("*.woz"))
-                + list(disk_dir.glob("*.nib"))
-            ) if disk_dir.exists() else []
-            if not disks:
+            char_disk = disk_dir / "bards_tale_character.dsk"
+            if char_disk.exists():
+                selected_disk = str(char_disk)
+            else:
+                disks = sorted(
+                    list(disk_dir.glob("*.dsk")) + list(disk_dir.glob("*.woz"))
+                    + list(disk_dir.glob("*.nib"))
+                ) if disk_dir.exists() else []
+                selected_disk = str(disks[0]) if disks else ""
+
+            if not selected_disk:
                 _reply = ("No Bard's Tale disk image found in the data-vaults. "
                           "Place a .dsk or .woz file in games/bardstale/disks/ "
                           "and try again.")
@@ -1119,7 +1124,7 @@ def main():
                 _reply = ("Accessing the data-vaults of Skara Brae. "
                           "Autonomous dungeon protocol initiating now.")
                 display.start_game_display()
-                _bt_agent.start(str(disks[0]), _game_narrate)
+                _bt_agent.start(selected_disk, _game_narrate)
             print(f"[skull] Bard's Tale start intent → {_reply}")
             try:
                 eyes.on()
