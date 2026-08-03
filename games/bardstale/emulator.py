@@ -50,7 +50,7 @@ except ImportError:
 # ── Configuration ─────────────────────────────────────────────────────────────
 DISPLAY_NUM  = ":99"
 _XVFB_GEOM   = "560x384x24"    # Apple IIe native × 2; MAME fullscreen fills it
-_MAME_DRIVER = "apple2e"        # MAME system driver (covers Bard's Tale original)
+_MAME_DRIVER = "apple2ee"       # MAME system driver for Apple IIe Enhanced
 _BOOT_DELAY  = 5.0              # seconds for MAME to initialise and show first frame
 
 # MAME flags. -nowindow fills the Xvfb virtual framebuffer without a title bar,
