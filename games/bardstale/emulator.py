@@ -100,7 +100,7 @@ def start(disk_path: str) -> bool:
         disk_path = str(pathlib.Path(disk_path).resolve())
         try:
             _apple_proc = subprocess.Popen(
-                ["linapple", "--d1", disk_path],
+                ["linapple", "--d1", disk_path, "--autoboot"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 env=_env(),
