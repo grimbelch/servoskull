@@ -185,7 +185,7 @@ def start(disk_path: str) -> bool:
             _mame_proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
                 env=env,
                 restore_signals=False,
             )
@@ -199,10 +199,10 @@ def start(disk_path: str) -> bool:
 
         # ── 3. Resolve window for xdotool ─────────────────────────────────────
         if _mame_proc.poll() is not None:
-            # MAME exited immediately — almost certainly a missing ROM
-            print("[emulator] MAME exited during boot. "
-                  "Check that ~/.mame/roms/apple2e.zip exists and disk format is "
-                  ".dsk/.po/.nib/.woz (NOT .d64).")
+            err_out = ""
+            if _mame_proc.stderr:
+                err_out = _mame_proc.stderr.read().decode("utf-8", errors="replace")
+            print(f"[emulator] MAME exited during boot (code {_mame_proc.poll()}). Output: {err_out.strip()}")
             _xvfb_proc.terminate()
             _xvfb_proc = _mame_proc = None
             return False
