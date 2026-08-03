@@ -528,7 +528,11 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         try:
             import pathlib
             content_length = int(self.headers.get("Content-Length", 0))
-            data = json.loads(self.rfile.read(content_length).decode("utf-8")) if content_length else {}
+            if content_length > 0:
+                raw_body = self.rfile.read(content_length).decode("utf-8")
+                data = json.loads(raw_body) if raw_body.strip() else {}
+            else:
+                data = {}
             disk_dir = pathlib.Path(__file__).resolve().parent.parent / "games" / "bardstale" / "disks"
             # Allow caller to override disk path; otherwise pick first found disk
             disk_path = data.get("disk", "")
