@@ -20,7 +20,7 @@ From [SHOPPING_LIST.txt](SHOPPING_LIST.txt), you should have:
 | Eyes | 3× 5 mm red LEDs, 3× 220 Ω resistors, M-F jumper wires, mini breadboard/perfboard |
 | Display | GC9A01 1.28" round IPS panel (240×240, SPI) + 7 jumper wires |
 | Setup-only | micro-HDMI→HDMI cable, USB keyboard (borrow if needed) |
-| Optional | HC-SR04 ultrasonic sensor (not yet wired in software — skip for now) |
+| Optional | VL53L1X ToF laser rangefinder sensor (I2C, integrated in `proximity.py`) |
 
 If anything core is missing, stop and source it before Friday — the Pi 5 **requires** the
 27 W supply (under-powering causes random crashes) and **will throttle** without the cooler.

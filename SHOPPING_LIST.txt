@@ -63,12 +63,12 @@ EYE LEDs — GPIO CONTROLLED
 
 PROXIMITY SENSOR
 -----------------
-[ ] HC-SR04 Ultrasonic Distance Sensor
-    - Detects presence/approach up to ~4m; mounts outside skull
-    - VCC=5V, GND, Trig (3.3V digital out), Echo (5V — needs voltage divider)
-    - Add a 1kΩ + 2kΩ resistor divider on the Echo line to protect Pi GPIO
+[ ] VL53L1X Time-of-Flight (ToF) Laser Rangefinder Sensor
+    - Measures distance up to ~4m/8m using eye-safe laser flight time (I2C)
+    - Connects via I2C: VCC (3.3V, Pin 1), GND (Pin 9), SDA (GPIO 2 / Pin 3), SCL (GPIO 3 / Pin 5)
+    - Supported out-of-the-box by proximity.py and camera.py via python-VL53L1X
 [ ] 4-pin Dupont ribbon cable (female-to-female, 20–30cm)
-    - Routes from sensor outside skull through to GPIO header inside
+    - Routes from rangefinder through skull to GPIO header inside
     - JST-XH 4-pin connector kit is a tidier alternative if you want a locking plug
 
 
