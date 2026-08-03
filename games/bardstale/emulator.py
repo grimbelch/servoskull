@@ -208,12 +208,20 @@ def start(disk_path: str) -> bool:
 
         try:
             result = subprocess.run(
-                ["xdotool", "search", "--pid", str(_mame_proc.pid)],
+                ["xdotool", "search", "--class", "mame"],
                 capture_output=True, text=True,
-                env=_build_env(), timeout=5,
+                env=env, timeout=5,
                 restore_signals=False,
             )
             wids = result.stdout.strip().split()
+            if not wids:
+                result = subprocess.run(
+                    ["xdotool", "search", "--onlyvisible", ""],
+                    capture_output=True, text=True,
+                    env=env, timeout=5,
+                    restore_signals=False,
+                )
+                wids = result.stdout.strip().split()
             _window_id = wids[0] if wids else None
         except Exception as e:
             print(f"[emulator] xdotool search error: {e}")
@@ -260,10 +268,19 @@ def send_key(key: str) -> None:
     xdotool key names: "w" "a" "s" "d" "f" "c" "r"
                        "Return" "space" "1" … "9"
     """
+    global _window_id
     if not is_running():
         return
     env = _build_env()
     try:
+        if not _window_id:
+            res = subprocess.run(
+                ["xdotool", "search", "--class", "mame"],
+                capture_output=True, text=True, env=env, timeout=2, restore_signals=False
+            )
+            wids = res.stdout.strip().split()
+            _window_id = wids[0] if wids else None
+
         cmd = ["xdotool", "key", "--clearmodifiers"]
         if _window_id:
             cmd += ["--window", _window_id]
