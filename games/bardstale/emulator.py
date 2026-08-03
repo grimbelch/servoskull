@@ -53,15 +53,16 @@ _XVFB_GEOM   = "560x384x24"    # Apple IIe native × 2; MAME fullscreen fills it
 _MAME_DRIVER = "apple2e"        # MAME system driver (covers Bard's Tale original)
 _BOOT_DELAY  = 5.0              # seconds for MAME to initialise and show first frame
 
-# MAME flags. -fullscreen fills the Xvfb display without a title bar, giving us
-# a clean game image to crop.  -sound none stops MAME from fighting the Pi's
+# MAME flags. -nowindow fills the Xvfb virtual framebuffer without a title bar,
+# giving us a clean game image to crop. -sound none stops MAME from fighting the Pi's
 # ALSA device (Omega-7's audio stack handles all sound).
 _MAME_FLAGS: list[str] = [
-    "-fullscreen",
+    "-nowindow",
     "-skip_gameinfo",
     "-sound",     "none",
     "-video",     "soft",      # software renderer — safe with Xvfb / X11
     "-noautosave",
+    "-sl2",       "null",      # disable optional Votrax card to avoid sc01a.bin requirement
 ]
 
 # ROM search path for MAME.
@@ -141,6 +142,11 @@ def start(disk_path: str) -> bool:
     with _lock, _safe_signal_guard():
         if _mame_proc and _mame_proc.poll() is None:
             return True
+
+        try:
+            from games import prepare_roms
+        except Exception as e:
+            print(f"[emulator] prepare_roms check: {e}")
 
         env = _build_env()
 
