@@ -102,8 +102,11 @@ class BambuMonitor:
                         time.sleep(1)
 
                     if not self.connected:
-                        print("[bambu] Connection timed out. Retrying in 30 seconds...")
-                        time.sleep(30)
+                        print("[bambu] Connection timed out. Retrying in 5 minutes...")
+                        for _ in range(300):
+                            if not self.running:
+                                break
+                            time.sleep(1)
                         continue
 
                     # Keep checking connection health
@@ -111,10 +114,13 @@ class BambuMonitor:
                         time.sleep(1)
 
                 except Exception as e:
-                    print(f"[bambu] Connection failed: {e}. Retrying in 30 seconds...")
+                    print(f"[bambu] Connection failed: {e}. Retrying in 5 minutes...")
                     with _status_lock:
                         _current_status = None
-                    time.sleep(30)
+                    for _ in range(300):
+                        if not self.running:
+                            break
+                        time.sleep(1)
             else:
                 time.sleep(1)
 
