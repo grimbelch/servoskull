@@ -10,6 +10,7 @@ Warhammer 40k AI Talking Servo Skull Build based on Raspberry Pi 5.
   - The printable skull chassis this entire build is designed around.
   - Houses the eye LEDs, GC9A01 round display, camera module, nasal mic capsule, rangefinder, and candle LEDs.
   - Print in your filament of choice (bone/ivory PLA with an acrylic wash reads best for 40k lore).
+  - Note new lens array print with cutouts for the camera and laser rangefinder. If you are using these, then you'll want the edited one I created.
 
 ---
 
