@@ -365,115 +365,182 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
+    def _handle_root(self) -> None:
+        body = HTML_CLIENT.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Connection", "close")
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _handle_app_js(self) -> None:
+        import os
+        try:
+            with open(os.path.join(os.path.dirname(__file__), "app.js"), "rb") as f:
+                js_body = f.read()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/javascript; charset=utf-8")
+            self.send_header("Content-Length", str(len(js_body)))
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.end_headers()
+            self.wfile.write(js_body)
+        except Exception as e:
+            print(f"Failed to serve app.js: {e}")
+            self.send_response(404)
+            self.end_headers()
+
+    def _handle_api_state(self) -> None:
+        from skull import display, temperature, brain
+        try:
+            disp_state = display.get_state()
+        except Exception:
+            disp_state = {}
+
+        try:
+            t_val = temperature.read_temp_c()
+            if t_val is not None:
+                temp = f"{t_val:.1f}°C"
+            else:
+                temp = "42.0°C (Virtual)"
+        except Exception:
+            temp = "Unavailable"
+
+        from skull import quiet, mood, proximity
+        master_name = str(config._OWNER_PROFILE.get("name") or "Unknown").upper()
+        active_game = brain.get_current_game() if hasattr(brain, "get_current_game") else "None"
+        if not active_game:
+            active_game = "None"
+
+        state_data = {
+            "skull_name": config.SKULL_NAME,
+            "display": disp_state if isinstance(disp_state, dict) else {},
+            "temperature": temp or "Unavailable",
+            "cpu": get_cpu_usage(),
+            "ram": get_ram_usage(),
+            "ram_total": get_ram_total(),
+            "storage": get_storage_usage(),
+            "storage_total": get_storage_total(),
+            "master": master_name,
+            "silent_mode": "ACTIVE" if quiet.is_silent() else "INACTIVE",
+            "mood": mood.label() if hasattr(mood, "label") else "DUTIFUL",
+            "fabricator": get_fabricator_status(),
+            "active_game": str(active_game),
+            "screensavers": display.get_screensaver_names() if hasattr(display, "get_screensaver_names") else [],
+            "logs": get_logs(),
+            "vox_logs": get_vox_logs(),
+            "camera_active": (lambda: getattr(sys.modules.get("skull.camera"), "is_camera_active", lambda: False)())() if "skull.camera" in sys.modules else False,
+            "audio_id": get_latest_web_audio()[1],
+            "proximity": {
+                "enabled": config.PROXIMITY_ENABLED,
+                "available": proximity.available(),
+                "distance_cm": round(proximity.get_latest_distance_cm(), 1) if proximity.get_latest_distance_cm() is not None else None,
+                "summary": proximity.get_distance_summary_short(),
+            },
+            "wifi": (lambda: getattr(sys.modules.get("skull.wifi_provisioner"), "get_status", lambda: {})())() if "skull.wifi_provisioner" in sys.modules else {},
+            "is_configured": config.is_configured(),
+        }
+        self._send_json(state_data)
+
+    def _handle_wifi_status(self) -> None:
+        from skull import wifi_provisioner
+        self._send_json(wifi_provisioner.get_status())
+
+    def _handle_wifi_scan(self) -> None:
+        from skull import wifi_provisioner
+        networks = wifi_provisioner.scan_networks()
+        self._send_json({"networks": networks})
+
+    def _handle_custom_image(self) -> None:
+        from skull import display
+        img_bytes = display.get_ocular_frame_bytes()
+        if img_bytes:
+            self.send_response(200)
+            self.send_header("Content-Type", "image/jpeg")
+            self.send_header("Content-Length", str(len(img_bytes)))
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Expires", "0")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(img_bytes)
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def _handle_ocular_stream(self) -> None:
+        from skull import display
+        self.send_response(200)
+        self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
+        self.end_headers()
+        try:
+            import time
+            while True:
+                img_bytes = display.get_ocular_frame_bytes()
+                if img_bytes:
+                    self.wfile.write(b"--frame\r\n")
+                    self.wfile.write(b"Content-Type: image/jpeg\r\n")
+                    self.wfile.write(f"Content-Length: {len(img_bytes)}\r\n\r\n".encode())
+                    self.wfile.write(img_bytes)
+                    self.wfile.write(b"\r\n")
+                time.sleep(0.033)
+        except Exception:
+            pass
+
+    def _handle_camera_stream(self) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
+        self.end_headers()
+        try:
+            from skull import camera
+            import time
+            while True:
+                img_bytes = camera.get_camera_frame_bytes()
+                if img_bytes:
+                    self.wfile.write(b"--frame\r\n")
+                    self.wfile.write(b"Content-Type: image/jpeg\r\n")
+                    self.wfile.write(f"Content-Length: {len(img_bytes)}\r\n\r\n".encode())
+                    self.wfile.write(img_bytes)
+                    self.wfile.write(b"\r\n")
+                time.sleep(0.04)
+        except Exception:
+            pass
+
     def do_GET(self) -> None:
         global _web_client_connected
         _web_client_connected = True
-        from skull import display, temperature, brain
 
         path_clean = self.path.split("?")[0].rstrip("/")
         if not path_clean:
             path_clean = "/"
 
+        get_routes = {
+            "/": self._handle_root,
+            "/api/app.js": self._handle_app_js,
+            "/api/state": self._handle_api_state,
+            "/api/wifi/status": self._handle_wifi_status,
+            "/api/wifi/scan": self._handle_wifi_scan,
+            "/api/custom_image.jpg": self._handle_custom_image,
+            "/api/ocular_frame.jpg": self._handle_custom_image,
+            "/api/ocular_stream.mjpeg": self._handle_ocular_stream,
+            "/api/camera_stream.mjpeg": self._handle_camera_stream,
+        }
 
-
-
-        if path_clean == "/":
-            body = HTML_CLIENT.encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.send_header("Connection", "close")
-            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
-            self.send_header("Pragma", "no-cache")
-            self.send_header("Expires", "0")
-            self.end_headers()
-            self.wfile.write(body)
+        handler = get_routes.get(path_clean)
+        if handler:
+            handler()
             return
 
-        elif path_clean == "/api/app.js":
-            import os
-            try:
-                with open(os.path.join(os.path.dirname(__file__), "app.js"), "rb") as f:
-                    js_body = f.read()
-                self.send_response(200)
-                self.send_header("Content-Type", "application/javascript; charset=utf-8")
-                self.send_header("Content-Length", str(len(js_body)))
-                self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
-                self.end_headers()
-                self.wfile.write(js_body)
-            except Exception as e:
-                print(f"Failed to serve app.js: {e}")
-                self.send_response(404)
-                self.end_headers()
-            return
-
-
-        elif path_clean == "/api/state":
-            try:
-                disp_state = display.get_state()
-            except Exception:
-                disp_state = {}
-
-            try:
-                t_val = temperature.read_temp_c()
-                if t_val is not None:
-                    temp = f"{t_val:.1f}°C"
-                else:
-                    temp = "42.0°C (Virtual)"
-            except Exception:
-                temp = "Unavailable"
-
-            from skull import quiet, mood, proximity
-            master_name = str(config._OWNER_PROFILE.get("name") or "Unknown").upper()
-            active_game = brain.get_current_game() if hasattr(brain, "get_current_game") else "None"
-            if not active_game:
-                active_game = "None"
-
-            state_data = {
-                "skull_name": config.SKULL_NAME,
-                "display": disp_state if isinstance(disp_state, dict) else {},
-                "temperature": temp or "Unavailable",
-                "cpu": get_cpu_usage(),
-                "ram": get_ram_usage(),
-                "ram_total": get_ram_total(),
-                "storage": get_storage_usage(),
-                "storage_total": get_storage_total(),
-                "master": master_name,
-                "silent_mode": "ACTIVE" if quiet.is_silent() else "INACTIVE",
-                "mood": mood.label() if hasattr(mood, "label") else "DUTIFUL",
-                "fabricator": get_fabricator_status(),
-                "active_game": str(active_game),
-                "screensavers": display.get_screensaver_names() if hasattr(display, "get_screensaver_names") else [],
-                "logs": get_logs(),
-                "vox_logs": get_vox_logs(),
-                "camera_active": (lambda: getattr(sys.modules.get("skull.camera"), "is_camera_active", lambda: False)())() if "skull.camera" in sys.modules else False,
-                "audio_id": get_latest_web_audio()[1],
-                "proximity": {
-                    "enabled": config.PROXIMITY_ENABLED,
-                    "available": proximity.available(),
-                    "distance_cm": round(proximity.get_latest_distance_cm(), 1) if proximity.get_latest_distance_cm() is not None else None,
-                    "summary": proximity.get_distance_summary_short(),
-                },
-                "wifi": (lambda: getattr(sys.modules.get("skull.wifi_provisioner"), "get_status", lambda: {})())() if "skull.wifi_provisioner" in sys.modules else {},
-                "is_configured": config.is_configured(),
-            }
-            self._send_json(state_data)
-            return
-
-        elif path_clean == "/api/wifi/status":
-            from skull import wifi_provisioner
-            self._send_json(wifi_provisioner.get_status())
-            return
-
-        elif path_clean == "/api/wifi/scan":
-            from skull import wifi_provisioner
-            networks = wifi_provisioner.scan_networks()
-            self._send_json({"networks": networks})
-            return
-
-
-        elif self.path.startswith("/api/last_speech.wav"):
-
+        if self.path.startswith("/api/last_speech.wav"):
             wav_bytes, _ = get_latest_web_audio()
             if wav_bytes:
                 self.send_response(200)
@@ -488,71 +555,8 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                 self.send_response(404)
                 self.end_headers()
             return
-            
-        elif path_clean == "/api/custom_image.jpg" or path_clean == "/api/ocular_frame.jpg":
-            img_bytes = display.get_ocular_frame_bytes()
-            if img_bytes:
-                self.send_response(200)
-                self.send_header("Content-Type", "image/jpeg")
-                self.send_header("Content-Length", str(len(img_bytes)))
-                self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
-                self.send_header("Pragma", "no-cache")
-                self.send_header("Expires", "0")
-                self.send_header("Connection", "close")
-                self.end_headers()
-                self.wfile.write(img_bytes)
-            else:
-                self.send_response(404)
-                self.end_headers()
-            return
 
-            
-        elif self.path == "/api/ocular_stream.mjpeg":
-            self.send_response(200)
-            self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
-            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
-            self.send_header("Pragma", "no-cache")
-            self.send_header("Expires", "0")
-            self.end_headers()
-            try:
-                import time
-                while True:
-                    img_bytes = display.get_ocular_frame_bytes()
-                    if img_bytes:
-                        self.wfile.write(b"--frame\r\n")
-                        self.wfile.write(b"Content-Type: image/jpeg\r\n")
-                        self.wfile.write(f"Content-Length: {len(img_bytes)}\r\n\r\n".encode())
-                        self.wfile.write(img_bytes)
-                        self.wfile.write(b"\r\n")
-                    time.sleep(0.033)  # ~30 FPS streaming speed
-            except Exception:
-                pass
-            return
-
-        elif self.path == "/api/camera_stream.mjpeg":
-            self.send_response(200)
-            self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
-            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
-            self.send_header("Pragma", "no-cache")
-            self.send_header("Expires", "0")
-            self.end_headers()
-            try:
-                from skull import camera
-                import time
-                while True:
-                    img_bytes = camera.get_camera_frame_bytes()
-                    if img_bytes:
-                        self.wfile.write(b"--frame\r\n")
-                        self.wfile.write(b"Content-Type: image/jpeg\r\n")
-                        self.wfile.write(f"Content-Length: {len(img_bytes)}\r\n\r\n".encode())
-                        self.wfile.write(img_bytes)
-                        self.wfile.write(b"\r\n")
-                    time.sleep(0.04)  # ~25 FPS camera streaming
-            except Exception:
-                pass
-            return
-
-        elif self.path.startswith("/api/camera_frame.jpg"):
+        if self.path.startswith("/api/camera_frame.jpg"):
             try:
                 from skull import camera
                 img_bytes = camera.get_camera_frame_bytes()
@@ -576,169 +580,166 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_response(404)
         self.end_headers()
 
+    def _handle_setup_test_key(self) -> None:
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            data = json.loads(post_data)
+            provider = data.get("provider", "")
+            key = data.get("key", "")
+            success, msg = test_api_key(provider, key)
+            self._send_json({"status": "ok" if success else "error", "message": msg})
+        except Exception as e:
+            self._send_json({"status": "error", "message": str(e)}, 500)
+
+    def _handle_setup_save(self) -> None:
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            data = json.loads(post_data)
+
+            settings_data = {}
+            if "skull_name" in data:
+                settings_data["SKULL_NAME"] = data["skull_name"]
+            if "keys" in data:
+                keys = data["keys"]
+                if "anthropic" in keys and keys["anthropic"]:
+                    settings_data["ANTHROPIC_API_KEY"] = keys["anthropic"]
+                if "elevenlabs" in keys and keys["elevenlabs"]:
+                    settings_data["ELEVENLABS_API_KEY"] = keys["elevenlabs"]
+                if "elevenlabs_voice_id" in keys and keys["elevenlabs_voice_id"]:
+                    settings_data["ELEVENLABS_VOICE_ID"] = keys["elevenlabs_voice_id"]
+                if "openai" in keys and keys["openai"]:
+                    settings_data["OPENAI_API_KEY"] = keys["openai"]
+
+            config.save_settings(settings_data)
+
+            if "skull.main" in sys.modules and hasattr(sys.modules["skull.main"], "stop_setup_repeater"):
+                try:
+                    sys.modules["skull.main"].stop_setup_repeater()
+                except Exception:
+                    pass
+
+            if "owner" in data:
+                config.save_owner_profile(data["owner"])
+
+            if "wifi" in data and data["wifi"].get("ssid"):
+                from skull import wifi_provisioner
+                wifi_provisioner.connect_network(data["wifi"]["ssid"], data["wifi"].get("password"))
+                wifi_provisioner.stop_hotspot()
+
+            try:
+                from skull import tts
+                owner_name = data.get("owner", {}).get("name", "Master")
+                announcement = f"Initialization complete, Master {owner_name}. Machine spirit online."
+                wav = tts.synthesize_piper(announcement)
+            except Exception as e:
+                print(f"[web] Post-setup speech error: {e}")
+
+            self._send_json({"status": "ok", "message": "Appliance initialized successfully!"})
+        except Exception as e:
+            self._send_json({"status": "error", "message": str(e)}, 500)
+
+    def _handle_wifi_connect(self) -> None:
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            data = json.loads(post_data)
+            ssid = data.get("ssid", "")
+            password = data.get("password", "")
+            from skull import wifi_provisioner
+            success, msg = wifi_provisioner.connect_network(ssid, password)
+            self._send_json({"status": "ok" if success else "error", "message": msg})
+        except Exception as e:
+            self._send_json({"status": "error", "message": str(e)}, 500)
+
+    def _handle_wifi_hotspot(self) -> None:
+        try:
+            from skull import wifi_provisioner
+            success, msg = wifi_provisioner.start_hotspot()
+            self._send_json({"status": "ok" if success else "error", "message": msg})
+        except Exception as e:
+            self._send_json({"status": "error", "message": str(e)}, 500)
+
+    def _handle_wake(self) -> None:
+        request_wake()
+        self._send_json({"status": "ok", "message": "Wake request triggered."})
+
+    def _handle_screensaver(self) -> None:
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            data = json.loads(post_data)
+            anim = data.get("animation", "").strip()
+            if anim:
+                from skull import display
+                display.trigger_idle_animation(300.0, anim)
+                log_vox("Omega-7", f"Executing cogitator visual emulation ({anim}).")
+                self._send_json({"status": "ok", "message": f"Triggered screensaver: {anim}"})
+            else:
+                self._send_json({"status": "error", "message": "Animation parameter is empty."}, 400)
+        except Exception as e:
+            self._send_json({"status": "error", "message": str(e)}, 500)
+
+    def _handle_command(self) -> None:
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            data = json.loads(post_data)
+            cmd = data.get("command", "").strip()
+            if cmd:
+                queue_command(cmd)
+                self._send_json({"status": "ok", "message": f"Queued command: {cmd}"})
+            else:
+                self._send_json({"status": "error", "message": "Command parameter is empty."}, 400)
+        except Exception as e:
+            self._send_json({"status": "error", "message": str(e)}, 500)
+
+    def _handle_upload_audio(self) -> None:
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            wav_bytes = self.rfile.read(content_length)
+            
+            if len(wav_bytes) < 100:
+                self._send_json({"status": "error", "message": "Audio file too short."}, 400)
+                return
+            
+            def _process_web_audio(audio_data):
+                try:
+                    from skull import speaker_id, transcribe
+                    speaker_name = speaker_id.identify_speaker(audio_data)
+                    print(f"[web] Identified speaker from audio upload: {speaker_name}")
+                    
+                    user_text = transcribe.transcribe(audio_data)
+                    print(f"[web] Transcribed audio upload: {user_text}")
+                    
+                    if user_text.strip():
+                        queue_command(user_text, speaker_name=speaker_name)
+                except Exception as err:
+                    print(f"[web] Error processing uploaded audio: {err}")
+                    
+            threading.Thread(target=_process_web_audio, args=(wav_bytes,), daemon=True).start()
+            self._send_json({"status": "ok", "message": "Audio received and processing initiated."})
+        except Exception as e:
+            self._send_json({"status": "error", "message": str(e)}, 500)
+
     def do_POST(self) -> None:
         path_clean = self.path.split("?")[0].rstrip("/")
-        if path_clean == "/api/setup/test_key":
-            try:
-                content_length = int(self.headers.get('Content-Length', 0))
-                post_data = self.rfile.read(content_length).decode('utf-8')
-                data = json.loads(post_data)
-                provider = data.get("provider", "")
-                key = data.get("key", "")
-                success, msg = test_api_key(provider, key)
-                self._send_json({"status": "ok" if success else "error", "message": msg})
-            except Exception as e:
-                self._send_json({"status": "error", "message": str(e)}, 500)
-            return
 
-        elif path_clean == "/api/setup/save":
+        post_routes = {
+            "/api/setup/test_key": self._handle_setup_test_key,
+            "/api/setup/save": self._handle_setup_save,
+            "/api/wifi/connect": self._handle_wifi_connect,
+            "/api/wifi/hotspot": self._handle_wifi_hotspot,
+            "/api/wake": self._handle_wake,
+            "/api/screensaver": self._handle_screensaver,
+            "/api/command": self._handle_command,
+            "/api/upload_audio": self._handle_upload_audio,
+        }
 
-            try:
-                content_length = int(self.headers.get('Content-Length', 0))
-                post_data = self.rfile.read(content_length).decode('utf-8')
-                data = json.loads(post_data)
-
-                # Save settings
-                settings_data = {}
-                if "skull_name" in data:
-                    settings_data["SKULL_NAME"] = data["skull_name"]
-                if "keys" in data:
-                    keys = data["keys"]
-                    if "anthropic" in keys and keys["anthropic"]:
-                        settings_data["ANTHROPIC_API_KEY"] = keys["anthropic"]
-                    if "elevenlabs" in keys and keys["elevenlabs"]:
-                        settings_data["ELEVENLABS_API_KEY"] = keys["elevenlabs"]
-                    if "elevenlabs_voice_id" in keys and keys["elevenlabs_voice_id"]:
-                        settings_data["ELEVENLABS_VOICE_ID"] = keys["elevenlabs_voice_id"]
-                    if "openai" in keys and keys["openai"]:
-                        settings_data["OPENAI_API_KEY"] = keys["openai"]
-
-                config.save_settings(settings_data)
-
-                # Stop setup announcement repeater thread if active
-                if "skull.main" in sys.modules and hasattr(sys.modules["skull.main"], "stop_setup_repeater"):
-                    try:
-                        sys.modules["skull.main"].stop_setup_repeater()
-                    except Exception:
-                        pass
-
-                # Save owner profile
-
-                if "owner" in data:
-                    config.save_owner_profile(data["owner"])
-
-                # Connect Wi-Fi if provided
-                if "wifi" in data and data["wifi"].get("ssid"):
-                    from skull import wifi_provisioner
-                    wifi_provisioner.connect_network(data["wifi"]["ssid"], data["wifi"].get("password"))
-                    wifi_provisioner.stop_hotspot()
-
-                # Speak confirmation via local audio
-                try:
-                    from skull import tts, audio
-                    owner_name = data.get("owner", {}).get("name", "Master")
-                    announcement = f"Initialization complete, Master {owner_name}. Machine spirit online."
-                    wav = tts.synthesize_piper(announcement)
-                except Exception as e:
-                    print(f"[web] Post-setup speech error: {e}")
-
-                self._send_json({"status": "ok", "message": "Appliance initialized successfully!"})
-            except Exception as e:
-                self._send_json({"status": "error", "message": str(e)}, 500)
-            return
-
-        elif path_clean == "/api/wifi/connect":
-
-
-            try:
-                content_length = int(self.headers.get('Content-Length', 0))
-                post_data = self.rfile.read(content_length).decode('utf-8')
-                data = json.loads(post_data)
-                ssid = data.get("ssid", "")
-                password = data.get("password", "")
-                from skull import wifi_provisioner
-                success, msg = wifi_provisioner.connect_network(ssid, password)
-                self._send_json({"status": "ok" if success else "error", "message": msg})
-            except Exception as e:
-                self._send_json({"status": "error", "message": str(e)}, 500)
-            return
-
-        elif path_clean == "/api/wifi/hotspot":
-            try:
-                from skull import wifi_provisioner
-                success, msg = wifi_provisioner.start_hotspot()
-                self._send_json({"status": "ok" if success else "error", "message": msg})
-            except Exception as e:
-                self._send_json({"status": "error", "message": str(e)}, 500)
-            return
-
-        elif path_clean == "/api/wake":
-            request_wake()
-            self._send_json({"status": "ok", "message": "Wake request triggered."})
-            return
-
-        elif path_clean == "/api/screensaver":
-            try:
-                content_length = int(self.headers.get('Content-Length', 0))
-                post_data = self.rfile.read(content_length).decode('utf-8')
-                data = json.loads(post_data)
-                anim = data.get("animation", "").strip()
-                if anim:
-                    from skull import display
-                    display.trigger_idle_animation(300.0, anim)
-                    log_vox("Omega-7", f"Executing cogitator visual emulation ({anim}).")
-                    self._send_json({"status": "ok", "message": f"Triggered screensaver: {anim}"})
-                else:
-                    self._send_json({"status": "error", "message": "Animation parameter is empty."}, 400)
-            except Exception as e:
-                self._send_json({"status": "error", "message": str(e)}, 500)
-            return
-        elif path_clean == "/api/command":
-            try:
-
-                content_length = int(self.headers.get('Content-Length', 0))
-                post_data = self.rfile.read(content_length).decode('utf-8')
-                data = json.loads(post_data)
-                cmd = data.get("command", "").strip()
-                if cmd:
-                    queue_command(cmd)
-                    self._send_json({"status": "ok", "message": f"Queued command: {cmd}"})
-                else:
-                    self._send_json({"status": "error", "message": "Command parameter is empty."}, 400)
-            except Exception as e:
-                self._send_json({"status": "error", "message": str(e)}, 500)
-            return
-            
-        elif self.path == "/api/upload_audio":
-            try:
-                content_length = int(self.headers.get('Content-Length', 0))
-                wav_bytes = self.rfile.read(content_length)
-                
-                if len(wav_bytes) < 100:
-                    self._send_json({"status": "error", "message": "Audio file too short."}, 400)
-                    return
-                
-                # Process audio in a separate thread so web response is fast
-                def _process_web_audio(audio_data):
-                    try:
-                        from skull import speaker_id, transcribe
-                        # 1. Identify speaker
-                        speaker_name = speaker_id.identify_speaker(audio_data)
-                        print(f"[web] Identified speaker from audio upload: {speaker_name}")
-                        
-                        # 2. Transcribe speech
-                        user_text = transcribe.transcribe(audio_data)
-                        print(f"[web] Transcribed audio upload: {user_text}")
-                        
-                        if user_text.strip():
-                            queue_command(user_text, speaker_name=speaker_name)
-                    except Exception as err:
-                        print(f"[web] Error processing uploaded audio: {err}")
-                        
-                threading.Thread(target=_process_web_audio, args=(wav_bytes,), daemon=True).start()
-                self._send_json({"status": "ok", "message": "Audio received and processing initiated."})
-            except Exception as e:
-                self._send_json({"status": "error", "message": str(e)}, 500)
+        handler = post_routes.get(path_clean)
+        if handler:
+            handler()
             return
 
         self.send_response(404)

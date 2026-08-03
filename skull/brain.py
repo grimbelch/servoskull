@@ -1574,22 +1574,14 @@ def _simulate_necromunda(dice_type: str, count: int, target: int | None = None) 
         details.append(f"Necromunda Hit Location Roll ({count} dice):")
         details.append(f"Individual rolls: {', '.join(rolls)}")
         
+        _HIT_LOC_MAP = {
+            "head": "HD", "body": "BD", "left arm": "LA",
+            "right arm": "RA", "left leg": "LL", "right leg": "RL"
+        }
         if count == 1:
             loc = rolls[0].lower()
-            if "head" in loc:
-                display_val = "HD"
-            elif "body" in loc:
-                display_val = "BD"
-            elif "left arm" in loc:
-                display_val = "LA"
-            elif "right arm" in loc:
-                display_val = "RA"
-            elif "left leg" in loc:
-                display_val = "LL"
-            elif "right leg" in loc:
-                display_val = "RL"
-            else:
-                display_val = "LOC"
+            key = next((k for k in _HIT_LOC_MAP if k in loc), None)
+            display_val = _HIT_LOC_MAP.get(key, "LOC") if key else "LOC"
         else:
             display_val = "LOC"
         

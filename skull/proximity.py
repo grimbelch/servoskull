@@ -42,11 +42,14 @@ def _raw_read_cm() -> float | None:
     return mm / 10.0
 
 
+_stop_event = threading.Event()
+
+
 def _continuous_poll_loop() -> None:
     """Background thread continuously polling the rangefinder sensor."""
     global _last_cm, _last_poll_time, _polling_active
     print("[proximity] Continuous rangefinder polling thread started.")
-    while _polling_active and _available:
+    while _polling_active and _available and not _stop_event.is_set():
         try:
             cm = _raw_read_cm()
             with _poll_lock:
@@ -56,7 +59,8 @@ def _continuous_poll_loop() -> None:
                     _readings_buffer.append(cm)
         except Exception as e:
             print(f"[proximity] Error in continuous poll loop: {e}")
-        time.sleep(config.PROXIMITY_POLL_INTERVAL)
+        if _stop_event.wait(config.PROXIMITY_POLL_INTERVAL):
+            break
     print("[proximity] Continuous rangefinder polling thread stopped.")
 
 
