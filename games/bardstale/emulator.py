@@ -64,9 +64,14 @@ _MAME_FLAGS: list[str] = [
     "-noautosave",
 ]
 
-# Optional: override ROM search path via environment variable.
-# Default: MAME's own configured path (usually ~/.mame/roms or /usr/share/games/mame/roms)
-_ROMPATH = os.environ.get("MAME_ROMPATH", "")
+# ROM search path for MAME.
+# Default: the games/ root directory alongside this package — a single shared
+# location for all future emulated systems (e.g. games/apple2e.zip).
+# Override with the MAME_ROMPATH environment variable if needed.
+_ROMPATH: str = os.environ.get(
+    "MAME_ROMPATH",
+    str(pathlib.Path(__file__).resolve().parent.parent),  # → …/Servoskull/games/
+)
 
 # ── Module state ───────────────────────────────────────────────────────────────
 _lock        = threading.Lock()
@@ -132,8 +137,7 @@ def start(disk_path: str) -> bool:
         # ── 2. MAME ───────────────────────────────────────────────────────────
         disk_path = str(pathlib.Path(disk_path).resolve())
         cmd = ["mame", _MAME_DRIVER, "-flop1", disk_path] + _MAME_FLAGS
-        if _ROMPATH:
-            cmd += ["-rompath", _ROMPATH]
+        cmd += ["-rompath", _ROMPATH]
 
         try:
             _mame_proc = subprocess.Popen(
