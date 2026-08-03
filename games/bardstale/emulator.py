@@ -139,8 +139,7 @@ def start(disk_path: str) -> bool:
     global _xvfb_proc, _mame_proc, _window_id, _xlib_dpy
 
     with _lock, _safe_signal_guard():
-        if _mame_proc and _mame_proc.poll() is None:
-            return True
+        stop()  # Ensure any stale MAME or Xvfb instances are terminated clean
 
         try:
             from games import prepare_roms
