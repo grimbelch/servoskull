@@ -330,6 +330,9 @@ def _game_loop() -> None:
                     print(f"[bardstale] narrate_cb error: {e}")
 
             emulator.send_key(key)
+            if key in {"S", "s"}:
+                time.sleep(0.3)
+                emulator.send_key("Return")
             _last_action = key
             _turn_count += 1
 
