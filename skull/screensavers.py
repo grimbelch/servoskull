@@ -1519,14 +1519,20 @@ def _render_vector_dungeon_frame(bezel, mask, now):
                 _dng_turn_t = 0.0
 
     # 2. Render First-Person 3D Vector Corridor Slices
+    DEPTH_BOXES = [
+        (15,  225, 15,  225),  # Depth 0 (Near / Eye frame)
+        (55,  185, 55,  185),  # Depth 1
+        (82,  158, 82,  158),  # Depth 2
+        (98,  142, 98,  142),  # Depth 3
+        (108, 132, 108, 132)   # Depth 4 (Far end)
+    ]
+
     pan_x = 0.0
     if _dng_turn_t < 1.0:
         pan_dir = _dng_turn_target_h - _dng_turn_start_h
         if pan_dir == 3: pan_dir = -1
         elif pan_dir == -3: pan_dir = 1
-        pan_x = (1.0 - _dng_turn_t) * pan_dir * -120.0
-
-    step_offset = (_dng_step_t % 1.0) * 0.8 if _dng_step_t < 1.0 else 0.0
+        pan_x = (1.0 - _dng_turn_t) * pan_dir * -50.0
 
     cur_x = int(_dng_px)
     cur_y = int(_dng_py)
@@ -1535,26 +1541,18 @@ def _render_vector_dungeon_frame(bezel, mask, now):
     right_dx, right_dy = DIRS_R[_dng_dir_idx]
 
     for depth in range(4, 0, -1):
-        z_near = float(depth - 1) - step_offset
-        z_far = float(depth) - step_offset
+        xl_n0, xr_n0, yt_n0, yb_n0 = DEPTH_BOXES[depth - 1]
+        xl_f0, xr_f0, yt_f0, yb_f0 = DEPTH_BOXES[depth]
 
-        if z_near <= 0.1:
-            z_near = 0.15
+        xl_n = int(xl_n0 + pan_x)
+        xr_n = int(xr_n0 + pan_x)
+        yt_n = yt_n0
+        yb_n = yb_n0
 
-        s_near = 140.0 / (z_near + 0.6)
-        s_far = 140.0 / (z_far + 0.6)
-
-        W, H = 40.0, 32.0
-
-        xl_n = int(120 - W * s_near + pan_x)
-        xr_n = int(120 + W * s_near + pan_x)
-        yt_n = int(120 - H * s_near)
-        yb_n = int(120 + H * s_near)
-
-        xl_f = int(120 - W * s_far + pan_x)
-        xr_f = int(120 + W * s_far + pan_x)
-        yt_f = int(120 - H * s_far)
-        yb_f = int(120 + H * s_far)
+        xl_f = int(xl_f0 + pan_x)
+        xr_f = int(xr_f0 + pan_x)
+        yt_f = yt_f0
+        yb_f = yb_f0
 
         cell_x = cur_x + fwd_dx * depth
         cell_y = cur_y + fwd_dy * depth
@@ -1563,8 +1561,8 @@ def _render_vector_dungeon_frame(bezel, mask, now):
 
         if cell_is_wall:
             d.rectangle([xl_f, yt_f, xr_f, yb_f], outline=(0, 220, 80), width=1)
-            pad_w = max(2, (xr_f - xl_f) // 6)
-            pad_h = max(2, (yb_f - yt_f) // 6)
+            pad_w = max(2, (xr_f - xl_f) // 4)
+            pad_h = max(2, (yb_f - yt_f) // 4)
             d.rectangle([xl_f + pad_w, yt_f + pad_h, xr_f - pad_w, yb_f - pad_h], outline=(0, 160, 60), width=1)
             d.line([(xl_f, (yt_f + yb_f)//2), (xr_f, (yt_f + yb_f)//2)], fill=(0, 140, 50), width=1)
             continue
@@ -1580,8 +1578,8 @@ def _render_vector_dungeon_frame(bezel, mask, now):
         else:
             d.line([(xl_n, yt_n), (xl_f, yt_f)], fill=(0, 220, 80), width=1)
             d.line([(xl_n, yb_n), (xl_f, yb_f)], fill=(0, 220, 80), width=1)
-            d.line([(max(0, xl_n - 30), yt_n), (xl_n, yt_n)], fill=(0, 160, 50), width=1)
-            d.line([(max(0, xl_n - 30), yb_n), (xl_n, yb_n)], fill=(0, 160, 50), width=1)
+            d.line([(0, yt_f), (xl_f, yt_f)], fill=(0, 160, 50), width=1)
+            d.line([(0, yb_f), (xl_f, yb_f)], fill=(0, 160, 50), width=1)
 
         rx = cell_x + right_dx
         ry = cell_y + right_dy
@@ -1594,8 +1592,8 @@ def _render_vector_dungeon_frame(bezel, mask, now):
         else:
             d.line([(xr_n, yt_n), (xr_f, yt_f)], fill=(0, 220, 80), width=1)
             d.line([(xr_n, yb_n), (xr_f, yb_f)], fill=(0, 220, 80), width=1)
-            d.line([(xr_n, yt_n), (min(240, xr_n + 30), yt_n)], fill=(0, 160, 50), width=1)
-            d.line([(xr_n, yb_n), (min(240, xr_n + 30), yb_n)], fill=(0, 160, 50), width=1)
+            d.line([(xr_f, yt_f), (240, yt_f)], fill=(0, 160, 50), width=1)
+            d.line([(xr_f, yb_f), (240, yb_f)], fill=(0, 160, 50), width=1)
 
         d.line([(xl_n, yt_n), (xr_n, yt_n)], fill=(0, 200, 70), width=1)
         d.line([(xl_n, yb_n), (xr_n, yb_n)], fill=(0, 200, 70), width=1)
