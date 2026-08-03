@@ -1392,174 +1392,246 @@ def render_screensaver_frame(anim_name: str, bezel, mask, now: float) -> Image.I
 
 # Vector Dungeon State
 _dng_map = []
+_dng_walls = []
 _dng_px = 1.5
 _dng_py = 1.5
-_dng_dir = 0
-_dng_target_dir = 0
+_dng_heading = 0.0
+_dng_step_start_x = 1.5
+_dng_step_start_y = 1.5
+_dng_step_target_x = 1.5
+_dng_step_target_y = 1.5
+_dng_step_t = 1.0
+_dng_turn_start_h = 0.0
+_dng_turn_target_h = 0.0
 _dng_turn_t = 1.0
-_dng_move_t = 0.0
+_dng_dir_idx = 0 # 0:N, 1:E, 2:S, 3:W
 _dng_monster = None
 _dng_sparks = []
 _dng_score = 0
-_dng_last_action = 0.0
+_dng_last_update = 0.0
 
 def _init_vector_dungeon():
-    global _dng_map, _dng_px, _dng_py, _dng_dir, _dng_target_dir, _dng_turn_t, _dng_move_t, _dng_monster, _dng_sparks, _dng_score, _dng_last_action
+    global _dng_map, _dng_walls, _dng_px, _dng_py, _dng_heading, _dng_step_start_x, _dng_step_start_y, _dng_step_target_x, _dng_step_target_y, _dng_step_t, _dng_turn_start_h, _dng_turn_target_h, _dng_turn_t, _dng_dir_idx, _dng_monster, _dng_sparks, _dng_score, _dng_last_update
     _dng_map = [
-        [1,1,1,1,1,1,1,1,1,1],
-        [1,0,0,0,1,0,0,0,0,1],
-        [1,0,1,0,1,0,1,1,0,1],
-        [1,0,1,0,0,0,0,1,0,1],
-        [1,0,1,1,1,1,0,1,0,1],
-        [1,0,0,0,0,1,0,0,0,1],
-        [1,1,1,1,0,1,1,1,0,1],
-        [1,0,0,0,0,0,0,1,0,1],
-        [1,0,1,1,1,1,0,0,0,1],
-        [1,1,1,1,1,1,1,1,1,1]
+        [1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,1,0,0,0,0,0,0,1],
+        [1,0,1,0,1,0,1,1,1,1,0,1],
+        [1,0,1,0,0,0,0,0,0,1,0,1],
+        [1,0,1,1,1,1,0,1,0,1,0,1],
+        [1,0,0,0,0,1,0,1,0,0,0,1],
+        [1,1,1,1,0,1,0,1,1,1,0,1],
+        [1,0,0,0,0,0,0,0,0,1,0,1],
+        [1,0,1,1,1,1,1,1,0,1,0,1],
+        [1,0,0,0,0,0,0,1,0,0,0,1],
+        [1,0,1,1,1,1,0,0,0,1,0,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1]
     ]
+
+    # Pre-extract all visible wall line segments from grid
+    _dng_walls = []
+    rows = len(_dng_map)
+    cols = len(_dng_map[0])
+    for y in range(rows):
+        for x in range(cols):
+            if _dng_map[y][x] == 1:
+                if y == rows - 1 or _dng_map[y+1][x] == 0:
+                    _dng_walls.append(((float(x), float(y+1)), (float(x+1), float(y+1))))
+                if y == 0 or _dng_map[y-1][x] == 0:
+                    _dng_walls.append(((float(x), float(y)), (float(x+1), float(y))))
+                if x == 0 or _dng_map[y][x-1] == 0:
+                    _dng_walls.append(((float(x), float(y)), (float(x), float(y+1))))
+                if x == cols - 1 or _dng_map[y][x+1] == 0:
+                    _dng_walls.append(((float(x+1), float(y)), (float(x+1), float(y+1))))
+
     _dng_px = 1.5
     _dng_py = 1.5
-    _dng_dir = 0
-    _dng_target_dir = 0
+    _dng_heading = 0.0
+    _dng_dir_idx = 0
+    _dng_step_start_x = 1.5
+    _dng_step_start_y = 1.5
+    _dng_step_target_x = 1.5
+    _dng_step_target_y = 1.5
+    _dng_step_t = 1.0
+    _dng_turn_start_h = 0.0
+    _dng_turn_target_h = 0.0
     _dng_turn_t = 1.0
-    _dng_move_t = 0.0
     _dng_monster = None
     _dng_sparks = []
     _dng_score = 0
-    _dng_last_action = 0.0
+    _dng_last_update = 0.0
 
 
 def _render_vector_dungeon_frame(bezel, mask, now):
-    """80s Retro Vector 3D Wireframe Dungeon Crawler Screensaver."""
-    global _dng_map, _dng_px, _dng_py, _dng_dir, _dng_target_dir, _dng_turn_t, _dng_move_t, _dng_monster, _dng_sparks, _dng_score, _dng_last_action
+    """80s Retro Vector 3D Wireframe Dungeon Crawler with Smooth 3D Panning & Branching Corridors."""
+    global _dng_map, _dng_walls, _dng_px, _dng_py, _dng_heading, _dng_step_start_x, _dng_step_start_y, _dng_step_target_x, _dng_step_target_y, _dng_step_t, _dng_turn_start_h, _dng_turn_target_h, _dng_turn_t, _dng_dir_idx, _dng_monster, _dng_sparks, _dng_score, _dng_last_update
 
-    if not _dng_map:
+    if not _dng_map or not _dng_walls:
         _init_vector_dungeon()
 
     img = Image.new("RGB", (240, 240), (0, 8, 3))
     d = ImageDraw.Draw(img)
 
-    DIRS = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+    DIRS = [(0, 1), (1, 0), (0, -1), (-1, 0)] # N, E, S, W
+    HEADINGS = [0.0, math.pi / 2, math.pi, 3 * math.pi / 2]
 
-    # 1. Process Exploration Movement & AI Navigation
-    if now - _dng_last_action > 0.12:
-        _dng_last_action = now
+    dt = 0.05
+    if _dng_last_update == 0.0:
+        _dng_last_update = now
+    else:
+        dt = max(0.01, min(0.1, now - _dng_last_update))
+        _dng_last_update = now
 
-        if _dng_turn_t < 1.0:
-            _dng_turn_t += 0.25
-            if _dng_turn_t >= 1.0:
-                _dng_dir = _dng_target_dir
+    # 1. Update Exploration AI, Turning, & Walking States
+    if _dng_monster is not None:
+        _dng_monster["timer"] += dt * 2.5
+        if _dng_monster["timer"] >= 1.0:
+            _dng_score += 2500
+            mx, my = _dng_monster["sx"], _dng_monster["sy"]
+            for _ in range(25):
+                a = random.uniform(0, 2 * math.pi)
+                spd = random.uniform(2.0, 6.0)
+                _dng_sparks.append({"x": mx, "y": my, "vx": math.cos(a)*spd, "vy": math.sin(a)*spd, "life": 1.0})
+            _dng_monster = None
 
-        elif _dng_monster is not None:
-            _dng_monster["timer"] += 0.15
-            if _dng_monster["timer"] >= 0.8:
-                _dng_score += 2500
-                mx, my = _dng_monster["sx"], _dng_monster["sy"]
-                for _ in range(25):
-                    a = random.uniform(0, 2 * math.pi)
-                    spd = random.uniform(2.0, 6.0)
-                    _dng_sparks.append({"x": mx, "y": my, "vx": math.cos(a)*spd, "vy": math.sin(a)*spd, "life": 1.0})
-                _dng_monster = None
+    elif _dng_turn_t < 1.0:
+        # Smooth 3D turning pan
+        _dng_turn_t = min(1.0, _dng_turn_t + dt * 2.2)
+        # Cosine interpolation
+        t_ease = (1.0 - math.cos(_dng_turn_t * math.pi)) * 0.5
+        _dng_heading = _dng_turn_start_h + (_dng_turn_target_h - _dng_turn_start_h) * t_ease
+
+    elif _dng_step_t < 1.0:
+        # Smooth forward walking movement
+        _dng_step_t = min(1.0, _dng_step_t + dt * 2.5)
+        _dng_px = _dng_step_start_x + (_dng_step_target_x - _dng_step_start_x) * _dng_step_t
+        _dng_py = _dng_step_start_y + (_dng_step_target_y - _dng_step_start_y) * _dng_step_t
+
+        if _dng_step_t >= 1.0:
+            # Monster encounter check upon reaching new cell
+            if random.random() < 0.28:
+                m_type = random.choice([0, 1, 2])
+                _dng_monster = {"type": m_type, "depth": 2.0, "timer": 0.0, "sx": 120, "sy": 120}
+
+    else:
+        # Decide next move from current cell
+        cur_cell_x = int(_dng_px)
+        cur_cell_y = int(_dng_py)
+        dx, dy = DIRS[_dng_dir_idx]
+        next_x = cur_cell_x + dx
+        next_y = cur_cell_y + dy
+
+        # Check if corridor ahead is open
+        if 0 <= next_x < 12 and 0 <= next_y < 12 and _dng_map[next_y][next_x] == 0 and random.random() > 0.25:
+            # Walk forward into next cell
+            _dng_step_start_x = _dng_px
+            _dng_step_start_y = _dng_py
+            _dng_step_target_x = float(next_x) + 0.5
+            _dng_step_target_y = float(next_y) + 0.5
+            _dng_step_t = 0.0
         else:
-            dx, dy = DIRS[_dng_dir]
-            next_x = int(_dng_px + dx)
-            next_y = int(_dng_py + dy)
+            # Pick a turn at T-junction / intersection / dead-end
+            valid_dirs = []
+            for d_idx in range(4):
+                tx = cur_cell_x + DIRS[d_idx][0]
+                ty = cur_cell_y + DIRS[d_idx][1]
+                if 0 <= tx < 12 and 0 <= ty < 12 and _dng_map[ty][tx] == 0:
+                    valid_dirs.append(d_idx)
+            if valid_dirs:
+                back_idx = (_dng_dir_idx + 2) % 4
+                if len(valid_dirs) > 1 and back_idx in valid_dirs:
+                    valid_dirs.remove(back_idx)
+                next_dir_idx = random.choice(valid_dirs)
+                
+                _dng_turn_start_h = _dng_heading
+                diff = next_dir_idx - _dng_dir_idx
+                if diff == 3: diff = -1
+                elif diff == -3: diff = 1
+                
+                _dng_turn_target_h = _dng_heading + diff * (math.pi / 2)
+                _dng_dir_idx = next_dir_idx
+                _dng_turn_t = 0.0
 
-            if 0 <= next_x < 10 and 0 <= next_y < 10 and _dng_map[next_y][next_x] == 0 and random.random() > 0.15:
-                _dng_move_t += 0.2
-                if _dng_move_t >= 1.0:
-                    _dng_move_t = 0.0
-                    _dng_px = float(next_x) + 0.5
-                    _dng_py = float(next_y) + 0.5
+    # 2. Render 3D Vector Wireframe Wall Polygons
+    cos_h = math.cos(_dng_heading)
+    sin_h = math.sin(_dng_heading)
 
-                    if random.random() < 0.30:
-                        m_type = random.choice([0, 1, 2])
-                        _dng_monster = {"type": m_type, "depth": 2, "timer": 0.0, "sx": 120, "sy": 120}
-            else:
-                _dng_move_t = 0.0
-                valid_turns = []
-                for turn_dir in range(4):
-                    tx = int(_dng_px + DIRS[turn_dir][0])
-                    ty = int(_dng_py + DIRS[turn_dir][1])
-                    if 0 <= tx < 10 and 0 <= ty < 10 and _dng_map[ty][tx] == 0:
-                        valid_turns.append(turn_dir)
-                if valid_turns:
-                    back_dir = (_dng_dir + 2) % 4
-                    if len(valid_turns) > 1 and back_dir in valid_turns:
-                        valid_turns.remove(back_dir)
-                    _dng_target_dir = random.choice(valid_turns)
-                    _dng_turn_t = 0.0
+    # Sort wall segments by distance for correct back-to-front rendering
+    rendered_quads = []
 
-    # 2. Render First-Person 3D Vector Wireframe Corridor
-    cur_x = int(_dng_px)
-    cur_y = int(_dng_py)
-    dx, dy = DIRS[_dng_dir]
-    lx, ly = DIRS[(_dng_dir - 1) % 4]
-    rx, ry = DIRS[(_dng_dir + 1) % 4]
+    for (wx1, wy1), (wx2, wy2) in _dng_walls:
+        dx1, dy1 = wx1 - _dng_px, wy1 - _dng_py
+        dx2, dy2 = wx2 - _dng_px, wy2 - _dng_py
 
-    for depth in range(4, 0, -1):
-        z_near = depth - 0.5 - _dng_move_t * 0.5
-        z_far = depth + 0.5 - _dng_move_t * 0.5
+        x1_c = dx1 * cos_h - dy1 * sin_h
+        z1_c = dx1 * sin_h + dy1 * cos_h
 
-        if z_near <= 0.1:
+        x2_c = dx2 * cos_h - dy2 * sin_h
+        z2_c = dx2 * sin_h + dy2 * cos_h
+
+        # Clip line segment against near plane z = 0.25
+        if z1_c < 0.25 and z2_c < 0.25:
             continue
 
-        scale_n = 140.0 / z_near
-        scale_f = 140.0 / z_far
+        if z1_c < 0.25:
+            t = (0.25 - z1_c) / (z2_c - z1_c)
+            x1_c = x1_c + t * (x2_c - x1_c)
+            z1_c = 0.25
 
-        w_half, h_half = 45.0, 35.0
+        if z2_c < 0.25:
+            t = (0.25 - z2_c) / (z1_c - z2_c)
+            x2_c = x2_c + t * (x1_c - x2_c)
+            z2_c = 0.25
 
-        nl = int(120 - w_half * scale_n)
-        nr = int(120 + w_half * scale_n)
-        nt = int(120 - h_half * scale_n)
-        nb = int(120 + h_half * scale_n)
-
-        fl = int(120 - w_half * scale_f)
-        fr = int(120 + w_half * scale_f)
-        ft = int(120 - h_half * scale_f)
-        fb = int(120 + h_half * scale_f)
-
-        cx = cur_x + dx * depth
-        cy = cur_y + dy * depth
-
-        if not (0 <= cx < 10 and 0 <= cy < 10) or _dng_map[cy][cx] == 1:
-            d.rectangle([fl, ft, fr, fb], outline=(0, 220, 80), width=1)
-            d.line([(fl, ft), (fr, fb)], fill=(0, 100, 40), width=1)
-            d.line([(fl, fb), (fr, ft)], fill=(0, 100, 40), width=1)
+        # Skip walls too far away
+        avg_z = (z1_c + z2_c) * 0.5
+        if avg_z > 5.5:
             continue
 
-        l_cell_x = cx + lx
-        l_cell_y = cy + ly
-        is_left_wall = not (0 <= l_cell_x < 10 and 0 <= l_cell_y < 10) or _dng_map[l_cell_y][l_cell_x] == 1
+        scale1 = 140.0 / z1_c
+        scale2 = 140.0 / z2_c
 
-        if is_left_wall:
-            d.polygon([(nl, nt), (fl, ft), (fl, fb), (nl, nb)], outline=(0, 220, 80), width=1)
-        else:
-            d.line([(nl, nt), (fl, ft)], fill=(0, 140, 50), width=1)
-            d.line([(nl, nb), (fl, fb)], fill=(0, 140, 50), width=1)
+        sx1 = 120 + x1_c * scale1
+        sy1_t = 120 - 45.0 * scale1
+        sy1_b = 120 + 45.0 * scale1
 
-        r_cell_x = cx + rx
-        r_cell_y = cy + ry
-        is_right_wall = not (0 <= r_cell_x < 10 and 0 <= r_cell_y < 10) or _dng_map[r_cell_y][r_cell_x] == 1
+        sx2 = 120 + x2_c * scale2
+        sy2_t = 120 - 45.0 * scale2
+        sy2_b = 120 + 45.0 * scale2
 
-        if is_right_wall:
-            d.polygon([(fr, ft), (nr, nt), (nr, nb), (fr, fb)], outline=(0, 220, 80), width=1)
-        else:
-            d.line([(nr, nt), (fr, ft)], fill=(0, 140, 50), width=1)
-            d.line([(nr, nb), (fr, fb)], fill=(0, 140, 50), width=1)
+        rendered_quads.append((avg_z, (sx1, sy1_t, sy1_b), (sx2, sy2_t, sy2_b)))
 
-        d.line([(nl, nt), (nr, nt)], fill=(0, 180, 60), width=1)
-        d.line([(nl, nb), (nr, nb)], fill=(0, 180, 60), width=1)
+    # Sort back to front
+    rendered_quads.sort(key=lambda q: q[0], reverse=True)
 
-    # 3. Render 3D Vector Monster Encounter
+    for avg_z, (sx1, sy1_t, sy1_b), (sx2, sy2_t, sy2_b) in rendered_quads:
+        # Green wireframe wall quad
+        pts = [(sx1, sy1_t), (sx2, sy2_t), (sx2, sy2_b), (sx1, sy1_b)]
+        d.polygon(pts, outline=(0, 220, 80), width=1)
+        # Vertical wall posts
+        d.line([(sx1, sy1_t), (sx1, sy1_b)], fill=(0, 255, 100), width=1)
+        d.line([(sx2, sy2_t), (sx2, sy2_b)], fill=(0, 255, 100), width=1)
+
+    # 3. Floor & Ceiling Grid Depth Guidelines
+    for gz in [1.0, 2.0, 3.0, 4.0]:
+        z_grid = gz - (_dng_step_t % 1.0) * 1.0
+        if z_grid > 0.3:
+            scale_g = 140.0 / z_grid
+            sy_fl = 120 + 45.0 * scale_g
+            sy_cl = 120 - 45.0 * scale_g
+            if 0 <= sy_fl <= 240:
+                d.line([(0, sy_fl), (240, sy_fl)], fill=(0, 50, 20), width=1)
+            if 0 <= sy_cl <= 240:
+                d.line([(0, sy_cl), (240, sy_cl)], fill=(0, 50, 20), width=1)
+
+    # 4. Render 3D Vector Monster Encounter
     if _dng_monster is not None:
         m_type = _dng_monster["type"]
         timer = _dng_monster["timer"]
         md = _dng_monster["depth"]
-        m_scale = 130.0 / md
+        m_scale = 140.0 / md
         mc_x, mc_y = 120, 120
 
-        col_m = (220, 140, 20) if timer < 0.4 else (220, 30, 30)
+        col_m = (220, 140, 20) if timer < 0.5 else (220, 30, 30)
 
         if m_type == 0:
             r_orb = int(22 * m_scale)
@@ -1589,11 +1661,11 @@ def _render_vector_dungeon_frame(bezel, mask, now):
             for ry in range(mc_y + 5, mc_y + 35, 7):
                 d.line([(mc_x - 14, ry), (mc_x + 14, ry)], fill=col_m, width=1)
 
-        if timer >= 0.4:
+        if timer >= 0.5:
             d.line([(120, 240), (mc_x, mc_y)], fill=(0, 255, 120), width=3)
             d.ellipse([mc_x - 15, mc_y - 15, mc_x + 15, mc_y + 15], outline=(220, 140, 20), width=2)
 
-    # 4. Render Sparks / Explosions
+    # 5. Render Sparks / Explosions
     new_sparks = []
     for sp in _dng_sparks:
         sp["x"] += sp["vx"]
@@ -1605,17 +1677,20 @@ def _render_vector_dungeon_frame(bezel, mask, now):
             new_sparks.append(sp)
     _dng_sparks = new_sparks
 
-    # 5. Render HUD Overlay & Compass
+    # 6. Render HUD Overlay & Minimap
     try:
         font = ImageFont.load_default()
     except Exception:
         font = None
 
     dirs_lbl = ["NORTH", "EAST", "SOUTH", "WEST"]
+    cur_x_lbl = int(_dng_px)
+    cur_y_lbl = int(_dng_py)
+
     if font:
         d.text((15, 16), "COG-DUNGEON", fill=(0, 220, 80), font=font)
-        d.text((155, 16), f"POS:({cur_x:02d},{cur_y:02d})", fill=(220, 140, 20), font=font)
-        d.text((15, 215), f"DIR: {dirs_lbl[_dng_dir]}", fill=(0, 180, 60), font=font)
+        d.text((155, 16), f"POS:({cur_x_lbl:02d},{cur_y_lbl:02d})", fill=(220, 140, 20), font=font)
+        d.text((15, 215), f"DIR: {dirs_lbl[_dng_dir_idx]}", fill=(0, 180, 60), font=font)
         d.text((150, 215), f"SCORE: {_dng_score:05d}", fill=(220, 140, 20), font=font)
 
         if _dng_monster is not None:
