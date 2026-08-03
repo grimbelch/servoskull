@@ -533,11 +533,15 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             # Allow caller to override disk path; otherwise pick first found disk
             disk_path = data.get("disk", "")
             if not disk_path:
-                disks = sorted(
-                    list(disk_dir.glob("*.dsk")) + list(disk_dir.glob("*.woz"))
-                    + list(disk_dir.glob("*.nib"))
-                ) if disk_dir.exists() else []
-                disk_path = str(disks[0]) if disks else ""
+                char_disk = disk_dir / "bards_tale_character.dsk"
+                if char_disk.exists():
+                    disk_path = str(char_disk)
+                else:
+                    disks = sorted(
+                        list(disk_dir.glob("*.dsk")) + list(disk_dir.glob("*.woz"))
+                        + list(disk_dir.glob("*.nib"))
+                    ) if disk_dir.exists() else []
+                    disk_path = str(disks[0]) if disks else ""
             if not disk_path:
                 self._send_json({"ok": False, "error": "No disk image found in games/bardstale/disks/"}, 400)
                 return
