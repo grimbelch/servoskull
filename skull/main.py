@@ -513,8 +513,8 @@ def _morning_greeting_watcher() -> None:
 
             if not face_found:
                 # Rangefinder was triggered by a static object (desk/chair/monitor).
-                # Poll every 3s so when the master sits down, it detects them immediately.
-                time.sleep(3.0)
+                # Re-check in 5 minutes (300s) when no face is present.
+                time.sleep(300.0)
                 continue
 
             if not detected_name:
