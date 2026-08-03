@@ -81,7 +81,22 @@ _window_id:  Optional[str]              = None
 _xlib_dpy                               = None
 
 
+import signal
+
 # ── Internal helpers ───────────────────────────────────────────────────────────
+
+def _safe_signal_guard():
+    """Context manager to prevent signal.signal from raising ValueError on non-main threads."""
+    class _Guard:
+        def __enter__(self):
+            self.orig_signal = signal.signal
+            if threading.current_thread() != threading.main_thread():
+                signal.signal = lambda *args, **kwargs: None
+            return self
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            signal.signal = self.orig_signal
+    return _Guard()
+
 
 def _get_xlib_display():
     global _xlib_dpy
@@ -89,7 +104,8 @@ def _get_xlib_display():
         return None
     try:
         if _xlib_dpy is None:
-            _xlib_dpy = _xlib_display.Display(DISPLAY_NUM)
+            with _safe_signal_guard():
+                _xlib_dpy = _xlib_display.Display(DISPLAY_NUM)
         return _xlib_dpy
     except Exception as e:
         print(f"[emulator] Xlib connect error: {e}")
@@ -116,7 +132,7 @@ def start(disk_path: str) -> bool:
     """
     global _xvfb_proc, _mame_proc, _window_id, _xlib_dpy
 
-    with _lock:
+    with _lock, _safe_signal_guard():
         if _mame_proc and _mame_proc.poll() is None:
             return True
 
