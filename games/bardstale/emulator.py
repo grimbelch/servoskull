@@ -56,15 +56,12 @@ _BOOT_DELAY  = 5.0              # seconds for MAME to initialise and show first 
 # MAME flags. -nowindow fills the Xvfb virtual framebuffer without a title bar,
 # giving us a clean game image to crop. -sound none stops MAME from fighting the Pi's
 # ALSA device (Omega-7's audio stack handles all sound).
-_AUTOBOOT_SCRIPT: str = str(pathlib.Path(__file__).resolve().parent / "autoboot.lua")
-
 _MAME_FLAGS: list[str] = [
     "-nowindow",
     "-skip_gameinfo",
     "-sound",           "none",
     "-video",           "soft",      # software renderer — safe with Xvfb / X11
     "-noautosave",
-    "-autoboot_script", _AUTOBOOT_SCRIPT,
 ]
 
 # ROM search path for MAME.
