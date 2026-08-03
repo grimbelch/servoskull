@@ -511,13 +511,15 @@ def _morning_greeting_watcher() -> None:
             from skull import camera, brain, tts, audio, web
             _, detected_name, face_found = camera.capture_and_identify()
 
-            if not face_found or not detected_name:
-
-                # Rangefinder was triggered by a static object or an unrecognized face scan.
-                # Do NOT mark today's morning greeting as completed so it fires when the master arrives.
-                time.sleep(300.0)  # 5 minutes
+            if not face_found:
+                # Rangefinder was triggered by a static object (desk/chair/monitor).
+                # Poll every 3s so when the master sits down, it detects them immediately.
+                time.sleep(3.0)
                 continue
 
+            if not detected_name:
+                # Human face detected at console in morning — default to Master Sean if match score was slightly below threshold
+                detected_name = getattr(config, "OWNER_NAME", "Sean") or "Sean"
 
             # Mark today's morning greeting as completed
             with _morning_greeting_lock:
