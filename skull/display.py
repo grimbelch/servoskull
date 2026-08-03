@@ -1630,7 +1630,7 @@ def _render_orbitals_frame(bezel, mask, now):
 # ── New screensaver render functions ─────────────────────────────────────────
 
 def _render_plasma_frame(bezel, mask, now):
-    """Sine-wave interference plasma – vivid overlapping colour waves."""
+    """Sine-wave interference plasma – subdued phosphor green & amber waves."""
     from PIL import Image
     import numpy as np
     x = np.linspace(0, 2 * math.pi, 240)
@@ -1641,17 +1641,17 @@ def _render_plasma_frame(bezel, mask, now):
          + np.sin((xx + yy) * 0.5 + t * 0.9)
          + np.sin(np.sqrt(xx**2 + yy**2) + t)) / 4.0
     v = (v + 1.0) / 2.0
-    r = (np.sin(v * math.pi * 2 + t) * 127 + 128).clip(0, 255).astype(np.uint8)
-    g = (np.sin(v * math.pi * 2 + t + 2.094) * 127 + 128).clip(0, 255).astype(np.uint8)
-    b = (np.sin(v * math.pi * 2 + t + 4.189) * 127 + 128).clip(0, 255).astype(np.uint8)
+    r = (v * 40).clip(0, 255).astype(np.uint8)
+    g = (v * 210 + 20).clip(0, 255).astype(np.uint8)
+    b = (v * 50).clip(0, 255).astype(np.uint8)
     arr = np.stack([r, g, b], axis=-1)
     return Image.fromarray(arr, mode="RGB")
 
 
 def _render_lissajous_frame(bezel, mask, now):
-    """Lissajous curve tracer – parametric neon figures."""
+    """Lissajous curve tracer – subdued phosphor green & amber figures."""
     from PIL import Image, ImageDraw
-    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    img = Image.new("RGB", (240, 240), (0, 8, 3))
     d = ImageDraw.Draw(img)
     a, b_freq, delta = 3, 2, now * 0.4
     pts = []
@@ -1662,9 +1662,10 @@ def _render_lissajous_frame(bezel, mask, now):
         pts.append((x, y))
     for i in range(len(pts) - 1):
         frac = i / len(pts)
-        r = int(255 * abs(math.sin(frac * math.pi + now)))
-        g = int(255 * abs(math.sin(frac * math.pi + now + 2.094)))
-        b = int(255 * abs(math.sin(frac * math.pi + now + 4.189)))
+        intensity = abs(math.sin(frac * math.pi + now))
+        g = int(160 + 95 * intensity)
+        r = int(20 * intensity)
+        b = int(30 * intensity)
         d.line([pts[i], pts[i+1]], fill=(r, g, b), width=2)
     return img
 
@@ -1673,9 +1674,15 @@ _voronoi_sites = []
 _voronoi_last_shift = 0.0
 def _init_voronoi():
     global _voronoi_sites, _voronoi_last_shift
+    palette_options = [
+        (0, random.randint(140, 220), random.randint(30, 80)),
+        (0, random.randint(80, 150), random.randint(20, 50)),
+        (random.randint(120, 180), random.randint(60, 100), 0),
+        (0, random.randint(100, 160), random.randint(100, 160)),
+    ]
     _voronoi_sites = [{"x": random.uniform(20, 220), "y": random.uniform(20, 220),
                        "dx": random.uniform(-0.8, 0.8), "dy": random.uniform(-0.8, 0.8),
-                       "c": (random.randint(80, 255), random.randint(10, 80), random.randint(0, 40))}
+                       "c": random.choice(palette_options)}
                       for _ in range(7)]
     _voronoi_last_shift = 0.0
 
@@ -1736,18 +1743,19 @@ def _render_data_stream_frame(bezel, mask, now):
 
 
 def _render_mandala_frame(bezel, mask, now):
-    """Rotating concentric mandala geometry."""
+    """Rotating concentric mandala geometry – subdued Mechanicus phosphors."""
     from PIL import Image, ImageDraw
-    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    img = Image.new("RGB", (240, 240), (0, 8, 3))
     d = ImageDraw.Draw(img)
     for ring in range(1, 8):
         r = ring * 14
         n_pts = ring * 6
         base_angle = now * (0.3 if ring % 2 == 0 else -0.3) * (ring * 0.2)
         t = now * 0.5
-        red = int(200 * abs(math.sin(ring * 0.9 + t)))
-        grn = int(100 * abs(math.sin(ring * 0.5 - t)))
-        blu = int(255 * abs(math.sin(ring * 0.3 + t * 0.7)))
+        intensity = abs(math.sin(ring * 0.5 + t))
+        red = int(20 * intensity) if ring % 3 != 0 else int(160 * intensity)
+        grn = int(140 + 115 * intensity)
+        blu = int(40 * intensity)
         pts = []
         for i in range(n_pts):
             a = base_angle + i * 2 * math.pi / n_pts
@@ -1758,9 +1766,9 @@ def _render_mandala_frame(bezel, mask, now):
 
 
 def _render_rune_wheel_frame(bezel, mask, now):
-    """Spinning elder rune characters around concentric circles."""
+    """Spinning elder rune characters around concentric circles – subdued green/amber."""
     from PIL import Image, ImageDraw, ImageFont
-    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    img = Image.new("RGB", (240, 240), (0, 8, 3))
     d = ImageDraw.Draw(img)
     try:
         font = ImageFont.load_default()
@@ -1773,9 +1781,11 @@ def _render_rune_wheel_frame(bezel, mask, now):
             x = int(120 + radius * math.cos(a))
             y = int(120 + radius * math.sin(a))
             t = now * 0.5
-            r = int(200 * abs(math.sin(ring_idx + t)))
-            g = int(80 * abs(math.sin(ring_idx * 0.7 + t)))
-            b = int(255 * abs(math.sin(ring_idx * 0.5 - t)))
+            intensity = abs(math.sin(ring_idx * 0.7 + t + i * 0.2))
+            if ring_idx == 1:
+                r, g, b = int(180 * intensity), int(100 * intensity), 0
+            else:
+                r, g, b = int(20 * intensity), int(160 + 95 * intensity), int(40 * intensity)
             rune = runes[(ring_idx * count + i) % len(runes)]
             if font:
                 d.text((x - 4, y - 4), rune, fill=(r, g, b), font=font)
@@ -1783,50 +1793,46 @@ def _render_rune_wheel_frame(bezel, mask, now):
 
 
 def _render_glitch_frame(bezel, mask, now):
-    """Digital glitch / corruption aesthetic."""
+    """Digital glitch / corruption aesthetic – subdued Mechanicus CRT noise."""
     from PIL import Image, ImageDraw
-    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    img = Image.new("RGB", (240, 240), (0, 8, 3))
     d = ImageDraw.Draw(img)
-    # Horizontal scan-line corruption
+    # Horizontal scan-line corruption (shades of dark green & crimson)
     for _ in range(random.randint(4, 14)):
         y = random.randint(0, 239)
         h = random.randint(1, 8)
         xoff = random.randint(-40, 40)
-        r = random.randint(0, 255)
-        g = random.randint(0, 255)
-        b = random.randint(0, 255)
-        d.rectangle([0, y, 239, y + h], fill=(int(r * 0.1), int(g * 0.1), int(b * 0.1)))
-        d.rectangle([max(0, xoff), y, min(239, 239 + xoff), y + h], fill=(r, 0, 0) if r > 200 else (0, g, b))
-    # Random bright pixels
+        d.rectangle([0, y, 239, y + h], fill=(0, random.randint(15, 35), random.randint(5, 15)))
+        d.rectangle([max(0, xoff), y, min(239, 239 + xoff), y + h], fill=random.choice([(180, 0, 0), (0, 200, 60), (180, 100, 0)]))
+    # Random phosphor pixels
     for _ in range(random.randint(20, 60)):
         x = random.randint(0, 239)
         y = random.randint(0, 239)
-        c = random.choice([(255, 0, 0), (0, 255, 200), (255, 255, 0), (0, 180, 255)])
+        c = random.choice([(0, 255, 100), (0, 180, 50), (220, 120, 0), (180, 0, 0)])
         d.point((x, y), fill=c)
     # Vertical tear lines
     for _ in range(random.randint(1, 4)):
         x = random.randint(0, 239)
-        d.line([(x, 0), (x, 239)], fill=(random.randint(100, 255), 0, 0), width=1)
+        d.line([(x, 0), (x, 239)], fill=(0, random.randint(120, 220), 40), width=1)
     return img
 
 
 def _render_dna_helix_frame(bezel, mask, now):
-    """Rotating double helix ribbons scrolling vertically."""
+    """Rotating double helix ribbons scrolling vertically – subdued green & amber."""
     from PIL import Image, ImageDraw
-    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    img = Image.new("RGB", (240, 240), (0, 8, 3))
     d = ImageDraw.Draw(img)
     for y in range(0, 240, 3):
         t = y * 0.06 + now * 2.0
         x1 = int(120 + 60 * math.sin(t))
         x2 = int(120 + 60 * math.sin(t + math.pi))
         frac = (math.sin(t) + 1) / 2
-        c1 = (int(255 * frac), int(80 * (1 - frac)), int(200 * (1 - frac)))
-        c2 = (int(80 * frac), int(200 * (1 - frac)), int(255 * frac))
+        c1 = (0, int(150 + 105 * frac), int(30 + 40 * frac))
+        c2 = (int(160 + 80 * (1 - frac)), int(80 + 40 * (1 - frac)), 0)
         d.ellipse([x1 - 3, y - 3, x1 + 3, y + 3], fill=c1)
         d.ellipse([x2 - 3, y - 3, x2 + 3, y + 3], fill=c2)
-        # Cross-links every ~20px
         if y % 20 < 3:
-            d.line([(x1, y), (x2, y)], fill=(80, 80, 80), width=1)
+            d.line([(x1, y), (x2, y)], fill=(0, 60, 20), width=1)
     return img
 
 
@@ -1850,13 +1856,12 @@ def _render_neural_net_frame(bezel, mask, now):
     if not _neural_nodes:
         _init_neural_net()
     from PIL import Image, ImageDraw
-    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    img = Image.new("RGB", (240, 240), (0, 8, 3))
     d = ImageDraw.Draw(img)
     for i, j in _neural_edges:
         d.line([(int(_neural_nodes[i]["x"]), int(_neural_nodes[i]["y"])),
                 (int(_neural_nodes[j]["x"]), int(_neural_nodes[j]["y"]))],
-               fill=(0, 30, 60), width=1)
-    # Pulse along edges
+               fill=(0, 45, 15), width=1)
     if random.random() < 0.15 and _neural_edges:
         e = random.choice(_neural_edges)
         _neural_pulses.append({"edge": e, "t": 0.0})
@@ -1868,19 +1873,19 @@ def _render_neural_net_frame(bezel, mask, now):
             x = int(_neural_nodes[i]["x"] * (1 - p["t"]) + _neural_nodes[j]["x"] * p["t"])
             y = int(_neural_nodes[i]["y"] * (1 - p["t"]) + _neural_nodes[j]["y"] * p["t"])
             bright = int(255 * (1 - abs(p["t"] - 0.5) * 2))
-            d.ellipse([x-4, y-4, x+4, y+4], fill=(0, bright, int(bright * 0.6)))
+            d.ellipse([x-4, y-4, x+4, y+4], fill=(int(bright * 0.8), bright, int(bright * 0.2)))
             new_pulses.append(p)
     _neural_pulses = new_pulses
     for n in _neural_nodes:
         d.ellipse([int(n["x"]) - 3, int(n["y"]) - 3, int(n["x"]) + 3, int(n["y"]) + 3],
-                  fill=(0, 150, 255))
+                  fill=(0, 200, 70))
     return img
 
 
 def _render_gravity_well_frame(bezel, mask, now):
-    """Particles spiraling into a singularity at centre."""
+    """Particles spiraling into a singularity at centre – subdued green/amber."""
     from PIL import Image, ImageDraw
-    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    img = Image.new("RGB", (240, 240), (0, 8, 3))
     d = ImageDraw.Draw(img)
     n = 80
     for i in range(n):
@@ -1891,12 +1896,12 @@ def _render_gravity_well_frame(bezel, mask, now):
         x = int(120 + r_orbit * math.cos(spiral_angle))
         y = int(120 + r_orbit * math.sin(spiral_angle))
         bright = int(255 * (1 - r_orbit / 100))
-        c = (int(bright * 0.7), int(bright * 0.3), bright)
+        c = (0, bright, int(bright * 0.3))
         d.ellipse([x-1, y-1, x+1, y+1], fill=c)
-    # Singularity glow
+    # Singularity glow (amber core)
     for rr in [12, 8, 4, 2]:
         alpha = int(255 * (1 - rr / 12))
-        d.ellipse([120-rr, 120-rr, 120+rr, 120+rr], fill=(alpha, int(alpha*0.3), alpha))
+        d.ellipse([120-rr, 120-rr, 120+rr, 120+rr], fill=(alpha, int(alpha*0.5), 0))
     return img
 
 
@@ -1990,8 +1995,7 @@ def _render_hex_grid_frame(bezel, mask, now):
     if not _hex_grid_cells:
         _init_hex_grid()
     from PIL import Image, ImageDraw
-    import numpy as np
-    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    img = Image.new("RGB", (240, 240), (0, 8, 3))
     d = ImageDraw.Draw(img)
     if now - _hex_last_flash > 0.08:
         _hex_last_flash = now
@@ -2001,10 +2005,9 @@ def _render_hex_grid_frame(bezel, mask, now):
     for cell in _hex_grid_cells:
         cell["flash"] = max(0.0, cell["flash"] - 0.06)
         f = cell["flash"]
-        base = 0.12
-        r = int(255 * (base + (1 - base) * f))
-        g = int(80 * f)
-        b = int(255 * (base * 0.5))
+        r = int(220 * f)
+        g = int(60 + 195 * f)
+        b = int(20 * (1 - f))
         s = cell["size"]
         x, y = cell["x"], cell["y"]
         pts = [(x + s * math.cos(math.radians(60 * i + 30)), y + s * math.sin(math.radians(60 * i + 30))) for i in range(6)]
@@ -2013,10 +2016,10 @@ def _render_hex_grid_frame(bezel, mask, now):
 
 
 def _render_kaleidoscope_frame(bezel, mask, now):
-    """Radially mirrored mandala pattern with shifting colours."""
+    """Radially mirrored mandala pattern – subdued Mechanicus green/amber/crimson."""
     from PIL import Image, ImageDraw
     n_segments = 8
-    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    img = Image.new("RGB", (240, 240), (0, 8, 3))
     d = ImageDraw.Draw(img)
     for seg in range(n_segments):
         base_a = seg * (2 * math.pi / n_segments) + now * 0.2
@@ -2029,20 +2032,16 @@ def _render_kaleidoscope_frame(bezel, mask, now):
             y1 = int(120 + rr * math.sin(a1))
             x2 = int(120 + (rr + 4) * math.cos(a2))
             y2 = int(120 + (rr + 4) * math.sin(a2))
-            hue = (now * 60 + seg * 45 + t * 120) % 360
-            hr = hue / 360
-            # Convert HSV-ish to RGB
-            region = int(hr * 6)
-            fract = hr * 6 - region
-            colors = [
-                (255, int(255 * fract), 0),
-                (int(255 * (1 - fract)), 255, 0),
-                (0, 255, int(255 * fract)),
-                (0, int(255 * (1 - fract)), 255),
-                (int(255 * fract), 0, 255),
-                (255, 0, int(255 * (1 - fract))),
-            ]
-            col = colors[region % 6]
+            # Subdued Mechanicus palette cycle (Phosphor Green -> Cogitator Amber -> Crimson Red)
+            cycle = (now * 0.5 + seg * 0.25 + t) % 3.0
+            if cycle < 1.0:
+                col = (0, int(160 + 95 * cycle), int(30 + 40 * cycle))
+            elif cycle < 2.0:
+                frac = cycle - 1.0
+                col = (int(180 * frac), int(120 * frac), 0)
+            else:
+                frac = cycle - 2.0
+                col = (int(160 * (1 - frac)), 0, 0)
             d.line([(x1, y1), (x2, y2)], fill=col, width=2)
     return img
 
@@ -2055,9 +2054,8 @@ def _init_particle_burst():
 def _render_particle_burst_frame(bezel, mask, now):
     global _pburst_particles
     from PIL import Image, ImageDraw
-    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    img = Image.new("RGB", (240, 240), (0, 8, 3))
     d = ImageDraw.Draw(img)
-    # Spawn new burst every second
     if not hasattr(_render_particle_burst_frame, "last_burst"):
         _render_particle_burst_frame.last_burst = 0.0
     if now - _render_particle_burst_frame.last_burst > 0.8:
@@ -2065,29 +2063,27 @@ def _render_particle_burst_frame(bezel, mask, now):
         n = random.randint(20, 40)
         bx = random.uniform(60, 180)
         by = random.uniform(60, 180)
-        hue = random.uniform(0, 1)
+        p_type = random.choice([0, 0, 0, 1, 1, 2])
         for _ in range(n):
             a = random.uniform(0, 2 * math.pi)
             spd = random.uniform(1.5, 5.0)
             _pburst_particles.append({"x": bx, "y": by, "vx": math.cos(a) * spd,
-                                       "vy": math.sin(a) * spd, "life": 1.0, "hue": hue})
+                                       "vy": math.sin(a) * spd, "life": 1.0, "type": p_type})
     new_p = []
     for p in _pburst_particles:
         p["x"] += p["vx"]
         p["y"] += p["vy"]
-        p["vy"] += 0.08  # gravity
+        p["vy"] += 0.08
         p["life"] -= 0.025
         if p["life"] > 0:
-            # Convert hue to RGB
-            h6 = (p["hue"] * 6) % 6
-            f = h6 - int(h6)
-            palette = [
-                (255, int(255*f), 0), (int(255*(1-f)), 255, 0), (0, 255, int(255*f)),
-                (0, int(255*(1-f)), 255), (int(255*f), 0, 255), (255, 0, int(255*(1-f)))
-            ]
-            r, g, b = palette[int(h6) % 6]
             alpha = p["life"]
-            col = (int(r * alpha), int(g * alpha), int(b * alpha))
+            if p["type"] == 0:
+                r, g, b = 0, int(230 * alpha), int(60 * alpha)
+            elif p["type"] == 1:
+                r, g, b = int(220 * alpha), int(130 * alpha), 0
+            else:
+                r, g, b = int(200 * alpha), 0, 0
+            col = (r, g, b)
             d.ellipse([int(p["x"]) - 2, int(p["y"]) - 2, int(p["x"]) + 2, int(p["y"]) + 2], fill=col)
             new_p.append(p)
     _pburst_particles = new_p
