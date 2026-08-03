@@ -11,12 +11,12 @@ from concurrent.futures import ThreadPoolExecutor
 # ── Module-level compiled regexes ─────────────────────────────────────────────
 # Compiled once at import; never recompiled per loop iteration.
 _RE_GAME_START = re.compile(
-    r"\b(play|start|launch|run|begin)\b.{0,25}\b(bard.?s?\s*tale|bardstale)\b"
-    r"|\bwatch\s+(you|omega.?7)\s+play\b",
+    r"\b(play|start|launch|run|begin)\b.*\b(bard|bardstale)\b"
+    r"|\bwatch\s+.*play\b|\bplay\s+(the\s+)?game\b",
     re.I,
 )
 _RE_GAME_STOP = re.compile(
-    r"\b(stop|end|quit|halt|enough)\b.{0,25}\b(bard.?s?\s*tale|game|playing)\b",
+    r"\b(stop|end|quit|halt|enough)\b.*\b(bard|game|playing)\b",
     re.I,
 )
 
@@ -1103,7 +1103,7 @@ def main():
         # ── 3a-0b. Bard's Tale autonomous play intents ─────────────────────
         if _RE_GAME_START.search(_t):
             from games.bardstale import agent as _bt_agent
-            disk_dir = pathlib.Path("games/bardstale/disks")
+            disk_dir = pathlib.Path(__file__).resolve().parent.parent / "games" / "bardstale" / "disks"
             disks = sorted(
                 list(disk_dir.glob("*.dsk")) + list(disk_dir.glob("*.woz"))
                 + list(disk_dir.glob("*.nib"))
