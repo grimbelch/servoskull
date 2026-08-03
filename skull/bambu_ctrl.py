@@ -30,12 +30,7 @@ class BambuMonitor:
         self.last_hms: list[str] = []
         self.connected = False
         self.thread = None
-        self.running = False
-        self.last_start_time = 0.0
-        self.last_completion_time = 0.0
-        self.repeater_thread = None
-        self.repeater_cancel = None
-        self.completion_notified = False
+        self.stop_event = threading.Event()
 
     def is_configured(self) -> bool:
         return bool(self.ip and self.serial and self.access_code)
@@ -46,12 +41,14 @@ class BambuMonitor:
             return
 
         self.running = True
+        self.stop_event.clear()
         self.thread = threading.Thread(target=self._run_loop, daemon=True)
         self.thread.start()
         print("[bambu] Background monitor thread launched.")
 
     def stop(self):
         self.running = False
+        self.stop_event.set()
         if self.client:
             try:
                 self.client.loop_stop()
@@ -62,7 +59,7 @@ class BambuMonitor:
 
     def _run_loop(self):
         global _current_status
-        while self.running:
+        while self.running and not self.stop_event.is_set():
             if not self.connected:
                 if self.client:
                     try:
@@ -97,32 +94,26 @@ class BambuMonitor:
 
                     # Wait up to 10 seconds for connection to succeed
                     for _ in range(10):
-                        if self.connected or not self.running:
+                        if self.connected or not self.running or self.stop_event.is_set():
                             break
-                        time.sleep(1)
+                        self.stop_event.wait(1)
 
                     if not self.connected:
                         print("[bambu] Connection timed out. Retrying in 5 minutes...")
-                        for _ in range(300):
-                            if not self.running:
-                                break
-                            time.sleep(1)
+                        self.stop_event.wait(300)
                         continue
 
                     # Keep checking connection health
-                    while self.running and self.connected:
-                        time.sleep(1)
+                    while self.running and self.connected and not self.stop_event.is_set():
+                        self.stop_event.wait(1)
 
                 except Exception as e:
                     print(f"[bambu] Connection failed: {e}. Retrying in 5 minutes...")
                     with _status_lock:
                         _current_status = None
-                    for _ in range(300):
-                        if not self.running:
-                            break
-                        time.sleep(1)
+                    self.stop_event.wait(300)
             else:
-                time.sleep(1)
+                self.stop_event.wait(1)
 
     def on_connect(self, client, userdata, flags, rc, properties=None):
         # Support both paho-mqtt v1.x (int) and v2.x (ReasonCode)

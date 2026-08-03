@@ -75,7 +75,8 @@ def _breathe_loop() -> None:
                     pwm.ChangeDutyCycle(IDLE_MIN + (IDLE_MAX - IDLE_MIN) * frac)
                 except Exception:
                     pass
-        time.sleep(1 / 50)
+        if _stop.wait(1 / 50):
+            break
 
 
 def set_brightness(pct: float) -> None:

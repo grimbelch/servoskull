@@ -4,6 +4,16 @@ import signal
 import sys
 import threading
 import random
+import re
+from concurrent.futures import ThreadPoolExecutor
+
+_background_executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="skull_bg")
+
+
+def run_background_task(func, *args, **kwargs):
+    """Execute a background function using the managed ThreadPoolExecutor."""
+    return _background_executor.submit(func, *args, **kwargs)
+
 
 from skull import config
 from skull import audio, wake_word, transcribe, brain, tts, eyes, sfx, reminders, mood
@@ -12,6 +22,10 @@ from skull import spotify_ctrl, cast_audio, camera, quiet, display, temperature,
 
 def shutdown(sig=None, frame=None):
     print("\n[skull] Powering down. The Emperor protects.")
+    try:
+        _background_executor.shutdown(wait=False)
+    except Exception:
+        pass
     try:
         monitor = bambu_ctrl.get_monitor()
         if monitor:
@@ -120,7 +134,7 @@ def refresh_voice_cache() -> str:
         if legacy.exists():
             legacy.unlink()
         
-        threading.Thread(target=_preload_phrases, daemon=True).start()
+        run_background_task(_preload_phrases)
         print("[skull] Voice cache refresh triggered.")
         return "Voice cache cleared and background synthesis initiated successfully."
     except Exception as e:
@@ -143,7 +157,7 @@ def self_update() -> str:
                 subprocess.run([str(venv_pip), "install", "-r", str(req_file)], check=True)
         
         display.start_omnissiah_glyph(6.0)
-        threading.Thread(target=lambda: (time.sleep(7), subprocess.run(["sudo", "systemctl", "restart", "omega7"], check=True)), daemon=True).start()
+        run_background_task(lambda: (time.sleep(7), subprocess.run(["sudo", "systemctl", "restart", "omega7"], check=True)))
         return "System update downloaded successfully. Restarting the machine spirit now."
     except subprocess.CalledProcessError as ce:
         print(f"[skull] Update failed: {ce.stderr or ce}")
@@ -157,7 +171,7 @@ def reboot_system() -> str:
     import subprocess
     try:
         print("[skull] Initiating full system reboot...")
-        threading.Thread(target=lambda: (time.sleep(1), subprocess.run(["sudo", "reboot"], check=True)), daemon=True).start()
+        run_background_task(lambda: (time.sleep(1), subprocess.run(["sudo", "reboot"], check=True)))
         return "Initiating full system reboot. Power cycles will commence."
     except Exception as e:
         print(f"[skull] Reboot error: {e}")
@@ -168,7 +182,7 @@ def shutdown_system() -> str:
     import subprocess
     try:
         print("[skull] Initiating full system shutdown...")
-        threading.Thread(target=lambda: (time.sleep(1), subprocess.run(["sudo", "poweroff"], check=True)), daemon=True).start()
+        run_background_task(lambda: (time.sleep(1), subprocess.run(["sudo", "poweroff"], check=True)))
         return "Initiating full system shutdown. Powering down all machine spirits."
     except Exception as e:
         print(f"[skull] Shutdown error: {e}")
@@ -206,7 +220,7 @@ def switch_personality(target: str) -> str:
         except Exception as e:
             print(f"[skull] switch-personality error: {e}")
 
-    threading.Thread(target=_do_switch, daemon=True).start()
+    run_background_task(_do_switch)
     return farewell
 
 
@@ -849,26 +863,26 @@ def main():
                 _idle_fired = threading.Event()
                 _due_reminders: list = []
 
-                def _idle_timer():
+                def _idle_and_reminder_watcher():
                     delay = random.uniform(_IDLE_MIN, _IDLE_MAX)
-                    if not _idle_cancel.wait(timeout=delay):
-                        _idle_fired.set()
-                        _idle_cancel.set()
-
-                def _reminder_watcher():
+                    t_end = time.time() + delay
                     while not _idle_cancel.is_set():
+                        now = time.time()
+                        if now >= t_end:
+                            _idle_fired.set()
+                            _idle_cancel.set()
+                            return
                         due = reminders.get_due()
                         if due:
                             _due_reminders.extend(due)
                             _idle_cancel.set()
                             return
                         if temperature.has_pending():
-                            _idle_cancel.set()  # wake the loop so the warning speaks at the top
+                            _idle_cancel.set()
                             return
-                        _idle_cancel.wait(timeout=5.0)
+                        _idle_cancel.wait(timeout=min(2.0, max(0.1, t_end - now)))
 
-                threading.Thread(target=_idle_timer, daemon=True).start()
-                threading.Thread(target=_reminder_watcher, daemon=True).start()
+                run_background_task(_idle_and_reminder_watcher)
                 
                 # Register cancel event with web server
                 web.register_cancel_event(_idle_cancel)
@@ -1277,18 +1291,13 @@ def main():
                 continue
 
         # ── 3a-5. Detect Voice Cache Refresh and Self-Update ──────────
-        _REFRESH_VOICE_PHRASES = (
-            "refresh your voice", "refresh voice", "reload your voice", "reload voice",
-            "refresh voice cache", "refresh your voice cache", "clear your voice cache",
-            "update voice cache", "update your voice cache"
-        )
-        _SELF_UPDATE_PHRASES = (
-            "self update", "system update", "update your software", "update yourself",
-            "run self update", "pull updates", "update your system"
-        )
+        _RE_REFRESH = re.compile(r"\b(refresh|reload|clear|update)\s+(your\s+)?voice(\s+cache)?\b")
+        _RE_UPDATE = re.compile(r"\b(self\s+update|system\s+update|update\s+(your\s+software|yourself|your\s+system)|run\s+self\s+update|pull\s+updates)\b")
+        _RE_REBOOT = re.compile(r"\b(reboot(\s+system|\s+yourself|\s+the\s+system)?|restart\s+(system|yourself))\b")
+        _RE_SHUTDOWN = re.compile(r"\b(shutdown(\s+system|\s+yourself)?|power\s+(down|off)|turn\s+off)\b")
         
         maintenance_handled = False
-        if any(p in _t for p in _REFRESH_VOICE_PHRASES):
+        if _RE_REFRESH.search(_t):
             print("[skull] Local voice cache refresh intent detected.")
             refresh_voice_cache()
             try:
@@ -1298,7 +1307,7 @@ def main():
             except Exception:
                 pass
             maintenance_handled = True
-        elif any(p in _t for p in _SELF_UPDATE_PHRASES):
+        elif _RE_UPDATE.search(_t):
             print("[skull] Local self-update intent detected.")
             try:
                 speech_wav = tts.synthesize("Initiating system update from the git archives. I will reboot the machine spirit shortly.")
@@ -1308,7 +1317,7 @@ def main():
                 pass
             self_update()
             maintenance_handled = True
-        elif any(p in _t for p in ("reboot", "reboot system", "reboot yourself", "restart system", "restart yourself", "reboot the system")):
+        elif _RE_REBOOT.search(_t):
             print("[skull] Local reboot intent detected.")
             try:
                 speech_wav = tts.synthesize("Initiating system reboot. Power cycles will commence shortly.")
@@ -1318,7 +1327,7 @@ def main():
                 pass
             reboot_system()
             maintenance_handled = True
-        elif any(p in _t for p in ("shutdown", "shutdown system", "power down", "power off", "turn off", "shutdown yourself")):
+        elif _RE_SHUTDOWN.search(_t):
             print("[skull] Local shutdown intent detected.")
             try:
                 speech_wav = tts.synthesize("Initiating system shutdown. Powering down all machine spirits.")
