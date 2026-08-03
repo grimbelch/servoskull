@@ -515,6 +515,55 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         except Exception:
             pass
 
+    def _handle_game_status(self) -> None:
+        """GET /api/game/status — returns current Bard's Tale agent state."""
+        try:
+            from games.bardstale import agent as _bt_agent
+            self._send_json(_bt_agent.get_status())
+        except Exception as e:
+            self._send_json({"running": False, "turn": 0, "last_action": "", "error": str(e)})
+
+    def _handle_game_start(self) -> None:
+        """POST /api/game/start — launch the autonomous Bard's Tale agent."""
+        try:
+            import pathlib
+            content_length = int(self.headers.get("Content-Length", 0))
+            data = json.loads(self.rfile.read(content_length).decode("utf-8")) if content_length else {}
+            disk_dir = pathlib.Path("games/bardstale/disks")
+            # Allow caller to override disk path; otherwise pick first found disk
+            disk_path = data.get("disk", "")
+            if not disk_path:
+                disks = sorted(
+                    list(disk_dir.glob("*.dsk")) + list(disk_dir.glob("*.woz"))
+                    + list(disk_dir.glob("*.nib"))
+                ) if disk_dir.exists() else []
+                disk_path = str(disks[0]) if disks else ""
+            if not disk_path:
+                self._send_json({"ok": False, "error": "No disk image found in games/bardstale/disks/"}, 400)
+                return
+            from games.bardstale import agent as _bt_agent
+            if _bt_agent.is_running():
+                self._send_json({"ok": False, "error": "Game already running"})
+                return
+            from skull import display as _disp
+            import skull.main as _main
+            _disp.start_game_display()
+            _bt_agent.start(disk_path, _main._game_narrate)
+            self._send_json({"ok": True, "disk": disk_path})
+        except Exception as e:
+            self._send_json({"ok": False, "error": str(e)}, 500)
+
+    def _handle_game_stop(self) -> None:
+        """POST /api/game/stop — stop the Bard's Tale agent."""
+        try:
+            from games.bardstale import agent as _bt_agent
+            from skull import display as _disp
+            _bt_agent.stop()
+            _disp.stop_game_display()
+            self._send_json({"ok": True})
+        except Exception as e:
+            self._send_json({"ok": False, "error": str(e)}, 500)
+
     def do_GET(self) -> None:
         global _web_client_connected
         _web_client_connected = True
@@ -533,6 +582,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             "/api/ocular_frame.jpg": self._handle_custom_image,
             "/api/ocular_stream.mjpeg": self._handle_ocular_stream,
             "/api/camera_stream.mjpeg": self._handle_camera_stream,
+            "/api/game/status": self._handle_game_status,
         }
 
         handler = get_routes.get(path_clean)
@@ -735,6 +785,8 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             "/api/screensaver": self._handle_screensaver,
             "/api/command": self._handle_command,
             "/api/upload_audio": self._handle_upload_audio,
+            "/api/game/start": self._handle_game_start,
+            "/api/game/stop": self._handle_game_stop,
         }
 
         handler = post_routes.get(path_clean)

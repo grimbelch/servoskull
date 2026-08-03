@@ -75,6 +75,9 @@ _showing_custom_image = False
 _custom_image = None
 _custom_image_expiry = 0.0
 
+# Autonomous game display — set while a games.bardstale agent is running
+_showing_game = False
+
 _last_activity_time = 0.0
 _active_idle_anim = None
 _custom_idle_expiry = 0.0
@@ -1093,6 +1096,17 @@ def _loop():
             time.sleep(1 / config.DISPLAY_FPS)
             continue
 
+        if _showing_game:
+            try:
+                from games.bardstale import agent as _bt_agent
+                gf = _bt_agent.get_latest_frame()
+                if gf is not None:
+                    _blit(gf)
+            except Exception as e:
+                print(f"[display] game frame error: {e}")
+            time.sleep(1 / config.DISPLAY_FPS)
+            continue
+
         if _showing_custom_image:
             if now >= _custom_image_expiry:
                 _showing_custom_image = False
@@ -1396,13 +1410,27 @@ def cleanup() -> None:
     _available = False
 
 
+def start_game_display() -> None:
+    """Tell the display loop to show live Bard's Tale game frames."""
+    global _showing_game
+    _showing_game = True
+
+
+def stop_game_display() -> None:
+    """Stop showing game frames; display returns to normal iris rendering."""
+    global _showing_game
+    _showing_game = False
+
+
 def get_state() -> dict:
     global _showing_custom_image, _active_idle_anim, _speaking, _thinking, _target_amp
     global _scanning_auspex, _scanning_noosphere, _searching_web, _looking_up_rules, _fetching_news, _retrieving_image, _targeting, _visualizing_music, _rolling_die, _die_result
     global _web_search_until, _rules_lookup_until, _news_fetch_until, _image_retrieval_until, _showing_alignment, _alignment_until
+    global _showing_game
     now = time.monotonic()
     return {
         "showing_custom_image": _showing_custom_image,
+        "showing_game": _showing_game,
         "active_idle_anim": _active_idle_anim,
         "speaking": _speaking,
         "thinking": _thinking,
