@@ -135,8 +135,16 @@ def start(disk_path: str) -> bool:
         _xlib_dpy = None    # reset cached Xlib connection
 
         # ── 2. MAME ───────────────────────────────────────────────────────────
-        disk_path = str(pathlib.Path(disk_path).resolve())
-        cmd = ["mame", _MAME_DRIVER, "-flop1", disk_path] + _MAME_FLAGS
+        disk_path_obj = pathlib.Path(disk_path).resolve()
+        other_disks = [
+            str(p) for p in sorted(list(disk_path_obj.parent.glob("*.dsk")) + list(disk_path_obj.parent.glob("*.woz")) + list(disk_path_obj.parent.glob("*.po")))
+            if p.resolve() != disk_path_obj
+        ]
+        cmd = ["mame", _MAME_DRIVER, "-flop1", str(disk_path_obj)]
+        if other_disks:
+            cmd += ["-flop2", other_disks[0]]
+            print(f"[emulator] Mounted drive 2 (-flop2): {other_disks[0]}")
+        cmd += _MAME_FLAGS
         cmd += ["-rompath", _ROMPATH]
 
         try:
