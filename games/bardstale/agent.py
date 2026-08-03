@@ -54,14 +54,15 @@ _KEY_ALIASES: dict[str, str] = {
     # Movement
     "north": "w", "south": "s", "east": "d", "west": "a",
     "forward": "w", "back": "s", "right": "d", "left": "a",
-    # Actions
-    "fight": "f", "cast": "c", "run": "r", "retreat": "r",
+    # Actions & Menus (uppercase required for Apple II keyboard menu commands)
+    "fight": "F", "cast": "C", "run": "R", "retreat": "R",
     "enter": "Return", "confirm": "Return", "ok": "Return",
     "pass": "space", "skip": "space", "wait": "space",
-    "start": "s", "start game": "s",
-    # Already valid — pass through unchanged
+    "start": "S", "start game": "S", "s": "S", "S": "S",
+    "add": "A", "remove": "R", "exit": "E", "check": "C",
+    # Pass-throughs
     "w": "w", "a": "a", "s": "s", "d": "d",
-    "f": "f", "c": "c", "r": "r",
+    "f": "F", "c": "C", "r": "R", "e": "E", "E": "E", "A": "A", "C": "C",
     "1": "1", "2": "2", "3": "3", "4": "4",
     "5": "5", "6": "6", "7": "7", "8": "8", "9": "9",
     "Return": "Return", "space": "space",
@@ -81,22 +82,25 @@ with a single line of valid JSON and nothing else:
 {"key": "<xdotool_key>", "narration": "<one short sentence in character>"}
 
 Valid keys:
-  w = move north      s = move south / start game   d = move east       a = move west
-  f = fight           c = cast spell                r = run / retreat
+  w = move north      s = move south                d = move east       a = move west
+  f = fight           c = cast spell / check        r = run / remove    e = exit guild
   Return = confirm    space = pass/skip             1–7 = menu option / party slot / drive number
+  S = Start Game      A = Add member                E = Exit Guild
 
 Special disk & menu handling:
-  * UTILITIES / MENU SCREEN: If you see "S)tart Game", "Start Game", or "Utilities", respond with key "s".
+  * UTILITIES / MENU SCREEN: If you see "S)tart Game", "Start Game", or "Utilities", respond with key "S".
+  * GUILD OF ADVENTURERS: If in Guild of Adventurers, press "A" to add members or "E" to exit guild into Skara Brae!
   * DISK / DRIVE PROMPTS: If the screen displays "Insert Character Disk into Drive 1 (or press 2 for Drive 2)",
     or ANY prompt asking to insert a disk or press 2 for Drive 2, respond with key "2".
     The Character Disk is already loaded into Drive 2!
   * SPLASH / TITLE SCREENS: If the screen says "Press any key to continue" or "Press Space", press "space" or "Return".
 
 Decision priorities:
-  1. START / DISK / MENU PROMPTS: Press "s" for Start Game if on utilities menu. Press "2" for Drive 2 if on disk prompt.
-  2. COMBAT: If in combat, fight (f) all heroes if HP >= 60%. Cast healing (c) or retreat (r) if HP < 30%.
-  3. DUNGEON / CITY: Move systematically (w, a, s, d).
-  4. DEFAULT: If uncertain, press "space" (pass).
+  1. GUILD: If in the Guild of Adventurers, press "A" to add members, or "E" to exit into the city.
+  2. UTILITIES / DISK PROMPTS: Press "S" for Start Game if on utilities menu. Press "2" for Drive 2 if on disk prompt.
+  3. COMBAT: If in combat, fight (f) all heroes if HP >= 60%. Cast healing (c) or retreat (r) if HP < 30%.
+  4. DUNGEON / CITY: Move systematically (w, a, s, d).
+  5. DEFAULT: If uncertain, press "space" (pass).
 
 Narration: One short, punchy sentence in character. Reference the Omnissiah, data-vaults,
 and machine-spirits occasionally. Never break character.\
@@ -268,8 +272,8 @@ def _game_loop() -> None:
 
     print("[bardstale] Autonomous game loop started.")
     # ── Fast boot sequence ────────────────────────────────────────────────────
-    # Quickly press space twice to clear title/credits, then 's' for Start Game
-    print("[bardstale] Executing fast boot sequence (space -> space -> s)...")
+    # Quickly press space twice to clear title/credits, then 'S' and Return for Start Game
+    print("[bardstale] Executing fast boot sequence (space -> space -> S -> Return)...")
     _stop.wait(timeout=1.5)
     if not _stop.is_set():
         emulator.send_key("space")
@@ -278,7 +282,10 @@ def _game_loop() -> None:
         emulator.send_key("space")
         _stop.wait(timeout=0.6)
     if not _stop.is_set():
-        emulator.send_key("s")
+        emulator.send_key("S")
+        _stop.wait(timeout=0.6)
+    if not _stop.is_set():
+        emulator.send_key("Return")
         _stop.wait(timeout=1.0)
 
     walk          = _WalkState()
