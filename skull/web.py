@@ -303,6 +303,44 @@ def has_web_client_connected() -> bool:
     return _web_client_connected
 
 
+def test_api_key(provider: str, key: str) -> tuple[bool, str]:
+    """Test an API key live with its respective provider."""
+    if not key or not key.strip():
+        return False, "API key cannot be empty."
+    key = key.strip()
+    provider = provider.lower().strip()
+
+    try:
+        if provider == "anthropic":
+            import anthropic
+            client = anthropic.Anthropic(api_key=key)
+            msg = client.messages.create(
+                model=config.CLAUDE_MODEL,
+                max_tokens=10,
+                messages=[{"role": "user", "content": "ping"}]
+            )
+            return True, f"Anthropic API key valid! Response: '{msg.content[0].text.strip()}'"
+        elif provider == "elevenlabs":
+            import requests
+            r = requests.get("https://api.elevenlabs.io/v1/voices", headers={"xi-api-key": key}, timeout=8)
+            if r.status_code == 200:
+                voices = len(r.json().get("voices", []))
+                return True, f"ElevenLabs API key valid! Access to {voices} voice profiles."
+            else:
+                return False, f"ElevenLabs API key invalid (HTTP {r.status_code})."
+        elif provider == "openai":
+            import requests
+            r = requests.get("https://api.openai.com/v1/models", headers={"Authorization": f"Bearer {key}"}, timeout=8)
+            if r.status_code == 200:
+                return True, "OpenAI API key valid!"
+            else:
+                return False, f"OpenAI API key invalid (HTTP {r.status_code})."
+        else:
+            return False, f"Unknown API provider: '{provider}'."
+    except Exception as e:
+        return False, f"Verification failed: {e}"
+
+
 class WebRequestHandler(http.server.BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         # Suppress automatic logging to console to keep main logs readable
@@ -538,44 +576,6 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_response(404)
         self.end_headers()
 
-def test_api_key(provider: str, key: str) -> tuple[bool, str]:
-    """Test an API key live with its respective provider."""
-    if not key or not key.strip():
-        return False, "API key cannot be empty."
-    key = key.strip()
-    provider = provider.lower().strip()
-
-    try:
-        if provider == "anthropic":
-            import anthropic
-            client = anthropic.Anthropic(api_key=key)
-            msg = client.messages.create(
-                model=config.CLAUDE_MODEL,
-                max_tokens=10,
-                messages=[{"role": "user", "content": "ping"}]
-            )
-            return True, f"Anthropic API key valid! Response: '{msg.content[0].text.strip()}'"
-        elif provider == "elevenlabs":
-            import requests
-            r = requests.get("https://api.elevenlabs.io/v1/voices", headers={"xi-api-key": key}, timeout=8)
-            if r.status_code == 200:
-                voices = len(r.json().get("voices", []))
-                return True, f"ElevenLabs API key valid! Access to {voices} voice profiles."
-            else:
-                return False, f"ElevenLabs API key invalid (HTTP {r.status_code})."
-        elif provider == "openai":
-            import requests
-            r = requests.get("https://api.openai.com/v1/models", headers={"Authorization": f"Bearer {key}"}, timeout=8)
-            if r.status_code == 200:
-                return True, "OpenAI API key valid!"
-            else:
-                return False, f"OpenAI API key invalid (HTTP {r.status_code})."
-        else:
-            return False, f"Unknown API provider: '{provider}'."
-    except Exception as e:
-        return False, f"Verification failed: {e}"
-
-
     def do_POST(self) -> None:
         path_clean = self.path.split("?")[0].rstrip("/")
         if path_clean == "/api/setup/test_key":
@@ -692,6 +692,7 @@ def test_api_key(provider: str, key: str) -> tuple[bool, str]:
                     self._send_json({"status": "error", "message": "Animation parameter is empty."}, 400)
             except Exception as e:
                 self._send_json({"status": "error", "message": str(e)}, 500)
+            return
         elif path_clean == "/api/command":
             try:
 
