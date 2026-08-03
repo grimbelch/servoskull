@@ -1311,81 +1311,7 @@ def _render_asteroids_frame(bezel, mask, now):
     return img
 
 
-# ── Dispatcher ───────────────────────────────────────────────────────────────
 
-def render_screensaver_frame(anim_name: str, bezel, mask, now: float) -> Image.Image:
-    """Render a single frame for the requested screensaver animation name."""
-    try:
-        if anim_name == "pong":
-            return _render_pong_frame(bezel, mask, now)
-        elif anim_name == "canticle_rain":
-            return _render_canticle_rain_frame(bezel, mask, now)
-        elif anim_name == "starfield":
-            return _render_starfield_frame(bezel, mask, now)
-        elif anim_name == "oscilloscope":
-            return _render_oscilloscope_frame(bezel, mask, now)
-        elif anim_name == "game_of_life":
-            return _render_game_of_life_frame(bezel, mask, now)
-        elif anim_name == "radar":
-            return _render_radar_frame(bezel, mask, now)
-        elif anim_name == "warp_core":
-            return _render_warp_core_frame(bezel, mask, now)
-        elif anim_name == "circuit_maze":
-            return _render_circuit_maze_frame(bezel, mask, now)
-        elif anim_name == "double_helix":
-            return _render_double_helix_frame(bezel, mask, now)
-        elif anim_name == "spinning_rings":
-            return _render_spinning_rings_frame(bezel, mask, now)
-        elif anim_name == "wireframe_cube":
-            return _render_wireframe_cube_frame(bezel, mask, now)
-        elif anim_name == "bouncing_cog":
-            return _render_bouncing_cog_frame(bezel, mask, now)
-        elif anim_name == "fractal_tree":
-            return _render_fractal_tree_frame(bezel, mask, now)
-        elif anim_name == "hud_status":
-            return _render_hud_status_frame(bezel, mask, now)
-        elif anim_name == "orbitals":
-            return _render_orbitals_frame(bezel, mask, now)
-        elif anim_name == "spectrum_bars":
-            return _render_spectrum_bars_frame(bezel, mask, now)
-        elif anim_name == "plasma":
-            return _render_plasma_frame(bezel, mask, now)
-        elif anim_name == "lissajous":
-            return _render_lissajous_frame(bezel, mask, now)
-        elif anim_name == "voronoi":
-            return _render_voronoi_frame(bezel, mask, now)
-        elif anim_name == "data_stream":
-            return _render_data_stream_frame(bezel, mask, now)
-        elif anim_name == "mandala":
-            return _render_mandala_frame(bezel, mask, now)
-        elif anim_name == "rune_wheel":
-            return _render_rune_wheel_frame(bezel, mask, now)
-        elif anim_name == "glitch":
-            return _render_glitch_frame(bezel, mask, now)
-        elif anim_name == "dna_helix":
-            return _render_dna_helix_frame(bezel, mask, now)
-        elif anim_name == "neural_net":
-            return _render_neural_net_frame(bezel, mask, now)
-        elif anim_name == "gravity_well":
-            return _render_gravity_well_frame(bezel, mask, now)
-        elif anim_name == "void_shield":
-            return _render_void_shield_frame(bezel, mask, now)
-        elif anim_name == "hex_grid":
-            return _render_hex_grid_frame(bezel, mask, now)
-        elif anim_name == "kaleidoscope":
-            return _render_kaleidoscope_frame(bezel, mask, now)
-        elif anim_name == "particle_burst":
-            return _render_particle_burst_frame(bezel, mask, now)
-        elif anim_name == "asteroids":
-            return _render_asteroids_frame(bezel, mask, now)
-        elif anim_name == "battlezone":
-            return _render_battlezone_frame(bezel, mask, now)
-        elif anim_name == "trench_run":
-            return _render_trench_run_frame(bezel, mask, now)
-        else:
-            return _render_starfield_frame(bezel, mask, now)
-    except Exception as e:
-        return _render_starfield_frame(bezel, mask, now)
 
 
 # Trench Run Arcade State
@@ -1845,3 +1771,51 @@ def _render_battlezone_frame(bezel, mask, now):
             d.text((82, 142), "[ TARGET LOCK ]", fill=(220, 140, 20), font=font)
 
     return img
+
+
+# ── Dispatcher Registry ──────────────────────────────────────────────────────
+
+_RENDERERS = {
+    "pong": _render_pong_frame,
+    "canticle_rain": _render_canticle_rain_frame,
+    "starfield": _render_starfield_frame,
+    "oscilloscope": _render_oscilloscope_frame,
+    "game_of_life": _render_game_of_life_frame,
+    "radar": _render_radar_frame,
+    "warp_core": _render_warp_core_frame,
+    "circuit_maze": _render_circuit_maze_frame,
+    "double_helix": _render_double_helix_frame,
+    "spinning_rings": _render_spinning_rings_frame,
+    "wireframe_cube": _render_wireframe_cube_frame,
+    "bouncing_cog": _render_bouncing_cog_frame,
+    "fractal_tree": _render_fractal_tree_frame,
+    "hud_status": _render_hud_status_frame,
+    "orbitals": _render_orbitals_frame,
+    "spectrum_bars": _render_spectrum_bars_frame,
+    "plasma": _render_plasma_frame,
+    "lissajous": _render_lissajous_frame,
+    "voronoi": _render_voronoi_frame,
+    "data_stream": _render_data_stream_frame,
+    "mandala": _render_mandala_frame,
+    "rune_wheel": _render_rune_wheel_frame,
+    "glitch": _render_glitch_frame,
+    "dna_helix": _render_dna_helix_frame,
+    "neural_net": _render_neural_net_frame,
+    "gravity_well": _render_gravity_well_frame,
+    "void_shield": _render_void_shield_frame,
+    "hex_grid": _render_hex_grid_frame,
+    "kaleidoscope": _render_kaleidoscope_frame,
+    "particle_burst": _render_particle_burst_frame,
+    "asteroids": _render_asteroids_frame,
+    "battlezone": _render_battlezone_frame,
+    "trench_run": _render_trench_run_frame,
+}
+
+
+def render_screensaver_frame(anim_name: str, bezel, mask, now: float) -> Image.Image:
+    """Render a single frame for the requested screensaver animation name ($O(1)$ dispatch)."""
+    handler = _RENDERERS.get(anim_name, _render_starfield_frame)
+    try:
+        return handler(bezel, mask, now)
+    except Exception:
+        return _render_starfield_frame(bezel, mask, now)
