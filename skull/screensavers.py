@@ -18,7 +18,7 @@ SCREENSAVER_ANIMS = [
     "bouncing_cog", "fractal_tree", "hud_status", "orbitals", "spectrum_bars",
     "plasma", "lissajous", "voronoi", "data_stream", "mandala",
     "rune_wheel", "glitch", "dna_helix", "neural_net", "gravity_well",
-    "void_shield", "hex_grid", "kaleidoscope", "particle_burst", "asteroids"
+    "void_shield", "hex_grid", "kaleidoscope", "particle_burst", "asteroids", "battlezone"
 ]
 
 
@@ -1378,7 +1378,218 @@ def render_screensaver_frame(anim_name: str, bezel, mask, now: float) -> Image.I
             return _render_particle_burst_frame(bezel, mask, now)
         elif anim_name == "asteroids":
             return _render_asteroids_frame(bezel, mask, now)
+        elif anim_name == "battlezone":
+            return _render_battlezone_frame(bezel, mask, now)
         else:
             return _render_starfield_frame(bezel, mask, now)
     except Exception as e:
         return _render_starfield_frame(bezel, mask, now)
+
+
+# Battlezone Arcade State
+_bz_player = None
+_bz_tanks = []
+_bz_shells = []
+_bz_explosions = []
+_bz_mountains = []
+_bz_score = 0
+_bz_last_shot = 0.0
+
+def _init_battlezone():
+    global _bz_player, _bz_tanks, _bz_shells, _bz_explosions, _bz_mountains, _bz_score, _bz_last_shot
+    _bz_player = {"x": 0.0, "z": 0.0, "heading": 0.0, "speed": 1.4}
+    _bz_tanks = []
+    for _ in range(3):
+        angle = random.uniform(0, math.pi * 2)
+        dist = random.uniform(90, 220)
+        _bz_tanks.append({
+            "x": dist * math.sin(angle),
+            "z": dist * math.cos(angle),
+            "heading": random.uniform(0, math.pi * 2),
+            "speed": random.uniform(0.4, 0.9),
+            "turret_angle": random.uniform(0, math.pi * 2)
+        })
+    _bz_shells = []
+    _bz_explosions = []
+    _bz_score = 0
+    _bz_last_shot = 0.0
+
+    _bz_mountains = []
+    num_peaks = 36
+    for i in range(num_peaks):
+        a = i * (2 * math.pi / num_peaks)
+        h = random.uniform(12, 32) if (i % 3 == 0) else random.uniform(2, 10)
+        _bz_mountains.append((a, h))
+
+
+def _render_battlezone_frame(bezel, mask, now):
+    """Vector Arcade Battlezone Periscope Simulator – Adeptus Mechanicus edition."""
+    global _bz_player, _bz_tanks, _bz_shells, _bz_explosions, _bz_score, _bz_last_shot, _bz_mountains
+
+    if _bz_player is None or not _bz_mountains:
+        _init_battlezone()
+
+    img = Image.new("RGB", (240, 240), (0, 8, 3))
+    d = ImageDraw.Draw(img)
+
+    # 1. Update Player position & orientation
+    _bz_player["heading"] += math.sin(now * 0.3) * 0.015
+    _bz_player["x"] += math.sin(_bz_player["heading"]) * _bz_player["speed"]
+    _bz_player["z"] += math.cos(_bz_player["heading"]) * _bz_player["speed"]
+
+    # 2. Draw Distant Vector Mountain Horizon
+    horizon_y = 120
+    d.line([(0, horizon_y), (240, horizon_y)], fill=(0, 70, 25), width=1)
+
+    m_pts = []
+    head = _bz_player["heading"]
+    for a, h in _bz_mountains:
+        rel_a = (a - head + math.pi) % (2 * math.pi) - math.pi
+        if abs(rel_a) < math.pi / 2:
+            sx = int(120 + math.tan(rel_a) * 160)
+            sy = int(horizon_y - h)
+            m_pts.append((sx, sy))
+
+    m_pts.sort(key=lambda p: p[0])
+    for i in range(len(m_pts) - 1):
+        if 0 <= m_pts[i][0] <= 240 or 0 <= m_pts[i+1][0] <= 240:
+            d.line([m_pts[i], m_pts[i+1]], fill=(0, 160, 50), width=1)
+
+    # 3. Ground Perspective Grid Lines
+    grid_offset = (_bz_player["z"] * 0.1) % 20
+    for gz in range(20, 200, 25):
+        z_eff = gz - grid_offset
+        if z_eff > 5:
+            sy = int(horizon_y + 1600.0 / z_eff)
+            if horizon_y < sy < 240:
+                d.line([(0, sy), (240, sy)], fill=(0, 40, 15), width=1)
+
+    for gx in [-120, -60, 0, 60, 120]:
+        rel_x = gx - (_bz_player["x"] * 0.1 % 60)
+        d.line([(120 + rel_x * 0.2, horizon_y), (120 + rel_x * 1.5, 240)], fill=(0, 35, 12), width=1)
+
+    # 4. Process & Project 3D Wireframe Enemy Tanks
+    target_in_reticle = False
+
+    for tank in _bz_tanks:
+        tank["x"] += math.sin(tank["heading"]) * tank["speed"]
+        tank["z"] += math.cos(tank["heading"]) * tank["speed"]
+
+        dx = tank["x"] - _bz_player["x"]
+        dz = tank["z"] - _bz_player["z"]
+
+        rx = dx * math.cos(_bz_player["heading"]) - dz * math.sin(_bz_player["heading"])
+        rz = dx * math.sin(_bz_player["heading"]) + dz * math.cos(_bz_player["heading"])
+
+        if rz > 5.0:
+            scale = 160.0 / rz
+            sx = 120 + rx * scale
+            sy = horizon_y + 15 * scale
+
+            tw = max(4, int(18 * scale))
+            th = max(3, int(12 * scale))
+
+            if -40 <= sx <= 280:
+                hull_pts = [
+                    (sx - tw, sy), (sx + tw, sy),
+                    (sx + tw * 0.8, sy - th), (sx - tw * 0.8, sy - th)
+                ]
+                d.polygon(hull_pts, outline=(0, 220, 80), width=1)
+
+                turret_y = sy - th
+                barrel_x = sx + math.sin(tank["turret_angle"] - _bz_player["heading"]) * (tw * 0.8)
+                d.rectangle([sx - tw * 0.4, turret_y - th * 0.5, sx + tw * 0.4, turret_y], outline=(0, 255, 100))
+                d.line([(sx, turret_y - th * 0.25), (barrel_x, turret_y - th * 0.7)], fill=(0, 255, 100), width=2)
+
+                if abs(sx - 120) < 25:
+                    target_in_reticle = True
+
+    # 5. Cannon Shells & Explosions
+    if (target_in_reticle or random.random() < 0.04) and (now - _bz_last_shot > 0.8):
+        _bz_last_shot = now
+        _bz_shells.append({"x": 0.0, "z": 10.0, "speed": 12.0})
+
+    new_shells = []
+    for sh in _bz_shells:
+        sh["z"] += sh["speed"]
+        scale = 160.0 / sh["z"]
+        sx = 120 + sh["x"] * scale
+        sy = horizon_y + 10 * scale
+
+        hit = False
+        for tank in list(_bz_tanks):
+            dx = tank["x"] - _bz_player["x"]
+            dz = tank["z"] - _bz_player["z"]
+            rx = dx * math.cos(_bz_player["heading"]) - dz * math.sin(_bz_player["heading"])
+            rz = dx * math.sin(_bz_player["heading"]) + dz * math.cos(_bz_player["heading"])
+            if rz > 5.0 and math.hypot(sh["z"] - rz, rx) < 18.0:
+                hit = True
+                _bz_score += 1500
+                for _ in range(random.randint(10, 18)):
+                    a = random.uniform(0, 2 * math.pi)
+                    spd = random.uniform(2.0, 6.0)
+                    _bz_explosions.append({
+                        "sx": sx, "sy": sy,
+                        "vx": math.cos(a) * spd, "vy": math.sin(a) * spd,
+                        "life": 1.0
+                    })
+                _bz_tanks.remove(tank)
+                ang = random.uniform(0, math.pi * 2)
+                d_new = random.uniform(150, 260)
+                _bz_tanks.append({
+                    "x": _bz_player["x"] + d_new * math.sin(ang),
+                    "z": _bz_player["z"] + d_new * math.cos(ang),
+                    "heading": random.uniform(0, math.pi * 2),
+                    "speed": random.uniform(0.4, 0.9),
+                    "turret_angle": random.uniform(0, math.pi * 2)
+                })
+                break
+
+        if not hit and sh["z"] < 250.0:
+            d.ellipse([sx - 2, sy - 2, sx + 2, sy + 2], fill=(220, 140, 20))
+            new_shells.append(sh)
+
+    _bz_shells = new_shells
+
+    new_exp = []
+    for exp in _bz_explosions:
+        exp["sx"] += exp["vx"]
+        exp["sy"] += exp["vy"]
+        exp["life"] -= 0.05
+        if exp["life"] > 0:
+            alpha = exp["life"]
+            col = (int(220 * alpha), int(140 * alpha), 0)
+            d.ellipse([exp["sx"] - 2, exp["sy"] - 2, exp["sx"] + 2, exp["sy"] + 2], fill=col)
+            new_exp.append(exp)
+    _bz_explosions = new_exp
+
+    # 6. Radar Scope & Periscope Reticle
+    d.ellipse([95, 8, 145, 58], outline=(0, 180, 60), width=1)
+    d.ellipse([115, 28, 125, 38], outline=(0, 80, 25), width=1)
+    d.line([(120, 8), (120, 58)], fill=(0, 60, 20), width=1)
+    d.line([(95, 33), (145, 33)], fill=(0, 60, 20), width=1)
+    for tank in _bz_tanks:
+        dx = tank["x"] - _bz_player["x"]
+        dz = tank["z"] - _bz_player["z"]
+        rx = dx * math.cos(_bz_player["heading"]) - dz * math.sin(_bz_player["heading"])
+        rz = dx * math.sin(_bz_player["heading"]) + dz * math.cos(_bz_player["heading"])
+        blip_x = 120 + max(-20, min(20, rx * 0.15))
+        blip_y = 33 - max(-20, min(20, rz * 0.15))
+        d.ellipse([blip_x - 1, blip_y - 1, blip_x + 1, blip_y + 1], fill=(0, 255, 100))
+
+    d.line([(110, 120), (130, 120)], fill=(0, 255, 100), width=1)
+    d.line([(120, 110), (120, 130)], fill=(0, 255, 100), width=1)
+    d.rectangle([105, 105, 135, 135], outline=(0, 180, 60) if not target_in_reticle else (220, 140, 20), width=1)
+
+    try:
+        font = ImageFont.load_default()
+    except Exception:
+        font = None
+
+    if font:
+        d.text((15, 68), "COG-BATTLEZONE", fill=(0, 220, 80), font=font)
+        d.text((165, 68), f"{_bz_score:06d}", fill=(220, 140, 20), font=font)
+        if target_in_reticle:
+            d.text((82, 142), "[ TARGET LOCK ]", fill=(220, 140, 20), font=font)
+
+    return img
