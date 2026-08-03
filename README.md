@@ -41,6 +41,10 @@ Simply speak the wake phrase — **"Servitor"** — and it wakes, ignites its to
 
 ## 🌐 Adeptus Mechanicus Web Remote
 
+<p align="center">
+  <img src="images/web_remote_preview.jpg" width="800" alt="Adeptus Mechanicus Web Remote Terminal">
+</p>
+
 Omega-7 hosts a responsive, green-phosphor CRT tactical display accessible securely over HTTPS.
 
 ### Remote Features:
