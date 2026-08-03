@@ -113,10 +113,16 @@ def _get_xlib_display():
         return None
 
 
+import shutil
+
 def _build_env() -> dict:
     """Return env dict pointing SDL2 and the display at our virtual framebuffer."""
+    path = os.environ.get("PATH", "")
+    if "/usr/games" not in path.split(":"):
+        path = f"/usr/games:{path}"
     return {
         **os.environ,
+        "PATH":             path,
         "DISPLAY":          DISPLAY_NUM,
         "SDL_VIDEODRIVER":  "x11",      # force SDL2 to use X11 (works with Xvfb)
     }
@@ -136,12 +142,16 @@ def start(disk_path: str) -> bool:
         if _mame_proc and _mame_proc.poll() is None:
             return True
 
+        env = _build_env()
+
         # ── 1. Virtual framebuffer ────────────────────────────────────────────
+        xvfb_bin = shutil.which("Xvfb", path=env["PATH"]) or "Xvfb"
         try:
             _xvfb_proc = subprocess.Popen(
-                ["Xvfb", DISPLAY_NUM, "-screen", "0", _XVFB_GEOM],
+                [xvfb_bin, DISPLAY_NUM, "-screen", "0", _XVFB_GEOM],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                env=env,
                 restore_signals=False,
             )
         except FileNotFoundError:
@@ -152,12 +162,13 @@ def start(disk_path: str) -> bool:
         _xlib_dpy = None    # reset cached Xlib connection
 
         # ── 2. MAME ───────────────────────────────────────────────────────────
+        mame_bin = shutil.which("mame", path=env["PATH"]) or "mame"
         disk_path_obj = pathlib.Path(disk_path).resolve()
         other_disks = [
             str(p) for p in sorted(list(disk_path_obj.parent.glob("*.dsk")) + list(disk_path_obj.parent.glob("*.woz")) + list(disk_path_obj.parent.glob("*.po")))
             if p.resolve() != disk_path_obj
         ]
-        cmd = ["mame", _MAME_DRIVER, "-flop1", str(disk_path_obj)]
+        cmd = [mame_bin, _MAME_DRIVER, "-flop1", str(disk_path_obj)]
         if other_disks:
             cmd += ["-flop2", other_disks[0]]
             print(f"[emulator] Mounted drive 2 (-flop2): {other_disks[0]}")
@@ -169,7 +180,7 @@ def start(disk_path: str) -> bool:
                 cmd,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                env=_build_env(),
+                env=env,
                 restore_signals=False,
             )
         except FileNotFoundError:
