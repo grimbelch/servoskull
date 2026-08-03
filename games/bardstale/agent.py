@@ -37,9 +37,9 @@ except ImportError:
 
 
 # ── Tuning constants ─────────────────────────────────────────────────────────────
-_VISION_INTERVAL = 5      # full Claude call every N autonomous walk steps
-_TURN_DELAY      = 0.40   # seconds between keypresses during vision turns
-_WALK_DELAY      = 0.22   # seconds between keypresses in autonomous walk mode
+_VISION_INTERVAL = 1      # full Claude call every turn
+_TURN_DELAY      = 15.00  # seconds between turns (gives ample time for TTS narration to play cleanly)
+_WALK_DELAY      = 0.50   # seconds between keypresses in autonomous walk mode
 _CLAUDE_MODEL    = "claude-haiku-4-5-20251001"   # fast + inexpensive for per-turn calls
 _MAX_NARRATION_TOKENS = 150
 
@@ -77,25 +77,27 @@ to your master in the manner of a veteran Imperial war-machine.
 Each turn you receive a screenshot of the current game state. You MUST respond
 with a single line of valid JSON and nothing else:
 
-{"key": "<xdotool_key>", "narration": "<one sentence in character>"}
+{"key": "<xdotool_key>", "narration": "<one short sentence in character>"}
 
 Valid keys:
   w = move north      s = move south      d = move east       a = move west
   f = fight           c = cast spell      r = run / retreat
-  Return = confirm    space = pass/skip   1–7 = menu option / party slot
+  Return = confirm    space = pass/skip   1–7 = menu option / party slot / drive number
+
+Special disk handling:
+  * DISK / DRIVE PROMPTS: If the screen displays "Insert Character Disk into Drive 1 (or press 2 for Drive 2)",
+    or ANY prompt asking to insert a disk or press 2 for Drive 2, respond with key "2".
+    The Character Disk is already loaded into Drive 2!
+  * SPLASH / TITLE SCREENS: If the screen says "Press any key to continue" or "Press Space", press "space" or "Return".
 
 Decision priorities:
-  1. COMBAT: If you see an enemy encounter, read HP bars. Fight (f) all heroes if HP >= 60%.
-     Cast healing or retreat (r) if HP < 30%. Target casters and conjurers first.
-  2. MENUS: Read numbered options on screen and select the most appropriate (1–7).
-  3. DUNGEON NAVIGATION: Move systematically. Prefer unexplored directions.
-     When blocked, turn and try another direction.
-  4. TOWN: Return to the Adventurers' Guild to rest when any hero's HP is critical.
-     Spend gold on stat training whenever possible.
-  5. DEFAULT: If uncertain, press space (pass) and observe the next frame.
+  1. DISK / MENU PROMPTS: If a drive prompt or numbered menu is visible, select option "2" or appropriate number.
+  2. COMBAT: If in combat, fight (f) all heroes if HP >= 60%. Cast healing (c) or retreat (r) if HP < 30%.
+  3. DUNGEON / CITY: Move systematically (w, a, s, d).
+  4. DEFAULT: If uncertain, press "space" (pass).
 
-Narration: One punchy sentence in character. Reference the Omnissiah, data-vaults,
-and machine-spirits occasionally. Never break character. Never explain game mechanics.\
+Narration: One short, punchy sentence in character. Reference the Omnissiah, data-vaults,
+and machine-spirits occasionally. Never break character.\
 """
 
 _MAP_CONTEXT_TEMPLATE = "\n\nMap intelligence — {level}:\n{notes}"
