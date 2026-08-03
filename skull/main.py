@@ -477,6 +477,7 @@ def _spotify_poller_loop():
 
 _last_morning_greeting_date: str | None = None
 _morning_greeting_lock = threading.Lock()
+_startup_complete: bool = False
 
 
 def _morning_greeting_watcher() -> None:
@@ -485,11 +486,14 @@ def _morning_greeting_watcher() -> None:
     If target is detected <= 1.5 meters (150 cm) and morning greeting has not yet
     fired today, captures a frame, identifies the person, and delivers a greeting.
     """
-    global _last_morning_greeting_date
+    global _last_morning_greeting_date, _startup_complete
     print("[morning] Proximity morning greeting watcher active (after 4:00 AM, <= 1.5m)")
     while True:
         time.sleep(0.5)
         try:
+            if not _startup_complete:
+                continue
+
             from datetime import datetime
             now = datetime.now()
             from skull import quiet
@@ -646,7 +650,6 @@ def main():
     bambu_ctrl.init(_speak_bambu_notification)
     bambu_ctrl.get_monitor().start()
     threading.Thread(target=_spotify_poller_loop, daemon=True).start()
-    threading.Thread(target=_morning_greeting_watcher, daemon=True).start()
     from skull import ambient_music
     ambient_music.start()
     from skull import web
@@ -697,6 +700,9 @@ def main():
     finally:
         eyes.off()
         display.idle()
+        global _startup_complete
+        _startup_complete = True
+        threading.Thread(target=_morning_greeting_watcher, daemon=True).start()
 
 
 
