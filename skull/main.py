@@ -188,8 +188,8 @@ def _game_narrate(text: str) -> None:
 
     def _do_narrate():
         try:
-            wav = tts.synthesize(text)
             with _speech_lock:
+                wav = tts.synthesize(text)
                 audio.play_wav_bytes(wav, output_device=config.VOICE_OUTPUT_DEVICE)
         except Exception as e:
             print(f"[bardstale] narration TTS error: {e}")
