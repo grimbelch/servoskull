@@ -1560,7 +1560,7 @@ def _render_vector_dungeon_frame(bezel, mask, now):
         cell_is_wall = not (0 <= cell_x < 12 and 0 <= cell_y < 12) or _dng_map[cell_y][cell_x] == 1
 
         if cell_is_wall:
-            d.rectangle([xl_f, yt_f, xr_f, yb_f], outline=(0, 220, 80), width=1)
+            d.rectangle([xl_f, yt_f, xr_f, yb_f], fill=(0, 8, 3), outline=(0, 220, 80), width=1)
             pad_w = max(2, (xr_f - xl_f) // 4)
             pad_h = max(2, (yb_f - yt_f) // 4)
             d.rectangle([xl_f + pad_w, yt_f + pad_h, xr_f - pad_w, yb_f - pad_h], outline=(0, 160, 60), width=1)
@@ -1572,7 +1572,7 @@ def _render_vector_dungeon_frame(bezel, mask, now):
         left_is_wall = not (0 <= lx < 12 and 0 <= ly < 12) or _dng_map[ly][lx] == 1
 
         if left_is_wall:
-            d.polygon([(xl_n, yt_n), (xl_f, yt_f), (xl_f, yb_f), (xl_n, yb_n)], outline=(0, 220, 80), width=1)
+            d.polygon([(xl_n, yt_n), (xl_f, yt_f), (xl_f, yb_f), (xl_n, yb_n)], fill=(0, 8, 3), outline=(0, 220, 80))
             d.line([(xl_n, yt_n), (xl_n, yb_n)], fill=(0, 255, 100), width=1)
             d.line([(xl_f, yt_f), (xl_f, yb_f)], fill=(0, 255, 100), width=1)
         else:
@@ -1586,7 +1586,7 @@ def _render_vector_dungeon_frame(bezel, mask, now):
         right_is_wall = not (0 <= rx < 12 and 0 <= ry < 12) or _dng_map[ry][rx] == 1
 
         if right_is_wall:
-            d.polygon([(xr_f, yt_f), (xr_n, yt_n), (xr_n, yb_n), (xr_f, yb_f)], outline=(0, 220, 80), width=1)
+            d.polygon([(xr_f, yt_f), (xr_n, yt_n), (xr_n, yb_n), (xr_f, yb_f)], fill=(0, 8, 3), outline=(0, 220, 80))
             d.line([(xr_n, yt_n), (xr_n, yb_n)], fill=(0, 255, 100), width=1)
             d.line([(xr_f, yt_f), (xr_f, yb_f)], fill=(0, 255, 100), width=1)
         else:
