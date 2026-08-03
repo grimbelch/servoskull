@@ -52,8 +52,9 @@ def shutdown(sig=None, frame=None):
     sys.exit(0)
 
 
-signal.signal(signal.SIGINT, shutdown)
-signal.signal(signal.SIGTERM, shutdown)
+if threading.current_thread() == threading.main_thread():
+    signal.signal(signal.SIGINT, shutdown)
+    signal.signal(signal.SIGTERM, shutdown)
 
 
 
