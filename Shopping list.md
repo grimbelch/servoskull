@@ -6,7 +6,7 @@ Warhammer 40k AI Talking Servo Skull Build based on Raspberry Pi 5.
 
 ## 1. 3D Printed Body
 - [ ] **Servo Skull — LED Candlelit Lantern (3D model / STL)**
-  - [Printables Model Link](https://www.printables.com/model/1457078-servo-skull-led-candlelit-lantern)
+  - [Printables Model Link](https://www.printables.com/model/1457078-servo-skull-led-candlelit-lantern) (Google Drive backup: https://drive.google.com/drive/folders/14fDHrc1rdDoB-aAqmKuZd4EoFfS8hWga?usp=sharing)
   - The printable skull chassis this entire build is designed around.
   - Houses the eye LEDs, GC9A01 round display, camera module, nasal mic capsule, rangefinder, and candle LEDs.
   - Print in your filament of choice (bone/ivory PLA with an acrylic wash reads best for 40k lore).
