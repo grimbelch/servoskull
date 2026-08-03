@@ -18,7 +18,7 @@ SCREENSAVER_ANIMS = [
     "bouncing_cog", "fractal_tree", "hud_status", "orbitals", "spectrum_bars",
     "plasma", "lissajous", "voronoi", "data_stream", "mandala",
     "rune_wheel", "glitch", "dna_helix", "neural_net", "gravity_well",
-    "void_shield", "hex_grid", "kaleidoscope", "particle_burst", "asteroids", "battlezone"
+    "void_shield", "hex_grid", "kaleidoscope", "particle_burst", "asteroids", "battlezone", "trench_run"
 ]
 
 
@@ -1380,10 +1380,262 @@ def render_screensaver_frame(anim_name: str, bezel, mask, now: float) -> Image.I
             return _render_asteroids_frame(bezel, mask, now)
         elif anim_name == "battlezone":
             return _render_battlezone_frame(bezel, mask, now)
+        elif anim_name == "trench_run":
+            return _render_trench_run_frame(bezel, mask, now)
         else:
             return _render_starfield_frame(bezel, mask, now)
     except Exception as e:
         return _render_starfield_frame(bezel, mask, now)
+
+
+# Trench Run Arcade State
+_tr_dist = 0.0
+_tr_barriers = []
+_tr_turrets = []
+_tr_bolts = []
+_tr_torpedoes = []
+_tr_sparks = []
+_tr_score = 0
+_tr_last_shot = 0.0
+_tr_exhaust_port_mode = False
+_tr_exhaust_port_z = 0.0
+_tr_hit_flash = 0.0
+
+def _init_trench_run():
+    global _tr_dist, _tr_barriers, _tr_turrets, _tr_bolts, _tr_torpedoes, _tr_sparks, _tr_score, _tr_last_shot, _tr_exhaust_port_mode, _tr_exhaust_port_z, _tr_hit_flash
+    _tr_dist = 2000.0
+    _tr_barriers = []
+    for i in range(5):
+        _tr_barriers.append({
+            "z": 100.0 + i * 150.0,
+            "type": random.choice(["top", "bottom", "left", "right", "center_cross"])
+        })
+    _tr_turrets = []
+    for i in range(8):
+        side = random.choice([-1, 1])
+        _tr_turrets.append({
+            "z": 80.0 + i * 90.0,
+            "side": side,
+            "y": random.uniform(-30, 30)
+        })
+    _tr_bolts = []
+    _tr_torpedoes = []
+    _tr_sparks = []
+    _tr_score = 0
+    _tr_last_shot = 0.0
+    _tr_exhaust_port_mode = False
+    _tr_exhaust_port_z = 0.0
+    _tr_hit_flash = 0.0
+
+
+def _render_trench_run_frame(bezel, mask, now):
+    """Vector Arcade Star Wars Trench Run Simulator – Adeptus Mechanicus edition."""
+    global _tr_dist, _tr_barriers, _tr_turrets, _tr_bolts, _tr_torpedoes, _tr_sparks, _tr_score, _tr_last_shot, _tr_exhaust_port_mode, _tr_exhaust_port_z, _tr_hit_flash
+
+    if not _tr_barriers or not _tr_turrets:
+        _init_trench_run()
+
+    img = Image.new("RGB", (240, 240), (0, 8, 3))
+    d = ImageDraw.Draw(img)
+
+    # 1. Update distance & speed
+    speed = 4.5
+    _tr_dist = max(0.0, _tr_dist - speed * 0.4)
+
+    if _tr_dist <= 150.0 and not _tr_exhaust_port_mode:
+        _tr_exhaust_port_mode = True
+        _tr_exhaust_port_z = 350.0
+
+    sway_x = math.sin(now * 2.0) * 8.0
+    sway_y = math.cos(now * 1.5) * 6.0
+
+    def proj(x, y, z):
+        if z <= 2.0:
+            return None
+        scale = 160.0 / z
+        sx = 120 + (x + sway_x) * scale
+        sy = 120 - (y + sway_y) * scale
+        return (sx, sy)
+
+    # 2. Draw Vector Trench Framework
+    wall_x_left, wall_x_right = -60.0, 60.0
+    floor_y, top_y = -45.0, 45.0
+
+    z_near, z_far = 10.0, 380.0
+    p_nlf = proj(wall_x_left, floor_y, z_near)
+    p_flf = proj(wall_x_left, floor_y, z_far)
+    p_nrf = proj(wall_x_right, floor_y, z_near)
+    p_frf = proj(wall_x_right, floor_y, z_far)
+    p_nlt = proj(wall_x_left, top_y, z_near)
+    p_flt = proj(wall_x_left, top_y, z_far)
+    p_nrt = proj(wall_x_right, top_y, z_near)
+    p_frt = proj(wall_x_right, top_y, z_far)
+
+    if p_nlf and p_flf: d.line([p_nlf, p_flf], fill=(0, 200, 70), width=1)
+    if p_nrf and p_frf: d.line([p_nrf, p_frf], fill=(0, 200, 70), width=1)
+    if p_nlt and p_flt: d.line([p_nlt, p_flt], fill=(0, 200, 70), width=1)
+    if p_nrt and p_frt: d.line([p_nrt, p_frt], fill=(0, 200, 70), width=1)
+
+    z_offset = (_tr_dist * 5.0) % 40.0
+    for rz in range(15, 380, 40):
+        z_curr = rz - z_offset
+        if z_curr > 8.0:
+            c1 = proj(wall_x_left, floor_y, z_curr)
+            c2 = proj(wall_x_right, floor_y, z_curr)
+            c3 = proj(wall_x_right, top_y, z_curr)
+            c4 = proj(wall_x_left, top_y, z_curr)
+            if c1 and c2 and c3 and c4:
+                d.polygon([c1, c2, c3, c4], outline=(0, 140, 45), width=1)
+
+    # 3. Process & Draw Catwalk Barriers
+    for b in _tr_barriers:
+        b["z"] -= speed * 1.5
+        if b["z"] <= 8.0:
+            b["z"] = 400.0
+            b["type"] = random.choice(["top", "bottom", "left", "right", "center_cross"])
+
+        bz = b["z"]
+        if bz > 8.0:
+            c1 = proj(wall_x_left, floor_y, bz)
+            c2 = proj(wall_x_right, floor_y, bz)
+            c3 = proj(wall_x_right, top_y, bz)
+            c4 = proj(wall_x_left, top_y, bz)
+
+            if c1 and c2 and c3 and c4:
+                b_type = b["type"]
+                col = (220, 140, 20)
+                if b_type == "top":
+                    cm1 = proj(wall_x_left, 0.0, bz)
+                    cm2 = proj(wall_x_right, 0.0, bz)
+                    if cm1 and cm2:
+                        d.polygon([cm1, cm2, c3, c4], outline=col, width=1)
+                elif b_type == "bottom":
+                    cm1 = proj(wall_x_left, 0.0, bz)
+                    cm2 = proj(wall_x_right, 0.0, bz)
+                    if cm1 and cm2:
+                        d.polygon([c1, c2, cm2, cm1], outline=col, width=1)
+                elif b_type == "left":
+                    cm1 = proj(0.0, floor_y, bz)
+                    cm2 = proj(0.0, top_y, bz)
+                    if cm1 and cm2:
+                        d.polygon([c1, cm1, cm2, c4], outline=col, width=1)
+                elif b_type == "right":
+                    cm1 = proj(0.0, floor_y, bz)
+                    cm2 = proj(0.0, top_y, bz)
+                    if cm1 and cm2:
+                        d.polygon([cm1, c2, c3, cm2], outline=col, width=1)
+                else:
+                    d.line([c1, c3], fill=col, width=1)
+                    d.line([c2, c4], fill=col, width=1)
+
+    # 4. Process & Draw Wall Turrets
+    for tur in _tr_turrets:
+        tur["z"] -= speed * 1.5
+        if tur["z"] <= 8.0:
+            tur["z"] = 400.0
+            tur["side"] = random.choice([-1, 1])
+            tur["y"] = random.uniform(-35, 35)
+
+        tz = tur["z"]
+        if tz > 8.0:
+            tx = wall_x_left if tur["side"] == -1 else wall_x_right
+            ty = tur["y"]
+            p_tur = proj(tx, ty, tz)
+            if p_tur:
+                d.ellipse([p_tur[0]-3, p_tur[1]-3, p_tur[0]+3, p_tur[1]+3], outline=(0, 255, 100))
+                if random.random() < 0.03 and (now - _tr_last_shot > 0.4):
+                    _tr_last_shot = now
+                    _tr_bolts.append({"x": tx, "y": ty, "z": tz, "speed": 14.0})
+
+    # 5. Process Turret Bolts
+    new_bolts = []
+    for blt in _tr_bolts:
+        blt["z"] -= blt["speed"]
+        if blt["z"] > 6.0:
+            p_b = proj(blt["x"], blt["y"], blt["z"])
+            if p_b and 0 <= p_b[0] <= 240 and 0 <= p_b[1] <= 240:
+                d.ellipse([p_b[0]-2, p_b[1]-2, p_b[0]+2, p_b[1]+2], fill=(220, 30, 30))
+                new_bolts.append(blt)
+    _tr_bolts = new_bolts
+
+    # 6. Thermal Exhaust Port Mode & Torpedoes
+    if _tr_exhaust_port_mode:
+        _tr_exhaust_port_z -= speed * 1.2
+        ep_z = _tr_exhaust_port_z
+
+        if ep_z > 15.0:
+            p_ep = proj(0.0, floor_y, ep_z)
+            if p_ep:
+                r_ep = max(4, int(450.0 / ep_z))
+                d.ellipse([p_ep[0]-r_ep, p_ep[1]-r_ep, p_ep[0]+r_ep, p_ep[1]+r_ep], outline=(220, 140, 20), width=2)
+                d.ellipse([p_ep[0]-r_ep//2, p_ep[1]-r_ep//2, p_ep[0]+r_ep//2, p_ep[1]+r_ep//2], outline=(0, 255, 100), width=1)
+
+                if ep_z < 180.0 and len(_tr_torpedoes) == 0:
+                    _tr_torpedoes.append({"x": -20.0, "y": -20.0, "z": 20.0, "tz": ep_z})
+                    _tr_torpedoes.append({"x": 20.0, "y": -20.0, "z": 20.0, "tz": ep_z})
+
+        new_torp = []
+        for tp in _tr_torpedoes:
+            tp["z"] += 12.0
+            p_tp = proj(tp["x"], tp["y"], tp["z"])
+            if p_tp:
+                d.ellipse([p_tp[0]-3, p_tp[1]-3, p_tp[0]+3, p_tp[1]+3], fill=(0, 255, 255))
+            if tp["z"] >= ep_z:
+                _tr_score += 10000
+                _tr_hit_flash = 1.0
+                for _ in range(30):
+                    a = random.uniform(0, 2 * math.pi)
+                    spd = random.uniform(2.0, 7.0)
+                    _tr_sparks.append({"x": 120, "y": 140, "vx": math.cos(a)*spd, "vy": math.sin(a)*spd, "life": 1.0})
+            else:
+                new_torp.append(tp)
+        _tr_torpedoes = new_torp
+
+        if ep_z <= 15.0:
+            _tr_dist = 2000.0
+            _tr_exhaust_port_mode = False
+
+    new_sparks = []
+    for sp in _tr_sparks:
+        sp["x"] += sp["vx"]
+        sp["y"] += sp["vy"]
+        sp["life"] -= 0.04
+        if sp["life"] > 0:
+            alpha = sp["life"]
+            d.point((int(sp["x"]), int(sp["y"])), fill=(0, int(255*alpha), int(200*alpha)))
+            new_sparks.append(sp)
+    _tr_sparks = new_sparks
+
+    # 7. X-Wing Targeting Sight & Cockpit HUD
+    ret_x, ret_y = 120, 120
+    d.line([(ret_x - 15, ret_y), (ret_x - 5, ret_y)], fill=(220, 140, 20), width=1)
+    d.line([(ret_x + 5, ret_y), (ret_x + 15, ret_y)], fill=(220, 140, 20), width=1)
+    d.line([(ret_x, ret_y - 15), (ret_x, ret_y - 5)], fill=(220, 140, 20), width=1)
+    d.line([(ret_x, ret_y + 5), (ret_x, ret_y + 15)], fill=(220, 140, 20), width=1)
+    d.ellipse([ret_x - 8, ret_y - 8, ret_x + 8, ret_y + 8], outline=(0, 255, 100), width=1)
+
+    if random.random() < 0.3:
+        d.line([(10, 220), (115, 125)], fill=(220, 30, 30), width=2)
+        d.line([(230, 220), (125, 125)], fill=(220, 30, 30), width=2)
+
+    # 8. Render HUD Header
+    try:
+        font = ImageFont.load_default()
+    except Exception:
+        font = None
+
+    if font:
+        d.text((15, 16), "COG-TRENCH-RUN", fill=(0, 220, 80), font=font)
+        d.text((150, 16), f"DIST: {int(_tr_dist):04d}m", fill=(220, 140, 20), font=font)
+        if _tr_exhaust_port_mode:
+            d.text((68, 34), "[ EXHAUST PORT LOCK ]", fill=(220, 30, 30), font=font)
+
+    if _tr_hit_flash > 0:
+        _tr_hit_flash = max(0.0, _tr_hit_flash - 0.1)
+        overlay = Image.new("RGB", (240, 240), (0, 255, 180))
+        img = Image.blend(img, overlay, _tr_hit_flash * 0.4)
+
+    return img
 
 
 # Battlezone Arcade State
