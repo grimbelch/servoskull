@@ -62,7 +62,6 @@ _MAME_FLAGS: list[str] = [
     "-sound",     "none",
     "-video",     "soft",      # software renderer — safe with Xvfb / X11
     "-noautosave",
-    "-sl2",       "null",      # disable optional Votrax card to avoid sc01a.bin requirement
 ]
 
 # ROM search path for MAME.
