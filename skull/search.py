@@ -17,19 +17,21 @@ except ImportError:
 
 
 def _rules_dir() -> pathlib.Path:
-    """Resolve the offline rules library dir without depending on skull.config.
-
-    Mirrors config's convention (OMEGA7_DATA_DIR, else the repo root) so it works
-    both here and on older deployments that predate the config data-dir refactor.
-    RULES_DIR may be a bare name (resolved under the data dir) or an absolute path."""
+    """Resolve the offline rules library dir without depending on skull.config."""
     repo_root = pathlib.Path(__file__).resolve().parent.parent
     data_dir = pathlib.Path(os.getenv("OMEGA7_DATA_DIR", "~/.config/omega7")).expanduser()
-    rules = pathlib.Path(os.getenv("RULES_DIR", "Rules")).expanduser()
+    rules_env = os.getenv("RULES_DIR", "games/rules")
+    rules = pathlib.Path(rules_env).expanduser()
     if rules.is_absolute():
         return rules
     if (repo_root / rules).exists():
         return repo_root / rules
+    if (repo_root / "games/rules").exists():
+        return repo_root / "games/rules"
+    if (repo_root / "Rules").exists():
+        return repo_root / "Rules"
     return data_dir / rules
+
 
 _WMO_CODES: dict[int, str] = {
     0: "clear sky",
