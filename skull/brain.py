@@ -1250,11 +1250,109 @@ def _build_tools() -> list[dict]:
                 }
             }
         }
+    },
+    {
+        "name": "roll_character_stats",
+        "description": (
+            "Roll starting characteristics and calculate derived attributes (Wounds, Movement, Fate, Fortune, "
+            "Resilience, Resolve) for a new WFRP 4E character of a given species/race. "
+            "Races supported: 'human' (Human Reiklander), 'dwarf' (Dwarf), 'halfling' (Halfling), "
+            "'high_elf' (High Elf), 'wood_elf' (Wood Elf). Returns a detailed break-down of base modifiers, "
+            "2d10 rolls, final characteristics, and derived stats suitable for speech."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "race": {
+                    "type": "string",
+                    "description": "The chosen species/race: 'human', 'dwarf', 'halfling', 'high_elf', or 'wood_elf'."
+                }
+            },
+            "required": ["race"]
+        }
+    },
+    {
+        "name": "save_character",
+        "description": (
+            "Save a fully created or updated player character to the active WFRP campaign. "
+            "Persists character name, race, career, career level, characteristic scores, max/current wounds, "
+            "fate/fortune, resilience/resolve, movement, skills, talents, trappings, and XP."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Character name."
+                },
+                "race": {
+                    "type": "string",
+                    "description": "Character species/race."
+                },
+                "career": {
+                    "type": "string",
+                    "description": "Character career (e.g. 'Soldier', 'Witch Hunter', 'Rat Catcher')."
+                },
+                "career_level": {
+                    "type": "string",
+                    "description": "Optional: Career level title (e.g. 'Recruit', 'Apprentice Apothecary')."
+                },
+                "characteristics": {
+                    "type": "object",
+                    "description": "Dict of characteristics e.g. {'WS': 35, 'BS': 30, 'S': 35, 'T': 30, 'I': 25, 'Ag': 30, 'Dex': 25, 'Int': 28, 'WP': 30, 'Fel': 22}."
+                },
+                "wounds_max": {
+                    "type": "integer",
+                    "description": "Maximum wound total."
+                },
+                "fate": {
+                    "type": "integer",
+                    "description": "Starting Fate points."
+                },
+                "fortune": {
+                    "type": "integer",
+                    "description": "Starting Fortune points."
+                },
+                "resilience": {
+                    "type": "integer",
+                    "description": "Starting Resilience points."
+                },
+                "resolve": {
+                    "type": "integer",
+                    "description": "Starting Resolve points."
+                },
+                "move": {
+                    "type": "integer",
+                    "description": "Movement score."
+                },
+                "skills": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of starting skills."
+                },
+                "talents": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of starting talents."
+                },
+                "trappings": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of starting equipment/trappings."
+                },
+                "xp": {
+                    "type": "integer",
+                    "description": "Starting experience points (including bonuses for random choices)."
+                }
+            },
+            "required": ["name", "race", "career"]
+        }
     }
 ]
 
 
 _TOOLS = _build_tools()
+
 
 _ORDINALS = {
     "first": 0, "1": 0,
@@ -2168,6 +2266,73 @@ def _tool_save_campaign_state(i):
     return f"Campaign '{active['name']}' saved."
 
 
+def _tool_roll_character_stats(i):
+    from skull import campaign as _campaign
+    race_input = i.get("race", "human").strip()
+    race_key = _campaign.resolve_race(race_input)
+    if not race_key:
+        valid = ", ".join(sorted({v["display"] for v in _campaign.RACIAL_DATA.values()}))
+        return f"Unknown race '{race_input}'. Valid races: {valid}"
+    char_block = _campaign.roll_characteristics(race_key)
+    summary = _campaign.format_characteristics_for_speech(char_block)
+    # Store the pending block in process memory so save_character can reference it
+    _PENDING_CHAR_BLOCKS[race_key] = char_block
+    return summary
+
+
+def _tool_save_character(i):
+    from skull import campaign as _campaign
+    active = _campaign.get_active_campaign()
+    if not active:
+        return "No active campaign. Use start_campaign first, then save_character."
+    name = i.get("name", "").strip()
+    if not name:
+        return "Error: character name is required."
+    race_input = i.get("race", "").strip()
+    race_key = _campaign.resolve_race(race_input) if race_input else None
+    racial = _campaign.RACIAL_DATA.get(race_key, {}) if race_key else {}
+    char = {
+        "name": name,
+        "race": i.get("race", ""),
+        "career": i.get("career", ""),
+        "career_level": i.get("career_level", ""),
+        "characteristics": i.get("characteristics", {}),
+        "wounds": {
+            "max": i.get("wounds_max", 0),
+            "current": i.get("wounds_max", 0),
+        },
+        "fate": {
+            "total": i.get("fate", racial.get("fate", 0)),
+            "current": i.get("fate", racial.get("fate", 0)),
+        },
+        "fortune": {
+            "total": i.get("fortune", racial.get("fortune", 0)),
+            "current": i.get("fortune", racial.get("fortune", 0)),
+        },
+        "resilience": i.get("resilience", racial.get("resilience", 0)),
+        "resolve": i.get("resolve", racial.get("resolve", 0)),
+        "move": i.get("move", racial.get("move", 4)),
+        "skills": i.get("skills", []),
+        "talents": i.get("talents", []),
+        "trappings": i.get("trappings", []),
+        "xp": i.get("xp", 0),
+        "xp_spent": 0,
+        "doomed": i.get("doomed", ""),
+        "star_sign": i.get("star_sign", ""),
+        "motivation": i.get("motivation", ""),
+    }
+    _campaign.upsert_character(char)
+    return (f"Character '{name}' saved to campaign '{active['name']}'. "
+            f"Race: {char['race']}, Career: {char['career']}, "
+            f"Wounds: {char['wounds']['max']}, Fate: {char['fate']['total']}.")
+
+
+# Temporary in-process store for rolled characteristic blocks between tool calls
+_PENDING_CHAR_BLOCKS: dict = {}
+
+
+
+
 def _tool_get_weather(i):
     from skull.config import WEATHER_LAT, WEATHER_LON
     if WEATHER_LAT == 0.0 and WEATHER_LON == 0.0:
@@ -2947,6 +3112,8 @@ _TOOL_REGISTRY = {
     "list_campaigns": _tool_list_campaigns,
     "get_campaign_state": _tool_get_campaign_state,
     "save_campaign_state": _tool_save_campaign_state,
+    "roll_character_stats": _tool_roll_character_stats,
+    "save_character": _tool_save_character,
 }
 
 def _execute_tool(name: str, tool_input: dict) -> str:
