@@ -308,6 +308,7 @@ _RULES_STOPWORDS = {
     "working", "use", "used", "using", "get", "gets", "rule", "rules", "ruling",
     "necromunda", "warhammer", "game", "play", "played", "playing", "about",
     "into", "any", "this", "that", "there", "their", "they", "you", "your",
+    "whfrp", "fantasy", "roleplay", "roleplaying", "old", "world",
 }
 
 _library_cache: dict[str, list] = {}  # folder path -> cached [{title, url, text, headings}]
@@ -591,4 +592,50 @@ def netea_rules(query: str) -> str:
     if not result:
         return ("The NetEA rules library isn't installed on this device. "
                 "Ingest the NetEA rules / tournament pack / army list PDFs with Rules/ingest_pdf.py.")
+    return result
+
+
+# ── Local Warhammer Fantasy Roleplay 4E ruleset (offline library) ─────────────
+# Core rules and Quick Reference ingested from PDF to _rules_dir()/whfrp via
+# Rules/ingest_pdf.py. Offline-only (PDFs are personal-reference copies).
+_WHFRP_DIR = _rules_dir() / "whfrp"
+
+# Concept-route boosts: WFRP 4E topics whose canonical page titles don't
+# directly contain the keyword (e.g. "SL" lives under "Skill Tests").
+_WHFRP_ROUTES = [
+    # Core mechanic: skill tests, Success Levels, opposed tests
+    ("characteristic", ["ws", "bs", "strength", "toughness", "initiative", "agility",
+                        "dexterity", "intelligence", "willpower", "fellowship",
+                        "characteristic", "characteristics"]),
+    ("skill", ["skill test", "sl", "success level", "success levels", "opposed test",
+               "extended test", "assist", "group test", "average difficulty",
+               "challenging", "difficult", "easy", "routine"]),
+    ("combat", ["attack", "attacks", "hit", "wound", "wounds", "damage", "armour",
+                "hit location", "critical", "criticals", "advantage", "initiative order",
+                "surprise", "ranged", "melee", "unarmed", "fumble", "free attack"]),
+    ("fortune", ["fate", "fortune", "fate point", "fortune point", "resilience",
+                 "resolve", "doomed", "blessing"]),
+    ("corruption", ["corruption", "mutation", "taint", "sin", "chaos", "insanity",
+                    "disorder", "trauma", "psychology"]),
+    ("career", ["career", "careers", "advance", "advances", "xp", "experience",
+                "career path", "career change", "trapping", "trappings", "class"]),
+    ("magic", ["spell", "spells", "casting", "miscast", "wind", "winds of magic",
+               "channelling", "prayer", "miracle", "petty magic", "arcane lore",
+               "overcasting", "ingredient"]),
+    ("bestiary", ["creature", "monster", "beast", "npc", "enemy", "goblin", "orc",
+                  "skaven", "undead", "demon", "daemon", "troll", "giant", "dragon"]),
+    ("travel", ["travel", "journey", "encumbrance", "carrying", "weather", "night",
+                "rest", "recovery", "healing", "physician", "medicine"]),
+    ("social", ["gossip", "haggle", "charm", "intimidate", "bribery", "rumour",
+                "social", "rapport", "entertain", "fellowship test"]),
+]
+
+
+def whfrp_rules(query: str) -> str:
+    """Look up Warhammer Fantasy Roleplay 4E rules from the local offline library."""
+    result = _search_rules_library(_WHFRP_DIR, query, routes=_WHFRP_ROUTES,
+                                   label="WFRP 4E", top_k=3, max_chars=3200)
+    if not result:
+        return ("The WFRP 4E rules library isn't installed on this device. "
+                "Ingest the rulebook PDFs with Rules/ingest_pdf.py.")
     return result

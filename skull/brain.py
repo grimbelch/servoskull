@@ -20,7 +20,7 @@ _history: list[dict] = []
 
 # Tools that hit the network/hardware and can take a noticeable moment. Omega-7
 # speaks a short "stand by" before running any of these so the user gets feedback.
-_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings", "register_face", "register_voice", "purge_identity", "connect_bambu_printer", "set_weather_location", "get_spotify_current_track"}
+_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "whfrp_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings", "register_face", "register_voice", "purge_identity", "connect_bambu_printer", "set_weather_location", "get_spotify_current_track", "start_campaign", "save_campaign_state"}
 _HISTORY_PATH = config.data_path(config.HISTORY_FILE)
 _last_turn_tools: list[str] = []
 
@@ -1105,6 +1105,151 @@ def _build_tools() -> list[dict]:
             },
             "required": ["name"]
         }
+    },
+    {
+        "name": "whfrp_rules",
+        "description": (
+            "Look up Warhammer Fantasy Roleplay 4th Edition (WFRP 4E) rules from the local offline "
+            "rules library — the full Core Rulebook and the Quick Reference guide. Use for ANY "
+            "WFRP 4E question: characteristics and tests, Success Levels (SL), opposed/extended tests, "
+            "combat (hit locations, damage, criticals, Advantage), careers and advances, skills and "
+            "talents, fate/fortune/resilience points, corruption/mutation, magic and spells, "
+            "bestiary entries, travel/encumbrance, social encounters, and all other mechanics. "
+            "Always call this tool before ruling on any WFRP mechanic rather than relying on memory. "
+            "If the player asks about a specific rule, spell, talent, creature, or career, search "
+            "for it by name. The tool returns excerpts from the rulebook — use only the relevant "
+            "portion when answering."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Rule, mechanic, career, spell, creature, or topic to look up (e.g. 'characteristic test', 'hit location table', 'Warrior career', 'Fireball spell', 'Troll')",
+                }
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "roll_whfrp_dice",
+        "description": (
+            "Roll dice for Warhammer Fantasy Roleplay 4E. Primarily used for d100 (percentile) "
+            "characteristic tests — roll under the characteristic value to succeed. Also handles "
+            "other WFRP die types: d10 (for tens/units separately), d6 (generic), d4. "
+            "Use this to roll as the GM for NPCs, monsters, and hidden tests. When the player "
+            "needs to roll for their own character, prompt them to roll their own dice, then "
+            "call this only if they ask you to roll on their behalf."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "die_type": {
+                    "type": "string",
+                    "enum": ["d100", "d10", "d6", "d4"],
+                    "description": "The die type. d100 is the primary WFRP die (percentile test). d10 for individual tens/units. d6/d4 for damage and other rolls."
+                },
+                "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Number of dice to roll (default: 1)."
+                },
+                "characteristic": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "description": "Optional: For d100 tests, the characteristic value to roll under (e.g. 35 for WS 35). If provided, the result will show success/failure and Success Level."
+                },
+                "modifier": {
+                    "type": "integer",
+                    "description": "Optional: Situational modifier to apply to the characteristic before the test (positive for bonus, negative for penalty, in multiples of 10 e.g. +20, -10)."
+                },
+                "label": {
+                    "type": "string",
+                    "description": "Optional: Label for the roll (e.g. 'Goblin WS test', 'Troll Toughness check', 'NPC Charm test')."
+                }
+            },
+            "required": ["die_type"]
+        }
+    },
+    {
+        "name": "start_campaign",
+        "description": (
+            "Start or resume a named WFRP campaign. Call when the player says 'start a campaign', "
+            "'resume [campaign name]', 'let's play [campaign name]', or 'new campaign'. "
+            "If resuming an existing campaign, pass the name; the campaign state (characters, location, "
+            "scene, notes) will be loaded and returned. If starting fresh, also pass character info. "
+            "This sets the campaign as active for the current session."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "campaign_name": {
+                    "type": "string",
+                    "description": "Name of the campaign (e.g. 'The Enemy Within', 'Rough Nights and Hard Days'). Used as the save file identifier."
+                },
+                "adventure": {
+                    "type": "string",
+                    "description": "Optional: Name of the adventure module being played (if different from campaign name)."
+                },
+                "character_name": {
+                    "type": "string",
+                    "description": "Optional (new campaigns): The player character's name."
+                },
+                "character_race": {
+                    "type": "string",
+                    "description": "Optional (new campaigns): Character race (e.g. Human, Dwarf, Halfling, High Elf, Wood Elf)."
+                },
+                "character_career": {
+                    "type": "string",
+                    "description": "Optional (new campaigns): Character career (e.g. Soldier, Witch Hunter, Scholar, Rat Catcher)."
+                }
+            },
+            "required": ["campaign_name"]
+        }
+    },
+    {
+        "name": "list_campaigns",
+        "description": "List all saved WFRP campaigns. Use when the player asks what campaigns are saved, or to show available campaigns to resume.",
+        "input_schema": {
+            "type": "object",
+            "properties": {}
+        }
+    },
+    {
+        "name": "get_campaign_state",
+        "description": "Read the current state of the active WFRP campaign: character info, current location, scene description, active NPCs, and recent session notes. Call at the start of each session after start_campaign, or when you need to recall what happened.",
+        "input_schema": {
+            "type": "object",
+            "properties": {}
+        }
+    },
+    {
+        "name": "save_campaign_state",
+        "description": (
+            "Save GM notes or update the active campaign's state. Use to persist important events: "
+            "scene changes, NPC interactions, wounds taken, fate points spent, decisions made. "
+            "Call after significant moments so the campaign can be resumed accurately. "
+            "Pass 'note' for session notes; use 'field'+'value' to update a specific field "
+            "(e.g. field='current_location', value='Bögenhafen docks')."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "note": {
+                    "type": "string",
+                    "description": "A session note to append (e.g. 'Player defeated the goblin ambush. Took 3 wounds.')."
+                },
+                "field": {
+                    "type": "string",
+                    "description": "Optional: A specific campaign field to update (e.g. 'current_location', 'current_scene')."
+                },
+                "value": {
+                    "type": "string",
+                    "description": "Optional: The new value for the specified field."
+                }
+            }
+        }
     }
 ]
 
@@ -1900,6 +2045,129 @@ def _tool_netea_rules(i):
     finally:
         display.stop_rules_lookup()
 
+
+def _tool_whfrp_rules(i):
+    query = i.get("query", "")
+    print(f"[skull] Looking up WFRP 4E rules: {query}")
+    from skull import display
+    display.start_rules_lookup()
+    try:
+        return _search.whfrp_rules(query)
+    finally:
+        display.stop_rules_lookup()
+
+
+def _tool_roll_whfrp_dice(i):
+    import random
+    die_type = i.get("die_type", "d100")
+    count = max(1, int(i.get("count", 1)))
+    characteristic = i.get("characteristic")
+    modifier = int(i.get("modifier", 0))
+    label = i.get("label", "")
+
+    if die_type == "d100":
+        rolls = [random.randint(1, 100) for _ in range(count)]
+        lines = []
+        for roll in rolls:
+            prefix = f"{label}: " if label else ""
+            if characteristic is not None:
+                effective = max(1, min(100, int(characteristic) + modifier))
+                sl_raw = (effective // 10) - (roll // 10)
+                if roll <= effective:
+                    outcome = f"SUCCESS (SL +{sl_raw})"
+                else:
+                    outcome = f"FAILURE (SL {sl_raw})"
+                mod_str = f" (modified {effective})" if modifier != 0 else ""
+                lines.append(f"{prefix}Rolled {roll} vs {characteristic}{mod_str} \u2192 {outcome}")
+            else:
+                lines.append(f"{prefix}Rolled {roll}")
+        return "\n".join(lines)
+    elif die_type == "d10":
+        rolls = [random.randint(1, 10) for _ in range(count)]
+        return f"d10 \u00d7 {count}: {rolls} (total {sum(rolls)})"
+    elif die_type == "d6":
+        rolls = [random.randint(1, 6) for _ in range(count)]
+        return f"d6 \u00d7 {count}: {rolls} (total {sum(rolls)})"
+    elif die_type == "d4":
+        rolls = [random.randint(1, 4) for _ in range(count)]
+        return f"d4 \u00d7 {count}: {rolls} (total {sum(rolls)})"
+    return f"Unknown die type: {die_type}"
+
+
+def _tool_start_campaign(i):
+    from skull import campaign as _campaign
+    name = i.get("campaign_name", "").strip()
+    if not name:
+        return "Error: campaign_name is required."
+    existing = _campaign.load_campaign(name)
+    if existing:
+        summary = _campaign.campaign_summary(existing)
+        return f"Resumed existing campaign.\n{summary}"
+    char_name = i.get("character_name", "")
+    char_race = i.get("character_race", "")
+    char_career = i.get("character_career", "")
+    characters = []
+    if char_name:
+        characters.append({
+            "name": char_name,
+            "race": char_race,
+            "career": char_career,
+            "characteristics": {},
+            "wounds": {"max": 0, "current": 0},
+            "fate": {"total": 0, "current": 0},
+            "fortune": {"total": 0, "current": 0},
+            "skills": [],
+            "talents": [],
+            "xp": 0,
+        })
+    data = _campaign.new_campaign(
+        name=name,
+        adventure=i.get("adventure", name),
+        characters=characters,
+    )
+    summary = _campaign.campaign_summary(data)
+    return f"New campaign created.\n{summary}"
+
+
+def _tool_list_campaigns(i):
+    from skull import campaign as _campaign
+    campaigns = _campaign.list_campaigns()
+    if not campaigns:
+        return "No campaigns saved. Use start_campaign to begin a new one."
+    lines = []
+    for c in campaigns:
+        chars = ", ".join(c["characters"]) if c["characters"] else "no characters recorded"
+        adv = f" | {c['adventure']}" if c.get("adventure") else ""
+        modified = c["last_modified"][:10] if c.get("last_modified") else ""
+        lines.append(f"  {c['name']}{adv} | Characters: {chars} | Last played: {modified}")
+    return "Saved campaigns:\n" + "\n".join(lines)
+
+
+def _tool_get_campaign_state(i):
+    from skull import campaign as _campaign
+    active = _campaign.get_active_campaign()
+    if not active:
+        return "No active campaign. Use start_campaign to begin or resume one."
+    return _campaign.campaign_summary(active)
+
+
+def _tool_save_campaign_state(i):
+    from skull import campaign as _campaign
+    active = _campaign.get_active_campaign()
+    if not active:
+        return "No active campaign. Use start_campaign first."
+    note = i.get("note", "").strip()
+    field = i.get("field", "").strip()
+    value = i.get("value", "").strip()
+    if note:
+        _campaign.add_session_note(note)
+    if field and value:
+        _campaign.update_field(field, value)
+    if not note and not field:
+        _campaign.save_campaign()
+    return f"Campaign '{active['name']}' saved."
+
+
 def _tool_get_weather(i):
     from skull.config import WEATHER_LAT, WEATHER_LON
     if WEATHER_LAT == 0.0 and WEATHER_LON == 0.0:
@@ -2673,6 +2941,12 @@ _TOOL_REGISTRY = {
     "register_voice": _tool_register_voice,
     "play_idle_animation": _tool_play_idle_animation,
     "purge_identity": _tool_purge_identity,
+    "whfrp_rules": _tool_whfrp_rules,
+    "roll_whfrp_dice": _tool_roll_whfrp_dice,
+    "start_campaign": _tool_start_campaign,
+    "list_campaigns": _tool_list_campaigns,
+    "get_campaign_state": _tool_get_campaign_state,
+    "save_campaign_state": _tool_save_campaign_state,
 }
 
 def _execute_tool(name: str, tool_input: dict) -> str:
