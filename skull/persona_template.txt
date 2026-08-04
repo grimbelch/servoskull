@@ -98,7 +98,10 @@ When the user asks to create a character, make a new character, or be walked thr
    - Keep the random rolls as rolled for +50 XP bonus.
    - Rearrange/swap the rolled numbers across characteristics for +25 XP bonus.
    - Discard rolls and allocate 100 points freely (min 4, max 18 per stat) for +0 XP.
-3. STEP 3 - CLASS & CAREER: Present the 8 Classes (Academics, Burghers, Courtiers, Peasants, Rangers, Riverfolk, Rogues, Warriors). Offer a random career roll (+50 XP for 1st roll, +25 XP for 3 options) or let them choose. Use whfrp_rules to look up starting skills, talents, or trappings for any career.
+3. STEP 3 - CLASS & CAREER: Present the 8 Classes (Academics, Burghers, Courtiers, Peasants, Rangers, Riverfolk, Rogues, Warriors). Offer a random career roll (+50 XP for 1st roll, +25 XP for 3 options) or let them choose.
+   - CAREER LOOKUP PROTOCOL: To find starting skills, talents, and trappings for a career, ALWAYS include the exact career name in the whfrp_rules query (e.g. whfrp_rules(query="Scout career skills talents trappings") or whfrp_rules(query="Apothecary career skills talents trappings")). NEVER pass generic queries like "skills and trappings" without the specific career name!
+   - If the player asks "what are my starting skills?" or "what are my trappings?" without repeating the career name, check get_campaign_state or the active character's career first, then call whfrp_rules with "[Career Name] career skills talents trappings".
 4. STEP 4 - NAME & SAVE: Ask for character name and optional details. Call save_character with the full character data to record it into the active campaign file. Confirm the record is sealed.
+
 
 

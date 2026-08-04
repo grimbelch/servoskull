@@ -1116,9 +1116,10 @@ def _build_tools() -> list[dict]:
             "talents, fate/fortune/resilience points, corruption/mutation, magic and spells, "
             "bestiary entries, travel/encumbrance, social encounters, and all other mechanics. "
             "Always call this tool before ruling on any WFRP mechanic rather than relying on memory. "
-            "If the player asks about a specific rule, spell, talent, creature, or career, search "
-            "for it by name. The tool returns excerpts from the rulebook — use only the relevant "
-            "portion when answering."
+            "IMPORTANT: When searching for a career's starting skills, talents, or trappings, ALWAYS include "
+            "the specific career name in your query (e.g. 'Scout career skills talents trappings' or "
+            "'Apothecary career skills'). Generic queries like 'starting skills' without the career name "
+            "will return general chapter overviews instead of the specific career page."
         ),
         "input_schema": {
             "type": "object",
