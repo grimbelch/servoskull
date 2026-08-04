@@ -227,6 +227,28 @@ def _strip_flat_stats(md: str) -> str:
     return "\n".join(cleaned)
 
 
+def _build_toc_map(doc) -> dict:
+    """Build a mapping of 1-indexed page_num -> section hierarchy breadcrumb string."""
+    try:
+        toc = doc.get_toc()
+    except Exception:
+        return {}
+    if not toc:
+        return {}
+    total_pages = len(doc)
+    page_map = {}
+    for page_num in range(1, total_pages + 1):
+        active = []
+        for item in toc:
+            lvl, title, start_page = item
+            if start_page <= page_num:
+                active = active[:lvl - 1]
+                active.append(title.strip())
+        if active:
+            page_map[page_num] = " > ".join(active)
+    return page_map
+
+
 def _page_markdown(page, md_body: str) -> str:  # noqa: E501
     """Clean body markdown; prepend a reconstructed stat block if this is a datasheet."""
     body = _normalize(md_body)
@@ -245,6 +267,7 @@ def ingest_pdf(pdf: pathlib.Path, game_dir: pathlib.Path, split: str) -> list[di
     entries: list[dict] = []
 
     with fitz.open(pdf) as doc:
+        toc_map = _build_toc_map(doc)
         chunks = pymupdf4llm.to_markdown(doc, page_chunks=True, show_progress=False)
         pages_out = []
         for n, page in enumerate(doc, start=1):
@@ -252,13 +275,14 @@ def ingest_pdf(pdf: pathlib.Path, game_dir: pathlib.Path, split: str) -> list[di
             if len(raw.strip()) < 20:  # cover art / near-blank page
                 continue
             title = _page_title(_normalize(raw), f"{doc_name} p.{n}")
+            sec_path = toc_map.get(n, "")
             body = _page_markdown(page, chunks[n - 1]["text"])
             if len(body.strip()) < 10:
                 continue
-            pages_out.append((n, title, body))
+            pages_out.append((n, title, sec_path, body))
 
     if split == "doc":
-        joined = "\n\n".join(f"## {t}\n\n{b}" for _, t, b in pages_out)
+        joined = "\n\n".join(f"## {t}\n\n{b}" for _, t, _, b in pages_out)
         if not joined.strip():
             return entries
         fname = f"{doc_slug}.md"
@@ -268,10 +292,13 @@ def ingest_pdf(pdf: pathlib.Path, game_dir: pathlib.Path, split: str) -> list[di
                         "title": doc_name, "url": f"{doc_name} ({pdf.name})"})
         return entries
 
-    for n, title, body in pages_out:
+    for n, title, sec_path, body in pages_out:
         fname = f"p{n:02d}-{_slug(title, 50)}.md"
         src = f"{doc_name}, p.{n}"
-        header = f"> Source: {src} ({pdf.name})\n\n# {title}\n\n"
+        header = f"> Source: {src} ({pdf.name})\n"
+        if sec_path:
+            header += f"> Section: {sec_path}\n"
+        header += f"\n# {title}\n\n"
         (out_dir / fname).write_text(header + body, encoding="utf-8")
         entries.append({"path": f"{doc_slug}/p{n:02d}", "file": f"{doc_slug}/{fname}",
                         "title": title, "url": src})
@@ -304,17 +331,30 @@ def main() -> None:
     if not pdfs:
         sys.exit("No PDFs found.")
 
-    manifest: list[dict] = []
+    manifest_path = game_dir / "manifest.json"
+    existing_manifest: list[dict] = []
+    if manifest_path.exists():
+        try:
+            existing_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            existing_manifest = []
+
+    new_slugs = {_doc_slug(p.stem) for p in pdfs}
+    retained = [e for e in existing_manifest if not any(e.get("path", "").startswith(slug) for slug in new_slugs)]
+
+    new_entries: list[dict] = []
     for pdf in pdfs:
         entries = ingest_pdf(pdf, game_dir, args.split)
         print(f"  {pdf.name}  ->  {len(entries)} page(s)")
-        manifest.extend(entries)
+        new_entries.extend(entries)
 
-    (game_dir / "manifest.json").write_text(
-        json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"\nWrote {len(manifest)} pages across {len(pdfs)} PDF(s) to {game_dir}")
-    print(f"Manifest: {game_dir / 'manifest.json'}")
+    full_manifest = retained + new_entries
+    manifest_path.write_text(
+        json.dumps(full_manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"\nWrote {len(new_entries)} pages across {len(pdfs)} PDF(s) to {game_dir}")
+    print(f"Manifest updated: {manifest_path} ({len(full_manifest)} total pages)")
 
 
 if __name__ == "__main__":
     main()
+
