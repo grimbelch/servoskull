@@ -625,7 +625,11 @@ _WHFRP_ROUTES = [
     ("corruption", ["corruption", "mutation", "taint", "sin", "chaos", "insanity",
                     "disorder", "trauma", "psychology"]),
     ("career", ["career", "careers", "advance", "advances", "xp", "experience",
-                "career path", "career change", "trapping", "trappings", "class"]),
+                "career path", "career change", "trapping", "trappings", "class",
+                "scout", "apothecary", "witch hunter", "soldier", "rat catcher",
+                "slayer", "engineer", "wizard", "priest", "bailiff", "knight",
+                "road warden", "hunter", "herbalist", "flagellant", "scholar"]),
+
     ("magic", ["spell", "spells", "casting", "miscast", "wind", "winds of magic",
                "channelling", "prayer", "miracle", "petty magic", "arcane lore",
                "overcasting", "ingredient"]),

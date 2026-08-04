@@ -249,13 +249,42 @@ def _build_toc_map(doc) -> dict:
     return page_map
 
 
+def _extract_career_box(page_text: str) -> str:
+    """Extract WFRP 4E career levels, skills, talents, and trappings from raw text when omitted by markdown converter."""
+    lines = page_text.splitlines()
+    box_lines = []
+    in_box = False
+    for line in lines:
+        s = line.strip()
+        if not s:
+            continue
+        if any(k in s for k in ["Career Path", "Skills:", "Talents:", "Trappings:"]) or re.search(r"— (?:Brass|Silver|Gold) \d", s):
+            in_box = True
+        if in_box:
+            box_lines.append(s)
+            if s.startswith("‘") or s.startswith('"') or (s.isdigit() and len(s) <= 3) or "Class and Careers" in s:
+                if not any(k in s for k in ["Skills:", "Talents:", "Trappings:"]):
+                    box_lines.pop()
+                    break
+    if box_lines:
+        return "**Career Path, Skills, Talents & Trappings:**\n" + "\n".join(box_lines)
+    return ""
+
+
 def _page_markdown(page, md_body: str) -> str:  # noqa: E501
-    """Clean body markdown; prepend a reconstructed stat block if this is a datasheet."""
+    """Clean body markdown; prepend a reconstructed stat block if this is a datasheet, or append career details if omitted."""
     body = _normalize(md_body)
     stat = _stat_block(page)
     if stat:
         body = stat + "\n\n" + _normalize(_strip_flat_stats(md_body))
+
+    raw_text = page.get_text("text")
+    if "Skills:" in raw_text and "Talents:" in raw_text and "Skills:" not in body:
+        cbox = _extract_career_box(raw_text)
+        if cbox:
+            body = body + "\n\n" + _normalize(cbox)
     return body
+
 
 
 def ingest_pdf(pdf: pathlib.Path, game_dir: pathlib.Path, split: str) -> list[dict]:
