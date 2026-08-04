@@ -48,18 +48,21 @@ def setup(pin_left: int, pin_center: int, pin_right: int) -> None:
     global _pwm_left, _pwm_center, _pwm_right, _pwms, _anim_thread
     if not _gpio_available:
         return
-    for pin in (pin_left, pin_center, pin_right):
-        GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
-    _pwm_left = GPIO.PWM(pin_left, PWM_FREQ)
-    _pwm_center = GPIO.PWM(pin_center, PWM_FREQ)
-    _pwm_right = GPIO.PWM(pin_right, PWM_FREQ)
-    for pwm in (_pwm_left, _pwm_center, _pwm_right):
-        pwm.start(0)
-    _pwms = [_pwm_left, _pwm_center, _pwm_right]
+    try:
+        for pin in (pin_left, pin_center, pin_right):
+            GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
+        _pwm_left = GPIO.PWM(pin_left, PWM_FREQ)
+        _pwm_center = GPIO.PWM(pin_center, PWM_FREQ)
+        _pwm_right = GPIO.PWM(pin_right, PWM_FREQ)
+        for pwm in (_pwm_left, _pwm_center, _pwm_right):
+            pwm.start(0)
+        _pwms = [_pwm_left, _pwm_center, _pwm_right]
 
-    _stop.clear()
-    _anim_thread = threading.Thread(target=_breathe_loop, daemon=True)
-    _anim_thread.start()
+        _stop.clear()
+        _anim_thread = threading.Thread(target=_breathe_loop, daemon=True)
+        _anim_thread.start()
+    except Exception as e:
+        print(f"[eyes] GPIO init warning ({e}); eye LED animation disabled.")
 
 
 def _breathe_loop() -> None:

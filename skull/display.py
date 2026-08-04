@@ -1214,6 +1214,22 @@ def display_pil_image(pil_img, duration: float = 10.0) -> None:
         print(f"[display] display_pil_image error: {e}")
 
 
+def show_text(text: str, duration: float = 10.0) -> None:
+    """Renders text onto a 240x240 image and displays it on the panel."""
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        img = Image.new("RGB", (240, 240), (0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        font = ImageFont.load_default()
+        y = 60
+        for line in text.split("\n"):
+            draw.text((20, y), line, fill=(0, 255, 100), font=font)
+            y += 20
+        display_pil_image(img, duration=duration)
+    except Exception as e:
+        print(f"[display] show_text error: {e}")
+
+
 def trigger_idle_animation(duration: float = 60.0, animation_name: str | None = None) -> None:
     global _custom_idle_expiry, _last_activity_time, _requested_idle_anim, _active_idle_anim
     if not _available:

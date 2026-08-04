@@ -23,8 +23,9 @@ def _synthesize_elevenlabs(text: str) -> bytes:
     text = _preprocess_text(text)
     if _el_client is None:
         _el_client = _elevenlabs_client()
+    voice_id = config.ELEVENLABS_VOICE_ID if config.ELEVENLABS_VOICE_ID else "21m00Tcm4TlvDq8ikWAM"
     audio_iter = _el_client.text_to_speech.convert(
-        voice_id=config.ELEVENLABS_VOICE_ID,
+        voice_id=voice_id,
         text=text,
         model_id="eleven_turbo_v2",
         output_format="pcm_16000",

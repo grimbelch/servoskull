@@ -33,7 +33,13 @@ sudo apt-get install -y \
     ffmpeg \
     python3-opencv \
     i2c-tools \
-    network-manager
+    network-manager \
+    pipewire-alsa \
+    pulseaudio-utils \
+    liblgpio-dev \
+    swig \
+    python3-lgpio \
+    python3-rpi.gpio
 
 
 # Enable the SPI bus for the GC9A01 face display and the I2C bus for the VL53L1X
@@ -59,6 +65,10 @@ pip install --upgrade pip
 # provide the ONNX runtime (plus openWakeWord's other real deps) ourselves.
 pip install --no-deps openwakeword
 pip install onnxruntime tqdm requests scikit-learn
+
+# Install Raspberry Pi 5 GPIO compatibility module (rpi-lgpio)
+echo "    Installing Pi 5 GPIO compatibility layer (rpi-lgpio)..."
+pip install rpi-lgpio 2>/dev/null || echo "    (Note: rpi-lgpio build skipped — optional GPIO layer)"
 
 # openwakeword is already installed above (--no-deps, ONNX-only). Filter its line out
 # here so pip doesn't re-resolve its Linux-only tflite-runtime pin and fail. The line
@@ -97,20 +107,28 @@ fi
 
 # ── 5. Install systemd service ────────────────────────────────────────────
 echo "[5/6] Installing systemd service..."
-SERVICE_DST="/etc/systemd/system/omega7.service"
+SERVICE_SRC="$HOME/skull/omega7.service"
+SERVICE_NAME="omega7.service"
+if [ -f "$HOME/skull/omega8.service" ] || [ "$(hostname)" = "omega8" ]; then
+    if [ -f "$HOME/skull/omega8.service" ]; then
+        SERVICE_SRC="$HOME/skull/omega8.service"
+        SERVICE_NAME="omega8.service"
+    fi
+fi
+SERVICE_DST="/etc/systemd/system/$SERVICE_NAME"
 USER_ID=$(id -u)
 
-sudo cp "$HOME/skull/omega7.service" "$SERVICE_DST"
+sudo cp "$SERVICE_SRC" "$SERVICE_DST"
 sudo sed -i \
     -e "s|__USER__|$USER|g" \
     -e "s|__HOME__|$HOME|g" \
     -e "s|__UID__|$USER_ID|g" \
     "$SERVICE_DST"
 sudo systemctl daemon-reload
-sudo systemctl enable omega7.service
-echo "    Omega-7 service enabled — starts automatically on every boot."
-echo "    Start now: sudo systemctl start omega7"
-echo "    View logs: journalctl -u omega7 -f"
+sudo systemctl enable "$SERVICE_NAME"
+echo "    Service $SERVICE_NAME enabled — starts automatically on every boot."
+echo "    Start now: sudo systemctl start $SERVICE_NAME"
+echo "    View logs: journalctl -u ${SERVICE_NAME%.service} -f"
 
 # ── 6. Raspotify (local Spotify Connect daemon) ───────────────────────────
 echo "[6/7] Installing Raspotify (local Spotify playback)..."
