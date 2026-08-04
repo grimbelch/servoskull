@@ -33,6 +33,7 @@ import json
 import pathlib
 import re
 import sys
+from typing import Optional
 
 try:
     import fitz  # PyMuPDF
@@ -126,7 +127,7 @@ def _cellval(tokens: list) -> str:
     return max(tokens, key=len) if tokens else ""
 
 
-def _stat_block(page) -> str | None:
+def _stat_block(page) -> Optional[str]:
     """Reconstruct a datasheet's profile stat line(s), or None if the page has none."""
     words = _dwords(page)
     by_y: dict = {}
@@ -226,7 +227,7 @@ def _strip_flat_stats(md: str) -> str:
     return "\n".join(cleaned)
 
 
-def _page_markdown(page, md_body: str) -> str:
+def _page_markdown(page, md_body: str) -> str:  # noqa: E501
     """Clean body markdown; prepend a reconstructed stat block if this is a datasheet."""
     body = _normalize(md_body)
     stat = _stat_block(page)
