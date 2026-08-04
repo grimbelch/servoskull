@@ -74,6 +74,76 @@ CHAR_FULL_NAMES = {
     "Fel": "Fellowship",
 }
 
+RANDOM_TALENTS_TABLE = [
+    (3, "Acute Sense (any one)"), (6, "Ambidextrous"), (9, "Animal Affinity"),
+    (12, "Artistic"), (15, "Attractive"), (18, "Coolheaded"),
+    (21, "Craftsman (any one)"), (24, "Flee!"), (28, "Hardy"),
+    (31, "Lightning Reflexes"), (34, "Linguistics"), (38, "Luck"),
+    (41, "Marksman"), (44, "Mimic"), (45, "Night Vision"),
+    (50, "Nimble Fingered"), (52, "Noble Blood"), (55, "Orientation"),
+    (58, "Perfect Pitch"), (62, "Pure Soul"), (65, "Read/Write"),
+    (68, "Resistance (any one)"), (71, "Savvy"), (74, "Sharp"),
+    (78, "Sixth Sense"), (81, "Strong Legs"), (84, "Sturdy"),
+    (87, "Suave"), (91, "Super Numerate"), (94, "Very Resilient"),
+    (97, "Very Strong"), (100, "Warrior Born"),
+]
+
+SPECIES_SKILLS = {
+    "human": [
+        "Animal Care", "Charm", "Cool", "Evaluate", "Gossip", "Haggle",
+        "Language (Bretonnian)", "Language (Wastelander)", "Leadership",
+        "Lore (Reikland)", "Melee (Basic)", "Ranged (Bow)"
+    ],
+    "dwarf": [
+        "Consume Alcohol", "Cool", "Endurance", "Entertain (Storytelling)",
+        "Evaluate", "Intimidate", "Language (Khazalid)", "Lore (Dwarfs)",
+        "Lore (Geology)", "Lore (Metallurgy)", "Melee (Basic)", "Trade (any one)"
+    ],
+    "halfling": [
+        "Charm", "Consume Alcohol", "Dodge", "Gamble", "Haggle", "Intuition",
+        "Language (Mootish)", "Lore (Reikland)", "Perception", "Sleight of Hand",
+        "Stealth", "Trade (Cook)"
+    ],
+    "high_elf": [
+        "Cool", "Entertain (Sing)", "Evaluate", "Language (Eltharin)", "Leadership",
+        "Melee (Basic)", "Navigation", "Perception", "Play (any one)", "Ranged (Bow)",
+        "Sail", "Swim"
+    ],
+    "wood_elf": [
+        "Athletics", "Climb", "Endurance", "Entertain (Sing)", "Intimidate",
+        "Language (Eltharin)", "Melee (Basic)", "Outdoor Survival", "Perception",
+        "Ranged (Bow)", "Stealth (Rural)", "Track"
+    ],
+}
+
+SPECIES_TALENTS = {
+    "human": {
+        "fixed": ["Doomed"],
+        "choices": [["Savvy", "Suave"]],
+        "random_count": 3
+    },
+    "dwarf": {
+        "fixed": ["Magic Resistance", "Night Vision", "Sturdy"],
+        "choices": [["Read/Write", "Relentless"], ["Resolute", "Strong-minded"]],
+        "random_count": 0
+    },
+    "halfling": {
+        "fixed": ["Acute Sense (Taste)", "Night Vision", "Resistance (Chaos)", "Small"],
+        "choices": [],
+        "random_count": 2
+    },
+    "high_elf": {
+        "fixed": ["Acute Sense (Sight)", "Night Vision", "Read/Write"],
+        "choices": [["Coolheaded", "Savvy"], ["Second Sight", "Sixth Sense"]],
+        "random_count": 0
+    },
+    "wood_elf": {
+        "fixed": ["Acute Sense (Sight)", "Night Vision", "Rover"],
+        "choices": [["Hardy", "Second Sight"], ["Read/Write", "Very Resilient"]],
+        "random_count": 0
+    },
+}
+
 RACIAL_DATA = {
     "human": {
         "display": "Human (Reiklander)",
@@ -125,6 +195,43 @@ RACE_ALIASES = {
     "wood elf": "wood_elf", "wood elves": "wood_elf", "asrai": "wood_elf",
     "elf": "high_elf",
 }
+
+
+def roll_random_talent(count: int = 1) -> str:
+    """Roll count times on the WFRP 4E Random Talent Table and return formatted string."""
+    count = max(1, min(10, count))
+    results = []
+    for _ in range(count):
+        roll = random.randint(1, 100)
+        talent = "Unknown"
+        for max_roll, name in RANDOM_TALENTS_TABLE:
+            if roll <= max_roll:
+                talent = name
+                break
+        results.append(f"d100 roll {roll:02d} \u2192 {talent}")
+    return "\n".join(results)
+
+
+def get_species_info(race_key: str) -> str:
+    """Return species skills list, species talent choices, and random talent count for a species."""
+    racial = RACIAL_DATA.get(race_key)
+    skills = SPECIES_SKILLS.get(race_key, [])
+    talents = SPECIES_TALENTS.get(race_key, {})
+    if not racial or not skills:
+        return f"Unknown race key '{race_key}'."
+    display = racial["display"]
+    lines = [f"=== Species Info: {display} ==="]
+    lines.append("Species Skills (choose 3 for +5 Advances, 3 for +3 Advances):")
+    lines.append("  " + ", ".join(skills))
+    lines.append("\nSpecies Talents:")
+    if talents.get("fixed"):
+        lines.append("  Fixed: " + ", ".join(talents["fixed"]))
+    for choice in talents.get("choices", []):
+        lines.append("  Choice: " + " OR ".join(choice))
+    if talents.get("random_count"):
+        lines.append(f"  Random Talents: Roll {talents['random_count']} times on Random Talent Table")
+    return "\n".join(lines)
+
 
 
 def resolve_race(race_input: str) -> Optional[str]:

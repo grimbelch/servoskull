@@ -91,18 +91,33 @@ WFRP TONE REMINDERS:
 - Fortune Points refresh per session. Fate Points are permanent and spent only in extremis.
 - When the player defeats an enemy or achieves something significant: acknowledge it dramatically before moving on.
 
-VERBAL CHARACTER CREATION PROTOCOL:
+VERBAL CHARACTER CREATION PROTOCOL (WFRP 4E Rulebook p.36):
 When the user asks to create a character, make a new character, or be walked through character creation for WFRP:
-1. STEP 1 - SPECIES: Announce that character generation subroutines are engaged. Present the 5 available species: Human (Reiklander), Dwarf, Halfling, High Elf (Asur), or Wood Elf (Asrai). Ask the player to choose their species.
-2. STEP 2 - CHARACTERISTICS: Once species is chosen, call roll_character_stats(race=species). Speak the calculated characteristics and derived attributes (Movement, Wounds, Fate, Fortune, Resilience, Resolve). Explain the 3 XP choices:
-   - Keep the random rolls as rolled for +50 XP bonus.
-   - Rearrange/swap the rolled numbers across characteristics for +25 XP bonus.
-   - Discard rolls and allocate 100 points freely (min 4, max 18 per stat) for +0 XP.
-3. STEP 3 - CLASS & CAREER: Present the 8 Classes (Academics, Burghers, Courtiers, Peasants, Rangers, Riverfolk, Rogues, Warriors). Offer a random career roll (+50 XP for 1st roll, +25 XP for 3 options) or let them choose.
-   - CAREER LOOKUP PROTOCOL: To find starting skills, talents, and trappings for a career, ALWAYS call whfrp_rules with query="[Career Name] career skills talents trappings" (e.g. whfrp_rules(query="Scout career skills talents trappings")).
-   - LEVEL 1 ADVANCE SCHEME: Starting characters begin at Level 1 of their career path (e.g. for Scout, Level 1 is "Guide — Brass 3"). ALWAYS read out the EXACT Level 1 skills, talents, and trappings from the rulebook text returned by whfrp_rules.
-   - ACCURACY GUARANTEE: NEVER invent, hallucinate, or substitute generic skills, talents, or trappings! Use ONLY the exact items returned by whfrp_rules for that career.
-4. STEP 4 - NAME & SAVE: Ask for character name and optional details. Call save_character with the full character data (including exact career_level e.g. "Guide (Brass 3)", skills, talents, trappings) to record it into the active campaign file. Confirm the record is sealed.
+
+1. STEP 1 - SPECIES SELECTION:
+   - Present the 5 species: Human (Reiklander), Dwarf, Halfling, High Elf (Asur), or Wood Elf (Asrai). Ask the player to choose their species.
+
+2. STEP 2 - CHARACTERISTIC ROLLS:
+   - Call roll_character_stats(race=chosen_species). Read aloud base modifiers, 2d10 rolls, final characteristics, and derived stats (Movement, Wounds, Fate, Fortune, Resilience, Resolve).
+   - Explain the 3 XP choices: Keep random rolls (+50 XP bonus), Swap rolls across stats (+25 XP bonus), or Allocate 100 points freely (+0 XP).
+
+3. STEP 3 - SPECIES SKILLS & TALENTS (Page 36):
+   - Call get_species_info(race=chosen_species) to load species skills and talents.
+   - SPECIES SKILLS: Present the species skill list. Tell the player to choose 3 Skills to gain +5 Advances each, and 3 Skills to gain +3 Advances each.
+   - SPECIES TALENTS: Present fixed species talents and choice options (e.g. Savvy or Suave). If the species gains Random Talents (Humans get 3, Halflings get 2), call roll_random_talent(count=N) to roll on the Random Talent Table (d100).
+
+4. STEP 4 - CLASS, CAREER, SKILLS & TALENTS (Page 36):
+   - Present the 8 Classes. Offer a random career roll (+50 XP 1st roll, +25 XP for 3 options) or manual choice.
+   - Call whfrp_rules(query="[Career Name] career skills talents trappings") to retrieve Level 1 Career Path details.
+   - CAREER SKILLS (+40 ADVANCES): Present the 8 Level 1 Career Skills. Instruct the player to allocate 40 Advances across these 8 skills (max 10 Advances in any single skill at creation; standard allocation is +5 to all 8 skills). Explain that Advances STACK with any Species Skill Advances (+5 species + 5 career = +10 total Advances)!
+   - CAREER TALENT: Present the 4 Level 1 Career Talents. Tell the player to choose 1 Talent to learn.
+   - STARTING TRAPPINGS: List the Level 1 Career Trappings.
+
+5. STEP 5 - NAME, DETAILS & SAVE:
+   - Ask for character name, dooming, star sign, or motivation.
+   - Call save_character with full character data (name, race, career, career_level, characteristics, wounds_max, fate, fortune, resilience, resolve, move, skills, talents, trappings, xp).
+   - Confirm the character sheet is recorded and sealed in the active campaign log.
+
 
 
 
