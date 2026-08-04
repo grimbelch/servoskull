@@ -430,7 +430,11 @@ _BOOT_CACHE = "models/boot_phrase.wav"
 def _load_or_record_boot_wav() -> bytes:
     """Boot line in the ElevenLabs voice, served from the shared voice cache (keyed
     by voice id, so it regenerates if the voice changes or the cache is reset)."""
-    return _eleven_cached(_BOOT_PHRASE)
+    try:
+        return _eleven_cached(_BOOT_PHRASE)
+    except Exception as e:
+        print(f"[skull] ElevenLabs boot phrase unavailable ({e}), using local Piper TTS...")
+        return tts.synthesize(_BOOT_PHRASE)
 
 
 def _speak_interruptible(wav_bytes: bytes, on_wake) -> bool:
@@ -672,12 +676,7 @@ def main():
 
     # Set default output volume to 50% on boot
     try:
-        import sys
-        import subprocess
-        if sys.platform == "darwin":
-            subprocess.run(["osascript", "-e", "set volume output volume 50"], capture_output=True)
-        else:
-            subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", "50%"], capture_output=True)
+        audio.set_system_volume("50%")
         print("[skull] Boot volume initialized to 50%")
     except Exception as e:
         print(f"[skull] Failed to set boot volume: {e}")

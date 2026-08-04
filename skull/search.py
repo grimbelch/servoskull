@@ -375,7 +375,10 @@ def _load_rules_library(base: pathlib.Path) -> list:
         entries = [{"file": str(p.relative_to(base))} for p in base.rglob("*.md")]
 
     for e in entries:
-        fp = base / e["file"]
+        file_rel = e.get("file") or e.get("path")
+        if not file_rel:
+            continue
+        fp = base / file_rel
         try:
             text = fp.read_text(encoding="utf-8")
         except OSError:

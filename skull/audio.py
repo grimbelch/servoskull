@@ -25,6 +25,51 @@ def _native_input_rate(device_index: int) -> int:
         return 44100
 
 
+def set_system_volume(level: str) -> str:
+    """Set or adjust output volume across macOS (osascript) and Linux (wpctl/pactl/amixer)."""
+    import shutil, sys, re
+    level_str = str(level).strip()
+    if not re.fullmatch(r"[+-]?\d{1,3}%?", level_str):
+        return f"Invalid volume level: {level!r}. Use '+15', '-15', or an absolute number like '80'."
+    try:
+        if sys.platform == "darwin":
+            if level_str.startswith("+"):
+                script = f"set volume output volume (output volume of (get volume settings) + {level_str[1:]})"
+            elif level_str.startswith("-"):
+                script = f"set volume output volume (output volume of (get volume settings) - {level_str[1:]})"
+            else:
+                script = f"set volume output volume {level_str.rstrip('%')}"
+            subprocess.run(["osascript", "-e", script], capture_output=True, check=True)
+        else:
+            if level_str.startswith("+") or level_str.startswith("-"):
+                val = float(level_str.lstrip("+").rstrip("%")) / 100.0
+                sign = "+" if level_str.startswith("+") else "-"
+                step_str = f"{val:.2f}{sign}"
+                if shutil.which("wpctl"):
+                    subprocess.run(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", step_str], capture_output=True, check=True)
+                elif shutil.which("pactl"):
+                    pct = f"{level_str}%" if not level_str.endswith("%") else level_str
+                    subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", pct], capture_output=True, check=True)
+                elif shutil.which("amixer"):
+                    pct = f"{level_str}%" if not level_str.endswith("%") else level_str
+                    subprocess.run(["amixer", "sset", "Master", pct], capture_output=True, check=True)
+            else:
+                val = float(level_str.rstrip("%")) / 100.0
+                if shutil.which("wpctl"):
+                    subprocess.run(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", f"{val:.2f}"], capture_output=True, check=True)
+                elif shutil.which("pactl"):
+                    pct = f"{int(val*100)}%"
+                    subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", pct], capture_output=True, check=True)
+                elif shutil.which("amixer"):
+                    pct = f"{int(val*100)}%"
+                    subprocess.run(["amixer", "sset", "Master", pct], capture_output=True, check=True)
+        print(f"[audio] Volume set to {level_str}")
+        return f"Volume set to {level_str}."
+    except Exception as e:
+        print(f"[audio] Volume set error: {e}")
+        return f"Volume adjustment failed: {e}"
+
+
 def record(seconds: float, device_index: int = -1, silence_threshold: int = 300, silence_duration: float = 1.5) -> tuple:
     """Record audio via a single InputStream, stopping early on sustained silence.
 

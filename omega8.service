@@ -1,6 +1,6 @@
 [Unit]
-Description=Omega-7 AI Servo Skull
-After=network-online.target bluetooth.target
+Description=Omega-8 AI Servo Skull
+After=network-online.target bluetooth.target pipewire.service
 Wants=network-online.target
 
 [Service]
@@ -10,13 +10,14 @@ WorkingDirectory=__HOME__/skull
 EnvironmentFile=-__HOME__/skull/.env
 Environment="HOME=__HOME__"
 Environment="XDG_RUNTIME_DIR=/run/user/__UID__"
+Environment="PULSE_SERVER=unix:/run/user/__UID__/pulse/native"
 ExecStart=__HOME__/skull/.venv/bin/python -m skull.main
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=5s
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=omega7
+SyslogIdentifier=omega8
 
 [Install]
 WantedBy=multi-user.target

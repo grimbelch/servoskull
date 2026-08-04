@@ -950,7 +950,15 @@ def _build_tools() -> list[dict]:
     },
     {
         "name": "refresh_voice_cache",
-        "description": "Refresh the pre-compiled and cached ElevenLabs voice files by clearing the cache and regenerating them in the background.",
+        "description": "Refresh, clear, or rebuild pre-compiled cached ElevenLabs voice files and phrases. Use when user says 'refresh voice', 'clear voice cache', etc.",
+        "input_schema": {
+            "type": "object",
+            "properties": {}
+        }
+    },
+    {
+        "name": "rebuild_sounds",
+        "description": "Clear and rebuild all spoken voice phrases (boot phrase, wake phrases, cogitating phrases) using the active ElevenLabs voice. Sound effects remain unchanged. Use when user says 'rebuild sounds', 'rebuild your sounds', 'rebuild voice phrases', 'regenerate speech phrases', etc.",
         "input_schema": {
             "type": "object",
             "properties": {}
@@ -1900,26 +1908,9 @@ def _tool_get_weather(i):
     return _search.get_weather(WEATHER_LAT, WEATHER_LON)
 
 def _tool_set_volume(i):
-    import re, sys, subprocess
+    from skull import audio
     level = str(i.get("level", "+10")).strip()
-    if not re.fullmatch(r"[+-]?\d{1,3}%?", level):
-        return f"Invalid volume level: {level!r}. Use '+15', '-15', or an absolute number like '80'."
-    try:
-        if sys.platform == "darwin":
-            if level.startswith("+"):
-                script = f"set volume output volume (output volume of (get volume settings) + {level[1:]})"
-            elif level.startswith("-"):
-                script = f"set volume output volume (output volume of (get volume settings) - {level[1:]})"
-            else:
-                script = f"set volume output volume {level}"
-            subprocess.run(["osascript", "-e", script], capture_output=True)
-        else:
-            pct = f"{level}%" if not level.endswith("%") else level
-            subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", pct], capture_output=True)
-        print(f"[skull] Volume: {level}")
-        return f"Volume set to {level}."
-    except Exception as e:
-        return f"Volume adjustment failed: {e}"
+    return audio.set_system_volume(level)
 
 def _tool_bluetooth_scan(i):
     from skull import bluetooth_ctrl
@@ -2531,6 +2522,23 @@ def _tool_refresh_voice_cache(i):
         return _RELOAD_VOICE_CACHE_CB()
     return "Voice refresh callback not registered."
 
+def _tool_rebuild_sounds(i):
+    import pathlib, shutil
+    res_msg = ""
+    if _RELOAD_VOICE_CACHE_CB:
+        res_msg = _RELOAD_VOICE_CACHE_CB()
+    else:
+        cache_dir = pathlib.Path("models/phrase_cache")
+        if cache_dir.exists():
+            try:
+                shutil.rmtree(cache_dir)
+            except Exception as e:
+                print(f"[brain] Voice cache removal warning: {e}")
+        res_msg = "Spoken voice phrase cache cleared and reset for regeneration."
+
+    print(f"[brain] Rebuilt speech phrases: {res_msg}")
+    return f"Spoken voice phrases rebuilt successfully: {res_msg}"
+
 def _tool_self_update(i):
     if _SELF_UPDATE_CB:
         return _SELF_UPDATE_CB()
@@ -2653,6 +2661,7 @@ _TOOL_REGISTRY = {
     "adjust_spotify_volume": _tool_adjust_spotify_volume,
     "get_spotify_current_track": _tool_get_spotify_current_track,
     "refresh_voice_cache": _tool_refresh_voice_cache,
+    "rebuild_sounds": _tool_rebuild_sounds,
     "self_update": _tool_self_update,
     "reboot_system": _tool_reboot_system,
     "shutdown_system": _tool_shutdown_system,

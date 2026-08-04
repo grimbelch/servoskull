@@ -1779,9 +1779,12 @@ HTML_CLIENT = """<!DOCTYPE html>
                         </svg>
                         OMEGA-7 COGITATOR TERMINAL
                     </h1>
-                    <div class="master-header-tag">
-                        <span class="master-label">MASTER:</span>
-                        <span id="master-val" class="master-value">UNKNOWN</span>
+                    <div class="master-header-tag" style="display: flex; gap: 12px; align-items: center;">
+                        <div>
+                            <span class="master-label">MASTER:</span>
+                            <span id="master-val" class="master-value">UNKNOWN</span>
+                        </div>
+                        <button onclick="document.getElementById('wizard-modal').style.display='block'; nextWizardStep(1);" style="background: rgba(56,255,88,0.15); border: 1px solid var(--border-color); color: var(--bright-green); padding: 4px 10px; font-size: 11px; font-weight: bold; cursor: pointer; letter-spacing: 1px;">⚙ INITIALIZATION WIZARD</button>
                     </div>
                 </div>
 
