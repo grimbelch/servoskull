@@ -3363,7 +3363,7 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
         execute_tool=_exec,
         on_tool_use=on_tool_use,
         slow_tools=_SLOW_TOOLS,
-        max_tokens=800,
+        max_tokens=4096,
     )
     _last_turn_tools = tools_called
 
