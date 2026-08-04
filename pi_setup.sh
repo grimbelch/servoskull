@@ -59,14 +59,17 @@ pip install --upgrade pip
 pip install --no-deps openwakeword
 pip install onnxruntime tqdm requests scikit-learn
 
-# Allow legacy C extensions (e.g. VL53L1X) to compile on GCC 14 / Python 3.13 without strict warnings as errors
-export CFLAGS="-Wno-error"
-export CXXFLAGS="-Wno-error"
-
 # openwakeword is already installed above (--no-deps, ONNX-only). Filter its line out
 # here so pip doesn't re-resolve its Linux-only tflite-runtime pin and fail. The line
 # stays in requirements.txt because it installs fine on Mac/Windows (tflite is Linux-only).
 grep -v '^openwakeword' requirements.txt | pip install -r /dev/stdin
+
+# Optional hardware driver: VL53L1X time-of-flight sensor.
+# proximity.py / camera.py gracefully fall back to motion detection if absent.
+echo "    Checking optional VL53L1X proximity driver..."
+CFLAGS="-Wno-error -Wno-implicit-function-declaration -Wno-incompatible-pointer-types" \
+CXXFLAGS="-Wno-error" \
+pip install --no-build-isolation VL53L1X 2>/dev/null || echo "    (Note: VL53L1X C-extension skipped — optional hardware sensor)"
 
 # openWakeWord ships without model weights — fetch the shared feature extractors
 # (melspectrogram + embedding) that every Model() needs, custom wake words included.
