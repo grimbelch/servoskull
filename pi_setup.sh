@@ -16,7 +16,8 @@ if [ -f "$ENV_FILE" ]; then
     set +a
     echo "    Loaded credentials from .env"
 else
-    echo "    WARNING: .env not found at $ENV_FILE — Raspotify credentials will not be configured."
+    echo "    WARNING: .env not found at $ENV_FILE — creating template .env for setup mode."
+    touch "$ENV_FILE"
 fi
 
 # ── 1. System packages ──────────────────────────────────────────────────────

@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 User=__USER__
 WorkingDirectory=__HOME__/skull
-EnvironmentFile=__HOME__/skull/.env
+EnvironmentFile=-__HOME__/skull/.env
 Environment="HOME=__HOME__"
 Environment="XDG_RUNTIME_DIR=/run/user/__UID__"
 ExecStart=__HOME__/skull/.venv/bin/python -m skull.main
