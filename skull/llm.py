@@ -21,7 +21,7 @@ from skull import config
 
 def run_conversation(*, system: str, history: list[dict], user_text: str,
                      tools: list[dict], execute_tool, on_tool_use=None,
-                     slow_tools=frozenset(), max_tokens: int = 800,
+                     slow_tools=frozenset(), max_tokens: int = 4096,
                      system_suffix: str | None = None) -> str:
     """Run the full tool-use loop and return the final assistant text.
 
