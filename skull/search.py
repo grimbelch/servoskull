@@ -6,7 +6,14 @@ import pathlib
 import re
 import urllib.request
 
-from ddgs import DDGS
+try:
+    from ddgs import DDGS
+except ImportError:
+    try:
+        from duckduckgo_search import DDGS
+    except ImportError:
+        DDGS = None
+
 
 
 def _rules_dir() -> pathlib.Path:
@@ -628,7 +635,15 @@ _WHFRP_ROUTES = [
                 "rest", "recovery", "healing", "physician", "medicine"]),
     ("social", ["gossip", "haggle", "charm", "intimidate", "bribery", "rumour",
                 "social", "rapport", "entertain", "fellowship test"]),
+    # Adventure Module: Rough Nights & Hard Days
+    ("rough-nights-and-hard-days", [
+        "rough night", "three feathers", "day at the trials", "night at the opera",
+        "nastassia", "wedding", "grauenburg", "staatsoper", "ubersreik", "lord of ubersreik",
+        "gnome", "gnomes", "pub game", "pub games", "al-zahr", "alvatafl", "middenball",
+        "dwile flonking", "beast among the tailors", "scarlet empress",
+    ]),
 ]
+
 
 
 def whfrp_rules(query: str) -> str:
