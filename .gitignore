@@ -21,6 +21,7 @@ reminders.json
 mood.json
 quiet.json
 current_game.json
+campaigns/*.json
 *.json.bak
 
 # Per-user configuration written by the setup wizard (keys + personal details).

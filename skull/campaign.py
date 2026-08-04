@@ -33,12 +33,17 @@ from typing import Any, Optional
 # ── storage ──────────────────────────────────────────────────────────────────
 
 def _campaigns_dir() -> pathlib.Path:
+    repo_root = pathlib.Path(__file__).resolve().parent.parent
+    repo_campaigns = repo_root / "campaigns"
+    if repo_campaigns.exists():
+        return repo_campaigns
     data_dir = pathlib.Path(
         os.getenv("OMEGA7_DATA_DIR", "~/.config/omega7")
     ).expanduser()
     d = data_dir / "campaigns"
     d.mkdir(parents=True, exist_ok=True)
     return d
+
 
 
 def _slug(name: str) -> str:
