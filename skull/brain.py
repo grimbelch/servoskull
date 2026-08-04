@@ -1348,8 +1348,44 @@ def _build_tools() -> list[dict]:
             },
             "required": ["name", "race", "career"]
         }
+    },
+    {
+        "name": "roll_random_talent",
+        "description": (
+            "Roll 1 or more times on the official WFRP 4E Random Talent Table (d100) during character creation "
+            "for species that gain random talents (e.g. Humans get 3, Halflings get 2)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5,
+                    "description": "Number of random talent rolls to make (default: 1)."
+                }
+            }
+        }
+    },
+    {
+        "name": "get_species_info",
+        "description": (
+            "Retrieve species skills list, species talent options, and random talent roll count for a given WFRP species "
+            "('human', 'dwarf', 'halfling', 'high_elf', 'wood_elf'). Use during Step 3 of character creation."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "race": {
+                    "type": "string",
+                    "description": "Species key: 'human', 'dwarf', 'halfling', 'high_elf', or 'wood_elf'."
+                }
+            },
+            "required": ["race"]
+        }
     }
 ]
+
 
 
 _TOOLS = _build_tools()
@@ -2328,8 +2364,24 @@ def _tool_save_character(i):
             f"Wounds: {char['wounds']['max']}, Fate: {char['fate']['total']}.")
 
 
+def _tool_roll_random_talent(i):
+    from skull import campaign as _campaign
+    count = int(i.get("count", 1))
+    return _campaign.roll_random_talent(count)
+
+
+def _tool_get_species_info(i):
+    from skull import campaign as _campaign
+    race_input = i.get("race", "human").strip()
+    race_key = _campaign.resolve_race(race_input)
+    if not race_key:
+        return f"Unknown race '{race_input}'."
+    return _campaign.get_species_info(race_key)
+
+
 # Temporary in-process store for rolled characteristic blocks between tool calls
 _PENDING_CHAR_BLOCKS: dict = {}
+
 
 
 
@@ -3115,6 +3167,8 @@ _TOOL_REGISTRY = {
     "save_campaign_state": _tool_save_campaign_state,
     "roll_character_stats": _tool_roll_character_stats,
     "save_character": _tool_save_character,
+    "roll_random_talent": _tool_roll_random_talent,
+    "get_species_info": _tool_get_species_info,
 }
 
 def _execute_tool(name: str, tool_input: dict) -> str:
