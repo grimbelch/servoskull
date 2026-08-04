@@ -1102,7 +1102,7 @@ def main():
 
         # ── 3a-0b. Bard's Tale autonomous play intents ─────────────────────
         if _RE_GAME_START.search(_t):
-            from games.bardstale import agent as _bt_agent
+            from games.video.bardstale import agent as _bt_agent
             char_disk = disk_dir / "bards_tale_character.dsk"
             if char_disk.exists():
                 selected_disk = str(char_disk)
@@ -1115,7 +1115,7 @@ def main():
 
             if not selected_disk:
                 _reply = ("No Bard's Tale disk image found in the data-vaults. "
-                          "Place a .dsk or .woz file in games/bardstale/disks/ "
+                          "Place a .dsk or .woz file in games/video/bardstale/disks/ "
                           "and try again.")
             elif _bt_agent.is_running():
                 _reply = "The dungeon protocol is already active, my Lord."
@@ -1133,7 +1133,7 @@ def main():
             continue
 
         elif _RE_GAME_STOP.search(_t):
-            from games.bardstale import agent as _bt_agent
+            from games.video.bardstale import agent as _bt_agent
             _bt_agent.stop()
             display.stop_game_display()
             _reply = "Dungeon protocol terminated. The cogitator returns to vigil."

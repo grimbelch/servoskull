@@ -518,7 +518,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
     def _handle_game_status(self) -> None:
         """GET /api/game/status — returns current Bard's Tale agent state."""
         try:
-            from games.bardstale import agent as _bt_agent
+            from games.video.bardstale import agent as _bt_agent
             self._send_json(_bt_agent.get_status())
         except Exception as e:
             self._send_json({"running": False, "turn": 0, "last_action": "", "error": str(e)})
@@ -547,9 +547,9 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                     ) if disk_dir.exists() else []
                     disk_path = str(disks[0]) if disks else ""
             if not disk_path:
-                self._send_json({"ok": False, "error": "No disk image found in games/bardstale/disks/"}, 400)
+                self._send_json({"ok": False, "error": "No disk image found in games/video/bardstale/disks/"}, 400)
                 return
-            from games.bardstale import agent as _bt_agent
+            from games.video.bardstale import agent as _bt_agent
             if _bt_agent.is_running():
                 self._send_json({"ok": False, "error": "Game already running"})
                 return
@@ -566,7 +566,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
     def _handle_game_stop(self) -> None:
         """POST /api/game/stop — stop the Bard's Tale agent."""
         try:
-            from games.bardstale import agent as _bt_agent
+            from games.video.bardstale import agent as _bt_agent
             from skull import display as _disp
             _bt_agent.stop()
             _disp.stop_game_display()

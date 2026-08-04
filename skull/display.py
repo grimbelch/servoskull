@@ -1098,7 +1098,7 @@ def _loop():
 
         if _showing_game:
             try:
-                from games.bardstale import agent as _bt_agent
+                from games.video.bardstale import agent as _bt_agent
                 gf = _bt_agent.get_latest_frame()
                 if gf is not None:
                     _blit(gf)

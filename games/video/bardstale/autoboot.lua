@@ -10,7 +10,7 @@ emu.add_machine_frame_notifier(function()
         swapped = true
         local img = manager.machine.images[":sl6:diskiing:0:525"]
         if img then
-            local char_disk = "/home/sspeer/skull/games/bardstale/disks/bards_tale_character.dsk"
+            local char_disk = "/home/sspeer/skull/games/video/bardstale/disks/bards_tale_character.dsk"
             img:unload()
             img:load(char_disk)
             print("[bardstale] MAME Lua: Auto-swapped Drive 1 to bards_tale_character.dsk")
