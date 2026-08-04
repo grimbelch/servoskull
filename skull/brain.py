@@ -15,12 +15,14 @@ from skull import quiet as _quiet
 from skull import candles as _candles
 from skull import llm as _llm
 from skull import display as _display
+from games.roleplay import whfrp
 
 _history: list[dict] = []
 
 # Tools that hit the network/hardware and can take a noticeable moment. Omega-7
 # speaks a short "stand by" before running any of these so the user gets feedback.
-_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "whfrp_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings", "register_face", "register_voice", "purge_identity", "connect_bambu_printer", "set_weather_location", "get_spotify_current_track", "start_campaign", "save_campaign_state"}
+_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings", "register_face", "register_voice", "purge_identity", "connect_bambu_printer", "set_weather_location", "get_spotify_current_track"} | whfrp.tools.SLOW_TOOLS
+
 _HISTORY_PATH = config.data_path(config.HISTORY_FILE)
 _last_turn_tools: list[str] = []
 
@@ -1106,285 +1108,10 @@ def _build_tools() -> list[dict]:
             "required": ["name"]
         }
     },
-    {
-        "name": "whfrp_rules",
-        "description": (
-            "Look up Warhammer Fantasy Roleplay 4th Edition (WFRP 4E) rules from the local offline "
-            "rules library — the full Core Rulebook and the Quick Reference guide. Use for ANY "
-            "WFRP 4E question: characteristics and tests, Success Levels (SL), opposed/extended tests, "
-            "combat (hit locations, damage, criticals, Advantage), careers and advances, skills and "
-            "talents, fate/fortune/resilience points, corruption/mutation, magic and spells, "
-            "bestiary entries, travel/encumbrance, social encounters, and all other mechanics. "
-            "Always call this tool before ruling on any WFRP mechanic rather than relying on memory. "
-            "IMPORTANT: When searching for a career's starting skills, talents, or trappings, ALWAYS include "
-            "the specific career name in your query (e.g. 'Scout career skills talents trappings' or "
-            "'Apothecary career skills'). Generic queries like 'starting skills' without the career name "
-            "will return general chapter overviews instead of the specific career page."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Rule, mechanic, career, spell, creature, or topic to look up (e.g. 'characteristic test', 'hit location table', 'Warrior career', 'Fireball spell', 'Troll')",
-                }
-            },
-            "required": ["query"],
-        },
-    },
-    {
-        "name": "roll_whfrp_dice",
-        "description": (
-            "Roll dice for Warhammer Fantasy Roleplay 4E. Primarily used for d100 (percentile) "
-            "characteristic tests — roll under the characteristic value to succeed. Also handles "
-            "other WFRP die types: d10 (for tens/units separately), d6 (generic), d4. "
-            "Use this to roll as the GM for NPCs, monsters, and hidden tests. When the player "
-            "needs to roll for their own character, prompt them to roll their own dice, then "
-            "call this only if they ask you to roll on their behalf."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "die_type": {
-                    "type": "string",
-                    "enum": ["d100", "d10", "d6", "d4"],
-                    "description": "The die type. d100 is the primary WFRP die (percentile test). d10 for individual tens/units. d6/d4 for damage and other rolls."
-                },
-                "count": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "description": "Number of dice to roll (default: 1)."
-                },
-                "characteristic": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 100,
-                    "description": "Optional: For d100 tests, the characteristic value to roll under (e.g. 35 for WS 35). If provided, the result will show success/failure and Success Level."
-                },
-                "modifier": {
-                    "type": "integer",
-                    "description": "Optional: Situational modifier to apply to the characteristic before the test (positive for bonus, negative for penalty, in multiples of 10 e.g. +20, -10)."
-                },
-                "label": {
-                    "type": "string",
-                    "description": "Optional: Label for the roll (e.g. 'Goblin WS test', 'Troll Toughness check', 'NPC Charm test')."
-                }
-            },
-            "required": ["die_type"]
-        }
-    },
-    {
-        "name": "start_campaign",
-        "description": (
-            "Start or resume a named WFRP campaign. Call when the player says 'start a campaign', "
-            "'resume [campaign name]', 'let's play [campaign name]', or 'new campaign'. "
-            "If resuming an existing campaign, pass the name; the campaign state (characters, location, "
-            "scene, notes) will be loaded and returned. If starting fresh, also pass character info. "
-            "This sets the campaign as active for the current session."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "campaign_name": {
-                    "type": "string",
-                    "description": "Name of the campaign (e.g. 'The Enemy Within', 'Rough Nights and Hard Days'). Used as the save file identifier."
-                },
-                "adventure": {
-                    "type": "string",
-                    "description": "Optional: Name of the adventure module being played (if different from campaign name)."
-                },
-                "character_name": {
-                    "type": "string",
-                    "description": "Optional (new campaigns): The player character's name."
-                },
-                "character_race": {
-                    "type": "string",
-                    "description": "Optional (new campaigns): Character race (e.g. Human, Dwarf, Halfling, High Elf, Wood Elf)."
-                },
-                "character_career": {
-                    "type": "string",
-                    "description": "Optional (new campaigns): Character career (e.g. Soldier, Witch Hunter, Scholar, Rat Catcher)."
-                }
-            },
-            "required": ["campaign_name"]
-        }
-    },
-    {
-        "name": "list_campaigns",
-        "description": "List all saved WFRP campaigns. Use when the player asks what campaigns are saved, or to show available campaigns to resume.",
-        "input_schema": {
-            "type": "object",
-            "properties": {}
-        }
-    },
-    {
-        "name": "get_campaign_state",
-        "description": "Read the current state of the active WFRP campaign: character info, current location, scene description, active NPCs, and recent session notes. Call at the start of each session after start_campaign, or when you need to recall what happened.",
-        "input_schema": {
-            "type": "object",
-            "properties": {}
-        }
-    },
-    {
-        "name": "save_campaign_state",
-        "description": (
-            "Save GM notes or update the active campaign's state. Use to persist important events: "
-            "scene changes, NPC interactions, wounds taken, fate points spent, decisions made. "
-            "Call after significant moments so the campaign can be resumed accurately. "
-            "Pass 'note' for session notes; use 'field'+'value' to update a specific field "
-            "(e.g. field='current_location', value='Bögenhafen docks')."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "note": {
-                    "type": "string",
-                    "description": "A session note to append (e.g. 'Player defeated the goblin ambush. Took 3 wounds.')."
-                },
-                "field": {
-                    "type": "string",
-                    "description": "Optional: A specific campaign field to update (e.g. 'current_location', 'current_scene')."
-                },
-                "value": {
-                    "type": "string",
-                    "description": "Optional: The new value for the specified field."
-                }
-            }
-        }
-    },
-    {
-        "name": "roll_character_stats",
-        "description": (
-            "Roll starting characteristics and calculate derived attributes (Wounds, Movement, Fate, Fortune, "
-            "Resilience, Resolve) for a new WFRP 4E character of a given species/race. "
-            "Races supported: 'human' (Human Reiklander), 'dwarf' (Dwarf), 'halfling' (Halfling), "
-            "'high_elf' (High Elf), 'wood_elf' (Wood Elf). Returns a detailed break-down of base modifiers, "
-            "2d10 rolls, final characteristics, and derived stats suitable for speech."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "race": {
-                    "type": "string",
-                    "description": "The chosen species/race: 'human', 'dwarf', 'halfling', 'high_elf', or 'wood_elf'."
-                }
-            },
-            "required": ["race"]
-        }
-    },
-    {
-        "name": "save_character",
-        "description": (
-            "Save a fully created or updated player character to the active WFRP campaign. "
-            "Persists character name, race, career, career level, characteristic scores, max/current wounds, "
-            "fate/fortune, resilience/resolve, movement, skills, talents, trappings, and XP."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "description": "Character name."
-                },
-                "race": {
-                    "type": "string",
-                    "description": "Character species/race."
-                },
-                "career": {
-                    "type": "string",
-                    "description": "Character career (e.g. 'Soldier', 'Witch Hunter', 'Rat Catcher')."
-                },
-                "career_level": {
-                    "type": "string",
-                    "description": "Optional: Career level title (e.g. 'Recruit', 'Apprentice Apothecary')."
-                },
-                "characteristics": {
-                    "type": "object",
-                    "description": "Dict of characteristics e.g. {'WS': 35, 'BS': 30, 'S': 35, 'T': 30, 'I': 25, 'Ag': 30, 'Dex': 25, 'Int': 28, 'WP': 30, 'Fel': 22}."
-                },
-                "wounds_max": {
-                    "type": "integer",
-                    "description": "Maximum wound total."
-                },
-                "fate": {
-                    "type": "integer",
-                    "description": "Starting Fate points."
-                },
-                "fortune": {
-                    "type": "integer",
-                    "description": "Starting Fortune points."
-                },
-                "resilience": {
-                    "type": "integer",
-                    "description": "Starting Resilience points."
-                },
-                "resolve": {
-                    "type": "integer",
-                    "description": "Starting Resolve points."
-                },
-                "move": {
-                    "type": "integer",
-                    "description": "Movement score."
-                },
-                "skills": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "List of starting skills."
-                },
-                "talents": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "List of starting talents."
-                },
-                "trappings": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "List of starting equipment/trappings."
-                },
-                "xp": {
-                    "type": "integer",
-                    "description": "Starting experience points (including bonuses for random choices)."
-                }
-            },
-            "required": ["name", "race", "career"]
-        }
-    },
-    {
-        "name": "roll_random_talent",
-        "description": (
-            "Roll 1 or more times on the official WFRP 4E Random Talent Table (d100) during character creation "
-            "for species that gain random talents (e.g. Humans get 3, Halflings get 2)."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 5,
-                    "description": "Number of random talent rolls to make (default: 1)."
-                }
-            }
-        }
-    },
-    {
-        "name": "get_species_info",
-        "description": (
-            "Retrieve species skills list, species talent options, and random talent roll count for a given WFRP species "
-            "('human', 'dwarf', 'halfling', 'high_elf', 'wood_elf'). Use during Step 3 of character creation."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "race": {
-                    "type": "string",
-                    "description": "Species key: 'human', 'dwarf', 'halfling', 'high_elf', or 'wood_elf'."
-                }
-            },
-            "required": ["race"]
-        }
-    }
-]
+    ]
+    tools.extend(whfrp.tools.TOOLS)
+    return tools
+
 
 
 
@@ -3159,17 +2886,9 @@ _TOOL_REGISTRY = {
     "register_voice": _tool_register_voice,
     "play_idle_animation": _tool_play_idle_animation,
     "purge_identity": _tool_purge_identity,
-    "whfrp_rules": _tool_whfrp_rules,
-    "roll_whfrp_dice": _tool_roll_whfrp_dice,
-    "start_campaign": _tool_start_campaign,
-    "list_campaigns": _tool_list_campaigns,
-    "get_campaign_state": _tool_get_campaign_state,
-    "save_campaign_state": _tool_save_campaign_state,
-    "roll_character_stats": _tool_roll_character_stats,
-    "save_character": _tool_save_character,
-    "roll_random_talent": _tool_roll_random_talent,
-    "get_species_info": _tool_get_species_info,
 }
+_TOOL_REGISTRY.update(whfrp.tools.HANDLERS)
+
 
 def _execute_tool(name: str, tool_input: dict) -> str:
     """Run a single tool call and return its result string. Called by the llm
@@ -3396,8 +3115,10 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
             "If they agree, execute the 'register_voice' tool with their name."
         )
         
-    system_suffix = (date_ctx + game_ctx + speaker_ctx + _memory.longterm_prompt(longterm)
-                     + _memory.facts_prompt(facts) + _mood.system_addendum())
+    whfrp_prompt = f"\n\n{whfrp.get_persona_prompt()}" if whfrp.get_persona_prompt() else ""
+    system_suffix = (date_ctx + game_ctx + speaker_ctx + whfrp_prompt
+                     + _memory.longterm_prompt(longterm) + _memory.facts_prompt(facts) + _mood.system_addendum())
+
 
     # Record which tools fired so we can reconcile silent mode afterwards.
     tools_called: list[str] = []

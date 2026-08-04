@@ -26,7 +26,7 @@ import threading
 import time
 from typing import Callable, Optional
 
-from games.bardstale import emulator, maps
+from games.video.bardstale import emulator, maps
 
 try:
     from PIL import Image
