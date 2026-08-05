@@ -1505,6 +1505,15 @@ async function createNewCampaignPrompt() {
     } catch(e) { console.error(e); }
 }
 
+function formatCareerLevel(levelStr) {
+    if (!levelStr) return 'Level 1';
+    let clean = String(levelStr).trim();
+    clean = clean.replace(/\s*\((?:Brass|Silver|Gold)\s*\d+\)/i, '').trim();
+    if (clean.toLowerCase().startsWith('lvl')) clean = clean.substring(3).trim();
+    if (clean.toLowerCase().startsWith('level')) clean = clean.substring(5).trim();
+    return `Level ${clean}`;
+}
+
 function renderCampaignDashboard(c) {
     const tabBadgeEl = document.getElementById('c-tab-badge');
     const titleEl = document.getElementById('c-name-title');
