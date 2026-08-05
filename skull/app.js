@@ -1650,11 +1650,11 @@ function rollNewPartyCharacterPrompt() {
 let wizardRollData = null;
 
 const WIZARD_RACIAL_BASES = {
-    human:    { WS: 20, BS: 20, S: 20, T: 20, I: 20, Ag: 20, Dex: 20, Int: 20, WP: 20, Fel: 20, woundsBonus: 0, fate: 2, fortune: 2, resilience: 1, resolve: 1, move: 4, xpBonus: 20 },
-    dwarf:    { WS: 30, BS: 20, S: 20, T: 30, I: 20, Ag: 10, Dex: 30, Int: 20, WP: 40, Fel: 10, woundsBonus: 0, fate: 0, fortune: 0, resilience: 2, resolve: 2, move: 3, xpBonus: 0 },
-    halfling: { WS: 10, BS: 30, S: 10, T: 20, I: 20, Ag: 20, Dex: 30, Int: 20, WP: 30, Fel: 30, woundsBonus: 0, fate: 3, fortune: 3, resilience: 0, resolve: 0, move: 3, xpBonus: 0 },
-    high_elf: { WS: 30, BS: 30, S: 20, T: 20, I: 40, Ag: 30, Dex: 30, Int: 30, WP: 30, Fel: 20, woundsBonus: 0, fate: 0, fortune: 0, resilience: 2, resolve: 2, move: 5, xpBonus: 0 },
-    wood_elf: { WS: 30, BS: 30, S: 20, T: 20, I: 50, Ag: 40, Dex: 30, Int: 30, WP: 30, Fel: 10, woundsBonus: 0, fate: 0, fortune: 0, resilience: 2, resolve: 2, move: 5, xpBonus: 0 }
+    human:    { WS: 20, BS: 20, S: 20, T: 20, I: 20, Ag: 20, Dex: 20, Int: 20, WP: 20, Fel: 20, woundsBonus: 0, fate: 3, fortune: 3, resilience: 3, resolve: 3, move: 4, xpBonus: 20 },
+    dwarf:    { WS: 30, BS: 20, S: 20, T: 30, I: 20, Ag: 10, Dex: 30, Int: 20, WP: 40, Fel: 10, woundsBonus: 0, fate: 2, fortune: 2, resilience: 2, resolve: 2, move: 3, xpBonus: 0 },
+    halfling: { WS: 10, BS: 30, S: 10, T: 20, I: 20, Ag: 20, Dex: 30, Int: 20, WP: 30, Fel: 30, woundsBonus: 0, fate: 2, fortune: 2, resilience: 3, resolve: 3, move: 3, xpBonus: 0 },
+    high_elf: { WS: 30, BS: 30, S: 20, T: 20, I: 40, Ag: 30, Dex: 30, Int: 30, WP: 30, Fel: 20, woundsBonus: 0, fate: 1, fortune: 1, resilience: 1, resolve: 1, move: 5, xpBonus: 0 },
+    wood_elf: { WS: 30, BS: 30, S: 20, T: 20, I: 50, Ag: 40, Dex: 30, Int: 30, WP: 30, Fel: 10, woundsBonus: 0, fate: 1, fortune: 1, resilience: 1, resolve: 1, move: 5, xpBonus: 0 }
 };
 
 let wizardAllocState = { WS: 10, BS: 10, S: 10, T: 10, I: 10, Ag: 10, Dex: 10, Int: 10, WP: 10, Fel: 10 };
