@@ -133,6 +133,7 @@ def init_db() -> None:
                 controlling_faction TEXT DEFAULT '',
                 danger_level TEXT DEFAULT 'Low',
                 visited INTEGER DEFAULT 1,
+                history TEXT DEFAULT '',
                 FOREIGN KEY (campaign_id) REFERENCES campaigns (id) ON DELETE CASCADE
             );
 
@@ -147,8 +148,20 @@ def init_db() -> None:
                 status TEXT DEFAULT 'Alive',
                 secrets_lore TEXT DEFAULT '',
                 notes TEXT DEFAULT '',
+                motivations_goals TEXT DEFAULT '',
+                party_disposition TEXT DEFAULT 'Neutral',
                 FOREIGN KEY (campaign_id) REFERENCES campaigns (id) ON DELETE CASCADE,
                 FOREIGN KEY (location_id) REFERENCES locations (id) ON DELETE SET NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS npc_character_relations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                npc_id INTEGER NOT NULL,
+                character_id INTEGER NOT NULL,
+                disposition_score INTEGER DEFAULT 0,
+                notes TEXT DEFAULT '',
+                FOREIGN KEY (npc_id) REFERENCES npcs (id) ON DELETE CASCADE,
+                FOREIGN KEY (character_id) REFERENCES characters (id) ON DELETE CASCADE
             );
 
             CREATE TABLE IF NOT EXISTS quests_encounters (
@@ -169,6 +182,8 @@ def init_db() -> None:
                 session_num INTEGER DEFAULT 1,
                 in_game_date TEXT DEFAULT '',
                 event_summary TEXT NOT NULL,
+                related_npcs_json TEXT DEFAULT '[]',
+                related_locations_json TEXT DEFAULT '[]',
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (campaign_id) REFERENCES campaigns (id) ON DELETE CASCADE
             );
@@ -527,14 +542,28 @@ def get_campaign_dict(slug_or_name: str) -> Optional[dict]:
     camp_dict["locations"] = [dict(r) for r in cur_locs.fetchall()]
 
     cur_npcs = conn.execute("SELECT * FROM npcs WHERE campaign_id = ?", (cid,))
-    camp_dict["npcs"] = [dict(r) for r in cur_npcs.fetchall()]
+    npcs = []
+    for r in cur_npcs.fetchall():
+        n = dict(r)
+        # Fetch relations
+        rel_cur = conn.execute("SELECT * FROM npc_character_relations WHERE npc_id = ?", (n["id"],))
+        n["character_relations"] = [dict(rel) for rel in rel_cur.fetchall()]
+        npcs.append(n)
+        
+    camp_dict["npcs"] = npcs
     camp_dict["active_npcs"] = [n["name"] for n in camp_dict["npcs"] if n["status"] == "Alive"]
 
     cur_quests = conn.execute("SELECT * FROM quests_encounters WHERE campaign_id = ?", (cid,))
     camp_dict["quests"] = [dict(r) for r in cur_quests.fetchall()]
 
     cur_time = conn.execute("SELECT * FROM timeline_logs WHERE campaign_id = ? ORDER BY id ASC", (cid,))
-    camp_dict["timeline"] = [dict(r) for r in cur_time.fetchall()]
+    timeline = []
+    for r in cur_time.fetchall():
+        t = dict(r)
+        t["related_npcs"] = json.loads(t.pop("related_npcs_json", "[]"))
+        t["related_locations"] = json.loads(t.pop("related_locations_json", "[]"))
+        timeline.append(t)
+    camp_dict["timeline"] = timeline
 
     cur_inv = conn.execute("SELECT * FROM party_inventory WHERE campaign_id = ?", (cid,))
     camp_dict["inventory"] = [dict(r) for r in cur_inv.fetchall()]
@@ -792,25 +821,25 @@ def add_timeline_event(slug: str, event_summary: str, in_game_date: str = "") ->
         row = cur.fetchone()
         if row:
             conn.execute("""
-                INSERT INTO timeline_logs (campaign_id, event_summary, in_game_date, created_at)
-                VALUES (?, ?, ?, ?)
-            """, (row["id"], event_summary, in_game_date or "2502 IC", _now()))
+                INSERT INTO timeline_logs (campaign_id, event_summary, in_game_date, related_npcs_json, related_locations_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (row["id"], event_summary, in_game_date or "2502 IC", "[]", "[]", _now()))
     conn.close()
 
 
-def add_npc(slug: str, name: str, role_career: str = "", disposition: str = "Neutral", secrets_lore: str = "", notes: str = "") -> dict:
+def add_npc(slug: str, name: str, role_career: str = "", disposition: str = "Neutral", secrets_lore: str = "", notes: str = "", motivations_goals: str = "", party_disposition: str = "Neutral") -> dict:
     conn = get_connection()
     with conn:
         cur = conn.execute("SELECT id FROM campaigns WHERE slug = ?", (slug,))
         row = cur.fetchone()
         if row:
             n_cur = conn.execute("""
-                INSERT INTO npcs (campaign_id, name, role_career, disposition, secrets_lore, notes)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (row["id"], name, role_career, disposition, secrets_lore, notes))
+                INSERT INTO npcs (campaign_id, name, role_career, disposition, secrets_lore, notes, motivations_goals, party_disposition)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (row["id"], name, role_career, disposition, secrets_lore, notes, motivations_goals, party_disposition))
             nid = n_cur.lastrowid
             conn.close()
-            return {"id": nid, "name": name, "role_career": role_career, "disposition": disposition}
+            return {"id": nid, "name": name, "role_career": role_career, "disposition": disposition, "party_disposition": party_disposition}
     conn.close()
     return {}
 
@@ -850,20 +879,21 @@ def upsert_location(slug: str, loc_dict: dict) -> dict:
     faction = loc_dict.get("controlling_faction", "")
     danger = loc_dict.get("danger_level", "Low")
     visited = 1 if loc_dict.get("visited", True) else 0
+    history = loc_dict.get("history", "")
 
     with conn:
         if loc_id:
             conn.execute("""
                 UPDATE locations SET
                     name = ?, type = ?, region = ?, description = ?,
-                    controlling_faction = ?, danger_level = ?, visited = ?
+                    controlling_faction = ?, danger_level = ?, visited = ?, history = ?
                 WHERE id = ? AND campaign_id = ?
-            """, (name, loc_type, region, description, faction, danger, visited, loc_id, cid))
+            """, (name, loc_type, region, description, faction, danger, visited, history, loc_id, cid))
         else:
             conn.execute("""
-                INSERT INTO locations (campaign_id, name, type, region, description, controlling_faction, danger_level, visited)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (cid, name, loc_type, region, description, faction, danger, visited))
+                INSERT INTO locations (campaign_id, name, type, region, description, controlling_faction, danger_level, visited, history)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (cid, name, loc_type, region, description, faction, danger, visited, history))
     conn.close()
     return get_campaign_dict(slug) or {}
 
@@ -896,6 +926,8 @@ def upsert_npc(slug: str, npc_dict: dict) -> dict:
     status = npc_dict.get("status", "Alive")
     secrets_lore = npc_dict.get("secrets_lore", "")
     notes = npc_dict.get("notes", "")
+    motivations_goals = npc_dict.get("motivations_goals", "")
+    party_disposition = npc_dict.get("party_disposition", "Neutral")
     loc_id = npc_dict.get("location_id")
 
     with conn:
@@ -903,14 +935,14 @@ def upsert_npc(slug: str, npc_dict: dict) -> dict:
             conn.execute("""
                 UPDATE npcs SET
                     name = ?, role_career = ?, species = ?, disposition = ?,
-                    status = ?, secrets_lore = ?, notes = ?, location_id = ?
+                    status = ?, secrets_lore = ?, notes = ?, motivations_goals = ?, party_disposition = ?, location_id = ?
                 WHERE id = ? AND campaign_id = ?
-            """, (name, role_career, species, disposition, status, secrets_lore, notes, loc_id, npc_id, cid))
+            """, (name, role_career, species, disposition, status, secrets_lore, notes, motivations_goals, party_disposition, loc_id, npc_id, cid))
         else:
             conn.execute("""
-                INSERT INTO npcs (campaign_id, location_id, name, role_career, species, disposition, status, secrets_lore, notes)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (cid, loc_id, name, role_career, species, disposition, status, secrets_lore, notes))
+                INSERT INTO npcs (campaign_id, location_id, name, role_career, species, disposition, status, secrets_lore, notes, motivations_goals, party_disposition)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (cid, loc_id, name, role_career, species, disposition, status, secrets_lore, notes, motivations_goals, party_disposition))
     conn.close()
     return get_campaign_dict(slug) or {}
 

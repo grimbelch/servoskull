@@ -15,6 +15,52 @@ SLOW_TOOLS = {
 
 TOOLS = [
     {
+        "name": "whfrp_manage_npc",
+        "description": "Find, create, or update an NPC in the campaign. Use this to actively track changing motivations, secrets, and dispositions towards the party as the game progresses.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Name of the NPC"},
+                "role_career": {"type": "string", "description": "NPC's role or career (optional)"},
+                "disposition": {"type": "string", "description": "General disposition (Friendly, Neutral, Hostile, etc.)"},
+                "party_disposition": {"type": "string", "description": "Specific disposition towards the party"},
+                "motivations_goals": {"type": "string", "description": "Current motivations and goals"},
+                "secrets_lore": {"type": "string", "description": "Hidden GM secrets about the NPC"},
+                "notes": {"type": "string", "description": "General notes"},
+                "status": {"type": "string", "description": "Alive, Dead, Missing, etc."}
+            },
+            "required": ["name"]
+        }
+    },
+    {
+        "name": "whfrp_manage_location",
+        "description": "Find, create, or update a location in the campaign. Use this to track history of what happened at this site.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Name of the Location"},
+                "type": {"type": "string", "description": "City, Town, Inn, Dungeon, etc."},
+                "region": {"type": "string", "description": "The Reikland, etc."},
+                "description": {"type": "string", "description": "Physical description"},
+                "history": {"type": "string", "description": "Chronicle of what the players did here or historical lore"},
+                "danger_level": {"type": "string", "description": "Low, Medium, High"}
+            },
+            "required": ["name"]
+        }
+    },
+    {
+        "name": "whfrp_log_timeline_event",
+        "description": "Log a major chronological event into the campaign timeline. Use this to permanently record key milestones, battles, or plot reveals.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "event_summary": {"type": "string", "description": "Summary of the event"},
+                "in_game_date": {"type": "string", "description": "Optional: In-game date (e.g. '2502 IC')"}
+            },
+            "required": ["event_summary"]
+        }
+    },
+    {
         "name": "whfrp_combat_start",
         "description": "Initialize a new WFRP combat encounter. Pass a list of combatants with their initiative values. This sets up the turn tracker.",
         "input_schema": {
@@ -370,7 +416,63 @@ TOOLS = [
     }
 ]
 
+def _tool_whfrp_manage_npc(i):
+    active = _campaign.get_active_campaign()
+    if not active:
+        return {"error": "No active campaign. Call start_campaign first."}
+    slug = active.get("slug")
+    # See if NPC exists
+    from . import db
+    camp = db.get_campaign_dict(slug)
+    if not camp:
+        return {"error": "Campaign not found in DB."}
+    
+    existing = None
+    for n in camp.get("npcs", []):
+        if n["name"].lower() == i["name"].lower():
+            existing = n
+            break
+            
+    npc_dict = existing.copy() if existing else {}
+    for k in ["name", "role_career", "disposition", "party_disposition", "motivations_goals", "secrets_lore", "notes", "status"]:
+        if k in i:
+            npc_dict[k] = i[k]
+            
+    db.upsert_npc(slug, npc_dict)
+    return {"status": "success", "message": f"Updated NPC {i['name']}"}
 
+def _tool_whfrp_manage_location(i):
+    active = _campaign.get_active_campaign()
+    if not active:
+        return {"error": "No active campaign. Call start_campaign first."}
+    slug = active.get("slug")
+    from . import db
+    camp = db.get_campaign_dict(slug)
+    if not camp:
+        return {"error": "Campaign not found in DB."}
+        
+    existing = None
+    for l in camp.get("locations", []):
+        if l["name"].lower() == i["name"].lower():
+            existing = l
+            break
+            
+    loc_dict = existing.copy() if existing else {}
+    for k in ["name", "type", "region", "description", "history", "danger_level"]:
+        if k in i:
+            loc_dict[k] = i[k]
+            
+    db.upsert_location(slug, loc_dict)
+    return {"status": "success", "message": f"Updated Location {i['name']}"}
+
+def _tool_whfrp_log_timeline_event(i):
+    active = _campaign.get_active_campaign()
+    if not active:
+        return {"error": "No active campaign. Call start_campaign first."}
+    slug = active.get("slug")
+    from . import db
+    db.add_timeline_event(slug, i["event_summary"], i.get("in_game_date", ""))
+    return {"status": "success", "message": "Event logged to timeline."}
 def _tool_whfrp_rules(i):
     query = i.get("query", "")
     print(f"[skull] Looking up WFRP 4E rules: {query}")
