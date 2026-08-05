@@ -1519,29 +1519,35 @@ function formatCareerLevel(levelStr) {
 }
 
 function renderCampaignDashboard(c) {
-    const tabBadgeEl = document.getElementById('c-tab-badge');
-    const titleEl = document.getElementById('c-name-title');
+    const setInner = (id, text) => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = text;
+    };
+    const setVal = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.value = val;
+    };
+
     if (!c) {
-        if (tabBadgeEl) tabBadgeEl.innerText = 'NO CAMPAIGN';
-        if (titleEl) titleEl.innerText = '◆ NO CAMPAIGN SELECTED ◆';
-        document.getElementById('c-location').innerText = 'The Reikland';
-        document.getElementById('c-adventure').innerText = 'None';
-        document.getElementById('character-roster-grid').innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 30px; color: #5c4732; font-size: 15px;">No active campaign selected. Select or create a campaign above.</div>';
+        setInner('c-tab-badge', 'NO CAMPAIGN');
+        setInner('c-name-title', '◆ NO CAMPAIGN SELECTED ◆');
+        setInner('c-location', 'The Reikland');
+        setInner('c-adventure', 'None');
+        const g = document.getElementById('character-roster-grid');
+        if (g) g.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 30px; color: #5c4732; font-size: 15px;">No active campaign selected. Select or create a campaign above.</div>';
         return;
     }
 
-    if (tabBadgeEl) tabBadgeEl.innerText = (c.name || 'UNNAMED CAMPAIGN').toUpperCase();
-    if (titleEl) titleEl.innerText = '◆ PARTY ROSTER & SESSION MANAGER ◆';
-    document.getElementById('c-location').innerText = c.current_location || 'The Reikland';
-    document.getElementById('c-adventure').innerText = c.adventure || 'Standard Campaign';
-    const ambShortInp = document.getElementById('c-amb-short-inp');
-    if (ambShortInp) ambShortInp.value = c.party_ambition_short || '';
-    const ambLongInp = document.getElementById('c-amb-long-inp');
-    if (ambLongInp) ambLongInp.value = c.party_ambition_long || '';
-    document.getElementById('c-notes-input').value = c.notes || (c.session_notes ? c.session_notes.join('\n') : '');
+    setInner('c-tab-badge', (c.name || 'UNNAMED CAMPAIGN').toUpperCase());
+    setInner('c-name-title', '◆ PARTY ROSTER & SESSION MANAGER ◆');
+    setInner('c-location', c.current_location || 'The Reikland');
+    setInner('c-adventure', c.adventure || 'Standard Campaign');
+    setVal('c-amb-short-inp', c.party_ambition_short || '');
+    setVal('c-amb-long-inp', c.party_ambition_long || '');
+    setVal('c-notes-input', c.notes || (c.session_notes ? c.session_notes.join('\n') : ''));
 
     const chars = c.characters || [];
-    document.getElementById('roster-count-badge').innerText = `${chars.length} CHARACTER${chars.length === 1 ? '' : 'S'}`;
+    setInner('roster-count-badge', `${chars.length} CHARACTER${chars.length === 1 ? '' : 'S'}`);
 
     const grid = document.getElementById('character-roster-grid');
     if (!grid) return;
