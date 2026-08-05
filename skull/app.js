@@ -1650,14 +1650,15 @@ function rollNewPartyCharacterPrompt() {
 let wizardRollData = null;
 
 const WIZARD_RACIAL_BASES = {
-    human:    { WS: 20, BS: 20, S: 20, T: 20, I: 20, Ag: 20, Dex: 20, Int: 20, WP: 20, Fel: 20, woundsBonus: 0, fate: 3, fortune: 3, resilience: 3, resolve: 3, move: 4, xpBonus: 20 },
-    dwarf:    { WS: 30, BS: 20, S: 20, T: 30, I: 20, Ag: 10, Dex: 30, Int: 20, WP: 40, Fel: 10, woundsBonus: 0, fate: 2, fortune: 2, resilience: 2, resolve: 2, move: 3, xpBonus: 0 },
-    halfling: { WS: 10, BS: 30, S: 10, T: 20, I: 20, Ag: 20, Dex: 30, Int: 20, WP: 30, Fel: 30, woundsBonus: 0, fate: 2, fortune: 2, resilience: 3, resolve: 3, move: 3, xpBonus: 0 },
-    high_elf: { WS: 30, BS: 30, S: 20, T: 20, I: 40, Ag: 30, Dex: 30, Int: 30, WP: 30, Fel: 20, woundsBonus: 0, fate: 1, fortune: 1, resilience: 1, resolve: 1, move: 5, xpBonus: 0 },
-    wood_elf: { WS: 30, BS: 30, S: 20, T: 20, I: 50, Ag: 40, Dex: 30, Int: 30, WP: 30, Fel: 10, woundsBonus: 0, fate: 1, fortune: 1, resilience: 1, resolve: 1, move: 5, xpBonus: 0 }
+    human:    { WS: 20, BS: 20, S: 20, T: 20, I: 20, Ag: 20, Dex: 20, Int: 20, WP: 20, Fel: 20, woundsBonus: 0, fate: 2, fortune: 2, resilience: 1, resolve: 1, extraPoints: 3, move: 4, xpBonus: 20 },
+    dwarf:    { WS: 30, BS: 20, S: 20, T: 30, I: 20, Ag: 10, Dex: 30, Int: 20, WP: 40, Fel: 10, woundsBonus: 0, fate: 0, fortune: 0, resilience: 2, resolve: 2, extraPoints: 2, move: 3, xpBonus: 0 },
+    halfling: { WS: 10, BS: 30, S: 10, T: 20, I: 20, Ag: 20, Dex: 30, Int: 20, WP: 30, Fel: 30, woundsBonus: 0, fate: 0, fortune: 0, resilience: 2, resolve: 2, extraPoints: 3, move: 3, xpBonus: 0 },
+    high_elf: { WS: 30, BS: 30, S: 20, T: 20, I: 40, Ag: 30, Dex: 30, Int: 30, WP: 30, Fel: 20, woundsBonus: 0, fate: 0, fortune: 0, resilience: 0, resolve: 0, extraPoints: 2, move: 5, xpBonus: 0 },
+    wood_elf: { WS: 30, BS: 30, S: 20, T: 20, I: 50, Ag: 40, Dex: 30, Int: 30, WP: 30, Fel: 10, woundsBonus: 0, fate: 0, fortune: 0, resilience: 0, resolve: 0, extraPoints: 2, move: 5, xpBonus: 0 }
 };
 
 let wizardAllocState = { WS: 10, BS: 10, S: 10, T: 10, I: 10, Ag: 10, Dex: 10, Int: 10, WP: 10, Fel: 10 };
+let wizardExtraPointsAlloc = { fate: 0, resilience: 0 };
 
 function openCharCreationWizard() {
     const modal = document.getElementById('char-creation-wizard-modal');
@@ -1698,11 +1699,35 @@ function switchWizardStep(stepNum) {
 function onWizardSpeciesOrGenModeChange() {
     const modeEl = document.querySelector('input[name="cc-gen-mode"]:checked');
     const genMode = modeEl ? modeEl.value : 'random';
+    
+    wizardExtraPointsAlloc = { fate: 0, resilience: 0 };
+    
     if (genMode === 'random') {
         rollWizardCharacteristics();
     } else {
         resetWizardAllocations();
     }
+}
+
+function adjustWizardExtraPoints(statKey, delta) {
+    const speciesEl = document.querySelector('input[name="cc-species"]:checked');
+    const species = speciesEl ? speciesEl.value : 'human';
+    const racial = WIZARD_RACIAL_BASES[species] || WIZARD_RACIAL_BASES.human;
+    
+    const extraPointsTotal = racial.extraPoints || 0;
+    
+    const currentAlloc = wizardExtraPointsAlloc[statKey] || 0;
+    const newAlloc = currentAlloc + delta;
+    
+    if (newAlloc < 0) return;
+    
+    const totalSpent = (statKey === 'fate' ? newAlloc : wizardExtraPointsAlloc.fate) + 
+                       (statKey === 'resilience' ? newAlloc : wizardExtraPointsAlloc.resilience);
+                       
+    if (totalSpent > extraPointsTotal) return;
+    
+    wizardExtraPointsAlloc[statKey] = newAlloc;
+    recalcWizardDerivedStats();
 }
 
 function toggleWizardGenMode() {
@@ -1734,6 +1759,7 @@ function toggleWizardGenMode() {
 
 function resetWizardAllocations() {
     wizardAllocState = { WS: 10, BS: 10, S: 10, T: 10, I: 10, Ag: 10, Dex: 10, Int: 10, WP: 10, Fel: 10 };
+    wizardExtraPointsAlloc = { fate: 0, resilience: 0 };
     updateWizardAllocUI();
 }
 
@@ -1810,11 +1836,18 @@ function recalcWizardDerivedStats() {
     const woundsEl = document.getElementById('cc-derived-wounds');
     if (woundsEl) woundsEl.innerText = wounds;
 
+    const f = (racial.fate || 0) + wizardExtraPointsAlloc.fate;
     const fateEl = document.getElementById('cc-derived-fate');
-    if (fateEl) fateEl.innerText = `${racial.fate || 0} / ${racial.fortune || 0}`;
+    if (fateEl) fateEl.innerText = `${f} / ${f}`;
 
+    const r = (racial.resilience || 0) + wizardExtraPointsAlloc.resilience;
     const resEl = document.getElementById('cc-derived-resilience');
-    if (resEl) resEl.innerText = `${racial.resilience || 0} / ${racial.resolve || 0}`;
+    if (resEl) resEl.innerText = `${r} / ${r}`;
+
+    const spent = wizardExtraPointsAlloc.fate + wizardExtraPointsAlloc.resilience;
+    const rem = (racial.extraPoints || 0) - spent;
+    const remEl = document.getElementById('cc-extra-points-remaining');
+    if (remEl) remEl.innerText = rem;
 }
 
 async function rollWizardCharacteristics() {
@@ -2142,6 +2175,11 @@ async function finishCharacterCreationWizard() {
         return { name: item, enc: 1, equipped: item.toLowerCase().includes('weapon') || item.toLowerCase().includes('jack') || item.toLowerCase().includes('clothing') };
     });
 
+    const speciesKey = document.querySelector('input[name="cc-species"]:checked')?.value || 'human';
+    const racial = WIZARD_RACIAL_BASES[speciesKey] || WIZARD_RACIAL_BASES.human;
+    const finalFate = (racial.fate || 0) + wizardExtraPointsAlloc.fate;
+    const finalRes = (racial.resilience || 0) + wizardExtraPointsAlloc.resilience;
+
     const newChar = {
         id: 'char_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
         name: name,
@@ -2161,10 +2199,10 @@ async function finishCharacterCreationWizard() {
         star_sign: getVal('cc-starsign', 'The Two Bullocks'),
         characteristics: characteristics,
         wounds: { max: woundsMax, current: woundsMax },
-        fate: wizardRollData ? wizardRollData.fate : 2,
-        fortune: wizardRollData ? wizardRollData.fortune : 2,
-        resilience: wizardRollData ? wizardRollData.resilience : 1,
-        resolve: wizardRollData ? wizardRollData.resolve : 1,
+        fate: finalFate,
+        fortune: finalFate,
+        resilience: finalRes,
+        resolve: finalRes,
         move: wizardRollData ? wizardRollData.move : 4,
         xp: { current: startingXP, total: startingXP },
         ambitions: {
