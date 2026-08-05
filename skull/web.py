@@ -1,4 +1,5 @@
 from __future__ import annotations
+from skull import web_campaign
 import http.server
 import socketserver
 import threading
@@ -57,6 +58,12 @@ def log_vox(speaker: str, text: str, timestamp: str | None = None) -> None:
         if _vox_buffer and _vox_buffer[-1]["text"] == entry["text"] and _vox_buffer[-1]["speaker"] == entry["speaker"]:
             return
         _vox_buffer.append(entry)
+    try:
+        v_file = config.data_path("telemetry_vox.json")
+        v_file.parent.mkdir(parents=True, exist_ok=True)
+        v_file.write_text(json.dumps(list(_vox_buffer)))
+    except Exception:
+        pass
 
 
 _vox_history_loaded = False
@@ -104,6 +111,15 @@ def get_vox_logs() -> list[dict]:
     with _vox_lock:
         if not _vox_history_loaded:
             load_vox_history_from_brain()
+        if not _vox_buffer:
+            try:
+                v_file = config.data_path("telemetry_vox.json")
+                if v_file.exists():
+                    items = json.loads(v_file.read_text())
+                    if isinstance(items, list):
+                        return items
+            except Exception:
+                pass
         return list(_vox_buffer)
 
 
@@ -156,7 +172,17 @@ sys.stdout = WebLogRedirect(sys.stdout)
 
 def get_logs() -> list[str]:
     with _log_lock:
-        return list(_log_buffer)
+        res = list(_log_buffer)
+        if not res:
+            try:
+                l_file = config.data_path("telemetry_logs.json")
+                if l_file.exists():
+                    items = json.loads(l_file.read_text())
+                    if isinstance(items, list):
+                        return items
+            except Exception:
+                pass
+        return res
 
 
 def register_cancel_event(evt) -> None:
@@ -432,14 +458,22 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             "screensavers": display.get_screensaver_names() if hasattr(display, "get_screensaver_names") else [],
             "logs": get_logs(),
             "vox_logs": get_vox_logs(),
-            "camera_active": (lambda: getattr(sys.modules.get("skull.camera"), "is_camera_active", lambda: False)())() if "skull.camera" in sys.modules else False,
+            "camera_active": (lambda: getattr(sys.modules.get("skull.camera"), "is_camera_active", lambda: False)())() if "skull.camera" in sys.modules else (config.data_path("latest_frame.jpg").exists() and (time.time() - config.data_path("latest_frame.jpg").stat().st_mtime) < 30.0),
             "audio_id": get_latest_web_audio()[1],
-            "proximity": {
-                "enabled": config.PROXIMITY_ENABLED,
-                "available": proximity.available(),
-                "distance_cm": round(proximity.get_latest_distance_cm(), 1) if proximity.get_latest_distance_cm() is not None else None,
-                "summary": proximity.get_distance_summary_short(),
-            },
+            "proximity": (lambda: (
+                (lambda d: {
+                    "enabled": config.PROXIMITY_ENABLED,
+                    "available": d.get("available", True),
+                    "distance_cm": d.get("distance_cm"),
+                    "summary": f"{d.get('distance_cm')} cm" if d.get("distance_cm") is not None else "Out of Range"
+                })(json.loads(config.data_path("telemetry_proximity.json").read_text()))
+                if config.data_path("telemetry_proximity.json").exists() else {
+                    "enabled": config.PROXIMITY_ENABLED,
+                    "available": proximity.available(),
+                    "distance_cm": round(proximity.get_latest_distance_cm(), 1) if proximity.get_latest_distance_cm() is not None else None,
+                    "summary": proximity.get_distance_summary_short(),
+                }
+            ))(),
             "wifi": (lambda: getattr(sys.modules.get("skull.wifi_provisioner"), "get_status", lambda: {})())() if "skull.wifi_provisioner" in sys.modules else {},
             "is_configured": config.is_configured(),
         }
@@ -574,6 +608,145 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         except Exception as e:
             self._send_json({"ok": False, "error": str(e)}, 500)
 
+
+    def _handle_campaign_load(self) -> None:
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            raw_body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
+            data = json.loads(raw_body)
+            name = data.get("name", "")
+            from games.wfrp import campaign
+            loaded = campaign.load_campaign(name, set_active=True)
+            self._send_json({"ok": True, "active_campaign": loaded})
+        except Exception as e:
+            self._send_json({"ok": False, "error": str(e)}, 500)
+
+    def _handle_campaign_new(self) -> None:
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            raw_body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
+            data = json.loads(raw_body)
+            name = data.get("name", "New Campaign")
+            adventure = data.get("adventure", "")
+            from games.wfrp import campaign
+            created = campaign.new_campaign(name, adventure=adventure)
+            self._send_json({"ok": True, "active_campaign": created})
+        except Exception as e:
+            self._send_json({"ok": False, "error": str(e)}, 500)
+
+    def _handle_campaign_update(self) -> None:
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            raw_body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
+            data = json.loads(raw_body)
+            from games.wfrp import campaign
+            active = campaign.get_active_campaign()
+            if not active:
+                self._send_json({"ok": False, "error": "No active campaign"}, 400)
+                return
+            for key in ("adventure", "current_location", "party_ambition_short", "party_ambition_long", "notes"):
+                if key in data:
+                    active[key] = data[key]
+            campaign.save_campaign(active)
+            self._send_json({"ok": True, "active_campaign": active})
+        except Exception as e:
+            self._send_json({"ok": False, "error": str(e)}, 500)
+
+
+    def _handle_campaign_character_delete(self) -> None:
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            raw_body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
+            data = json.loads(raw_body)
+            char_name = data.get("name", "").strip()
+            from games.wfrp import campaign
+            active = campaign.get_active_campaign()
+            if not active:
+                self._send_json({"ok": False, "error": "No active campaign"}, 400)
+                return
+            if char_name:
+                campaign.delete_character(char_name)
+            updated = campaign.get_active_campaign()
+            self._send_json({"ok": True, "active_campaign": updated})
+        except Exception as e:
+            self._send_json({"ok": False, "error": str(e)}, 500)
+
+    def _handle_campaign_character_upsert(self) -> None:
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            raw_body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
+            char_dict = json.loads(raw_body)
+            from games.wfrp import campaign
+            active = campaign.get_active_campaign()
+            if not active:
+                self._send_json({"ok": False, "error": "No active campaign"}, 400)
+                return
+            campaign.upsert_character(char_dict)
+            self._send_json({"ok": True, "active_campaign": campaign.get_active_campaign()})
+        except Exception as e:
+            self._send_json({"ok": False, "error": str(e)}, 500)
+
+    def _handle_campaign_roll_char(self) -> None:
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            raw_body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
+            data = json.loads(raw_body)
+            race = data.get("race", "human")
+            from games.wfrp import campaign
+            race_key = campaign.resolve_race(race) or "human"
+            char_block = campaign.roll_characteristics(race_key)
+            self._send_json({"ok": True, "character_block": char_block})
+        except Exception as e:
+            self._send_json({"ok": False, "error": str(e)}, 500)
+
+
+    def _handle_campaign_npc_add(self) -> None:
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            raw_body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
+            data = json.loads(raw_body)
+            from games.wfrp import campaign, db
+            active = campaign.get_active_campaign()
+            if not active:
+                self._send_json({"ok": False, "error": "No active campaign"}, 400)
+                return
+            slug = active.get("slug", "shadows-over-reikland")
+            res = db.add_npc(slug, data.get("name", "NPC"), data.get("role_career", ""), data.get("disposition", "Neutral"), data.get("secrets_lore", ""), data.get("notes", ""))
+            updated = campaign.get_active_campaign()
+            self._send_json({"ok": True, "npc": res, "active_campaign": updated})
+        except Exception as e:
+            self._send_json({"ok": False, "error": str(e)}, 500)
+
+    def _handle_campaign_timeline_add(self) -> None:
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            raw_body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
+            data = json.loads(raw_body)
+            from games.wfrp import campaign, db
+            active = campaign.get_active_campaign()
+            if not active:
+                self._send_json({"ok": False, "error": "No active campaign"}, 400)
+                return
+            slug = active.get("slug", "shadows-over-reikland")
+            db.add_timeline_event(slug, data.get("event_summary", ""), data.get("in_game_date", ""))
+            updated = campaign.get_active_campaign()
+            self._send_json({"ok": True, "active_campaign": updated})
+        except Exception as e:
+            self._send_json({"ok": False, "error": str(e)}, 500)
+
+    def _handle_campaign_get(self) -> None:
+        try:
+            from games.wfrp import campaign
+            active = campaign.get_active_campaign()
+            c_list = campaign.list_campaigns()
+            if not active and c_list:
+                first_name = c_list[0].get("name") or c_list[0].get("slug")
+                if first_name:
+                    active = campaign.load_campaign(first_name, set_active=True)
+            self._send_json({"ok": True, "active_campaign": active, "campaigns": c_list})
+        except Exception as e:
+            self._send_json({"ok": False, "error": str(e)}, 500)
+
     def do_GET(self) -> None:
         global _web_client_connected
         _web_client_connected = True
@@ -582,8 +755,13 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         if not path_clean:
             path_clean = "/"
 
+        if web_campaign.dispatch_request(self, self.path, "GET"):
+            return
+
         get_routes = {
             "/": self._handle_root,
+            "/campaign": self._handle_root,
+            "/api/campaign": self._handle_campaign_get,
             "/api/app.js": self._handle_app_js,
             "/api/state": self._handle_api_state,
             "/api/wifi/status": self._handle_wifi_status,
@@ -786,6 +964,9 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         path_clean = self.path.split("?")[0].rstrip("/")
 
+        if web_campaign.dispatch_request(self, self.path, "POST"):
+            return
+
         post_routes = {
             "/api/setup/test_key": self._handle_setup_test_key,
             "/api/setup/save": self._handle_setup_save,
@@ -797,6 +978,14 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             "/api/upload_audio": self._handle_upload_audio,
             "/api/game/start": self._handle_game_start,
             "/api/game/stop": self._handle_game_stop,
+            "/api/campaign/load": self._handle_campaign_load,
+            "/api/campaign/new": self._handle_campaign_new,
+            "/api/campaign/update": self._handle_campaign_update,
+            "/api/campaign/character/upsert": self._handle_campaign_character_upsert,
+            "/api/campaign/character/delete": self._handle_campaign_character_delete,
+            "/api/campaign/roll_char": self._handle_campaign_roll_char,
+            "/api/campaign/npc/add": self._handle_campaign_npc_add,
+            "/api/campaign/timeline/add": self._handle_campaign_timeline_add,
         }
 
         handler = post_routes.get(path_clean)
@@ -853,7 +1042,15 @@ def start() -> None:
     """Start the HTTP server on a background thread."""
     if not getattr(config, "WEB_SERVER_ENABLED", True):
         return
+    import socket
     port = getattr(config, "WEB_SERVER_PORT", 8080)
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            if s.connect_ex(("127.0.0.1", port)) == 0:
+                print(f"[web] Web server port {port} already active (omega7-web standalone service).")
+                return
+    except Exception:
+        pass
     threading.Thread(target=_run_server, args=(port,), daemon=True).start()
 
 # Embedded Single-File HTML / CSS / JS Client
@@ -864,6 +1061,9 @@ HTML_CLIENT = """<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Omega-7 Cogitator Terminal</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=IM+Fell+English:ital@0;1&family=MedievalSharp&family=Share+Tech+Mono&display=swap');
+
+
         :root {
             --bg-color: #020803;
             --card-color: #030f05;
@@ -1764,7 +1964,7 @@ HTML_CLIENT = """<!DOCTYPE html>
     </style>
 </head>
 <body>
-    <div class="screen">
+    <div id="view-terminal" class="screen">
         <div class="container">
             <div class="frame-bracket"></div>
 
@@ -1779,12 +1979,13 @@ HTML_CLIENT = """<!DOCTYPE html>
                         </svg>
                         OMEGA-7 COGITATOR TERMINAL
                     </h1>
-                    <div class="master-header-tag" style="display: flex; gap: 12px; align-items: center;">
+                    <div class="master-header-tag" style="display: flex; gap: 10px; align-items: center;">
                         <div>
                             <span class="master-label">MASTER:</span>
                             <span id="master-val" class="master-value">UNKNOWN</span>
                         </div>
-                        <button onclick="document.getElementById('wizard-modal').style.display='block'; nextWizardStep(1);" style="background: rgba(56,255,88,0.15); border: 1px solid var(--border-color); color: var(--bright-green); padding: 4px 10px; font-size: 11px; font-weight: bold; cursor: pointer; letter-spacing: 1px;">⚙ INITIALIZATION WIZARD</button>
+                        <a href="/campaign" onclick="event.preventDefault(); navigateToView('/campaign');" style="background: rgba(212,175,55,0.2); border: 1px solid var(--bright-green); color: var(--bright-green); padding: 4px 10px; font-size: 11px; font-weight: bold; cursor: pointer; letter-spacing: 1px; text-decoration: none; border-radius: 3px; display: inline-flex; align-items: center; gap: 4px;" title="Open Roleplaying Campaign Roster & Character Sheet Page">🎲 CAMPAIGN DASHBOARD</a>
+                        <button onclick="document.getElementById('wizard-modal').style.display='block'; nextWizardStep(1);" style="background: rgba(56,255,88,0.15); border: 1px solid var(--border-color); color: var(--bright-green); padding: 4px 10px; font-size: 11px; font-weight: bold; cursor: pointer; letter-spacing: 1px;">⚙ WIZARD</button>
                     </div>
                 </div>
 
@@ -1939,6 +2140,10 @@ HTML_CLIENT = """<!DOCTYPE html>
                 <div class="aux-title">[ AUXILIARY COGITATOR CONTROLS ]</div>
                 <div class="aux-controls">
                     <div class="aux-item">
+                        <span class="aux-label">ROLEPLAYING CAMPAIGN:</span>
+                        <a href="/campaign" onclick="event.preventDefault(); navigateToView('/campaign');" style="background: var(--bright-green); color: #000; font-size: 11px; font-weight: bold; padding: 4px 10px; text-decoration: none; border-radius: 3px; display: inline-block;">🎲 OPEN CAMPAIGN PAGE</a>
+                    </div>
+                    <div class="aux-item">
                         <span class="aux-label">VISUAL EMULATION:</span>
                         <select id="screensaver-select">
                             <option value="">-- Select Screensaver --</option>
@@ -1965,6 +2170,990 @@ HTML_CLIENT = """<!DOCTYPE html>
                 <div class="console-box" id="console-box">
                     <div class="console-line">[SYSTEM] Remote connection established via Tailscale link.</div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- ROLEPLAYING CAMPAIGN DASHBOARD VIEW -->
+    
+    <!-- AUTHENTIC WFRP 4E CORE RULEBOOK PAGE SPREAD VIEW -->
+    <div id="view-campaign" style="display: none; min-height: 100vh; background: #160e08; color: #1c130b; font-family: var(--font-body); padding: 30px 15px; box-sizing: border-box;">
+        
+        <!-- Open Rulebook Page Spread Container -->
+        <div style="max-width: 1240px; margin: 0 auto; background: #f6eee0; border: 2px solid #3d2f23; border-radius: 4px; padding: 40px 50px; box-shadow: 0 20px 60px rgba(0,0,0,0.9); position: relative; background-image: radial-gradient(circle at 50% 50%, #f9f2e6 0%, #f1e6d4 100%); color: #1c130b;">
+            
+            <!-- Campaign Name Leather Tab Badge (Top Left Corner) -->
+            <div id="c-tab-badge" style="position: absolute; top: -1px; left: 30px; background: #7a1717; color: #f7efe2; font-family: var(--font-title); font-size: 13px; font-weight: bold; padding: 6px 16px; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; border: 1px solid #4a0e0e; border-top: none; box-shadow: 0 2px 6px rgba(0,0,0,0.35); text-transform: uppercase; letter-spacing: 1.5px;">SHADOWS OVER REIKLAND</div>
+
+            <!-- Running Header Bar (Matching WFRP Rulebook Top Margin) -->
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #2c1e14; padding-bottom: 8px; margin-bottom: 28px; margin-left: 45px; font-family: var(--font-title); font-size: 11px; font-weight: bold; color: #2c1e14; letter-spacing: 2.5px;">
+                <div>WARHAMMER FANTASY ROLEPLAY</div>
+                <div style="color: #7a1717; letter-spacing: 1.5px;">OLD WORLD CAMPAIGN MANAGER</div>
+                <div style="display: flex; gap: 10px; align-items: center; letter-spacing: normal;">
+                    <select id="campaign-select" onchange="switchCampaign(this.value)" style="background: #fffbf4; border: 1.5px solid #6c5d4f; padding: 4px 10px; font-family: var(--font-body); font-size: 13px; font-weight: bold; color: #1c130b; border-radius: 3px;">
+                        <option value="">-- Select Campaign --</option>
+                    </select>
+                    <button onclick="createNewCampaignPrompt()" style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 4px 12px; font-family: var(--font-title); font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 3px;">➕ NEW</button>
+                    <button onclick="navigateToView('/')" style="background: #3d2f23; color: #f7efe2; border: 1.5px solid #231911; padding: 4px 12px; font-family: var(--font-title); font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 3px;">⬅ TERMINAL</button>
+                </div>
+            </div>
+
+            <!-- Main Chapter Title (WFRP Style: ◆ PARTY ROSTER & SESSION MANAGER ◆) -->
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h1 id="c-name-title" style="font-family: var(--font-title); font-size: 28px; font-weight: 900; color: #1c130b; margin: 0 0 6px 0; letter-spacing: 2px;">◆ PARTY ROSTER & SESSION MANAGER ◆</h1>
+                <div style="font-size: 15px; font-style: italic; color: #5c4732;">Active Old World Adventurers & Gamemaster Journal</div>
+            </div>
+
+            <!-- Two-Column Overview Spread (Matching WFRP Rulebook Sidebar Callout Style) -->
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 32px;">
+                
+                <!-- Left Column: Adventure & Location Summary -->
+                <div style="background: #e9e0d0; border: 2px solid #6c5d4f; border-radius: 4px; padding: 20px; box-shadow: inset 0 0 10px rgba(0,0,0,0.05);">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; border-bottom: 1.5px solid #8b7961; padding-bottom: 10px;">
+                        <div>
+                            <span style="font-family: var(--font-title); font-size: 11px; font-weight: bold; color: #7a1717; letter-spacing: 1.5px; text-transform: uppercase;">CURRENT ADVENTURE MODULE</span>
+                            <div id="c-adventure" style="font-family: var(--font-title); font-size: 20px; font-weight: bold; color: #1c130b; margin-top: 2px;">Shadows Over Reikland</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <span style="font-family: var(--font-title); font-size: 11px; font-weight: bold; color: #5c4732; letter-spacing: 1px;">LOCATION</span>
+                            <div id="c-location" style="font-size: 16px; font-weight: bold; color: #7a1717; margin-top: 2px;">The Reikland</div>
+                        </div>
+                    </div>
+                    <!-- Editable Party Ambitions Section -->
+                    <div style="margin-top: 14px; border-top: 1.5px dashed #8b7961; padding-top: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span style="font-family: var(--font-title); font-size: 12px; font-weight: bold; color: #7a1717; letter-spacing: 1px; text-transform: uppercase;">⚔️ PARTY AMBITIONS</span>
+                            <button id="save-party-ambitions-btn" type="button" onclick="savePartyAmbitions()" style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 4px 12px; font-family: var(--font-title); font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 3px; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">💾 SAVE PARTY AMBITIONS</button>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px;">
+                            <div>
+                                <label style="font-family: var(--font-title); font-weight: bold; color: #7a1717; font-size: 12px; display: block; margin-bottom: 4px;">Short-Term Ambition:</label>
+                                <input type="text" id="c-amb-short-inp" onchange="savePartyAmbitions()" placeholder="e.g. Uncover who poisoned the well in Ubersreik" style="width: 100%; border: 1.5px solid #8b7961; background: #fffbf4; padding: 6px 10px; font-size: 13px; font-weight: bold; color: #1c130b; border-radius: 3px; box-sizing: border-box;">
+                            </div>
+                            <div>
+                                <label style="font-family: var(--font-title); font-weight: bold; color: #7a1717; font-size: 12px; display: block; margin-bottom: 4px;">Long-Term Ambition:</label>
+                                <input type="text" id="c-amb-long-inp" onchange="savePartyAmbitions()" placeholder="e.g. Expose and purge the Purple Hand cultists in Altdorf" style="width: 100%; border: 1.5px solid #8b7961; background: #fffbf4; padding: 6px 10px; font-size: 13px; font-weight: bold; color: #1c130b; border-radius: 3px; box-sizing: border-box;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Quick Campaign Actions (Styled like XP Costs Box) -->
+                <div style="background: #e3d8c6; border: 2px solid #4a3c30; border-radius: 4px; overflow: hidden;">
+                    <div style="background: #3d2f23; color: #f7efe2; font-family: var(--font-title); font-size: 13px; font-weight: bold; letter-spacing: 1px; padding: 10px 14px; text-align: center; border-bottom: 2px solid #231911;">
+                        CAMPAIGN ACTIONS
+                    </div>
+                    <div style="padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+                        <button onclick="rollNewPartyCharacterPrompt()" style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 10px 14px; font-family: var(--font-title); font-size: 12px; font-weight: bold; cursor: pointer; border-radius: 3px; text-align: left; transition: background 0.2s;">🎲 ROLL NEW CHARACTER (2d10 Stats)</button>
+                        <button onclick="openCharSheetModalForNew()" style="background: #3d2f23; color: #f7efe2; border: 1.5px solid #231911; padding: 10px 14px; font-family: var(--font-title); font-size: 12px; font-weight: bold; cursor: pointer; border-radius: 3px; text-align: left; transition: background 0.2s;">➕ ADD BLANK CHARACTER SHEET</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Compendium Sub-Navigation Bar -->
+            <div style="display: flex; gap: 12px; margin-bottom: 24px; border-bottom: 2px solid #7a1717; padding-bottom: 12px; flex-wrap: wrap;">
+                <button id="comp-tab-roster" onclick="switchCompendiumTab('roster')" style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 8px 18px; font-family: var(--font-title); font-size: 13px; font-weight: bold; cursor: pointer; border-radius: 4px;">🛡️ PARTY ROSTER</button>
+                <button id="comp-tab-npcs" onclick="switchCompendiumTab('npcs')" style="background: #3d2f23; color: #f7efe2; border: 1.5px solid #231911; padding: 8px 18px; font-family: var(--font-title); font-size: 13px; font-weight: bold; cursor: pointer; border-radius: 4px;">👥 DRAMATIS PERSONAE</button>
+                <button id="comp-tab-locations" onclick="switchCompendiumTab('locations')" style="background: #3d2f23; color: #f7efe2; border: 1.5px solid #231911; padding: 8px 18px; font-family: var(--font-title); font-size: 13px; font-weight: bold; cursor: pointer; border-radius: 4px;">🗺️ GEOGRAPHY & SITES</button>
+                <button id="comp-tab-quests" onclick="switchCompendiumTab('quests')" style="background: #3d2f23; color: #f7efe2; border: 1.5px solid #231911; padding: 8px 18px; font-family: var(--font-title); font-size: 13px; font-weight: bold; cursor: pointer; border-radius: 4px;">📜 QUEST LOG</button>
+                <button id="comp-tab-timeline" onclick="switchCompendiumTab('timeline')" style="background: #3d2f23; color: #f7efe2; border: 1.5px solid #231911; padding: 8px 18px; font-family: var(--font-title); font-size: 13px; font-weight: bold; cursor: pointer; border-radius: 4px;">⏳ SESSION TIMELINE</button>
+            </div>
+
+            <!-- TAB 1: ROSTER GRID CONTAINER -->
+            <div id="comp-pane-roster">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h2 style="font-family: var(--font-title); font-size: 18px; font-weight: bold; color: #7a1717; margin: 0;">PARTY HEROES & AGENTS</h2>
+                    <span id="roster-count-badge" style="font-family: var(--font-title); font-size: 13px; font-weight: bold; color: #5c4732;">1 CHARACTER</span>
+                </div>
+            </div>
+
+            <!-- TAB 2: NPCS CONTAINER -->
+            <div id="comp-pane-npcs" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h2 style="font-family: var(--font-title); font-size: 18px; font-weight: bold; color: #7a1717; margin: 0;">DRAMATIS PERSONAE (NPCS)</h2>
+                    <button onclick="addNpcPrompt()" style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 6px 14px; font-family: var(--font-title); font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 3px;">➕ ADD NEW NPC</button>
+                </div>
+                <div id="comp-npc-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; margin-bottom: 30px;">
+                    <div style="grid-column: 1/-1; text-align: center; padding: 30px; background: #e9e0d0; border: 1.5px dashed #8b7961; border-radius: 4px; color: #5c4732;">No NPCs recorded yet. Click "Add New NPC" to begin tracking.</div>
+                </div>
+            </div>
+
+            <!-- TAB 3: LOCATIONS CONTAINER -->
+            <div id="comp-pane-locations" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h2 style="font-family: var(--font-title); font-size: 18px; font-weight: bold; color: #7a1717; margin: 0;">OLD WORLD GEOGRAPHY & SITES</h2>
+                    <button onclick="addLocationPrompt()" style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 6px 14px; font-family: var(--font-title); font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 3px;">➕ ADD NEW LOCATION</button>
+                </div>
+                <div id="comp-location-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; margin-bottom: 30px;">
+                    <div style="grid-column: 1/-1; text-align: center; padding: 30px; background: #e9e0d0; border: 1.5px dashed #8b7961; border-radius: 4px; color: #5c4732;">No locations recorded yet.</div>
+                </div>
+            </div>
+
+            <!-- TAB 4: QUESTS CONTAINER -->
+            <div id="comp-pane-quests" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h2 style="font-family: var(--font-title); font-size: 18px; font-weight: bold; color: #7a1717; margin: 0;">QUEST LOG & ENCOUNTERS</h2>
+                    <button onclick="addQuestPrompt()" style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 6px 14px; font-family: var(--font-title); font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 3px;">➕ ADD QUEST</button>
+                </div>
+                <div id="comp-quest-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; margin-bottom: 30px;">
+                    <div style="grid-column: 1/-1; text-align: center; padding: 30px; background: #e9e0d0; border: 1.5px dashed #8b7961; border-radius: 4px; color: #5c4732;">No active quests logged.</div>
+                </div>
+            </div>
+
+            <!-- TAB 5: TIMELINE CONTAINER -->
+            <div id="comp-pane-timeline" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h2 style="font-family: var(--font-title); font-size: 18px; font-weight: bold; color: #7a1717; margin: 0;">SESSION TIMELINE LOGS</h2>
+                    <button onclick="addTimelineEventPrompt()" style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 6px 14px; font-family: var(--font-title); font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 3px;">➕ LOG TIMELINE EVENT</button>
+                </div>
+                <div id="comp-timeline-list" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 30px;">
+                    <div style="text-align: center; padding: 30px; background: #e9e0d0; border: 1.5px dashed #8b7961; border-radius: 4px; color: #5c4732;">No timeline entries recorded.</div>
+                </div>
+            </div>
+
+            <!-- Character Cards Grid (WFRP Rulebook Table Style) -->
+            <div id="character-roster-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px; margin-bottom: 36px;">
+                <div style="grid-column: 1/-1; text-align: center; padding: 40px; background: #e9e0d0; border: 1.5px dashed #8b7961; border-radius: 4px; color: #5c4732; font-size: 15px;">
+                    Loading party roster...
+                </div>
+            </div>
+
+            <!-- Gamemaster Session Journal (WFRP Parchment Style) -->
+            <div style="background: #e9e0d0; border: 2px solid #6c5d4f; border-radius: 4px; padding: 20px; margin-bottom: 10px;">
+                <div style="font-family: var(--font-title); font-size: 16px; font-weight: bold; color: #7a1717; margin-bottom: 10px;">📜 GAMEMASTER SESSION NOTES & JOURNAL</div>
+                <textarea id="c-notes-input" rows="5" placeholder="Record session recap, key NPCs encountered, clues discovered, and pending threats..." style="width: 100%; border: 1.5px solid #6c5d4f; background: #fffbf4; font-family: var(--font-body); font-size: 15px; color: #1c130b; padding: 12px; box-sizing: border-box; border-radius: 3px; line-height: 1.5;"></textarea>
+                <div style="display: flex; justify-content: flex-end; margin-top: 12px;">
+                    <button id="save-session-notes-btn" onclick="saveCampaignNotes()" style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 8px 20px; font-family: var(--font-title); font-weight: bold; font-size: 13px; cursor: pointer; border-radius: 3px; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">💾 SAVE NOTES</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- WFRP 4E Core Rulebook Character Sheet Overlay Modal (Pages 344 & 345) -->
+    
+    
+    
+    <!-- COMPENDIUM ENTITY DETAIL & GM SECRETS READOUT MODAL -->
+    <div id="compendium-detail-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(10,8,6,0.92); z-index: 28000; padding: 20px; box-sizing: border-box; display: none; justify-content: center; align-items: center; overflow-y: auto;">
+        <div style="max-width: 680px; width: 100%; background: #f6eee0; border: 3px double #7a1717; border-radius: 6px; padding: 28px; box-shadow: 0 15px 50px rgba(0,0,0,0.9); color: #1c130b; position: relative;">
+            
+            <!-- Modal Header -->
+            <div style="border-bottom: 2px solid #7a1717; padding-bottom: 12px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                    <span id="comp-detail-type-badge" style="font-family: var(--font-title); font-size: 11px; font-weight: bold; background: #7a1717; color: #f7efe2; padding: 3px 8px; border-radius: 3px; letter-spacing: 1px;">NPC</span>
+                    <h2 id="comp-detail-title" style="font-family: var(--font-title); font-size: 24px; font-weight: bold; color: #1c130b; margin: 6px 0 0 0;">Entity Title</h2>
+                </div>
+                <button onclick="closeCompendiumModal()" style="background: #3d2f23; color: #f7efe2; border: 1.5px solid #231911; padding: 6px 14px; font-family: var(--font-title); font-size: 12px; font-weight: bold; cursor: pointer; border-radius: 3px;">✖ CLOSE</button>
+            </div>
+
+            <!-- Meta Attributes Strip -->
+            <div id="comp-detail-meta" style="display: flex; gap: 14px; font-size: 13px; color: #4a3c30; font-weight: bold; margin-bottom: 18px; background: #e9e0d0; padding: 10px 14px; border-radius: 4px; border: 1px solid #6c5d4f;">
+                <div>Role: <span id="comp-detail-role">--</span></div>
+            </div>
+
+            <!-- Section 1: Public Player Knowledge -->
+            <div style="margin-bottom: 20px;">
+                <div style="font-family: var(--font-title); font-size: 14px; font-weight: bold; color: #7a1717; margin-bottom: 6px; letter-spacing: 0.5px;">📖 PUBLIC PLAYER KNOWLEDGE</div>
+                <div id="comp-detail-public-body" style="background: #fffbf4; border: 1.5px solid #6c5d4f; border-radius: 4px; padding: 14px; font-size: 15px; line-height: 1.5; color: #1c130b; min-height: 80px; white-space: pre-wrap;">
+                    No public notes recorded.
+                </div>
+            </div>
+
+            <!-- Section 2: Expandable GM Secrets & Lore -->
+            <div style="margin-bottom: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <div style="font-family: var(--font-title); font-size: 14px; font-weight: bold; color: #7a1717; letter-spacing: 0.5px;">🕵️ GAMEMASTER SECRETS & UNREVEALED LORE</div>
+                    <button id="toggle-gm-secret-btn" onclick="toggleGmSecrets()" style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 4px 12px; font-family: var(--font-title); font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 3px;">🔒 SHOW GM SECRETS</button>
+                </div>
+                
+                <div id="comp-detail-secret-container" style="display: none; background: #fdf2f2; border: 1.5px solid #7a1717; border-radius: 4px; padding: 14px; font-size: 15px; line-height: 1.5; color: #4a0e0e; white-space: pre-wrap;">
+                    <div style="font-style: italic; color: #7a1717; font-size: 13px; margin-bottom: 6px;">[ CONFIDENTIAL GM INFORMATION — NOT KNOWN TO PLAYERS ]</div>
+                    <span id="comp-detail-secret-body">No GM secrets recorded for this entry.</span>
+                </div>
+            </div>
+
+            <!-- Footer Actions -->
+            <div style="border-top: 2px solid #8b7961; padding-top: 14px; display: flex; justify-content: space-between; align-items: center;">
+                <button onclick="deleteCurrentCompendiumEntity()" style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 8px 16px; font-family: var(--font-title); font-size: 12px; font-weight: bold; cursor: pointer; border-radius: 3px;">🗑️ DELETE</button>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="editCurrentCompendiumEntity()" style="background: #3d2f23; color: #f7efe2; border: 1.5px solid #231911; padding: 8px 16px; font-family: var(--font-title); font-size: 12px; font-weight: bold; cursor: pointer; border-radius: 3px;">✏️ EDIT ENTRY</button>
+                    <button onclick="closeCompendiumModal()" style="background: #5c4732; color: #f7efe2; border: 1.5px solid #231911; padding: 8px 16px; font-family: var(--font-title); font-size: 12px; font-weight: bold; cursor: pointer; border-radius: 3px;">✖ CLOSE</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- DELETE CHARACTER CONFIRMATION MODAL -->
+    <div id="delete-confirm-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(10,8,6,0.92); z-index: 30000; padding: 20px; box-sizing: border-box; display: none; justify-content: center; align-items: center;">
+        <div style="max-width: 480px; width: 100%; background: #f6eee0; border: 3px double #7a1717; border-radius: 6px; padding: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.9); color: #1c130b; text-align: center; position: relative;">
+            <div style="font-family: var(--font-title); font-size: 20px; font-weight: bold; color: #7a1717; margin-bottom: 12px;">⚠️ CONFIRM CHARACTER DELETION</div>
+            <p style="font-size: 14px; margin-bottom: 16px; color: #2c1e14; line-height: 1.4;">Are you sure you want to permanently delete <strong id="delete-target-char-name" style="color: #7a1717;">Character</strong> from this campaign?</p>
+            <p style="font-size: 13px; font-weight: bold; color: #5c4732; margin-bottom: 12px;">Type <code style="background: #e9e0d0; padding: 2px 6px; border: 1px solid #7a1717; color: #7a1717; font-weight: bold;">DELETE</code> below to confirm:</p>
+            
+            <input type="text" id="delete-confirm-input" placeholder="Type DELETE to confirm" style="width: 100%; padding: 10px; border: 1.5px solid #7a1717; background: #fffbf4; font-family: var(--font-body); font-size: 15px; font-weight: bold; text-align: center; color: #1c130b; border-radius: 4px; box-sizing: border-box; margin-bottom: 20px;" onkeyup="checkDeleteConfirmInput(this.value)">
+            
+            <div style="display: flex; gap: 12px; justify-content: center;">
+                <button id="delete-confirm-submit-btn" disabled onclick="executeDeleteCharacter()" style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 8px 20px; font-family: var(--font-title); font-size: 12px; font-weight: bold; cursor: pointer; border-radius: 4px; opacity: 0.5;">PERMANENTLY DELETE</button>
+                <button onclick="closeDeleteConfirmModal()" style="background: #3d2f23; color: #f7efe2; border: 1.5px solid #231911; padding: 8px 20px; font-family: var(--font-title); font-size: 12px; font-weight: bold; cursor: pointer; border-radius: 4px;">CANCEL</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- WFRP 4E Web Character Creation Wizard Modal -->
+    <div id="char-creation-wizard-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(10,8,6,0.95); z-index: 26000; padding: 20px; box-sizing: border-box; overflow-y: auto;">
+        <div style="max-width: 860px; margin: 20px auto; background: #f4e7d0; border: 4px double #5c4732; border-radius: 4px; color: #1c130b; font-family: var(--font-body); font-size: 14px; padding: 28px; box-shadow: 0 0 45px rgba(0,0,0,0.9); position: relative;">
+            
+            <!-- Modal Header -->
+            <div style="border-bottom: 3px double #7a1717; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-family: var(--font-title); font-size: 20px; font-weight: bold; color: #7a1717; letter-spacing: 1.5px;">⚜ WARHAMMER FANTASY CHARACTER CREATION WIZARD ⚜</div>
+                <button onclick="closeCharCreationWizard()" style="background: #3d2f23; color: #f7efe2; border: 1.5px solid #231911; padding: 6px 14px; font-family: var(--font-title); font-weight: bold; font-size: 12px; cursor: pointer; border-radius: 3px;">✖ CANCEL</button>
+            </div>
+
+            <!-- Wizard Navigation Steps Bar -->
+            <div style="display: flex; gap: 8px; margin-bottom: 22px; border-bottom: 2px solid #8b7961; padding-bottom: 10px; font-family: var(--font-title); font-size: 12px; font-weight: bold;">
+                <div id="cc-step-badge-1" style="flex: 1; text-align: center; padding: 8px; background: #7a1717; color: #f5ebd9; border: 1.5px solid #d4af37; border-radius: 4px;">1. SPECIES & STATS</div>
+                <div id="cc-step-badge-2" style="flex: 1; text-align: center; padding: 8px; background: #3a2a1a; color: #c9b897; border: 1.5px solid #5c4732; border-radius: 4px;">2. CLASS & CAREER</div>
+                <div id="cc-step-badge-3" style="flex: 1; text-align: center; padding: 8px; background: #3a2a1a; color: #c9b897; border: 1.5px solid #5c4732; border-radius: 4px;">3. DETAILS & AMBITIONS</div>
+                <div id="cc-step-badge-4" style="flex: 1; text-align: center; padding: 8px; background: #3a2a1a; color: #c9b897; border: 1.5px solid #5c4732; border-radius: 4px;">4. REVIEW & FINISH</div>
+            </div>
+
+            <!-- STEP 1: SPECIES & CHARACTERISTICS ALLOCATION -->
+            <div id="cc-step-1">
+                <fieldset style="border: 2px solid #7a1717; border-radius: 4px; padding: 16px; margin-bottom: 20px; background: #faf4e8;">
+                    <legend style="font-family: var(--font-title); font-weight: bold; font-size: 15px; color: #7a1717; padding: 0 8px;">STEP 1: SPECIES & CHARACTERISTIC DETERMINATION</legend>
+                    
+                    <!-- Species Selection Grid -->
+                    <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px;">
+                        <label style="display: flex; flex-direction: column; align-items: center; padding: 10px; background: #fff8ee; border: 2px solid #8b7961; border-radius: 4px; cursor: pointer; text-align: center;">
+                            <input type="radio" name="cc-species" value="human" checked onchange="onWizardSpeciesOrGenModeChange()" style="accent-color: #7a1717;">
+                            <strong style="margin-top: 4px; color: #7a1717;">👱 Human</strong>
+                            <span style="font-size: 11px; color: #666;">Reiklander (+20 XP)</span>
+                        </label>
+                        <label style="display: flex; flex-direction: column; align-items: center; padding: 10px; background: #fff8ee; border: 2px solid #8b7961; border-radius: 4px; cursor: pointer; text-align: center;">
+                            <input type="radio" name="cc-species" value="dwarf" onchange="onWizardSpeciesOrGenModeChange()" style="accent-color: #7a1717;">
+                            <strong style="margin-top: 4px; color: #7a1717;">🧔 Dwarf</strong>
+                            <span style="font-size: 11px; color: #666;">High T, WP & Dex</span>
+                        </label>
+                        <label style="display: flex; flex-direction: column; align-items: center; padding: 10px; background: #fff8ee; border: 2px solid #8b7961; border-radius: 4px; cursor: pointer; text-align: center;">
+                            <input type="radio" name="cc-species" value="halfling" onchange="onWizardSpeciesOrGenModeChange()" style="accent-color: #7a1717;">
+                            <strong style="margin-top: 4px; color: #7a1717;">🦶 Halfling</strong>
+                            <span style="font-size: 11px; color: #666;">High BS, Dex & Fel</span>
+                        </label>
+                        <label style="display: flex; flex-direction: column; align-items: center; padding: 10px; background: #fff8ee; border: 2px solid #8b7961; border-radius: 4px; cursor: pointer; text-align: center;">
+                            <input type="radio" name="cc-species" value="high_elf" onchange="onWizardSpeciesOrGenModeChange()" style="accent-color: #7a1717;">
+                            <strong style="margin-top: 4px; color: #7a1717;">🧝 High Elf</strong>
+                            <span style="font-size: 11px; color: #666;">High I, Ag & Int</span>
+                        </label>
+                        <label style="display: flex; flex-direction: column; align-items: center; padding: 10px; background: #fff8ee; border: 2px solid #8b7961; border-radius: 4px; cursor: pointer; text-align: center;">
+                            <input type="radio" name="cc-species" value="wood_elf" onchange="onWizardSpeciesOrGenModeChange()" style="accent-color: #7a1717;">
+                            <strong style="margin-top: 4px; color: #7a1717;">🍃 Wood Elf</strong>
+                            <span style="font-size: 11px; color: #666;">High Ag, BS & I</span>
+                        </label>
+                    </div>
+
+                    <!-- Generation Mode Selector Bar -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: #fff8ee; border: 1.5px solid #8b7961; padding: 10px 14px; border-radius: 4px; margin-bottom: 16px;">
+                        <div style="display: flex; gap: 16px; align-items: center; font-size: 13px;">
+                            <strong style="color: #7a1717;">Generation Method:</strong>
+                            <label style="cursor: pointer; font-weight: bold; color: #1c130b;">
+                                <input type="radio" name="cc-gen-mode" value="random" checked onchange="toggleWizardGenMode()" style="accent-color: #7a1717;"> 🎲 Random Roll (2d10)
+                            </label>
+                            <label style="cursor: pointer; font-weight: bold; color: #1c130b;">
+                                <input type="radio" name="cc-gen-mode" value="assign" onchange="toggleWizardGenMode()" style="accent-color: #7a1717;"> ⚖ Point Allocation (100 Points Pool)
+                            </label>
+                        </div>
+                        <div id="cc-pool-tracker" style="display: none; font-size: 13px; font-weight: bold; color: #2e7d32; background: #fff; padding: 4px 12px; border: 1.5px solid #8b7961; border-radius: 4px;">
+                            Points Pool Remaining: <span id="cc-pool-remaining" style="font-size: 15px; color: #7a1717;">0</span> / 100
+                        </div>
+                    </div>
+
+                    <!-- Random Roll Control Bar -->
+                    <div id="cc-random-controls" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                        <button type="button" onclick="rollWizardCharacteristics()" style="background: #7a1717; color: #f5ebd9; border: 2px solid #d4af37; padding: 8px 18px; font-family: var(--font-title); font-weight: bold; font-size: 13px; cursor: pointer; border-radius: 4px;">🎲 ROLL CHARACTERISTICS (2d10 + Base)</button>
+                        <div id="cc-roll-status" style="font-size: 12px; font-weight: bold; color: #2e7d32;"></div>
+                    </div>
+
+                    <!-- Characteristics Output Grid (10 Stats) -->
+                    <div style="display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; text-align: center; margin-bottom: 16px;">
+                        <div style="background: #fff; border: 1.5px solid #8b7961; border-radius: 4px; padding: 6px;">
+                            <div style="font-weight:bold; color:#7a1717; font-size:12px;">WS</div>
+                            <div id="cc-assign-ctrl-WS" style="display: none; margin: 4px 0; font-size: 11px;">
+                                <button type="button" onclick="adjustStatAlloc('WS', -1)" style="padding:1px 5px; font-weight:bold; cursor:pointer;">-</button>
+                                <span id="cc-alloc-WS" style="font-weight:bold; margin: 0 2px;">10</span>
+                                <button type="button" onclick="adjustStatAlloc('WS', 1)" style="padding:1px 5px; font-weight:bold; cursor:pointer;">+</button>
+                            </div>
+                            <input type="number" id="cc-stat-WS" onchange="recalcWizardDerivedStats()" style="width:100%; text-align:center; border:none; font-weight:bold; font-size:15px; color:#1c130b;" value="30">
+                        </div>
+
+                        <div style="background: #fff; border: 1.5px solid #8b7961; border-radius: 4px; padding: 6px;">
+                            <div style="font-weight:bold; color:#7a1717; font-size:12px;">BS</div>
+                            <div id="cc-assign-ctrl-BS" style="display: none; margin: 4px 0; font-size: 11px;">
+                                <button type="button" onclick="adjustStatAlloc('BS', -1)" style="padding:1px 5px; font-weight:bold; cursor:pointer;">-</button>
+                                <span id="cc-alloc-BS" style="font-weight:bold; margin: 0 2px;">10</span>
+                                <button type="button" onclick="adjustStatAlloc('BS', 1)" style="padding:1px 5px; font-weight:bold; cursor:pointer;">+</button>
+                            </div>
+                            <input type="number" id="cc-stat-BS" onchange="recalcWizardDerivedStats()" style="width:100%; text-align:center; border:none; font-weight:bold; font-size:15px; color:#1c130b;" value="30">
+                        </div>
+
+                        <div style="background: #fff; border: 1.5px solid #8b7961; border-radius: 4px; padding: 6px;">
+                            <div style="font-weight:bold; color:#7a1717; font-size:12px;">S</div>
+                            <div id="cc-assign-ctrl-S" style="display: none; margin: 4px 0; font-size: 11px;">
+                                <button type="button" onclick="adjustStatAlloc('S', -1)" style="padding:1px 5px; font-weight:bold; cursor:pointer;">-</button>
+                                <span id="cc-alloc-S" style="font-weight:bold; margin: 0 2px;">10</span>
+                                <button type="button" onclick="adjustStatAlloc('S', 1)" style="padding:1px 5px; font-weight:bold; cursor:pointer;">+</button>
+                            </div>
+                            <input type="number" id="cc-stat-S" onchange="recalcWizardDerivedStats()" style="width:100%; text-align:center; border:none; font-weight:bold; font-size:15px; color:#1c130b;" value="30">
+                        </div>
+
+                        <div style="background: #fff; border: 1.5px solid #8b7961; border-radius: 4px; padding: 6px;">
+                            <div style="font-weight:bold; color:#7a1717; font-size:12px;">T</div>
+                            <div id="cc-assign-ctrl-T" style="display: none; margin: 4px 0; font-size: 11px;">
+                                <button type="button" onclick="adjustStatAlloc('T', -1)" style="padding:1px 5px; font-weight:bold; cursor:pointer;">-</button>
+                                <span id="cc-alloc-T" style="font-weight:bold; margin: 0 2px;">10</span>
+                                <button type="button" onclick="adjustStatAlloc('T', 1)" style="padding:1px 5px; font-weight:bold; cursor:pointer;">+</button>
+                            </div>
+                            <input type="number" id="cc-stat-T" onchange="recalcWizardDerivedStats()" style="width:100%; text-align:center; border:none; font-weight:bold; font-size:15px; color:#1c130b;" value="30">
+                        </div>
+
+                        <div style="background: #fff; border: 1.5px solid #8b7961; border-radius: 4px; padding: 6px;">
+                            <div style="font-weight:bold; color:#7a1717; font-size:12px;">I</div>
+                            <div id="cc-assign-ctrl-I" style="display: none; margin: 4px 0; font-size: 11px;">
+                                <button type="button" onclick="adjustStatAlloc('I', -1)" style="padding:1px 5px; font-weight:bold; cursor:pointer;">-</button>
+                                <span id="cc-alloc-I" style="font-weight:bold; margin: 0 2px;">10</span>
+                                <button type="button" onclick="adjustStatAlloc('I', 1)" style="padding:1px 5px; font-weight:bold; cursor:pointer;">+</button>
+                            </div>
+                            <input type="number" id="cc-stat-I" onchange="recalcWizardDerivedStats()" style="width:100%; text-align:center; border:none; font-weight:bold; font-size:15px; color:#1c130b;" value="30">
+                        </div>
+
+                        <div style="background: #fff; border: 1.5px solid #8b7961; border-radius: 4px; padding: 6px;">
+                            <div style="font-weight:bold; color:#7a1717; font-size:12px;">Ag</div>
+                            <div id="cc-assign-ctrl-Ag" style="display: none; margin: 4px 0; font-size: 11px;">
+                                <button type="button" onclick="adjustStatAlloc('Ag', -1)" style="padding:1px 5px; font-weight:bold; cursor:pointer;">-</button>
+                                <span id="cc-alloc-Ag" style="font-weight:bold; margin: 0 2px;">10</span>
+                                <button type="button" onclick="adjustStatAlloc('Ag', 1)" style="padding:1px 5px; font-weight:bold; cursor:pointer;">+</button>
+                            </div>
+                            <input type="number" id="cc-stat-Ag" onchange="recalcWizardDerivedStats()" style="width:100%; text-align:center; border:none; font-weight:bold; font-size:15px; color:#1c130b;" value="30">
+                        </div>
+
+                        <div style="background: #fff; border: 1.5px solid #8b7961; border-radius: 4px; padding: 6px;">
+                            <div style="font-weight:bold; color:#7a1717; font-size:12px;">Dex</div>
+                            <div id="cc-assign-ctrl-Dex" style="display: none; margin: 4px 0; font-size: 11px;">
+                                <button type="button" onclick="adjustStatAlloc('Dex', -1)" style="padding:1px 5px; font-weight:bold; cursor:pointer;">-</button>
+                                <span id="cc-alloc-Dex" style="font-weight:bold; margin: 0 2px;">10</span>
+                                <button type="button" onclick="adjustStatAlloc('Dex', 1)" style="padding:1px 5px; font-weight:bold; cursor:pointer;">+</button>
+                            </div>
+                            <input type="number" id="cc-stat-Dex" onchange="recalcWizardDerivedStats()" style="width:100%; text-align:center; border:none; font-weight:bold; font-size:15px; color:#1c130b;" value="30">
+                        </div>
+
+                        <div style="background: #fff; border: 1.5px solid #8b7961; border-radius: 4px; padding: 6px;">
+                            <div style="font-weight:bold; color:#7a1717; font-size:12px;">Int</div>
+                            <div id="cc-assign-ctrl-Int" style="display: none; margin: 4px 0; font-size: 11px;">
+                                <button type="button" onclick="adjustStatAlloc('Int', -1)" style="padding:1px 5px; font-weight:bold; cursor:pointer;">-</button>
+                                <span id="cc-alloc-Int" style="font-weight:bold; margin: 0 2px;">10</span>
+                                <button type="button" onclick="adjustStatAlloc('Int', 1)" style="padding:1px 5px; font-weight:bold; cursor:pointer;">+</button>
+                            </div>
+                            <input type="number" id="cc-stat-Int" onchange="recalcWizardDerivedStats()" style="width:100%; text-align:center; border:none; font-weight:bold; font-size:15px; color:#1c130b;" value="30">
+                        </div>
+
+                        <div style="background: #fff; border: 1.5px solid #8b7961; border-radius: 4px; padding: 6px;">
+                            <div style="font-weight:bold; color:#7a1717; font-size:12px;">WP</div>
+                            <div id="cc-assign-ctrl-WP" style="display: none; margin: 4px 0; font-size: 11px;">
+                                <button type="button" onclick="adjustStatAlloc('WP', -1)" style="padding:1px 5px; font-weight:bold; cursor:pointer;">-</button>
+                                <span id="cc-alloc-WP" style="font-weight:bold; margin: 0 2px;">10</span>
+                                <button type="button" onclick="adjustStatAlloc('WP', 1)" style="padding:1px 5px; font-weight:bold; cursor:pointer;">+</button>
+                            </div>
+                            <input type="number" id="cc-stat-WP" onchange="recalcWizardDerivedStats()" style="width:100%; text-align:center; border:none; font-weight:bold; font-size:15px; color:#1c130b;" value="30">
+                        </div>
+
+                        <div style="background: #fff; border: 1.5px solid #8b7961; border-radius: 4px; padding: 6px;">
+                            <div style="font-weight:bold; color:#7a1717; font-size:12px;">Fel</div>
+                            <div id="cc-assign-ctrl-Fel" style="display: none; margin: 4px 0; font-size: 11px;">
+                                <button type="button" onclick="adjustStatAlloc('Fel', -1)" style="padding:1px 5px; font-weight:bold; cursor:pointer;">-</button>
+                                <span id="cc-alloc-Fel" style="font-weight:bold; margin: 0 2px;">10</span>
+                                <button type="button" onclick="adjustStatAlloc('Fel', 1)" style="padding:1px 5px; font-weight:bold; cursor:pointer;">+</button>
+                            </div>
+                            <input type="number" id="cc-stat-Fel" onchange="recalcWizardDerivedStats()" style="width:100%; text-align:center; border:none; font-weight:bold; font-size:15px; color:#1c130b;" value="30">
+                        </div>
+                    </div>
+
+                    <!-- Derived Stats Summary Box -->
+                    <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; background: #fff8ee; border: 1.5px solid #8b7961; border-radius: 4px; padding: 10px; text-align: center; font-size: 12px;">
+                        <div><strong>Movement:</strong> <span id="cc-derived-move" style="font-weight:bold; color:#7a1717; font-size:14px;">4</span></div>
+                        <div><strong>Wounds:</strong> <span id="cc-derived-wounds" style="font-weight:bold; color:#7a1717; font-size:14px;">12</span></div>
+                        <div><strong>Fate / Fortune:</strong> <span id="cc-derived-fate" style="font-weight:bold; color:#7a1717; font-size:14px;">3 / 3</span></div>
+                        <div><strong>Resilience / Resolve:</strong> <span id="cc-derived-resilience" style="font-weight:bold; color:#7a1717; font-size:14px;">2 / 2</span></div>
+                        <div><strong>Starting XP Bonus:</strong> <span id="cc-derived-xp" style="font-weight:bold; color:#2e7d32; font-size:14px;">+20 XP</span></div>
+                    </div>
+                </fieldset>
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <button type="button" onclick="switchWizardStep(2)" style="background: #7a1717; color: #f5ebd9; border: 2px solid #d4af37; padding: 8px 20px; font-family: var(--font-title); font-weight: bold; font-size: 13px; cursor: pointer; border-radius: 4px;">NEXT: CLASS & CAREER ➔</button>
+                </div>
+            </div>
+
+            <!-- STEP 2: CLASS & CAREER -->
+            <div id="cc-step-2" style="display: none;">
+                <fieldset style="border: 2px solid #7a1717; border-radius: 4px; padding: 16px; margin-bottom: 20px; background: #faf4e8;">
+                    <legend style="font-family: var(--font-title); font-weight: bold; font-size: 15px; color: #7a1717; padding: 0 8px;">STEP 2: CLASS & CAREER DETERMINATION</legend>
+
+                    <!-- Career Determination Mode Selector -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: #fff8ee; border: 1.5px solid #8b7961; padding: 10px 14px; border-radius: 4px; margin-bottom: 16px;">
+                        <div style="display: flex; gap: 16px; align-items: center; font-size: 13px;">
+                            <strong style="color: #7a1717;">Career Selection Mode:</strong>
+                            <label style="cursor: pointer; font-weight: bold; color: #1c130b;">
+                                <input type="radio" name="cc-career-mode" value="random" checked onchange="toggleWizardCareerMode()" style="accent-color: #7a1717;"> 🎲 Random Career Roll (+50 XP)
+                            </label>
+                            <label style="cursor: pointer; font-weight: bold; color: #1c130b;">
+                                <input type="radio" name="cc-career-mode" value="select" onchange="toggleWizardCareerMode()" style="accent-color: #7a1717;"> ⚖ Select Class & Career (+0 XP)
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Random Career Roll Action Bar -->
+                    <div id="cc-career-random-bar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <button type="button" onclick="rollWizardRandomCareer()" style="background: #7a1717; color: #f5ebd9; border: 2px solid #d4af37; padding: 8px 18px; font-family: var(--font-title); font-weight: bold; font-size: 13px; cursor: pointer; border-radius: 4px;">🎲 ROLL RANDOM CAREER (1d100 Table)</button>
+                        <div id="cc-career-roll-status" style="font-size: 12px; font-weight: bold; color: #2e7d32;"></div>
+                    </div>
+
+                    <!-- Class & Career Inputs -->
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 14px;">
+                        <div>
+                            <label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:4px;">Class:</label>
+                            <select id="cc-class-select" onchange="onWizardClassSelectChange()" style="width:100%; border:1.5px solid #8b7961; background:#fff; font-size:13px; font-weight:bold; color:#1c130b; padding:6px; border-radius:3px;">
+                                <option value="Academics">Academics (Apothecary, Engineer, Lawyer, Physician, Scholar, Wizard)</option>
+                                <option value="Burghers">Burghers (Agitator, Artisan, Beggar, Investigator, Merchant, Watchman)</option>
+                                <option value="Courtiers">Courtiers (Advisor, Artist, Duellist, Envoy, Noble, Servant)</option>
+                                <option value="Peasants">Peasants (Bailiff, Hedge Witch, Herbalist, Hunter, Miner, Villager)</option>
+                                <option value="Rangers">Rangers (Bounty Hunter, Coachman, Entertainer, Flagellant, Road Warden)</option>
+                                <option value="Riverfolk">Riverfolk (Boatman, Huffer, Riverwarden, Seaman, Smuggler, Stevedore)</option>
+                                <option value="Rogues">Rogues (Baiter, Charlatan, Fence, Grave Robber, Outlaw, Racketeer, Thief)</option>
+                                <option value="Warriors" selected>Warriors (Cavalryman, Guard, Knight, Pit Fighter, Protagonist, Soldier, Slayer)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:4px;">Career:</label>
+                            <select id="cc-career-select" onchange="onWizardCareerSelectChange()" style="width:100%; border:1.5px solid #8b7961; background:#fff; font-size:13px; font-weight:bold; color:#1c130b; padding:6px; box-sizing:border-box; border-radius:3px;">
+                                <!-- Dynamically populated based on chosen class -->
+                            </select>
+                            <input type="hidden" id="cc-career-input" value="Soldier">
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
+                        <div>
+                            <label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:4px;">Career Level:</label>
+                            <input type="text" id="cc-career-level" value="1 (Novice)" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:13px; color:#1c130b; padding:6px; box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:4px;">Status Tier (Conformed):</label>
+                            <input type="text" id="cc-status" value="Silver 1" readonly style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:13px; font-weight:bold; color:#7a1717; padding:6px; box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:4px;">Career XP Bonus:</label>
+                            <div id="cc-career-xp-badge" style="font-size: 14px; font-weight: bold; color: #2e7d32; padding: 6px; background: #fff8ee; border: 1.5px solid #8b7961; border-radius: 3px; text-align: center;">+50 XP (Random Roll)</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 14px;">
+                        <label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:4px;">Conformed Starter Kit Trappings:</label>
+                        <textarea id="cc-starter-kit" rows="2" oninput="checkWizardOrTrappingChoices()" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:12px; color:#1c130b; padding:6px; box-sizing:border-box; border-radius:3px; resize:vertical; font-family:var(--font-body);"></textarea>
+                    </div>
+
+                    <!-- Required "OR" Trappings Choice Container -->
+                    <div id="cc-or-choices-container" style="display: none; margin-top: 14px; background: #fff3cd; border: 2px solid #856404; padding: 12px; border-radius: 4px;">
+                        <strong style="color: #856404; font-size: 13px; display: block; margin-bottom: 6px;">⚠️ Trapping Choice(s) Required: Please select your preferred item for each option below:</strong>
+                        <div id="cc-or-choices-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                    </div>
+                </fieldset>
+
+                <div style="display: flex; justify-content: space-between;">
+                    <button type="button" onclick="switchWizardStep(1)" style="background: #3d2f23; color: #f7efe2; border: 1.5px solid #231911; padding: 8px 18px; font-weight: bold; font-size: 13px; cursor: pointer; border-radius: 4px;">⬅ BACK</button>
+                    <button type="button" onclick="switchWizardStep(3)" style="background: #7a1717; color: #f5ebd9; border: 2px solid #d4af37; padding: 8px 20px; font-family: var(--font-title); font-weight: bold; font-size: 13px; cursor: pointer; border-radius: 4px;">NEXT: DETAILS & AMBITIONS ➔</button>
+                </div>
+            </div>
+
+            <!-- STEP 3: DETAILS & AMBITIONS -->
+            <div id="cc-step-3" style="display: none;">
+                <fieldset style="border: 2px solid #7a1717; border-radius: 4px; padding: 16px; margin-bottom: 20px; background: #faf4e8;">
+                    <legend style="font-family: var(--font-title); font-weight: bold; font-size: 15px; color: #7a1717; padding: 0 8px;">STEP 3: PERSONAL DETAILS & AMBITIONS</legend>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 14px;">
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:2px;">Character Name:</label><input type="text" id="cc-name" value="Karl Franz" style="width:100%; border:1.5px solid #8b7961; background:#fff; font-size:13px; font-weight:bold; color:#1c130b; padding:5px; box-sizing:border-box;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:2px;">Age:</label><input type="number" id="cc-age" value="25" style="width:100%; border:1.5px solid #8b7961; background:#fff; font-size:13px; color:#1c130b; padding:5px; box-sizing:border-box;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:2px;">Height:</label><input type="text" id="cc-height" value="5'10&quot;" style="width:100%; border:1.5px solid #8b7961; background:#fff; font-size:13px; color:#1c130b; padding:5px; box-sizing:border-box;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:2px;">Hair:</label><input type="text" id="cc-hair" value="Brown" style="width:100%; border:1.5px solid #8b7961; background:#fff; font-size:13px; color:#1c130b; padding:5px; box-sizing:border-box;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:2px;">Eyes:</label><input type="text" id="cc-eyes" value="Blue" style="width:100%; border:1.5px solid #8b7961; background:#fff; font-size:13px; color:#1c130b; padding:5px; box-sizing:border-box;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:2px;">Star Sign:</label><input type="text" id="cc-starsign" value="The Two Bullocks" style="width:100%; border:1.5px solid #8b7961; background:#fff; font-size:13px; color:#1c130b; padding:5px; box-sizing:border-box;"></div>
+                    </div>
+
+                    <div style="margin-bottom: 12px;">
+                        <label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:2px;">Short-Term Ambition:</label>
+                        <input type="text" id="cc-amb-short" value="Earn 5 Gold Crowns and buy a sturdy sword." style="width:100%; border:1.5px solid #8b7961; background:#fff; font-size:12px; color:#1c130b; padding:5px; box-sizing:border-box;">
+                    </div>
+                    <div>
+                        <label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:2px;">Long-Term Ambition:</label>
+                        <input type="text" id="cc-amb-long" value="Become a recognized Captain in the Reikland Guard." style="width:100%; border:1.5px solid #8b7961; background:#fff; font-size:12px; color:#1c130b; padding:5px; box-sizing:border-box;">
+                    </div>
+                </fieldset>
+
+                <div style="display: flex; justify-content: space-between;">
+                    <button type="button" onclick="switchWizardStep(2)" style="background: #3d2f23; color: #f7efe2; border: 1.5px solid #231911; padding: 8px 18px; font-weight: bold; font-size: 13px; cursor: pointer; border-radius: 4px;">⬅ BACK</button>
+                    <button type="button" onclick="switchWizardStep(4)" style="background: #7a1717; color: #f5ebd9; border: 2px solid #d4af37; padding: 8px 20px; font-family: var(--font-title); font-weight: bold; font-size: 13px; cursor: pointer; border-radius: 4px;">NEXT: REVIEW & FINISH ➔</button>
+                </div>
+            </div>
+
+            <!-- STEP 4: REVIEW & FINISH -->
+            <div id="cc-step-4" style="display: none;">
+                <fieldset style="border: 2px solid #7a1717; border-radius: 4px; padding: 16px; margin-bottom: 20px; background: #faf4e8;">
+                    <legend style="font-family: var(--font-title); font-weight: bold; font-size: 15px; color: #7a1717; padding: 0 8px;">STEP 4: CONFIRM & CREATE CHARACTER</legend>
+                    <div id="cc-review-summary" style="font-size: 13px; color: #1c130b;">
+                        <!-- Dynamic summary inserted here -->
+                    </div>
+                </fieldset>
+
+                <div style="display: flex; justify-content: space-between;">
+                    <button type="button" onclick="switchWizardStep(3)" style="background: #3d2f23; color: #f7efe2; border: 1.5px solid #231911; padding: 8px 18px; font-weight: bold; font-size: 13px; cursor: pointer; border-radius: 4px;">⬅ BACK</button>
+                    <button type="button" onclick="finishCharacterCreationWizard()" style="background: #7a1717; color: #f5ebd9; border: 2px solid #d4af37; padding: 10px 24px; font-family: var(--font-title); font-weight: bold; font-size: 14px; cursor: pointer; border-radius: 4px; box-shadow: 0 0 15px rgba(122,23,23,0.6);">⚜ CREATE CHARACTER & ADD TO PARTY</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- WFRP 4E Core Rulebook Character Sheet Overlay Modal -->
+    <div id="char-sheet-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(10,8,6,0.94); z-index: 25000; padding: 20px; box-sizing: border-box; overflow-y: auto;">
+        <datalist id="trappings-list"></datalist>
+        <datalist id="weapons-list"></datalist>
+        <datalist id="armour-list"></datalist>
+        <datalist id="hirelings-list"></datalist>
+        <div style="max-width: 1020px; margin: 10px auto; background: #f4e7d0; border: 4px double #5c4732; border-radius: 4px; color: #1c130b; font-family: var(--font-body); font-size: 14px; padding: 28px; box-shadow: 0 0 45px rgba(0,0,0,0.9); position: relative;">
+            
+            <!-- Modal Header Bar -->
+            <div style="border-bottom: 3px double #7a1717; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+                <div id="modal-char-title" style="font-family: var(--font-title); font-size: 22px; font-weight: bold; color: #7a1717; letter-spacing: 1.5px;">⚜ WARHAMMER FANTASY ROLEPLAY CHARACTER SHEET ⚜</div>
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="openDeleteConfirmModal()" style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 6px 14px; font-family: var(--font-title); font-weight: bold; font-size: 13px; cursor: pointer; border-radius: 3px;">🗑️ DELETE</button>
+                    <button onclick="closeCharSheetModal()" style="background: #3d2f23; color: #f7efe2; border: 1.5px solid #231911; padding: 6px 16px; font-family: var(--font-title); font-weight: bold; font-size: 13px; cursor: pointer; border-radius: 3px;">✖ CLOSE</button>
+                </div>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <div style="display: flex; gap: 10px; margin-bottom: 22px; border-bottom: 2px solid #8b7961; padding-bottom: 10px;">
+                <button id="tab-btn-p344" onclick="switchModalTab('p344')" style="background: #7a1717; color: #f5ebd9; border: 2px solid #d4af37; padding: 10px 20px; font-family: var(--font-title); font-size: 13px; font-weight: bold; cursor: pointer; border-radius: 4px;">CORE & SKILLS</button>
+                <button id="tab-btn-p345" onclick="switchModalTab('p345')" style="background: #3a2a1a; color: #dcd0bc; border: 2px solid #5c4732; padding: 10px 20px; font-family: var(--font-title); font-size: 13px; cursor: pointer; border-radius: 4px;">COMBAT & WEALTH</button>
+                <button id="tab-btn-ambitions" onclick="switchModalTab('ambitions')" style="background: #3a2a1a; color: #dcd0bc; border: 2px solid #5c4732; padding: 10px 20px; font-family: var(--font-title); font-size: 13px; cursor: pointer; border-radius: 4px;">AMBITIONS</button>
+                <button id="tab-btn-questions" onclick="switchModalTab('questions')" style="background: #3a2a1a; color: #dcd0bc; border: 2px solid #5c4732; padding: 10px 20px; font-family: var(--font-title); font-size: 13px; cursor: pointer; border-radius: 4px;">TEN QUESTIONS</button>
+            </div>
+
+            <!-- TAB 1: CORE & SKILLS -->
+            <div id="modal-tab-p344">
+                <!-- Personal Details Block -->
+                <fieldset style="border: 2px solid #7a1717; border-radius: 4px; padding: 16px; margin-bottom: 20px; background: #faf4e8;">
+                    <legend style="font-family: var(--font-title); font-weight: bold; font-size: 15px; color: #7a1717; padding: 0 8px;">PERSONAL DETAILS</legend>
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; font-size: 13px;">
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:3px;">Name:</label><input type="text" id="m-char-name" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:13px; font-weight:bold; color:#1c130b; padding:4px 6px; box-sizing:border-box;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:3px;">Species:</label><input type="text" id="m-char-race" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:13px; color:#1c130b; padding:4px 6px; box-sizing:border-box;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:3px;">Class:</label><input type="text" id="m-char-class" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:13px; color:#1c130b; padding:4px 6px; box-sizing:border-box;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:3px;">Career:</label><input type="text" id="m-char-career" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:13px; color:#1c130b; padding:4px 6px; box-sizing:border-box;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:3px;">Career Level:</label><input type="text" id="m-char-level" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:13px; color:#1c130b; padding:4px 6px; box-sizing:border-box;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:3px;">Career Path:</label><input type="text" id="m-char-path" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:13px; color:#1c130b; padding:4px 6px; box-sizing:border-box;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:3px;">Status:</label><input type="text" id="m-char-status" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:13px; color:#1c130b; padding:4px 6px; box-sizing:border-box;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:3px;">Age:</label><input type="number" id="m-char-age" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:13px; color:#1c130b; padding:4px 6px; box-sizing:border-box;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:3px;">Height:</label><input type="text" id="m-char-height" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:13px; color:#1c130b; padding:4px 6px; box-sizing:border-box;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:3px;">Hair:</label><input type="text" id="m-char-hair" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:13px; color:#1c130b; padding:4px 6px; box-sizing:border-box;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:3px;">Eyes:</label><input type="text" id="m-char-eyes" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:13px; color:#1c130b; padding:4px 6px; box-sizing:border-box;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:3px;">Dooming:</label><input type="text" id="m-char-doomed" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:13px; color:#1c130b; padding:4px 6px; box-sizing:border-box;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:3px;">Star Sign:</label><input type="text" id="m-char-starsign" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:13px; color:#1c130b; padding:4px 6px; box-sizing:border-box;"></div>
+                        <div style="grid-column: span 3;"><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:3px;">Motivation:</label><input type="text" id="m-char-motivation" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:13px; color:#1c130b; padding:4px 6px; box-sizing:border-box;"></div>
+                    </div>
+                </fieldset>
+
+                <!-- Characteristics Grid (10 Stats) -->
+                <fieldset style="border: 2px solid #7a1717; border-radius: 4px; padding: 16px; margin-bottom: 20px; background: #faf4e8;">
+                    <legend style="font-family: var(--font-title); font-weight: bold; font-size: 15px; color: #7a1717; padding: 0 8px;">CHARACTERISTICS</legend>
+                    <div style="display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; text-align: center;">
+                        <div>
+                            <div style="font-family:var(--font-title); font-weight:bold; background:#7a1717; color:#f5ebd9; padding:4px 0; font-size:13px; border-radius:3px 3px 0 0;">WS</div>
+                            <div style="font-size:10px; color:#666; margin-top:2px;">Initial</div>
+                            <input type="number" id="m-stat-WS-init" oninput="calcStatTotal('WS')" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#1c130b; padding:3px 0;">
+                            <div style="font-size:10px; color:#666; margin-top:2px;">Adv</div>
+                            <input type="number" id="m-stat-WS-adv" oninput="calcStatTotal('WS')" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#1c130b; padding:3px 0;">
+                            <div style="font-size:10px; font-weight:bold; color:#7a1717; margin-top:2px;">Total</div>
+                            <input type="number" id="m-stat-WS-tot" readonly style="width:100%; text-align:center; border:2px solid #7a1717; background:#fcefdc; font-weight:bold; font-size:15px; color:#7a1717; padding:3px 0;">
+                        </div>
+                        <div>
+                            <div style="font-family:var(--font-title); font-weight:bold; background:#7a1717; color:#f5ebd9; padding:4px 0; font-size:13px; border-radius:3px 3px 0 0;">BS</div>
+                            <div style="font-size:10px; color:#666; margin-top:2px;">Initial</div>
+                            <input type="number" id="m-stat-BS-init" oninput="calcStatTotal('BS')" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#1c130b; padding:3px 0;">
+                            <div style="font-size:10px; color:#666; margin-top:2px;">Adv</div>
+                            <input type="number" id="m-stat-BS-adv" oninput="calcStatTotal('BS')" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#1c130b; padding:3px 0;">
+                            <div style="font-size:10px; font-weight:bold; color:#7a1717; margin-top:2px;">Total</div>
+                            <input type="number" id="m-stat-BS-tot" readonly style="width:100%; text-align:center; border:2px solid #7a1717; background:#fcefdc; font-weight:bold; font-size:15px; color:#7a1717; padding:3px 0;">
+                        </div>
+                        <div>
+                            <div style="font-family:var(--font-title); font-weight:bold; background:#7a1717; color:#f5ebd9; padding:4px 0; font-size:13px; border-radius:3px 3px 0 0;">S</div>
+                            <div style="font-size:10px; color:#666; margin-top:2px;">Initial</div>
+                            <input type="number" id="m-stat-S-init" oninput="calcStatTotal('S')" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#1c130b; padding:3px 0;">
+                            <div style="font-size:10px; color:#666; margin-top:2px;">Adv</div>
+                            <input type="number" id="m-stat-S-adv" oninput="calcStatTotal('S')" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#1c130b; padding:3px 0;">
+                            <div style="font-size:10px; font-weight:bold; color:#7a1717; margin-top:2px;">Total</div>
+                            <input type="number" id="m-stat-S-tot" readonly style="width:100%; text-align:center; border:2px solid #7a1717; background:#fcefdc; font-weight:bold; font-size:15px; color:#7a1717; padding:3px 0;">
+                        </div>
+                        <div>
+                            <div style="font-family:var(--font-title); font-weight:bold; background:#7a1717; color:#f5ebd9; padding:4px 0; font-size:13px; border-radius:3px 3px 0 0;">T</div>
+                            <div style="font-size:10px; color:#666; margin-top:2px;">Initial</div>
+                            <input type="number" id="m-stat-T-init" oninput="calcStatTotal('T')" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#1c130b; padding:3px 0;">
+                            <div style="font-size:10px; color:#666; margin-top:2px;">Adv</div>
+                            <input type="number" id="m-stat-T-adv" oninput="calcStatTotal('T')" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#1c130b; padding:3px 0;">
+                            <div style="font-size:10px; font-weight:bold; color:#7a1717; margin-top:2px;">Total</div>
+                            <input type="number" id="m-stat-T-tot" readonly style="width:100%; text-align:center; border:2px solid #7a1717; background:#fcefdc; font-weight:bold; font-size:15px; color:#7a1717; padding:3px 0;">
+                        </div>
+                        <div>
+                            <div style="font-family:var(--font-title); font-weight:bold; background:#7a1717; color:#f5ebd9; padding:4px 0; font-size:13px; border-radius:3px 3px 0 0;">I</div>
+                            <div style="font-size:10px; color:#666; margin-top:2px;">Initial</div>
+                            <input type="number" id="m-stat-I-init" oninput="calcStatTotal('I')" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#1c130b; padding:3px 0;">
+                            <div style="font-size:10px; color:#666; margin-top:2px;">Adv</div>
+                            <input type="number" id="m-stat-I-adv" oninput="calcStatTotal('I')" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#1c130b; padding:3px 0;">
+                            <div style="font-size:10px; font-weight:bold; color:#7a1717; margin-top:2px;">Total</div>
+                            <input type="number" id="m-stat-I-tot" readonly style="width:100%; text-align:center; border:2px solid #7a1717; background:#fcefdc; font-weight:bold; font-size:15px; color:#7a1717; padding:3px 0;">
+                        </div>
+                        <div>
+                            <div style="font-family:var(--font-title); font-weight:bold; background:#7a1717; color:#f5ebd9; padding:4px 0; font-size:13px; border-radius:3px 3px 0 0;">Ag</div>
+                            <div style="font-size:10px; color:#666; margin-top:2px;">Initial</div>
+                            <input type="number" id="m-stat-Ag-init" oninput="calcStatTotal('Ag')" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#1c130b; padding:3px 0;">
+                            <div style="font-size:10px; color:#666; margin-top:2px;">Adv</div>
+                            <input type="number" id="m-stat-Ag-adv" oninput="calcStatTotal('Ag')" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#1c130b; padding:3px 0;">
+                            <div style="font-size:10px; font-weight:bold; color:#7a1717; margin-top:2px;">Total</div>
+                            <input type="number" id="m-stat-Ag-tot" readonly style="width:100%; text-align:center; border:2px solid #7a1717; background:#fcefdc; font-weight:bold; font-size:15px; color:#7a1717; padding:3px 0;">
+                        </div>
+                        <div>
+                            <div style="font-family:var(--font-title); font-weight:bold; background:#7a1717; color:#f5ebd9; padding:4px 0; font-size:13px; border-radius:3px 3px 0 0;">Dex</div>
+                            <div style="font-size:10px; color:#666; margin-top:2px;">Initial</div>
+                            <input type="number" id="m-stat-Dex-init" oninput="calcStatTotal('Dex')" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#1c130b; padding:3px 0;">
+                            <div style="font-size:10px; color:#666; margin-top:2px;">Adv</div>
+                            <input type="number" id="m-stat-Dex-adv" oninput="calcStatTotal('Dex')" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#1c130b; padding:3px 0;">
+                            <div style="font-size:10px; font-weight:bold; color:#7a1717; margin-top:2px;">Total</div>
+                            <input type="number" id="m-stat-Dex-tot" readonly style="width:100%; text-align:center; border:2px solid #7a1717; background:#fcefdc; font-weight:bold; font-size:15px; color:#7a1717; padding:3px 0;">
+                        </div>
+                        <div>
+                            <div style="font-family:var(--font-title); font-weight:bold; background:#7a1717; color:#f5ebd9; padding:4px 0; font-size:13px; border-radius:3px 3px 0 0;">Int</div>
+                            <div style="font-size:10px; color:#666; margin-top:2px;">Initial</div>
+                            <input type="number" id="m-stat-Int-init" oninput="calcStatTotal('Int')" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#1c130b; padding:3px 0;">
+                            <div style="font-size:10px; color:#666; margin-top:2px;">Adv</div>
+                            <input type="number" id="m-stat-Int-adv" oninput="calcStatTotal('Int')" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#1c130b; padding:3px 0;">
+                            <div style="font-size:10px; font-weight:bold; color:#7a1717; margin-top:2px;">Total</div>
+                            <input type="number" id="m-stat-Int-tot" readonly style="width:100%; text-align:center; border:2px solid #7a1717; background:#fcefdc; font-weight:bold; font-size:15px; color:#7a1717; padding:3px 0;">
+                        </div>
+                        <div>
+                            <div style="font-family:var(--font-title); font-weight:bold; background:#7a1717; color:#f5ebd9; padding:4px 0; font-size:13px; border-radius:3px 3px 0 0;">WP</div>
+                            <div style="font-size:10px; color:#666; margin-top:2px;">Initial</div>
+                            <input type="number" id="m-stat-WP-init" oninput="calcStatTotal('WP')" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#1c130b; padding:3px 0;">
+                            <div style="font-size:10px; color:#666; margin-top:2px;">Adv</div>
+                            <input type="number" id="m-stat-WP-adv" oninput="calcStatTotal('WP')" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#1c130b; padding:3px 0;">
+                            <div style="font-size:10px; font-weight:bold; color:#7a1717; margin-top:2px;">Total</div>
+                            <input type="number" id="m-stat-WP-tot" readonly style="width:100%; text-align:center; border:2px solid #7a1717; background:#fcefdc; font-weight:bold; font-size:15px; color:#7a1717; padding:3px 0;">
+                        </div>
+                        <div>
+                            <div style="font-family:var(--font-title); font-weight:bold; background:#7a1717; color:#f5ebd9; padding:4px 0; font-size:13px; border-radius:3px 3px 0 0;">Fel</div>
+                            <div style="font-size:10px; color:#666; margin-top:2px;">Initial</div>
+                            <input type="number" id="m-stat-Fel-init" oninput="calcStatTotal('Fel')" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#1c130b; padding:3px 0;">
+                            <div style="font-size:10px; color:#666; margin-top:2px;">Adv</div>
+                            <input type="number" id="m-stat-Fel-adv" oninput="calcStatTotal('Fel')" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#1c130b; padding:3px 0;">
+                            <div style="font-size:10px; font-weight:bold; color:#7a1717; margin-top:2px;">Total</div>
+                            <input type="number" id="m-stat-Fel-tot" readonly style="width:100%; text-align:center; border:2px solid #7a1717; background:#fcefdc; font-weight:bold; font-size:15px; color:#7a1717; padding:3px 0;">
+                        </div>
+                    </div>
+                </fieldset>
+
+                <!-- Pools & Derived Values -->
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px;">
+                    <!-- Fate & Fortune -->
+                    <div style="border: 1.5px solid #8b7961; border-radius: 4px; padding: 12px; background: #faf4e8; font-size: 13px;">
+                        <div style="font-family:var(--font-title); font-weight:bold; color:#7a1717; border-bottom: 1.5px solid #8b7961; margin-bottom: 8px; padding-bottom: 4px;">FATE & FORTUNE</div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
+                            <span style="font-weight:bold; color:#2b1f14;">Fate:</span><input type="number" id="m-char-fate-total" style="width: 50px; text-align:center; border: 1.5px solid #8b7961; font-size: 14px; font-weight: bold; color: #1c130b; padding: 2px;">
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-weight:bold; color:#2b1f14;">Fortune:</span><input type="number" id="m-char-fortune-curr" style="width: 50px; text-align:center; border: 1.5px solid #8b7961; font-size: 14px; font-weight: bold; color: #1c130b; padding: 2px;">
+                        </div>
+                    </div>
+
+                    <!-- Resilience & Resolve -->
+                    <div style="border: 1.5px solid #8b7961; border-radius: 4px; padding: 12px; background: #faf4e8; font-size: 13px;">
+                        <div style="font-family:var(--font-title); font-weight:bold; color:#7a1717; border-bottom: 1.5px solid #8b7961; margin-bottom: 8px; padding-bottom: 4px;">RESILIENCE & RESOLVE</div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
+                            <span style="font-weight:bold; color:#2b1f14;">Resilience:</span><input type="number" id="m-char-resilience-tot" style="width: 50px; text-align:center; border: 1.5px solid #8b7961; font-size: 14px; font-weight: bold; color: #1c130b; padding: 2px;">
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-weight:bold; color:#2b1f14;">Resolve:</span><input type="number" id="m-char-resolve-curr" style="width: 50px; text-align:center; border: 1.5px solid #8b7961; font-size: 14px; font-weight: bold; color: #1c130b; padding: 2px;">
+                        </div>
+                    </div>
+
+                    <!-- Movement -->
+                    <div style="border: 1.5px solid #8b7961; border-radius: 4px; padding: 12px; background: #faf4e8; font-size: 13px;">
+                        <div style="font-family:var(--font-title); font-weight:bold; color:#7a1717; border-bottom: 1.5px solid #8b7961; margin-bottom: 8px; padding-bottom: 4px;">MOVEMENT</div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
+                            <span style="font-weight:bold; color:#2b1f14;">Move (M):</span><input type="number" id="m-char-move-base" oninput="calcMovement()" style="width: 45px; text-align:center; border: 1.5px solid #8b7961; font-size: 14px; font-weight: bold; color: #1c130b; padding: 2px;">
+                        </div>
+                        <div style="display:flex; justify-content:space-between; font-size: 12px; color:#4a1212; font-weight: bold;">
+                            <span>Walk: <input type="number" id="m-char-move-walk" readonly style="width: 30px; border:none; background:transparent; font-weight:bold; font-size:13px; color:#7a1717;"></span>
+                            <span>Run: <input type="number" id="m-char-move-run" readonly style="width: 30px; border:none; background:transparent; font-weight:bold; font-size:13px; color:#7a1717;"></span>
+                        </div>
+                    </div>
+
+                    <!-- Experience (XP) -->
+                    <div style="border: 1.5px solid #8b7961; border-radius: 4px; padding: 12px; background: #faf4e8; font-size: 13px;">
+                        <div style="font-family:var(--font-title); font-weight:bold; color:#7a1717; border-bottom: 1.5px solid #8b7961; margin-bottom: 8px; padding-bottom: 4px;">EXPERIENCE (XP)</div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom: 4px;"><span>Current:</span><input type="number" id="m-char-xp-curr" style="width: 55px; text-align:center; border: 1.5px solid #8b7961; font-size: 13px; font-weight: bold; color: #1c130b; padding: 1px;"></div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom: 4px;"><span>Spent:</span><input type="number" id="m-char-xp-spent" style="width: 55px; text-align:center; border: 1.5px solid #8b7961; font-size: 13px; font-weight: bold; color: #1c130b; padding: 1px;"></div>
+                        <div style="display:flex; justify-content:space-between;"><span>Total:</span><input type="number" id="m-char-xp-tot" style="width: 55px; text-align:center; border: 1.5px solid #8b7961; font-size: 13px; font-weight: bold; color: #1c130b; padding: 1px;"></div>
+                    </div>
+                </div>
+
+                <!-- 25 Basic Skills Interactive Grid -->
+                <fieldset style="border: 2px solid #7a1717; border-radius: 4px; padding: 16px; margin-bottom: 20px; background: #faf4e8;">
+                    <legend style="font-family: var(--font-title); font-weight: bold; font-size: 15px; color: #7a1717; padding: 0 8px;">25 BASIC SKILLS</legend>
+                    <div id="m-basic-skills-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;"></div>
+                </fieldset>
+
+                <!-- Advanced Skills & Talents -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px;">
+                    <div>
+                        <label style="font-family:var(--font-title); font-weight:bold; color:#7a1717; font-size:14px; display:block; margin-bottom:4px;">ADVANCED & GROUPED SKILLS:</label>
+                        <textarea id="m-char-skills" rows="4" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:13px; color:#1c130b; padding:8px; box-sizing:border-box; border-radius:3px;"></textarea>
+                    </div>
+                    <div>
+                        <label style="font-family:var(--font-title); font-weight:bold; color:#7a1717; font-size:14px; display:block; margin-bottom:4px;">TALENTS & QUALITIES:</label>
+                        <textarea id="m-char-talents" rows="4" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:13px; color:#1c130b; padding:8px; box-sizing:border-box; border-radius:3px;"></textarea>
+                    </div>
+                </div>
+            </div>
+
+                        <!-- TAB 2: COMBAT & WEALTH (AUTHENTIC WFRP PAGE 345 TABLES) -->
+            <div id="modal-tab-p345" style="display: none;">
+                
+                <!-- Top Row: Wounds Calculator & Armour AP Diagram -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                    <!-- Wounds Calculator -->
+                    <fieldset style="border: 2px solid #7a1717; border-radius: 4px; padding: 14px; background: #faf4e8;">
+                        <legend style="font-family: var(--font-title); font-weight: bold; font-size: 15px; color: #7a1717; padding: 0 8px;">WOUNDS CALCULATOR (SB + TBx2 + WPB + Hardy)</legend>
+                        <div style="display: flex; gap: 10px; align-items: center; font-size: 13px; margin-bottom: 12px;">
+                            <span>SB: <input type="number" id="m-wnd-sb" readonly style="width:35px; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#7a1717;"></span>
+                            <span>+ TBx2: <input type="number" id="m-wnd-tb2" readonly style="width:38px; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#7a1717;"></span>
+                            <span>+ WPB: <input type="number" id="m-wnd-wpb" readonly style="width:35px; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#7a1717;"></span>
+                            <span>+ Hardy: <input type="number" id="m-wnd-hardy" oninput="calcWoundsFormula()" style="width:35px; text-align:center; border:1.5px solid #8b7961; font-size:13px; font-weight:bold; color:#1c130b;" value="0"></span>
+                        </div>
+                        <div style="display: flex; gap: 16px; align-items: center; border-top: 1.5px solid #8b7961; padding-top: 10px;">
+                            <div><label style="font-weight:bold; color:#7a1717; font-size:14px;">Max Wounds:</label> <input type="number" id="m-char-wounds-max" style="width:55px; text-align:center; border:2px solid #7a1717; font-weight:bold; font-size:16px; color:#7a1717; background:#fff;"></div>
+                            <div><label style="font-weight:bold; color:#7a1717; font-size:14px;">Current Wounds:</label> <input type="number" id="m-char-wounds-curr" style="width:55px; text-align:center; border:2px solid #7a1717; font-weight:bold; font-size:16px; color:#7a1717; background:#fff;"></div>
+                        </div>
+                    </fieldset>
+
+                    <!-- Armour Locations AP Diagram -->
+                    <fieldset style="border: 2px solid #7a1717; border-radius: 4px; padding: 14px; background: #faf4e8;">
+                        <legend style="font-family: var(--font-title); font-weight: bold; font-size: 15px; color: #7a1717; padding: 0 8px;">ARMOUR POINTS (AP) DIAGRAM</legend>
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-size: 12px; text-align: center;">
+                            <div><span style="font-weight:bold; color:#7a1717;">Head (01-09)</span><input type="number" id="m-arm-head" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:14px; font-weight:bold; color:#1c130b;"></div>
+                            <div><span style="font-weight:bold; color:#7a1717;">Body (45-79)</span><input type="number" id="m-arm-body" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:14px; font-weight:bold; color:#1c130b;"></div>
+                            <div><span style="font-weight:bold; color:#7a1717;">L.Arm (10-24)</span><input type="number" id="m-arm-larm" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:14px; font-weight:bold; color:#1c130b;"></div>
+                            <div><span style="font-weight:bold; color:#7a1717;">R.Arm (25-44)</span><input type="number" id="m-arm-rarm" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:14px; font-weight:bold; color:#1c130b;"></div>
+                            <div><span style="font-weight:bold; color:#7a1717;">L.Leg (80-89)</span><input type="number" id="m-arm-lleg" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:14px; font-weight:bold; color:#1c130b;"></div>
+                            <div><span style="font-weight:bold; color:#7a1717;">R.Leg (90-00)</span><input type="number" id="m-arm-rleg" style="width:100%; text-align:center; border:1.5px solid #8b7961; font-size:14px; font-weight:bold; color:#1c130b;"></div>
+                        </div>
+                    </fieldset>
+                </div>
+
+                <!-- SECTION 1: WEAPONS TABLE (PAGE 345) -->
+                <fieldset style="border: 2px solid #7a1717; border-radius: 4px; padding: 14px; background: #faf4e8; margin-bottom: 20px;">
+                    <legend style="font-family: var(--font-title); font-weight: bold; font-size: 15px; color: #7a1717; padding: 0 8px;">⚔️ WEAPONS TABLE</legend>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #1c130b;">
+                        <thead>
+                            <tr style="background: #3d2f23; color: #f7efe2; font-family: var(--font-title); font-size: 12px; text-align: left;">
+                                <th style="padding: 6px; border: 1px solid #231911; width: 110px;">Base Type (Derived)</th>
+                                <th style="padding: 6px; border: 1px solid #231911; width: 140px;">Specific Name (Editable)</th>
+                                <th style="padding: 6px; border: 1px solid #231911; width: 75px;">Group</th>
+                                <th style="padding: 6px; border: 1px solid #231911; width: 45px; text-align: center;">Enc</th>
+                                <th style="padding: 6px; border: 1px solid #231911; width: 90px;">Range/Reach</th>
+                                <th style="padding: 6px; border: 1px solid #231911; width: 75px;">Damage</th>
+                                <th style="padding: 6px; border: 1px solid #231911;">Qualities & Flaws</th>
+                                <th style="padding: 6px; border: 1px solid #231911; width: 35px; text-align: center;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="m-weapons-table-body">
+                            <!-- Dynamic weapon rows inserted here -->
+                        </tbody>
+                    </table>
+                    <div style="margin-top: 8px;">
+                        <button type="button" onclick="addWeaponRow()" style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 4px 10px; font-family: var(--font-title); font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 3px;">➕ ADD WEAPON ROW</button>
+                    </div>
+                </fieldset>
+
+                <!-- SECTION 2: SPELLS AND PRAYERS TABLE (PAGE 345) -->
+                <fieldset style="border: 2px solid #7a1717; border-radius: 4px; padding: 14px; background: #faf4e8; margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <legend style="font-family: var(--font-title); font-weight: bold; font-size: 15px; color: #7a1717; padding: 0 8px;">✨ SPELLS AND PRAYERS TABLE</legend>
+                        <div style="font-size: 13px; font-weight: bold; color: #7a1717; background: #fffbf4; border: 1.5px solid #7a1717; padding: 4px 10px; border-radius: 4px;">
+                            Sin Points: <input type="number" id="m-char-sin" style="width: 45px; text-align: center; border: 1px solid #8b7961; font-weight: bold; font-size: 14px; color: #7a1717;" value="0">
+                        </div>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #1c130b; margin-top: 8px;">
+                        <thead>
+                            <tr style="background: #3d2f23; color: #f7efe2; font-family: var(--font-title); font-size: 12px; text-align: left;">
+                                <th style="padding: 6px; border: 1px solid #231911;">Name</th>
+                                <th style="padding: 6px; border: 1px solid #231911; width: 55px; text-align: center;">TN</th>
+                                <th style="padding: 6px; border: 1px solid #231911; width: 90px;">Range</th>
+                                <th style="padding: 6px; border: 1px solid #231911; width: 90px;">Target</th>
+                                <th style="padding: 6px; border: 1px solid #231911; width: 90px;">Duration</th>
+                                <th style="padding: 6px; border: 1px solid #231911;">Effect</th>
+                                <th style="padding: 6px; border: 1px solid #231911; width: 35px; text-align: center;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="m-spells-table-body">
+                            <!-- Dynamic spell rows inserted here -->
+                        </tbody>
+                    </table>
+                    <div style="margin-top: 8px;">
+                        <button type="button" onclick="openSpellSelectModal()" style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 4px 10px; font-family: var(--font-title); font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 3px;">➕ ADD SPELL / PRAYER ROW</button>
+                    </div>
+                </fieldset>
+
+                <!-- SECTION 3: TRAPPINGS, ENCUMBRANCE SUMMARY & WEALTH (PAGE 345) -->
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 20px; align-items: start;">
+                    
+                    <!-- Left Column: Trappings & Hirelings -->
+                    <div style="display: flex; flex-direction: column; gap: 16px;">
+                        
+                        <!-- Left: Trappings Detailed Table -->
+                        <fieldset style="border: 2px solid #7a1717; border-radius: 4px; padding: 14px; background: #faf4e8;">
+                            <legend style="font-family: var(--font-title); font-weight: bold; font-size: 15px; color: #7a1717; padding: 0 8px;">🎒 TRAPPINGS TABLE</legend>
+                            <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #1c130b;">
+                                <thead>
+                                    <tr style="background: #3d2f23; color: #f7efe2; font-family: var(--font-title); font-size: 12px; text-align: left;">
+                                        <th style="padding: 6px; border: 1px solid #231911; width: 55px; text-align: center;">Equipped</th>
+                                        <th style="padding: 6px; border: 1px solid #231911;">Name / Description</th>
+                                        <th style="padding: 6px; border: 1px solid #231911; width: 55px; text-align: center;">Enc</th>
+                                        <th style="padding: 6px; border: 1px solid #231911; width: 140px;">Locations / AP</th>
+                                        <th style="padding: 6px; border: 1px solid #231911; width: 35px; text-align: center;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="m-trappings-table-body">
+                                    <!-- Dynamic trapping rows inserted here -->
+                                </tbody>
+                            </table>
+                            <div style="margin-top: 8px;">
+                                <button type="button" onclick="addTrappingRow()" style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 4px 10px; font-family: var(--font-title); font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 3px;">➕ ADD TRAPPING ROW</button>
+                            </div>
+                        </fieldset>
+
+                        <!-- Left: Hirelings Detailed Table -->
+                        <fieldset style="border: 2px solid #7a1717; border-radius: 4px; padding: 14px; background: #faf4e8;">
+                            <legend style="font-family: var(--font-title); font-weight: bold; font-size: 15px; color: #7a1717; padding: 0 8px;">🤝 HIRELINGS & RETAINERS</legend>
+                            <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #1c130b;">
+                                <thead>
+                                    <tr style="background: #3d2f23; color: #f7efe2; font-family: var(--font-title); font-size: 12px; text-align: left;">
+                                        <th style="padding: 6px; border: 1px solid #231911;">Name / Role</th>
+                                        <th style="padding: 6px; border: 1px solid #231911; width: 65px; text-align: center;">Daily Cost</th>
+                                        <th style="padding: 6px; border: 1px solid #231911; width: 140px;">Notes</th>
+                                        <th style="padding: 6px; border: 1px solid #231911; width: 35px; text-align: center;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="m-hirelings-table-body">
+                                    <!-- Dynamic hirelings rows inserted here -->
+                                </tbody>
+                            </table>
+                            <div style="margin-top: 8px;">
+                                <button type="button" onclick="addHirelingRow()" style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 4px 10px; font-family: var(--font-title); font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 3px;">➕ ADD HIRELING</button>
+                            </div>
+                        </fieldset>
+
+                    </div>
+
+                    <!-- Right: Encumbrance Summary & Wealth Tables -->
+                    <div style="display: flex; flex-direction: column; gap: 16px;">
+                        
+                        <!-- Encumbrance Summary Box (Page 345) -->
+                        <fieldset style="border: 2px solid #7a1717; border-radius: 4px; padding: 14px; background: #faf4e8;">
+                            <legend style="font-family: var(--font-title); font-weight: bold; font-size: 14px; color: #7a1717; padding: 0 8px;">ENCUMBRANCE</legend>
+                            <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #1c130b;">
+                                <tr><td style="padding: 4px; font-weight: bold;">Weapons:</td><td style="text-align: right;"><input type="number" id="m-enc-weapons" oninput="calcEncSummary()" style="width: 55px; text-align: center; border: 1px solid #8b7961; font-weight: bold;" value="0"></td></tr>
+                                <tr><td style="padding: 4px; font-weight: bold;">Armour:</td><td style="text-align: right;"><input type="number" id="m-enc-armour" oninput="calcEncSummary()" style="width: 55px; text-align: center; border: 1px solid #8b7961; font-weight: bold;" value="0"></td></tr>
+                                <tr><td style="padding: 4px; font-weight: bold;">Trappings:</td><td style="text-align: right;"><input type="number" id="m-enc-trappings" oninput="calcEncSummary()" style="width: 55px; text-align: center; border: 1px solid #8b7961; font-weight: bold;" value="0"></td></tr>
+                                <tr style="border-top: 1px solid #8b7961;"><td style="padding: 4px; font-weight: bold; color: #7a1717;">Max Enc.:</td><td style="text-align: right;"><input type="number" id="m-enc-max" style="width: 55px; text-align: center; border: 1.5px solid #7a1717; font-weight: bold; color: #7a1717; background: #fff;" value="6"></td></tr>
+                                <tr><td style="padding: 4px; font-weight: bold; color: #7a1717;">Total:</td><td style="text-align: right;"><input type="number" id="m-enc-curr" readonly style="width: 55px; text-align: center; border: 1.5px solid #7a1717; font-weight: bold; color: #7a1717; background: #fcefdc;" value="0"></td></tr>
+                            </table>
+                        </fieldset>
+
+                        <!-- Wealth & Money Box -->
+                        <fieldset style="border: 2px solid #7a1717; border-radius: 4px; padding: 14px; background: #faf4e8;">
+                            <legend style="font-family: var(--font-title); font-weight: bold; font-size: 14px; color: #7a1717; padding: 0 8px;">💰 WEALTH & MONEY</legend>
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; font-size: 12px; font-weight: bold;">
+                                <div><span style="color: #b8860b;">GC (Gold)</span><input type="number" id="m-money-gc" style="width: 100%; text-align: center; border: 1.5px solid #8b7961; font-size: 14px; font-weight: bold; color: #1c130b; padding: 3px 0;" value="0"></div>
+                                <div><span style="color: #708090;">ss (Silver)</span><input type="number" id="m-money-ss" style="width: 100%; text-align: center; border: 1.5px solid #8b7961; font-size: 14px; font-weight: bold; color: #1c130b; padding: 3px 0;" value="0"></div>
+                                <div><span style="color: #8b4513;">d (Brass)</span><input type="number" id="m-money-bp" style="width: 100%; text-align: center; border: 1.5px solid #8b7961; font-size: 14px; font-weight: bold; color: #1c130b; padding: 3px 0;" value="0"></div>
+                            </div>
+                        </fieldset>
+
+                        <!-- Corruption & Psychology -->
+                        <fieldset style="border: 2px solid #7a1717; border-radius: 4px; padding: 10px; background: #faf4e8;">
+                            <legend style="font-family: var(--font-title); font-weight: bold; font-size: 13px; color: #7a1717; padding: 0 6px;">CORRUPTION & MUTATIONS</legend>
+                            <div style="display: flex; gap: 8px; align-items: center; font-size: 12px; margin-bottom: 6px;">
+                                <span>Corruption: <input type="number" id="m-char-corr-curr" style="width:35px; text-align:center; border:1px solid #8b7961; font-weight:bold;" value="0"> / <input type="number" id="m-char-corr-max" style="width:35px; text-align:center; border:1px solid #8b7961; font-weight:bold;" value="6"></span>
+                            </div>
+                            <textarea id="m-char-psychology" rows="2" placeholder="Psychology & Mutations..." style="width: 100%; border: 1.5px solid #8b7961; background: #fff8ee; font-size: 12px; color: #1c130b; padding: 4px; box-sizing: border-box; border-radius: 3px;"></textarea>
+                        </fieldset>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+<!-- TAB 3: AMBITIONS -->
+            <div id="modal-tab-ambitions" style="display: none;">
+                <fieldset style="border: 2px solid #7a1717; border-radius: 4px; padding: 16px; background: #faf4e8; font-size: 13px;">
+                    <legend style="font-family: var(--font-title); font-weight: bold; font-size: 15px; color: #7a1717; padding: 0 8px;">PARTY & PERSONAL AMBITIONS</legend>
+                    <div style="margin-bottom: 12px;">
+                        <label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:4px;">Short-Term Ambition:</label>
+                        <input type="text" id="m-amb-short" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:13px; color:#1c130b; padding:6px; box-sizing:border-box;">
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:4px;">Long-Term Ambition:</label>
+                        <input type="text" id="m-amb-long" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:13px; color:#1c130b; padding:6px; box-sizing:border-box;">
+                    </div>
+                    <div>
+                        <label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:4px;">Party Ambition:</label>
+                        <input type="text" id="m-amb-party" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:13px; color:#1c130b; padding:6px; box-sizing:border-box;">
+                    </div>
+                </fieldset>
+            </div>
+
+            <!-- TAB 4: TEN QUESTIONS -->
+            <div id="modal-tab-questions" style="display: none;">
+                <fieldset style="border: 2px solid #7a1717; border-radius: 4px; padding: 16px; background: #faf4e8; font-size: 13px;">
+                    <legend style="font-family: var(--font-title); font-weight: bold; font-size: 15px; color: #7a1717; padding: 0 8px;">TEN QUESTIONS</legend>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:2px;">1. Where are you from?</label><input type="text" id="m-q-origin" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:12px; color:#1c130b; padding:4px;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:2px;">2. What is your family like?</label><input type="text" id="m-q-family" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:12px; color:#1c130b; padding:4px;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:2px;">3. What was your childhood like?</label><input type="text" id="m-q-childhood" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:12px; color:#1c130b; padding:4px;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:2px;">4. Why did you leave your home?</label><input type="text" id="m-q-why_leave" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:12px; color:#1c130b; padding:4px;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:2px;">5. Who are your best friends?</label><input type="text" id="m-q-friends" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:12px; color:#1c130b; padding:4px;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:2px;">6. What is your greatest desire?</label><input type="text" id="m-q-desire" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:12px; color:#1c130b; padding:4px;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:2px;">7. What is your best/worst memory?</label><input type="text" id="m-q-memories" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:12px; color:#1c130b; padding:4px;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:2px;">8. What is your religion?</label><input type="text" id="m-q-religion" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:12px; color:#1c130b; padding:4px;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:2px;">9. To whom are you loyal?</label><input type="text" id="m-q-loyalty" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:12px; color:#1c130b; padding:4px;"></div>
+                        <div><label style="font-weight:bold; color:#4a1212; display:block; margin-bottom:2px;">10. What is your deepest secret?</label><input type="text" id="m-q-secret" style="width:100%; border:1.5px solid #8b7961; background:#fff8ee; font-size:12px; color:#1c130b; padding:4px;"></div>
+                    </div>
+                </fieldset>
+            </div>
+
+            <!-- Modal Footer Action Bar -->
+            <div style="border-top: 3px double #7a1717; padding-top: 14px; margin-top: 22px; display: flex; justify-content: flex-end; gap: 12px;">
+                <button onclick="openDeleteConfirmModal()" style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 8px 18px; font-family: var(--font-title); font-weight: bold; font-size: 13px; cursor: pointer; border-radius: 4px; transition: background 0.2s;">🗑️ DELETE CHARACTER</button>
+                <button onclick="closeCharSheetModal()" style="background: #3d2f23; color: #f7efe2; border: 1.5px solid #231911; padding: 8px 18px; font-weight: bold; font-size: 13px; cursor: pointer; border-radius: 4px;">CANCEL</button>
+                <button id="save-char-sheet-modal-btn" onclick="saveModalCharSheet()" style="background: #7a1717; color: #f5ebd9; border: 2px solid #d4af37; padding: 8px 24px; font-family: var(--font-title); font-weight: bold; font-size: 14px; cursor: pointer; border-radius: 4px; box-shadow: 0 0 12px rgba(122,23,23,0.6);">💾 SAVE CHARACTER SHEET</button>
             </div>
         </div>
     </div>
@@ -2079,9 +3268,91 @@ HTML_CLIENT = """<!DOCTYPE html>
     </div>
 
 
-    <script src="/api/app.js"></script></script>
+
+<!-- WFRP 4E SPELL & PRAYER SELECTION MODAL -->
+<div id="spell-select-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 30000; justify-content: center; align-items: center; padding: 20px;">
+    <div style="background: #f7efe2; border: 3px solid #7a1717; box-shadow: 0 10px 30px rgba(0,0,0,0.8); width: 850px; max-width: 95vw; max-height: 85vh; display: flex; flex-direction: column; border-radius: 6px; overflow: hidden;">
+        
+        <!-- Header -->
+        <div style="background: #7a1717; color: #f7efe2; padding: 12px 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #4a0e0e;">
+            <div style="font-family: var(--font-title); font-size: 18px; font-weight: bold; letter-spacing: 1px;">✨ SELECT SPELL OR PRAYER (WFRP 4E)</div>
+            <button type="button" onclick="closeSpellSelectModal()" style="background: transparent; border: none; color: #f7efe2; font-size: 20px; cursor: pointer; font-weight: bold;">✖</button>
+        </div>
+
+        <!-- Sub-Navigation Category Tabs -->
+        <div style="display: flex; gap: 4px; background: #e3d3bd; padding: 8px 14px; border-bottom: 1.5px solid #8b7961; overflow-x: auto;">
+            <button type="button" class="spell-cat-tab active" id="sp-tab-petty" onclick="switchSpellCategory('petty')" style="background: #7a1717; color: #fff; border: 1px solid #4a0e0e; padding: 6px 12px; font-family: var(--font-title); font-size: 12px; font-weight: bold; cursor: pointer; border-radius: 3px;">✨ PETTY SPELLS</button>
+            <button type="button" class="spell-cat-tab" id="sp-tab-arcane" onclick="switchSpellCategory('arcane')" style="background: #faf4e8; color: #1c130b; border: 1px solid #8b7961; padding: 6px 12px; font-family: var(--font-title); font-size: 12px; font-weight: bold; cursor: pointer; border-radius: 3px;">⚡ ARCANE SPELLS</button>
+            <button type="button" class="spell-cat-tab" id="sp-tab-blessings" onclick="switchSpellCategory('blessings')" style="background: #faf4e8; color: #1c130b; border: 1px solid #8b7961; padding: 6px 12px; font-family: var(--font-title); font-size: 12px; font-weight: bold; cursor: pointer; border-radius: 3px;">🙏 BLESSINGS</button>
+            <button type="button" class="spell-cat-tab" id="sp-tab-miracles" onclick="switchSpellCategory('miracles')" style="background: #faf4e8; color: #1c130b; border: 1px solid #8b7961; padding: 6px 12px; font-family: var(--font-title); font-size: 12px; font-weight: bold; cursor: pointer; border-radius: 3px;">⚔️ MIRACLES</button>
+            <button type="button" onclick="selectBlankSpell()" style="background: #3d2f23; color: #f7efe2; border: 1px solid #1c130b; padding: 6px 12px; font-family: var(--font-title); font-size: 12px; font-weight: bold; cursor: pointer; border-radius: 3px; margin-left: auto;">✏️ ADD BLANK ROW</button>
+        </div>
+
+        <!-- Filter & Search Bar -->
+        <div style="padding: 10px 18px; background: #faf4e8; border-bottom: 1px solid #d4c4ad; display: flex; gap: 10px; align-items: center;">
+            <input type="text" id="spell-search-inp" oninput="filterSpellList()" placeholder="🔍 Search spell name or effect..." style="flex: 1; padding: 6px 10px; border: 1.5px solid #8b7961; border-radius: 4px; font-size: 13px; background: #fff8ee;">
+        </div>
+
+        <!-- Spell List Viewport -->
+        <div id="spell-list-container" style="flex: 1; overflow-y: auto; padding: 14px 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <!-- Spell cards dynamically rendered here -->
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #e3d3bd; padding: 10px 18px; border-top: 1.5px solid #8b7961; text-align: right;">
+            <button type="button" onclick="closeSpellSelectModal()" style="background: #7a1717; color: #fff; border: 1px solid #4a0e0e; padding: 6px 16px; font-family: var(--font-title); font-weight: bold; cursor: pointer; border-radius: 3px;">CANCEL</button>
+        </div>
+
+    </div>
+</div>
 
 
+
+<!-- WFRP 4E WEAPON QUALITIES & FLAWS MODAL -->
+<div id="qualities-select-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 30000; justify-content: center; align-items: center; padding: 20px;">
+    <div style="background: #f7efe2; border: 3px solid #7a1717; box-shadow: 0 10px 30px rgba(0,0,0,0.8); width: 750px; max-width: 95vw; max-height: 85vh; display: flex; flex-direction: column; border-radius: 6px; overflow: hidden;">
+        
+        <!-- Header -->
+        <div style="background: #7a1717; color: #f7efe2; padding: 12px 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #4a0e0e;">
+            <div style="font-family: var(--font-title); font-size: 17px; font-weight: bold;">🛡️ WEAPON QUALITIES & FLAWS SELECTION</div>
+            <button type="button" onclick="closeQualitiesModal()" style="background: transparent; border: none; color: #f7efe2; font-size: 20px; cursor: pointer; font-weight: bold;">✖</button>
+        </div>
+
+        <!-- Body -->
+        <div style="flex: 1; overflow-y: auto; padding: 16px 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            
+            <!-- Qualities Column -->
+            <fieldset style="border: 2px solid #1c521c; border-radius: 4px; padding: 12px; background: #f2fbf2;">
+                <legend style="font-family: var(--font-title); font-weight: bold; font-size: 14px; color: #1c521c; padding: 0 6px;">🟢 QUALITIES (BENEFITS)</legend>
+                <div id="qualities-checkbox-list" style="display: flex; flex-direction: column; gap: 8px; font-size: 12px;">
+                    <!-- Checkboxes rendered dynamically -->
+                </div>
+            </fieldset>
+
+            <!-- Flaws Column -->
+            <fieldset style="border: 2px solid #7a1717; border-radius: 4px; padding: 12px; background: #fff4f4;">
+                <legend style="font-family: var(--font-title); font-weight: bold; font-size: 14px; color: #7a1717; padding: 0 6px;">🔴 FLAWS (DRAWBACKS)</legend>
+                <div id="flaws-checkbox-list" style="display: flex; flex-direction: column; gap: 8px; font-size: 12px;">
+                    <!-- Checkboxes rendered dynamically -->
+                </div>
+            </fieldset>
+
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #e3d3bd; padding: 12px 18px; border-top: 1.5px solid #8b7961; display: flex; justify-content: space-between; align-items: center;">
+            <input type="text" id="custom-quality-input" placeholder="Or type custom quality/flaw..." style="flex: 1; margin-right: 12px; padding: 6px; border: 1.5px solid #8b7961; border-radius: 3px; font-size: 12px; background: #fff;">
+            <button type="button" onclick="applySelectedQualities()" style="background: #7a1717; color: #fff; border: 1px solid #4a0e0e; padding: 8px 18px; font-family: var(--font-title); font-weight: bold; cursor: pointer; border-radius: 3px;">APPLY QUALITIES</button>
+        </div>
+
+    </div>
+</div>
+
+
+<datalist id="trappings-list"></datalist>
+<datalist id="weapons-list"></datalist>
+<datalist id="armour-list"></datalist>
+<script src="/api/app.js?v=2"></script>
 </body>
 </html>
 """

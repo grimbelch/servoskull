@@ -9,6 +9,7 @@ from __future__ import annotations
 import threading
 import time
 import collections
+import json
 
 from skull import config
 
@@ -57,6 +58,17 @@ def _continuous_poll_loop() -> None:
                 _last_poll_time = time.time()
                 if cm is not None:
                     _readings_buffer.append(cm)
+            try:
+                p_file = config.data_path("telemetry_proximity.json")
+                p_file.parent.mkdir(parents=True, exist_ok=True)
+                p_file.write_text(json.dumps({
+                    "enabled": config.PROXIMITY_ENABLED,
+                    "available": _available,
+                    "distance_cm": round(cm, 1) if cm is not None else None,
+                    "timestamp": time.time()
+                }))
+            except Exception:
+                pass
         except Exception as e:
             print(f"[proximity] Error in continuous poll loop: {e}")
         if _stop_event.wait(config.PROXIMITY_POLL_INTERVAL):

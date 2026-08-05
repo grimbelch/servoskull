@@ -243,6 +243,9 @@ def _blit(img) -> None:
     try:
         with _frame_lock:
             _current_frame_image = img.copy()
+            o_file = config.data_path("ocular_frame.jpg")
+            o_file.parent.mkdir(parents=True, exist_ok=True)
+            img.save(o_file, format="JPEG", quality=70)
     except Exception:
         pass
 
@@ -1482,14 +1485,18 @@ def get_custom_image_bytes() -> bytes | None:
 def get_ocular_frame_bytes() -> bytes | None:
     global _current_frame_image
     with _frame_lock:
-        if _current_frame_image is None:
-            return None
-        try:
-            import io
-            buf = io.BytesIO()
-            # Compress at 70% quality for fast network transport
-            _current_frame_image.save(buf, format="JPEG", quality=70)
-            return buf.getvalue()
-        except Exception as e:
-            print(f"[display] Failed to get ocular frame bytes: {e}")
-            return None
+        if _current_frame_image is not None:
+            try:
+                import io
+                buf = io.BytesIO()
+                _current_frame_image.save(buf, format="JPEG", quality=70)
+                return buf.getvalue()
+            except Exception as e:
+                print(f"[display] Failed to get ocular frame bytes: {e}")
+    try:
+        o_file = config.data_path("ocular_frame.jpg")
+        if o_file.exists():
+            return o_file.read_bytes()
+    except Exception:
+        pass
+    return None

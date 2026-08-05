@@ -44,14 +44,28 @@ def publish_camera_frame(jpeg_bytes: bytes, active_sec: float = 5.0) -> None:
 
 def is_camera_active() -> bool:
     with _camera_active_lock:
-        return time.time() < _camera_active_until
+        if time.time() < _camera_active_until:
+            return True
+    try:
+        f_path = config.data_path("latest_frame.jpg")
+        if f_path.exists() and (time.time() - f_path.stat().st_mtime) < 30.0:
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def get_camera_frame_bytes() -> bytes | None:
     with _camera_active_lock:
-        if time.time() < _camera_active_until:
+        if time.time() < _camera_active_until and _latest_camera_jpeg:
             return _latest_camera_jpeg
-        return None
+    try:
+        f_path = config.data_path("latest_frame.jpg")
+        if f_path.exists():
+            return f_path.read_bytes()
+    except Exception:
+        pass
+    return None
 
 
 def _is_blank(gray) -> bool:
