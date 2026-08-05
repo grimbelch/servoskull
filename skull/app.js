@@ -1569,7 +1569,7 @@ function renderCampaignDashboard(c) {
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; border-bottom: 2px solid #7a1717; padding-bottom: 8px;">
                     <div>
                         <h3 style="font-family: var(--font-title); font-size: 20px; font-weight: bold; color: #7a1717; margin: 0 0 2px 0;">${char.name || 'Unnamed Agent'}</h3>
-                        <div style="font-size: 13px; color: #4a3c30; font-weight: bold;">${char.race || 'Human'} ${char.career || 'Career'} (Lvl ${char.career_level || '1'})</div>
+                        <div style="font-size: 13px; color: #4a3c30; font-weight: bold;">${char.race || 'Human'} ${char.career || 'Career'} • ${formatCareerLevel(char.career_level)}</div>
                     </div>
                     <span style="font-size: 11px; background: #7a1717; color: #f7efe2; padding: 3px 8px; border-radius: 3px; font-weight: bold; font-family: var(--font-title);">${char.status || 'Tier I'}</span>
                 </div>
