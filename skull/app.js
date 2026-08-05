@@ -1530,7 +1530,6 @@ function renderCampaignDashboard(c) {
 
     if (!c) {
         setInner('c-tab-badge', 'NO CAMPAIGN');
-        setInner('c-name-title', '◆ NO CAMPAIGN SELECTED ◆');
         setInner('c-location', 'The Reikland');
         setInner('c-adventure', 'None');
         const g = document.getElementById('character-roster-grid');
@@ -1539,7 +1538,6 @@ function renderCampaignDashboard(c) {
     }
 
     setInner('c-tab-badge', (c.name || 'UNNAMED CAMPAIGN').toUpperCase());
-    setInner('c-name-title', '◆ PARTY ROSTER & SESSION MANAGER ◆');
     setInner('c-location', c.current_location || 'The Reikland');
     setInner('c-adventure', c.adventure || 'Standard Campaign');
     setVal('c-amb-short-inp', c.party_ambition_short || '');

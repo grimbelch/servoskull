@@ -2200,11 +2200,6 @@ HTML_CLIENT = """<!DOCTYPE html>
                 </div>
             </div>
 
-            <!-- Main Chapter Title (WFRP Style: ◆ PARTY ROSTER & SESSION MANAGER ◆) -->
-            <div style="text-align: center; margin-bottom: 30px;">
-                <h1 id="c-name-title" style="font-family: var(--font-title); font-size: 28px; font-weight: 900; color: #1c130b; margin: 0 0 6px 0; letter-spacing: 2px;">◆ PARTY ROSTER & SESSION MANAGER ◆</h1>
-                <div style="font-size: 15px; font-style: italic; color: #5c4732;">Active Old World Adventurers & Gamemaster Journal</div>
-            </div>
 
             <!-- Two-Column Overview Spread (Matching WFRP Rulebook Sidebar Callout Style) -->
             <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 32px;">
