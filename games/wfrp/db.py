@@ -469,8 +469,15 @@ def get_campaign_dict(slug_or_name: str) -> Optional[dict]:
     cur_chars = conn.execute("SELECT * FROM characters WHERE campaign_id = ?", (cid,))
     chars_list = []
     for c_row in cur_chars.fetchall():
-        c_dict = dict(c_row)
-        c_dict["race"] = c_dict.pop("species", "Human")
+        race_val = c_dict.pop("species", None) or c_dict.get("race") or "Human"
+        c_dict["race"] = race_val
+        c_dict["species"] = race_val
+        c_dict["hair"] = c_dict.get("hair_color") or c_dict.get("hair", "")
+        c_dict["hair_color"] = c_dict["hair"]
+        c_dict["eyes"] = c_dict.get("eye_color") or c_dict.get("eyes", "")
+        c_dict["eye_color"] = c_dict["eyes"]
+        c_dict["starsign"] = c_dict.get("star_sign") or c_dict.get("starsign", "")
+        c_dict["star_sign"] = c_dict["starsign"]
         c_dict["class"] = c_dict.pop("class_name", "Academics")
         c_dict["characteristics"] = json.loads(c_dict.pop("characteristics_json") or "{}")
         c_dict["basic_skill_advances"] = json.loads(c_dict.pop("basic_skill_advances_json") or "{}")
@@ -643,7 +650,7 @@ def upsert_character_record(slug: str, char_dict: dict) -> None:
                 WHERE id = ?
             """, (
                 c_name,
-                char_dict.get("race", "Human"),
+                char_dict.get("race") or char_dict.get("species", "Human"),
                 char_dict.get("class", "Academics"),
                 char_dict.get("career", "Scholar"),
                 char_dict.get("career_level", "1"),
@@ -651,10 +658,10 @@ def upsert_character_record(slug: str, char_dict: dict) -> None:
                 char_dict.get("status", "Brass 3"),
                 char_dict.get("age"),
                 char_dict.get("height", ""),
-                char_dict.get("hair_color", ""),
-                char_dict.get("eye_color", ""),
+                char_dict.get("hair_color") or char_dict.get("hair", ""),
+                char_dict.get("eye_color") or char_dict.get("eyes", ""),
                 char_dict.get("doomed", ""),
-                char_dict.get("star_sign", ""),
+                char_dict.get("star_sign") or char_dict.get("starsign", ""),
                 char_dict.get("motivation", ""),
                 w_curr, w_max, char_dict.get("hardy_advances", 0),
                 f_curr, f_tot, fort_curr,
@@ -694,7 +701,7 @@ def upsert_character_record(slug: str, char_dict: dict) -> None:
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 cid, c_name,
-                char_dict.get("race", "Human"),
+                char_dict.get("race") or char_dict.get("species", "Human"),
                 char_dict.get("class", "Academics"),
                 char_dict.get("career", "Scholar"),
                 char_dict.get("career_level", "1"),
@@ -702,10 +709,10 @@ def upsert_character_record(slug: str, char_dict: dict) -> None:
                 char_dict.get("status", "Brass 3"),
                 char_dict.get("age"),
                 char_dict.get("height", ""),
-                char_dict.get("hair_color", ""),
-                char_dict.get("eye_color", ""),
+                char_dict.get("hair_color") or char_dict.get("hair", ""),
+                char_dict.get("eye_color") or char_dict.get("eyes", ""),
                 char_dict.get("doomed", ""),
-                char_dict.get("star_sign", ""),
+                char_dict.get("star_sign") or char_dict.get("starsign", ""),
                 char_dict.get("motivation", ""),
                 w_curr, w_max, char_dict.get("hardy_advances", 0),
                 f_curr, f_tot, fort_curr,
