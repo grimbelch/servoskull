@@ -15,13 +15,13 @@ from skull import quiet as _quiet
 from skull import candles as _candles
 from skull import llm as _llm
 from skull import display as _display
-from games.roleplay import whfrp
+from games import wfrp
 
 _history: list[dict] = []
 
 # Tools that hit the network/hardware and can take a noticeable moment. Omega-7
 # speaks a short "stand by" before running any of these so the user gets feedback.
-_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings", "register_face", "register_voice", "purge_identity", "connect_bambu_printer", "set_weather_location", "get_spotify_current_track"} | whfrp.tools.SLOW_TOOLS
+_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings", "register_face", "register_voice", "purge_identity", "connect_bambu_printer", "set_weather_location", "get_spotify_current_track"} | wfrp.tools.SLOW_TOOLS
 
 _HISTORY_PATH = config.data_path(config.HISTORY_FILE)
 _last_turn_tools: list[str] = []
@@ -776,14 +776,13 @@ def _build_tools() -> list[dict]:
     },
     {
         "name": "set_active_game",
-        "description": "Configure which tabletop game is currently being played (e.g. 'Warhammer 40k', 'Necromunda', 'NetEpic', or 'NetEpic Armageddon') so that dice rolls default to that game context.",
+        "description": "Configure which tabletop or roleplaying game is currently being played (e.g. 'Warhammer Fantasy Roleplay', 'WFRP', 'Shadows Over Reikland', 'Warhammer 40k', 'Necromunda', 'NetEpic', 'Kill Team', etc.) so that the active game indicator and web console update.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "game": {
                     "type": "string",
-                    "enum": ["Warhammer 40k", "Necromunda", "NetEpic", "NetEpic Armageddon"],
-                    "description": "The name of the game being played."
+                    "description": "The name of the game or roleplaying campaign being played."
                 }
             },
             "required": ["game"]
@@ -1109,7 +1108,7 @@ def _build_tools() -> list[dict]:
         }
     },
     ]
-    tools.extend(whfrp.tools.TOOLS)
+    tools.extend(wfrp.tools.TOOLS)
     return tools
 
 
@@ -1440,6 +1439,51 @@ def get_current_game() -> str:
         return json.loads(path.read_text()).get("game", "Warhammer 40k")
     except Exception:
         return "Warhammer 40k"
+
+
+def get_active_tools_for_game(game_name: str) -> list[dict]:
+    """Filter the complete _TOOLS list so that game-specific rule and campaign tools
+    are ONLY exposed to the LLM when their corresponding game is active.
+    This prevents cross-game tool calls (e.g. calling 40k rules while playing WFRP)."""
+    g_lower = (game_name or "").lower()
+
+    whfrp_tools = {
+        "whfrp_rules", "whfrp_lookup_character", "whfrp_lookup_npc", "whfrp_lookup_location",
+        "whfrp_log_timeline_event", "roll_whfrp_dice", "start_campaign", "list_campaigns",
+        "get_campaign_state", "save_campaign_state", "roll_character_stats", "save_character",
+        "roll_random_talent", "get_species_info", "get_class_trappings", "roll_starting_wealth",
+        "roll_physical_details"
+    }
+    w40k_tools = {"warhammer40k_rules"}
+    necro_tools = {"necromunda_rules"}
+    netepic_tools = {"netepic_rules"}
+    netea_tools = {"netea_rules"}
+
+    all_game_specific = whfrp_tools | w40k_tools | necro_tools | netepic_tools | netea_tools
+
+    if "fantasy" in g_lower or "whfrp" in g_lower or "warhammer fantasy" in g_lower:
+        allowed_game_tools = whfrp_tools
+    elif "40k" in g_lower or "40,000" in g_lower or "warhammer 40k" in g_lower:
+        allowed_game_tools = w40k_tools
+    elif "necromunda" in g_lower:
+        allowed_game_tools = necro_tools
+    elif "netepic" in g_lower or "epic 40,000" in g_lower:
+        allowed_game_tools = netepic_tools
+    elif "netea" in g_lower or "armageddon" in g_lower:
+        allowed_game_tools = netea_tools
+    else:
+        allowed_game_tools = whfrp_tools if "whfrp" in g_lower else w40k_tools
+
+    filtered = []
+    for t in _TOOLS:
+        t_name = t.get("name")
+        if t_name in all_game_specific:
+            if t_name in allowed_game_tools:
+                filtered.append(t)
+        else:
+            filtered.append(t)
+
+    return filtered
 
 
 def set_current_game(game: str) -> None:
@@ -2079,8 +2123,18 @@ def _tool_save_character(i):
         "skills": i.get("skills", []),
         "talents": i.get("talents", []),
         "trappings": i.get("trappings", []),
+        "age": i.get("age", None),
+        "height": i.get("height", ""),
+        "eye_color": i.get("eye_color", ""),
+        "hair_color": i.get("hair_color", ""),
+        "money": i.get("money", {"gc": 0, "ss": 0, "bp": 0}),
+        "ambitions": i.get("ambitions", {"short": "", "long": "", "party": ""}),
+        "ten_questions": i.get("ten_questions", {
+            "origin": "", "family": "", "childhood": "", "why_leave": "", "friends": "",
+            "desire": "", "memories": "", "religion": "", "loyalty": "", "secret": ""
+        }),
         "xp": i.get("xp", 0),
-        "xp_spent": 0,
+        "xp_spent": i.get("xp_spent", 0),
         "doomed": i.get("doomed", ""),
         "star_sign": i.get("star_sign", ""),
         "motivation": i.get("motivation", ""),
@@ -2641,6 +2695,16 @@ def _tool_auspex_scan(i):
 def _tool_set_active_game(i):
     game = str(i.get("game", "Warhammer 40k")).strip()
     set_current_game(game)
+    try:
+        from games import wfrp
+        if game.lower() in ["wfrp", "warhammer fantasy roleplay", "warhammer roleplay"]:
+            campaigns = wfrp.campaign.list_campaigns()
+            if campaigns:
+                wfrp.campaign.load_campaign(campaigns[0]["name"])
+        else:
+            wfrp.campaign.load_campaign(game)
+    except Exception:
+        pass
     print(f"[brain] Active game set to {game}")
     return f"Active game is now set to {game}."
 
@@ -2887,7 +2951,7 @@ _TOOL_REGISTRY = {
     "play_idle_animation": _tool_play_idle_animation,
     "purge_identity": _tool_purge_identity,
 }
-_TOOL_REGISTRY.update(whfrp.tools.HANDLERS)
+_TOOL_REGISTRY.update(wfrp.tools.HANDLERS)
 
 
 def _execute_tool(name: str, tool_input: dict) -> str:
@@ -3115,8 +3179,11 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
             "If they agree, execute the 'register_voice' tool with their name."
         )
         
-    whfrp_prompt = f"\n\n{whfrp.get_persona_prompt()}" if whfrp.get_persona_prompt() else ""
-    system_suffix = (date_ctx + game_ctx + speaker_ctx + whfrp_prompt
+    whfrp_prompt = f"\n\n{wfrp.get_persona_prompt()}" if wfrp.get_persona_prompt() else ""
+    equip_hint = ""
+    if user_text and any(k in user_text.lower() for k in ["equip", "trapping", "weapon", "armour", "armor", "item", "gear", "carry"]):
+        equip_hint = "\n\nCRITICAL DIRECTIVE: The user is asking about character equipment or status. You MUST call whfrp_lookup_character(name='Tayla') [or the relevant character name] to read live equipment and weapon details from the SQLite database before responding! DO NOT call warhammer40k_rules or rely on conversation memory."
+    system_suffix = (date_ctx + game_ctx + speaker_ctx + whfrp_prompt + equip_hint
                      + _memory.longterm_prompt(longterm) + _memory.facts_prompt(facts) + _mood.system_addendum())
 
 
@@ -3135,7 +3202,7 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
         system_suffix=system_suffix,
         history=_history,
         user_text=formatted_user_text,
-        tools=_TOOLS,
+        tools=get_active_tools_for_game(active_game),
         execute_tool=_exec,
         on_tool_use=on_tool_use,
         slow_tools=_SLOW_TOOLS,

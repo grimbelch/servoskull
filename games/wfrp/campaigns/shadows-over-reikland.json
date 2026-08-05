@@ -1,0 +1,77 @@
+{
+  "name": "Shadows Over Reikland",
+  "slug": "shadows-over-reikland",
+  "created": "2026-08-04T09:27:00",
+  "last_modified": "2026-08-04T09:27:45",
+  "adventure": "Shadows Over Reikland",
+  "characters": [
+    {
+      "name": "Tayla Buttersnack",
+      "race": "Halfling",
+      "career": "Scout",
+      "career_level": "Guide (Brass 3)",
+      "characteristics": {
+        "WS": 25,
+        "BS": 45,
+        "S": 27,
+        "T": 34,
+        "I": 24,
+        "Ag": 35,
+        "Dex": 44,
+        "Int": 29,
+        "WP": 32,
+        "Fel": 34
+      },
+      "wounds": {
+        "max": 11,
+        "current": 11
+      },
+      "fate": {
+        "total": 3,
+        "current": 3
+      },
+      "fortune": {
+        "total": 3,
+        "current": 3
+      },
+      "resilience": 0,
+      "resolve": 0,
+      "move": 3,
+      "skills": [
+        "Charm Animal",
+        "Climb",
+        "Endurance",
+        "Gossip",
+        "Lore (Local)",
+        "Melee (Basic)",
+        "Outdoor Survival",
+        "Perception"
+      ],
+      "talents": [
+        "Orientation",
+        "Rover",
+        "Sharp",
+        "Strider (any)"
+      ],
+      "trappings": [
+        "Hand Weapon",
+        "Leather Jack",
+        "Sturdy Boots and Cloak",
+        "Rope"
+      ],
+      "age": 32,
+      "height": "3'4\"",
+      "eye_color": "Hazel",
+      "hair_color": "Chestnut",
+      "xp": 75,
+      "xp_spent": 0,
+      "doomed": "",
+      "star_sign": "",
+      "motivation": ""
+    }
+  ],
+  "current_location": "",
+  "current_scene": "",
+  "active_npcs": [],
+  "session_notes": []
+}

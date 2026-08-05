@@ -1,0 +1,6470 @@
+[
+  {
+    "path": "core-rules/p01",
+    "file": "core-rules/p01-core-rules.md",
+    "title": "CORE RULES",
+    "url": "Core Rules, p.1"
+  },
+  {
+    "path": "core-rules/p02",
+    "file": "core-rules/p02-each-section-and-subsection-is-marked-with-a-refer.md",
+    "title": "Each section and subsection is marked with a reference number; these are used",
+    "url": "Core Rules, p.2"
+  },
+  {
+    "path": "core-rules/p04",
+    "file": "core-rules/p04-introduction.md",
+    "title": "INTRODUCTION",
+    "url": "Core Rules, p.4"
+  },
+  {
+    "path": "core-rules/p05",
+    "file": "core-rules/p05-warhammer.md",
+    "title": "WARHAMMER",
+    "url": "Core Rules, p.5"
+  },
+  {
+    "path": "core-rules/p08",
+    "file": "core-rules/p08-core-concepts.md",
+    "title": "CORE CONCEPTS",
+    "url": "Core Rules, p.8"
+  },
+  {
+    "path": "core-rules/p09",
+    "file": "core-rules/p09-measuring-distances-01-04.md",
+    "title": "MEASURING DISTANCES 01.04",
+    "url": "Core Rules, p.9"
+  },
+  {
+    "path": "core-rules/p10",
+    "file": "core-rules/p10-datasheets.md",
+    "title": "DATASHEETS",
+    "url": "Core Rules, p.10"
+  },
+  {
+    "path": "core-rules/p11",
+    "file": "core-rules/p11-boyz.md",
+    "title": "BOYZ",
+    "url": "Core Rules, p.11"
+  },
+  {
+    "path": "core-rules/p12",
+    "file": "core-rules/p12-during-a-battle-you-will-move-your-models-by-picki.md",
+    "title": "During a battle, you will move your models by picking them up and changing",
+    "url": "Core Rules, p.12"
+  },
+  {
+    "path": "core-rules/p13",
+    "file": "core-rules/p13-see-also.md",
+    "title": "SEE ALSO",
+    "url": "Core Rules, p.13"
+  },
+  {
+    "path": "core-rules/p14",
+    "file": "core-rules/p14-set-up-03-02.md",
+    "title": "SET UP 03.02",
+    "url": "Core Rules, p.14"
+  },
+  {
+    "path": "core-rules/p15",
+    "file": "core-rules/p15-coherency.md",
+    "title": "COHERENCY",
+    "url": "Core Rules, p.15"
+  },
+  {
+    "path": "core-rules/p16",
+    "file": "core-rules/p16-models-without.md",
+    "title": "MODELS WITHOUT",
+    "url": "Core Rules, p.16"
+  },
+  {
+    "path": "core-rules/p17",
+    "file": "core-rules/p17-3-resolve-attacks-04-03.md",
+    "title": "3. RESOLVE ATTACKS 04.03",
+    "url": "Core Rules, p.17"
+  },
+  {
+    "path": "core-rules/p18",
+    "file": "core-rules/p18-attack-sequence.md",
+    "title": "ATTACK SEQUENCE",
+    "url": "Core Rules, p.18"
+  },
+  {
+    "path": "core-rules/p19",
+    "file": "core-rules/p19-current-allocation.md",
+    "title": "CURRENT ALLOCATION",
+    "url": "Core Rules, p.19"
+  },
+  {
+    "path": "core-rules/p20",
+    "file": "core-rules/p20-1-select-weapons.md",
+    "title": "1. SELECT WEAPONS",
+    "url": "Core Rules, p.20"
+  },
+  {
+    "path": "core-rules/p21",
+    "file": "core-rules/p21-1-hit-rolls.md",
+    "title": "1. HIT ROLLS",
+    "url": "Core Rules, p.21"
+  },
+  {
+    "path": "core-rules/p22",
+    "file": "core-rules/p22-attack-sequence-examples.md",
+    "title": "ATTACK SEQUENCE EXAMPLES",
+    "url": "Core Rules, p.22"
+  },
+  {
+    "path": "core-rules/p23",
+    "file": "core-rules/p23-1-create-groups-and-declare-order.md",
+    "title": "1. CREATE GROUPS AND DECLARE ORDER",
+    "url": "Core Rules, p.23"
+  },
+  {
+    "path": "core-rules/p24",
+    "file": "core-rules/p24-this-section-contains-some-additional-rules-concep.md",
+    "title": "This section contains some additional rules concepts that are most frequently",
+    "url": "Core Rules, p.24"
+  },
+  {
+    "path": "core-rules/p25",
+    "file": "core-rules/p25-model-visible.md",
+    "title": "MODEL VISIBLE",
+    "url": "Core Rules, p.25"
+  },
+  {
+    "path": "core-rules/p28",
+    "file": "core-rules/p28-the-battle-round.md",
+    "title": "THE BATTLE ROUND",
+    "url": "Core Rules, p.28"
+  },
+  {
+    "path": "core-rules/p29",
+    "file": "core-rules/p29-start-of-turn-step.md",
+    "title": "START OF TURN STEP",
+    "url": "Core Rules, p.29"
+  },
+  {
+    "path": "core-rules/p30",
+    "file": "core-rules/p30-command-phase.md",
+    "title": "COMMAND PHASE",
+    "url": "Core Rules, p.30"
+  },
+  {
+    "path": "core-rules/p31",
+    "file": "core-rules/p31-see-also.md",
+    "title": "SEE ALSO",
+    "url": "Core Rules, p.31"
+  },
+  {
+    "path": "core-rules/p32",
+    "file": "core-rules/p32-movement-phase.md",
+    "title": "MOVEMENT PHASE",
+    "url": "Core Rules, p.32"
+  },
+  {
+    "path": "core-rules/p33",
+    "file": "core-rules/p33-remain-stationary-09-04.md",
+    "title": "REMAIN STATIONARY 09.04",
+    "url": "Core Rules, p.33"
+  },
+  {
+    "path": "core-rules/p34",
+    "file": "core-rules/p34-shooting-phase.md",
+    "title": "SHOOTING PHASE",
+    "url": "Core Rules, p.34"
+  },
+  {
+    "path": "core-rules/p35",
+    "file": "core-rules/p35-see-also.md",
+    "title": "SEE ALSO",
+    "url": "Core Rules, p.35"
+  },
+  {
+    "path": "core-rules/p36",
+    "file": "core-rules/p36-charge-phase.md",
+    "title": "CHARGE PHASE",
+    "url": "Core Rules, p.36"
+  },
+  {
+    "path": "core-rules/p37",
+    "file": "core-rules/p37-charge-move-11-04.md",
+    "title": "CHARGE MOVE 11.04",
+    "url": "Core Rules, p.37"
+  },
+  {
+    "path": "core-rules/p38",
+    "file": "core-rules/p38-fight-phase.md",
+    "title": "FIGHT PHASE",
+    "url": "Core Rules, p.38"
+  },
+  {
+    "path": "core-rules/p39",
+    "file": "core-rules/p39-pile-in-moves.md",
+    "title": "PILE-IN MOVES",
+    "url": "Core Rules, p.39"
+  },
+  {
+    "path": "core-rules/p40",
+    "file": "core-rules/p40-fight-phase.md",
+    "title": "FIGHT PHASE",
+    "url": "Core Rules, p.40"
+  },
+  {
+    "path": "core-rules/p41",
+    "file": "core-rules/p41-overrun-fight.md",
+    "title": "OVERRUN FIGHT",
+    "url": "Core Rules, p.41"
+  },
+  {
+    "path": "core-rules/p42",
+    "file": "core-rules/p42-fight-phase.md",
+    "title": "FIGHT PHASE",
+    "url": "Core Rules, p.42"
+  },
+  {
+    "path": "core-rules/p43",
+    "file": "core-rules/p43-the-red.md",
+    "title": "The RED",
+    "url": "Core Rules, p.43"
+  },
+  {
+    "path": "core-rules/p45",
+    "file": "core-rules/p45-battlefields.md",
+    "title": "BATTLEFIELDS",
+    "url": "Core Rules, p.45"
+  },
+  {
+    "path": "core-rules/p46",
+    "file": "core-rules/p46-terrain.md",
+    "title": "TERRAIN",
+    "url": "Core Rules, p.46"
+  },
+  {
+    "path": "core-rules/p47",
+    "file": "core-rules/p47-terrain-placed-on-a-mat.md",
+    "title": "TERRAIN PLACED ON A MAT",
+    "url": "Core Rules, p.47"
+  },
+  {
+    "path": "core-rules/p48",
+    "file": "core-rules/p48-terrain.md",
+    "title": "TERRAIN",
+    "url": "Core Rules, p.48"
+  },
+  {
+    "path": "core-rules/p49",
+    "file": "core-rules/p49-terrain-and-movement.md",
+    "title": "TERRAIN AND MOVEMENT",
+    "url": "Core Rules, p.49"
+  },
+  {
+    "path": "core-rules/p50",
+    "file": "core-rules/p50-terrain-and-visibility-13-07.md",
+    "title": "TERRAIN AND VISIBILITY 13.07",
+    "url": "Core Rules, p.50"
+  },
+  {
+    "path": "core-rules/p51",
+    "file": "core-rules/p51-hidden-and-obscuring.md",
+    "title": "HIDDEN AND OBSCURING",
+    "url": "Core Rules, p.51"
+  },
+  {
+    "path": "core-rules/p52",
+    "file": "core-rules/p52-terrain-objectives-14-01.md",
+    "title": "TERRAIN OBJECTIVES 14.01",
+    "url": "Core Rules, p.52"
+  },
+  {
+    "path": "core-rules/p53",
+    "file": "core-rules/p53-see-also.md",
+    "title": "SEE ALSO",
+    "url": "Core Rules, p.53"
+  },
+  {
+    "path": "core-rules/p54",
+    "file": "core-rules/p54-using-stratagems-15-01.md",
+    "title": "USING STRATAGEMS 15.01",
+    "url": "Core Rules, p.54"
+  },
+  {
+    "path": "core-rules/p55",
+    "file": "core-rules/p55-heroic-intervention-15-11.md",
+    "title": "HEROIC INTERVENTION 15.11",
+    "url": "Core Rules, p.55"
+  },
+  {
+    "path": "core-rules/p56",
+    "file": "core-rules/p56-command-re-roll-15-02.md",
+    "title": "COMMAND RE-ROLL 15.02",
+    "url": "Core Rules, p.56"
+  },
+  {
+    "path": "core-rules/p57",
+    "file": "core-rules/p57-rapid-ingress-15-07.md",
+    "title": "RAPID INGRESS 15.07",
+    "url": "Core Rules, p.57"
+  },
+  {
+    "path": "core-rules/p58",
+    "file": "core-rules/p58-actions.md",
+    "title": "ACTIONS",
+    "url": "Core Rules, p.58"
+  },
+  {
+    "path": "core-rules/p62",
+    "file": "core-rules/p62-monsters-and-vehicles.md",
+    "title": "MONSTERS AND VEHICLES",
+    "url": "Core Rules, p.62"
+  },
+  {
+    "path": "core-rules/p63",
+    "file": "core-rules/p63-engaged-monsters-vehicles-shooting.md",
+    "title": "ENGAGED MONSTERS/VEHICLES - SHOOTING",
+    "url": "Core Rules, p.63"
+  },
+  {
+    "path": "core-rules/p64",
+    "file": "core-rules/p64-transport-capacity-18-01.md",
+    "title": "TRANSPORT CAPACITY 18.01",
+    "url": "Core Rules, p.64"
+  },
+  {
+    "path": "core-rules/p65",
+    "file": "core-rules/p65-disembark-move-18-04.md",
+    "title": "DISEMBARK MOVE 18.04",
+    "url": "Core Rules, p.65"
+  },
+  {
+    "path": "core-rules/p66",
+    "file": "core-rules/p66-attached-units.md",
+    "title": "ATTACHED UNITS",
+    "url": "Core Rules, p.66"
+  },
+  {
+    "path": "core-rules/p67",
+    "file": "core-rules/p67-keywords-in-attached-units-19-03.md",
+    "title": "KEYWORDS IN ATTACHED UNITS 19.03",
+    "url": "Core Rules, p.67"
+  },
+  {
+    "path": "core-rules/p68",
+    "file": "core-rules/p68-strategic-reserves.md",
+    "title": "STRATEGIC RESERVES",
+    "url": "Core Rules, p.68"
+  },
+  {
+    "path": "core-rules/p69",
+    "file": "core-rules/p69-arriving-from.md",
+    "title": "ARRIVING FROM",
+    "url": "Core Rules, p.69"
+  },
+  {
+    "path": "core-rules/p70",
+    "file": "core-rules/p70-surge-moves-21-01.md",
+    "title": "SURGE MOVES 21.01",
+    "url": "Core Rules, p.70"
+  },
+  {
+    "path": "core-rules/p71",
+    "file": "core-rules/p71-see-also.md",
+    "title": "SEE ALSO",
+    "url": "Core Rules, p.71"
+  },
+  {
+    "path": "core-rules/p72",
+    "file": "core-rules/p72-aura-abilities-22-01.md",
+    "title": "AURA ABILITIES 22.01",
+    "url": "Core Rules, p.72"
+  },
+  {
+    "path": "core-rules/p73",
+    "file": "core-rules/p73-plunging-fire-22-05.md",
+    "title": "PLUNGING FIRE 22.05",
+    "url": "Core Rules, p.73"
+  },
+  {
+    "path": "core-rules/p74",
+    "file": "core-rules/p74-aircraft.md",
+    "title": "AIRCRAFT",
+    "url": "Core Rules, p.74"
+  },
+  {
+    "path": "core-rules/p78",
+    "file": "core-rules/p78-core-abilities.md",
+    "title": "CORE ABILITIES",
+    "url": "Core Rules, p.78"
+  },
+  {
+    "path": "core-rules/p79",
+    "file": "core-rules/p79-anti-24-03.md",
+    "title": "[ANTI] 24.03",
+    "url": "Core Rules, p.79"
+  },
+  {
+    "path": "core-rules/p80",
+    "file": "core-rules/p80-close-quarters-24-07.md",
+    "title": "[CLOSE-QUARTERS] 24.07",
+    "url": "Core Rules, p.80"
+  },
+  {
+    "path": "core-rules/p81",
+    "file": "core-rules/p81-extra-attacks-24-11.md",
+    "title": "[EXTRA ATTACKS] 24.11",
+    "url": "Core Rules, p.81"
+  },
+  {
+    "path": "core-rules/p82",
+    "file": "core-rules/p82-heavy-24-16.md",
+    "title": "[HEAVY] 24.16",
+    "url": "Core Rules, p.82"
+  },
+  {
+    "path": "core-rules/p83",
+    "file": "core-rules/p83-lone-operative-24-24.md",
+    "title": "LONE OPERATIVE 24.24",
+    "url": "Core Rules, p.83"
+  },
+  {
+    "path": "core-rules/p84",
+    "file": "core-rules/p84-precision-24-28.md",
+    "title": "[PRECISION] 24.28",
+    "url": "Core Rules, p.84"
+  },
+  {
+    "path": "core-rules/p85",
+    "file": "core-rules/p85-stealth-24-33.md",
+    "title": "STEALTH 24.33",
+    "url": "Core Rules, p.85"
+  },
+  {
+    "path": "core-rules/p86",
+    "file": "core-rules/p86-rules-appendix.md",
+    "title": "RULES APPENDIX",
+    "url": "Core Rules, p.86"
+  },
+  {
+    "path": "core-rules/p87",
+    "file": "core-rules/p87-adding-a-new-unit-to-your-army.md",
+    "title": "ADDING A NEW UNIT TO YOUR ARMY",
+    "url": "Core Rules, p.87"
+  },
+  {
+    "path": "core-rules/p88",
+    "file": "core-rules/p88-rules-appendix.md",
+    "title": "RULES APPENDIX",
+    "url": "Core Rules, p.88"
+  },
+  {
+    "path": "blood-angels/p01",
+    "file": "blood-angels/p01-blood-angels.md",
+    "title": "BLOOD ANGELS",
+    "url": "Blood Angels, p.1"
+  },
+  {
+    "path": "blood-angels/p02",
+    "file": "blood-angels/p02-legacy-of-grace.md",
+    "title": "LEGACY OF GRACE",
+    "url": "Blood Angels, p.2"
+  },
+  {
+    "path": "blood-angels/p03",
+    "file": "blood-angels/p03-encarmine-speartip.md",
+    "title": "ENCARMINE SPEARTIP",
+    "url": "Blood Angels, p.3"
+  },
+  {
+    "path": "blood-angels/p04",
+    "file": "blood-angels/p04-wrath-of-the-doomed.md",
+    "title": "WRATH OF THE DOOMED",
+    "url": "Blood Angels, p.4"
+  },
+  {
+    "path": "blood-angels/p05",
+    "file": "blood-angels/p05-angelic-inheritors.md",
+    "title": "ANGELIC INHERITORS",
+    "url": "Blood Angels, p.5"
+  },
+  {
+    "path": "blood-angels/p06",
+    "file": "blood-angels/p06-armour-of-contempt.md",
+    "title": "ARMOUR OF CONTEMPT",
+    "url": "Blood Angels, p.6"
+  },
+  {
+    "path": "blood-angels/p07",
+    "file": "blood-angels/p07-rage-cursed.md",
+    "title": "RAGE-CURSED",
+    "url": "Blood Angels, p.7"
+  },
+  {
+    "path": "blood-angels/p08",
+    "file": "blood-angels/p08-a-grim-warning.md",
+    "title": "A GRIM WARNING",
+    "url": "Blood Angels, p.8"
+  },
+  {
+    "path": "blood-angels/p09",
+    "file": "blood-angels/p09-blood-angels.md",
+    "title": "BLOOD ANGELS",
+    "url": "Blood Angels, p.9"
+  },
+  {
+    "path": "blood-angels/p10",
+    "file": "blood-angels/p10-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Blood Angels, p.10"
+  },
+  {
+    "path": "blood-angels/p11",
+    "file": "blood-angels/p11-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Blood Angels, p.11"
+  },
+  {
+    "path": "blood-angels/p12",
+    "file": "blood-angels/p12-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Blood Angels, p.12"
+  },
+  {
+    "path": "blood-angels/p13",
+    "file": "blood-angels/p13-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Blood Angels, p.13"
+  },
+  {
+    "path": "blood-angels/p14",
+    "file": "blood-angels/p14-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Blood Angels, p.14"
+  },
+  {
+    "path": "blood-angels/p15",
+    "file": "blood-angels/p15-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Blood Angels, p.15"
+  },
+  {
+    "path": "blood-angels/p16",
+    "file": "blood-angels/p16-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Blood Angels, p.16"
+  },
+  {
+    "path": "blood-angels/p17",
+    "file": "blood-angels/p17-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Blood Angels, p.17"
+  },
+  {
+    "path": "blood-angels/p18",
+    "file": "blood-angels/p18-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Blood Angels, p.18"
+  },
+  {
+    "path": "blood-angels/p19",
+    "file": "blood-angels/p19-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Blood Angels, p.19"
+  },
+  {
+    "path": "blood-angels/p20",
+    "file": "blood-angels/p20-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Blood Angels, p.20"
+  },
+  {
+    "path": "blood-angels/p21",
+    "file": "blood-angels/p21-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Blood Angels, p.21"
+  },
+  {
+    "path": "blood-angels/p22",
+    "file": "blood-angels/p22-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Blood Angels, p.22"
+  },
+  {
+    "path": "blood-angels/p23",
+    "file": "blood-angels/p23-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Blood Angels, p.23"
+  },
+  {
+    "path": "blood-angels/p24",
+    "file": "blood-angels/p24-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Blood Angels, p.24"
+  },
+  {
+    "path": "blood-angels/p25",
+    "file": "blood-angels/p25-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Blood Angels, p.25"
+  },
+  {
+    "path": "blood-angels/p26",
+    "file": "blood-angels/p26-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Blood Angels, p.26"
+  },
+  {
+    "path": "blood-angels/p27",
+    "file": "blood-angels/p27-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Blood Angels, p.27"
+  },
+  {
+    "path": "blood-angels/p28",
+    "file": "blood-angels/p28-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Blood Angels, p.28"
+  },
+  {
+    "path": "blood-angels/p29",
+    "file": "blood-angels/p29-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Blood Angels, p.29"
+  },
+  {
+    "path": "deathwatch/p01",
+    "file": "deathwatch/p01-deathwatch.md",
+    "title": "DEATHWATCH",
+    "url": "Deathwatch, p.1"
+  },
+  {
+    "path": "deathwatch/p02",
+    "file": "deathwatch/p02-deathwatch.md",
+    "title": "DEATHWATCH",
+    "url": "Deathwatch, p.2"
+  },
+  {
+    "path": "deathwatch/p03",
+    "file": "deathwatch/p03-deathwatch-black-spear-task-force.md",
+    "title": "DEATHWATCH - BLACK SPEAR TASK FORCE",
+    "url": "Deathwatch, p.3"
+  },
+  {
+    "path": "deathwatch/p04",
+    "file": "deathwatch/p04-deathwatch-black-spear-task-force.md",
+    "title": "DEATHWATCH - BLACK SPEAR TASK FORCE",
+    "url": "Deathwatch, p.4"
+  },
+  {
+    "path": "deathwatch/p05",
+    "file": "deathwatch/p05-deathwatch-black-spear-task-force.md",
+    "title": "DEATHWATCH - BLACK SPEAR TASK FORCE",
+    "url": "Deathwatch, p.5"
+  },
+  {
+    "path": "deathwatch/p06",
+    "file": "deathwatch/p06-if-you-are-using-the-black-spear-task-force-detach.md",
+    "title": "If you are using the Black Spear Task Force Detachment rule, you can use these B",
+    "url": "Deathwatch, p.6"
+  },
+  {
+    "path": "deathwatch/p08",
+    "file": "deathwatch/p08-watch-master.md",
+    "title": "WATCH MASTER",
+    "url": "Deathwatch, p.8"
+  },
+  {
+    "path": "deathwatch/p09",
+    "file": "deathwatch/p09-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Deathwatch, p.9"
+  },
+  {
+    "path": "deathwatch/p10",
+    "file": "deathwatch/p10-watch-captain-artemis.md",
+    "title": "WATCH CAPTAIN ARTEMIS",
+    "url": "Deathwatch, p.10"
+  },
+  {
+    "path": "deathwatch/p11",
+    "file": "deathwatch/p11-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Deathwatch, p.11"
+  },
+  {
+    "path": "deathwatch/p12",
+    "file": "deathwatch/p12-deathwatch-veterans.md",
+    "title": "DEATHWATCH VETERANS",
+    "url": "Deathwatch, p.12"
+  },
+  {
+    "path": "deathwatch/p13",
+    "file": "deathwatch/p13-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Deathwatch, p.13"
+  },
+  {
+    "path": "deathwatch/p14",
+    "file": "deathwatch/p14-deathwatch-terminator-squad.md",
+    "title": "DEATHWATCH TERMINATOR SQUAD",
+    "url": "Deathwatch, p.14"
+  },
+  {
+    "path": "deathwatch/p15",
+    "file": "deathwatch/p15-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Deathwatch, p.15"
+  },
+  {
+    "path": "deathwatch/p16",
+    "file": "deathwatch/p16-corvus-blackstar.md",
+    "title": "CORVUS BLACKSTAR",
+    "url": "Deathwatch, p.16"
+  },
+  {
+    "path": "deathwatch/p17",
+    "file": "deathwatch/p17-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Deathwatch, p.17"
+  },
+  {
+    "path": "deathwatch/p18",
+    "file": "deathwatch/p18-talonstrike-kill-team.md",
+    "title": "TALONSTRIKE KILL TEAM",
+    "url": "Deathwatch, p.18"
+  },
+  {
+    "path": "deathwatch/p19",
+    "file": "deathwatch/p19-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Deathwatch, p.19"
+  },
+  {
+    "path": "deathwatch/p20",
+    "file": "deathwatch/p20-fortis-kill-team.md",
+    "title": "FORTIS KILL TEAM",
+    "url": "Deathwatch, p.20"
+  },
+  {
+    "path": "deathwatch/p21",
+    "file": "deathwatch/p21-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Deathwatch, p.21"
+  },
+  {
+    "path": "deathwatch/p22",
+    "file": "deathwatch/p22-indomitor-kill-team.md",
+    "title": "INDOMITOR KILL TEAM",
+    "url": "Deathwatch, p.22"
+  },
+  {
+    "path": "deathwatch/p23",
+    "file": "deathwatch/p23-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Deathwatch, p.23"
+  },
+  {
+    "path": "deathwatch/p24",
+    "file": "deathwatch/p24-spectrus-kill-team.md",
+    "title": "SPECTRUS KILL TEAM",
+    "url": "Deathwatch, p.24"
+  },
+  {
+    "path": "deathwatch/p25",
+    "file": "deathwatch/p25-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Deathwatch, p.25"
+  },
+  {
+    "path": "deathwatch/p26",
+    "file": "deathwatch/p26-decimus-kill-team.md",
+    "title": "DECIMUS KILL TEAM",
+    "url": "Deathwatch, p.26"
+  },
+  {
+    "path": "deathwatch/p27",
+    "file": "deathwatch/p27-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Deathwatch, p.27"
+  },
+  {
+    "path": "deathwatch/p28",
+    "file": "deathwatch/p28-deathwatch-armoury.md",
+    "title": "DEATHWATCH ARMOURY",
+    "url": "Deathwatch, p.28"
+  },
+  {
+    "path": "grey-knights/p01",
+    "file": "grey-knights/p01-grey-knights.md",
+    "title": "GREY KNIGHTS",
+    "url": "Grey Knights, p.1"
+  },
+  {
+    "path": "grey-knights/p02",
+    "file": "grey-knights/p02-argent-assault.md",
+    "title": "ARGENT ASSAULT",
+    "url": "Grey Knights, p.2"
+  },
+  {
+    "path": "grey-knights/p03",
+    "file": "grey-knights/p03-fires-of-purgation.md",
+    "title": "FIRES OF PURGATION",
+    "url": "Grey Knights, p.3"
+  },
+  {
+    "path": "grey-knights/p04",
+    "file": "grey-knights/p04-immaterial-interdiction.md",
+    "title": "IMMATERIAL INTERDICTION",
+    "url": "Grey Knights, p.4"
+  },
+  {
+    "path": "grey-knights/p05",
+    "file": "grey-knights/p05-warpbane-task-force.md",
+    "title": "WARPBANE TASK FORCE",
+    "url": "Grey Knights, p.5"
+  },
+  {
+    "path": "grey-knights/p06",
+    "file": "grey-knights/p06-sanctified-kill-zone.md",
+    "title": "SANCTIFIED KILL ZONE",
+    "url": "Grey Knights, p.6"
+  },
+  {
+    "path": "grey-knights/p07",
+    "file": "grey-knights/p07-grey-knights-thunderhawk-gunship.md",
+    "title": "GREY KNIGHTS THUNDERHAWK GUNSHIP",
+    "url": "Grey Knights, p.7"
+  },
+  {
+    "path": "grey-knights/p08",
+    "file": "grey-knights/p08-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Grey Knights, p.8"
+  },
+  {
+    "path": "grey-knights/p09",
+    "file": "grey-knights/p09-grey-knights.md",
+    "title": "GREY KNIGHTS",
+    "url": "Grey Knights, p.9"
+  },
+  {
+    "path": "grey-knights/p10",
+    "file": "grey-knights/p10-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Grey Knights, p.10"
+  },
+  {
+    "path": "grey-knights/p11",
+    "file": "grey-knights/p11-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Grey Knights, p.11"
+  },
+  {
+    "path": "grey-knights/p12",
+    "file": "grey-knights/p12-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Grey Knights, p.12"
+  },
+  {
+    "path": "grey-knights/p13",
+    "file": "grey-knights/p13-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Grey Knights, p.13"
+  },
+  {
+    "path": "grey-knights/p14",
+    "file": "grey-knights/p14-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Grey Knights, p.14"
+  },
+  {
+    "path": "grey-knights/p15",
+    "file": "grey-knights/p15-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Grey Knights, p.15"
+  },
+  {
+    "path": "grey-knights/p16",
+    "file": "grey-knights/p16-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Grey Knights, p.16"
+  },
+  {
+    "path": "grey-knights/p17",
+    "file": "grey-knights/p17-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Grey Knights, p.17"
+  },
+  {
+    "path": "grey-knights/p18",
+    "file": "grey-knights/p18-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Grey Knights, p.18"
+  },
+  {
+    "path": "grey-knights/p19",
+    "file": "grey-knights/p19-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Grey Knights, p.19"
+  },
+  {
+    "path": "space-marines/p01",
+    "file": "space-marines/p01-space-marines.md",
+    "title": "SPACE MARINES",
+    "url": "Space Marines, p.1"
+  },
+  {
+    "path": "space-marines/p02",
+    "file": "space-marines/p02-fulguris-task-force.md",
+    "title": "FULGURIS TASK FORCE",
+    "url": "Space Marines, p.2"
+  },
+  {
+    "path": "space-marines/p03",
+    "file": "space-marines/p03-librarius-conclave.md",
+    "title": "LIBRARIUS CONCLAVE",
+    "url": "Space Marines, p.3"
+  },
+  {
+    "path": "space-marines/p04",
+    "file": "space-marines/p04-subversion-assets.md",
+    "title": "SUBVERSION ASSETS",
+    "url": "Space Marines, p.4"
+  },
+  {
+    "path": "space-marines/p05",
+    "file": "space-marines/p05-armoured-speartip.md",
+    "title": "ARMOURED SPEARTIP",
+    "url": "Space Marines, p.5"
+  },
+  {
+    "path": "space-marines/p06",
+    "file": "space-marines/p06-machine-wrath.md",
+    "title": "MACHINE WRATH",
+    "url": "Space Marines, p.6"
+  },
+  {
+    "path": "space-marines/p07",
+    "file": "space-marines/p07-headhunter-task-force.md",
+    "title": "HEADHUNTER TASK FORCE",
+    "url": "Space Marines, p.7"
+  },
+  {
+    "path": "space-marines/p08",
+    "file": "space-marines/p08-armour-of-contempt.md",
+    "title": "ARMOUR OF CONTEMPT",
+    "url": "Space Marines, p.8"
+  },
+  {
+    "path": "space-marines/p09",
+    "file": "space-marines/p09-ceramite-sentinels.md",
+    "title": "CERAMITE SENTINELS",
+    "url": "Space Marines, p.9"
+  },
+  {
+    "path": "space-marines/p10",
+    "file": "space-marines/p10-unyielding-might.md",
+    "title": "UNYIELDING MIGHT",
+    "url": "Space Marines, p.10"
+  },
+  {
+    "path": "space-marines/p11",
+    "file": "space-marines/p11-blade-of-ultramar.md",
+    "title": "BLADE OF ULTRAMAR",
+    "url": "Space Marines, p.11"
+  },
+  {
+    "path": "space-marines/p12",
+    "file": "space-marines/p12-armour-of-contempt.md",
+    "title": "ARMOUR OF CONTEMPT",
+    "url": "Space Marines, p.12"
+  },
+  {
+    "path": "space-marines/p13",
+    "file": "space-marines/p13-hammer-of-avernii.md",
+    "title": "HAMMER OF AVERNII",
+    "url": "Space Marines, p.13"
+  },
+  {
+    "path": "space-marines/p14",
+    "file": "space-marines/p14-armour-of-contempt.md",
+    "title": "ARMOUR OF CONTEMPT",
+    "url": "Space Marines, p.14"
+  },
+  {
+    "path": "space-marines/p15",
+    "file": "space-marines/p15-spearpoint.md",
+    "title": "SPEARPOINT",
+    "url": "Space Marines, p.15"
+  },
+  {
+    "path": "space-marines/p16",
+    "file": "space-marines/p16-armour-of-contempt.md",
+    "title": "ARMOUR OF CONTEMPT",
+    "url": "Space Marines, p.16"
+  },
+  {
+    "path": "space-marines/p17",
+    "file": "space-marines/p17-forgefather-s.md",
+    "title": "FORGEFATHER'S",
+    "url": "Space Marines, p.17"
+  },
+  {
+    "path": "space-marines/p18",
+    "file": "space-marines/p18-armour-of-contempt.md",
+    "title": "ARMOUR OF CONTEMPT",
+    "url": "Space Marines, p.18"
+  },
+  {
+    "path": "space-marines/p19",
+    "file": "space-marines/p19-emperor-s-shield.md",
+    "title": "EMPEROR'S SHIELD",
+    "url": "Space Marines, p.19"
+  },
+  {
+    "path": "space-marines/p20",
+    "file": "space-marines/p20-armour-of-contempt.md",
+    "title": "ARMOUR OF CONTEMPT",
+    "url": "Space Marines, p.20"
+  },
+  {
+    "path": "space-marines/p21",
+    "file": "space-marines/p21-shadowmark-talon.md",
+    "title": "SHADOWMARK TALON",
+    "url": "Space Marines, p.21"
+  },
+  {
+    "path": "space-marines/p22",
+    "file": "space-marines/p22-armour-of-contempt.md",
+    "title": "ARMOUR OF CONTEMPT",
+    "url": "Space Marines, p.22"
+  },
+  {
+    "path": "space-marines/p23",
+    "file": "space-marines/p23-bastion-task-force.md",
+    "title": "BASTION TASK FORCE",
+    "url": "Space Marines, p.23"
+  },
+  {
+    "path": "space-marines/p24",
+    "file": "space-marines/p24-codex-discipline.md",
+    "title": "CODEX DISCIPLINE",
+    "url": "Space Marines, p.24"
+  },
+  {
+    "path": "space-marines/p25",
+    "file": "space-marines/p25-orbital-assault-force.md",
+    "title": "ORBITAL ASSAULT FORCE",
+    "url": "Space Marines, p.25"
+  },
+  {
+    "path": "space-marines/p26",
+    "file": "space-marines/p26-suppression-strafing.md",
+    "title": "SUPPRESSION STRAFING",
+    "url": "Space Marines, p.26"
+  },
+  {
+    "path": "space-marines/p27",
+    "file": "space-marines/p27-reclamation-force.md",
+    "title": "RECLAMATION FORCE",
+    "url": "Space Marines, p.27"
+  },
+  {
+    "path": "space-marines/p28",
+    "file": "space-marines/p28-crusading-conquerors.md",
+    "title": "CRUSADING CONQUERORS",
+    "url": "Space Marines, p.28"
+  },
+  {
+    "path": "space-marines/p29",
+    "file": "space-marines/p29-eradicator-squad-with-heavy-bolters.md",
+    "title": "ERADICATOR SQUAD WITH HEAVY BOLTERS",
+    "url": "Space Marines, p.29"
+  },
+  {
+    "path": "space-marines/p30",
+    "file": "space-marines/p30-land-speeder.md",
+    "title": "LAND SPEEDER",
+    "url": "Space Marines, p.30"
+  },
+  {
+    "path": "space-marines/p31",
+    "file": "space-marines/p31-terminator-assault-squad.md",
+    "title": "TERMINATOR ASSAULT SQUAD",
+    "url": "Space Marines, p.31"
+  },
+  {
+    "path": "space-marines/p32",
+    "file": "space-marines/p32-unit-composition.md",
+    "title": "UNIT COMPOSITION",
+    "url": "Space Marines, p.32"
+  },
+  {
+    "path": "space-marines/p33",
+    "file": "space-marines/p33-marneus-calgar-in-armour-of-antilochus.md",
+    "title": "MARNEUS CALGAR IN ARMOUR OF ANTILOCHUS",
+    "url": "Space Marines, p.33"
+  },
+  {
+    "path": "space-marines/p34",
+    "file": "space-marines/p34-leader.md",
+    "title": "LEADER",
+    "url": "Space Marines, p.34"
+  },
+  {
+    "path": "space-marines/p35",
+    "file": "space-marines/p35-cato-sicarius.md",
+    "title": "CATO SICARIUS",
+    "url": "Space Marines, p.35"
+  },
+  {
+    "path": "space-marines/p36",
+    "file": "space-marines/p36-leader.md",
+    "title": "LEADER",
+    "url": "Space Marines, p.36"
+  },
+  {
+    "path": "space-marines/p37",
+    "file": "space-marines/p37-victrix-honour-guard.md",
+    "title": "VICTRIX HONOUR GUARD",
+    "url": "Space Marines, p.37"
+  },
+  {
+    "path": "space-marines/p38",
+    "file": "space-marines/p38-attached-unit.md",
+    "title": "ATTACHED UNIT",
+    "url": "Space Marines, p.38"
+  },
+  {
+    "path": "space-marines/p39",
+    "file": "space-marines/p39-captain-titus.md",
+    "title": "CAPTAIN TITUS",
+    "url": "Space Marines, p.39"
+  },
+  {
+    "path": "space-marines/p40",
+    "file": "space-marines/p40-leader.md",
+    "title": "LEADER",
+    "url": "Space Marines, p.40"
+  },
+  {
+    "path": "space-marines/p41",
+    "file": "space-marines/p41-wardens-of-ultramar.md",
+    "title": "WARDENS OF ULTRAMAR",
+    "url": "Space Marines, p.41"
+  },
+  {
+    "path": "space-marines/p42",
+    "file": "space-marines/p42-heroes-of-ultramar.md",
+    "title": "HEROES OF ULTRAMAR",
+    "url": "Space Marines, p.42"
+  },
+  {
+    "path": "space-marines/p43",
+    "file": "space-marines/p43-caanok-var.md",
+    "title": "CAANOK VAR",
+    "url": "Space Marines, p.43"
+  },
+  {
+    "path": "space-marines/p44",
+    "file": "space-marines/p44-unit-composition.md",
+    "title": "UNIT COMPOSITION",
+    "url": "Space Marines, p.44"
+  },
+  {
+    "path": "space-marines/p45",
+    "file": "space-marines/p45-suboden-khan.md",
+    "title": "SUBODEN KHAN",
+    "url": "Space Marines, p.45"
+  },
+  {
+    "path": "space-marines/p46",
+    "file": "space-marines/p46-unit-composition.md",
+    "title": "UNIT COMPOSITION",
+    "url": "Space Marines, p.46"
+  },
+  {
+    "path": "space-marines/p47",
+    "file": "space-marines/p47-vulkan-he-stan.md",
+    "title": "VULKAN HE'STAN",
+    "url": "Space Marines, p.47"
+  },
+  {
+    "path": "space-marines/p48",
+    "file": "space-marines/p48-leader.md",
+    "title": "LEADER",
+    "url": "Space Marines, p.48"
+  },
+  {
+    "path": "space-marines/p49",
+    "file": "space-marines/p49-aethon-shaan.md",
+    "title": "AETHON SHAAN",
+    "url": "Space Marines, p.49"
+  },
+  {
+    "path": "space-marines/p50",
+    "file": "space-marines/p50-chapter-master-of-the-raven-guard.md",
+    "title": "CHAPTER MASTER OF THE RAVEN GUARD",
+    "url": "Space Marines, p.50"
+  },
+  {
+    "path": "space-marines/p51",
+    "file": "space-marines/p51-darnath-lysander.md",
+    "title": "DARNATH LYSANDER",
+    "url": "Space Marines, p.51"
+  },
+  {
+    "path": "space-marines/p52",
+    "file": "space-marines/p52-leader.md",
+    "title": "LEADER",
+    "url": "Space Marines, p.52"
+  },
+  {
+    "path": "space-marines/p53",
+    "file": "space-marines/p53-drop-pod.md",
+    "title": "DROP POD",
+    "url": "Space Marines, p.53"
+  },
+  {
+    "path": "space-marines/p54",
+    "file": "space-marines/p54-drop-pod.md",
+    "title": "DROP POD",
+    "url": "Space Marines, p.54"
+  },
+  {
+    "path": "space-marines/p55",
+    "file": "space-marines/p55-astraeus.md",
+    "title": "ASTRAEUS",
+    "url": "Space Marines, p.55"
+  },
+  {
+    "path": "space-marines/p56",
+    "file": "space-marines/p56-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Space Marines, p.56"
+  },
+  {
+    "path": "space-marines/p57",
+    "file": "space-marines/p57-thunderhawk-gunship.md",
+    "title": "THUNDERHAWK GUNSHIP",
+    "url": "Space Marines, p.57"
+  },
+  {
+    "path": "space-marines/p58",
+    "file": "space-marines/p58-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Space Marines, p.58"
+  },
+  {
+    "path": "space-marines/p59",
+    "file": "space-marines/p59-space-marines.md",
+    "title": "SPACE MARINES",
+    "url": "Space Marines, p.59"
+  },
+  {
+    "path": "space-marines/p60",
+    "file": "space-marines/p60-stormlance-task-force-detachment.md",
+    "title": "STORMLANCE TASK FORCE DETACHMENT",
+    "url": "Space Marines, p.60"
+  },
+  {
+    "path": "space-marines/p61",
+    "file": "space-marines/p61-iron-father-feirros.md",
+    "title": "Iron Father Feirros",
+    "url": "Space Marines, p.61"
+  },
+  {
+    "path": "space-marines/p62",
+    "file": "space-marines/p62-ancient-ancient-in-terminator-armour-apothecary-ap.md",
+    "title": "Ancient, Ancient in Terminator Armour, Apothecary, Apothecary",
+    "url": "Space Marines, p.62"
+  },
+  {
+    "path": "space-marines/p63",
+    "file": "space-marines/p63-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.63"
+  },
+  {
+    "path": "space-marines/p64",
+    "file": "space-marines/p64-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.64"
+  },
+  {
+    "path": "space-marines/p65",
+    "file": "space-marines/p65-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.65"
+  },
+  {
+    "path": "space-marines/p66",
+    "file": "space-marines/p66-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.66"
+  },
+  {
+    "path": "space-marines/p67",
+    "file": "space-marines/p67-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.67"
+  },
+  {
+    "path": "space-marines/p68",
+    "file": "space-marines/p68-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.68"
+  },
+  {
+    "path": "space-marines/p69",
+    "file": "space-marines/p69-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.69"
+  },
+  {
+    "path": "space-marines/p70",
+    "file": "space-marines/p70-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.70"
+  },
+  {
+    "path": "space-marines/p71",
+    "file": "space-marines/p71-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.71"
+  },
+  {
+    "path": "space-marines/p72",
+    "file": "space-marines/p72-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.72"
+  },
+  {
+    "path": "space-marines/p73",
+    "file": "space-marines/p73-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.73"
+  },
+  {
+    "path": "space-marines/p74",
+    "file": "space-marines/p74-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.74"
+  },
+  {
+    "path": "space-marines/p75",
+    "file": "space-marines/p75-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.75"
+  },
+  {
+    "path": "space-marines/p76",
+    "file": "space-marines/p76-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.76"
+  },
+  {
+    "path": "space-marines/p77",
+    "file": "space-marines/p77-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.77"
+  },
+  {
+    "path": "space-marines/p78",
+    "file": "space-marines/p78-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.78"
+  },
+  {
+    "path": "space-marines/p79",
+    "file": "space-marines/p79-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.79"
+  },
+  {
+    "path": "space-marines/p80",
+    "file": "space-marines/p80-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.80"
+  },
+  {
+    "path": "space-marines/p81",
+    "file": "space-marines/p81-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.81"
+  },
+  {
+    "path": "space-marines/p82",
+    "file": "space-marines/p82-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.82"
+  },
+  {
+    "path": "space-marines/p83",
+    "file": "space-marines/p83-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.83"
+  },
+  {
+    "path": "space-marines/p84",
+    "file": "space-marines/p84-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.84"
+  },
+  {
+    "path": "space-marines/p85",
+    "file": "space-marines/p85-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.85"
+  },
+  {
+    "path": "space-marines/p86",
+    "file": "space-marines/p86-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.86"
+  },
+  {
+    "path": "space-marines/p87",
+    "file": "space-marines/p87-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.87"
+  },
+  {
+    "path": "space-marines/p88",
+    "file": "space-marines/p88-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.88"
+  },
+  {
+    "path": "space-marines/p89",
+    "file": "space-marines/p89-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.89"
+  },
+  {
+    "path": "space-marines/p90",
+    "file": "space-marines/p90-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.90"
+  },
+  {
+    "path": "space-marines/p91",
+    "file": "space-marines/p91-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.91"
+  },
+  {
+    "path": "space-marines/p92",
+    "file": "space-marines/p92-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.92"
+  },
+  {
+    "path": "space-marines/p93",
+    "file": "space-marines/p93-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.93"
+  },
+  {
+    "path": "space-marines/p94",
+    "file": "space-marines/p94-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.94"
+  },
+  {
+    "path": "space-marines/p95",
+    "file": "space-marines/p95-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.95"
+  },
+  {
+    "path": "space-marines/p96",
+    "file": "space-marines/p96-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.96"
+  },
+  {
+    "path": "space-marines/p97",
+    "file": "space-marines/p97-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.97"
+  },
+  {
+    "path": "space-marines/p98",
+    "file": "space-marines/p98-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.98"
+  },
+  {
+    "path": "space-marines/p99",
+    "file": "space-marines/p99-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.99"
+  },
+  {
+    "path": "space-marines/p100",
+    "file": "space-marines/p100-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.100"
+  },
+  {
+    "path": "space-marines/p101",
+    "file": "space-marines/p101-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.101"
+  },
+  {
+    "path": "space-marines/p102",
+    "file": "space-marines/p102-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.102"
+  },
+  {
+    "path": "space-marines/p103",
+    "file": "space-marines/p103-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.103"
+  },
+  {
+    "path": "space-marines/p104",
+    "file": "space-marines/p104-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.104"
+  },
+  {
+    "path": "space-marines/p105",
+    "file": "space-marines/p105-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.105"
+  },
+  {
+    "path": "space-marines/p106",
+    "file": "space-marines/p106-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.106"
+  },
+  {
+    "path": "space-marines/p107",
+    "file": "space-marines/p107-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.107"
+  },
+  {
+    "path": "space-marines/p108",
+    "file": "space-marines/p108-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.108"
+  },
+  {
+    "path": "space-marines/p109",
+    "file": "space-marines/p109-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.109"
+  },
+  {
+    "path": "space-marines/p110",
+    "file": "space-marines/p110-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.110"
+  },
+  {
+    "path": "space-marines/p111",
+    "file": "space-marines/p111-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.111"
+  },
+  {
+    "path": "space-marines/p112",
+    "file": "space-marines/p112-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.112"
+  },
+  {
+    "path": "space-marines/p113",
+    "file": "space-marines/p113-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.113"
+  },
+  {
+    "path": "space-marines/p114",
+    "file": "space-marines/p114-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.114"
+  },
+  {
+    "path": "space-marines/p115",
+    "file": "space-marines/p115-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.115"
+  },
+  {
+    "path": "space-marines/p116",
+    "file": "space-marines/p116-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.116"
+  },
+  {
+    "path": "space-marines/p117",
+    "file": "space-marines/p117-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.117"
+  },
+  {
+    "path": "space-marines/p118",
+    "file": "space-marines/p118-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.118"
+  },
+  {
+    "path": "space-marines/p119",
+    "file": "space-marines/p119-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.119"
+  },
+  {
+    "path": "space-marines/p120",
+    "file": "space-marines/p120-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.120"
+  },
+  {
+    "path": "space-marines/p121",
+    "file": "space-marines/p121-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.121"
+  },
+  {
+    "path": "space-marines/p122",
+    "file": "space-marines/p122-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.122"
+  },
+  {
+    "path": "space-marines/p123",
+    "file": "space-marines/p123-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.123"
+  },
+  {
+    "path": "space-marines/p124",
+    "file": "space-marines/p124-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.124"
+  },
+  {
+    "path": "space-marines/p125",
+    "file": "space-marines/p125-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.125"
+  },
+  {
+    "path": "space-marines/p126",
+    "file": "space-marines/p126-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.126"
+  },
+  {
+    "path": "space-marines/p127",
+    "file": "space-marines/p127-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.127"
+  },
+  {
+    "path": "space-marines/p128",
+    "file": "space-marines/p128-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.128"
+  },
+  {
+    "path": "space-marines/p129",
+    "file": "space-marines/p129-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.129"
+  },
+  {
+    "path": "space-marines/p130",
+    "file": "space-marines/p130-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.130"
+  },
+  {
+    "path": "space-marines/p131",
+    "file": "space-marines/p131-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.131"
+  },
+  {
+    "path": "space-marines/p132",
+    "file": "space-marines/p132-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.132"
+  },
+  {
+    "path": "space-marines/p133",
+    "file": "space-marines/p133-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.133"
+  },
+  {
+    "path": "space-marines/p134",
+    "file": "space-marines/p134-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.134"
+  },
+  {
+    "path": "space-marines/p135",
+    "file": "space-marines/p135-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.135"
+  },
+  {
+    "path": "space-marines/p136",
+    "file": "space-marines/p136-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.136"
+  },
+  {
+    "path": "space-marines/p137",
+    "file": "space-marines/p137-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.137"
+  },
+  {
+    "path": "space-marines/p138",
+    "file": "space-marines/p138-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.138"
+  },
+  {
+    "path": "space-marines/p139",
+    "file": "space-marines/p139-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.139"
+  },
+  {
+    "path": "space-marines/p140",
+    "file": "space-marines/p140-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.140"
+  },
+  {
+    "path": "space-marines/p141",
+    "file": "space-marines/p141-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.141"
+  },
+  {
+    "path": "space-marines/p142",
+    "file": "space-marines/p142-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.142"
+  },
+  {
+    "path": "space-marines/p143",
+    "file": "space-marines/p143-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.143"
+  },
+  {
+    "path": "space-marines/p144",
+    "file": "space-marines/p144-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.144"
+  },
+  {
+    "path": "space-marines/p145",
+    "file": "space-marines/p145-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.145"
+  },
+  {
+    "path": "space-marines/p146",
+    "file": "space-marines/p146-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.146"
+  },
+  {
+    "path": "space-marines/p147",
+    "file": "space-marines/p147-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.147"
+  },
+  {
+    "path": "space-marines/p148",
+    "file": "space-marines/p148-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.148"
+  },
+  {
+    "path": "space-marines/p149",
+    "file": "space-marines/p149-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.149"
+  },
+  {
+    "path": "space-marines/p150",
+    "file": "space-marines/p150-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.150"
+  },
+  {
+    "path": "space-marines/p151",
+    "file": "space-marines/p151-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.151"
+  },
+  {
+    "path": "space-marines/p152",
+    "file": "space-marines/p152-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.152"
+  },
+  {
+    "path": "space-marines/p153",
+    "file": "space-marines/p153-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.153"
+  },
+  {
+    "path": "space-marines/p154",
+    "file": "space-marines/p154-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.154"
+  },
+  {
+    "path": "space-marines/p155",
+    "file": "space-marines/p155-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.155"
+  },
+  {
+    "path": "space-marines/p156",
+    "file": "space-marines/p156-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.156"
+  },
+  {
+    "path": "space-marines/p157",
+    "file": "space-marines/p157-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.157"
+  },
+  {
+    "path": "space-marines/p158",
+    "file": "space-marines/p158-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.158"
+  },
+  {
+    "path": "space-marines/p159",
+    "file": "space-marines/p159-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.159"
+  },
+  {
+    "path": "space-marines/p160",
+    "file": "space-marines/p160-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.160"
+  },
+  {
+    "path": "space-marines/p161",
+    "file": "space-marines/p161-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.161"
+  },
+  {
+    "path": "space-marines/p162",
+    "file": "space-marines/p162-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.162"
+  },
+  {
+    "path": "space-marines/p163",
+    "file": "space-marines/p163-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.163"
+  },
+  {
+    "path": "space-marines/p164",
+    "file": "space-marines/p164-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.164"
+  },
+  {
+    "path": "space-marines/p165",
+    "file": "space-marines/p165-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.165"
+  },
+  {
+    "path": "space-marines/p166",
+    "file": "space-marines/p166-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.166"
+  },
+  {
+    "path": "space-marines/p167",
+    "file": "space-marines/p167-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.167"
+  },
+  {
+    "path": "space-marines/p168",
+    "file": "space-marines/p168-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.168"
+  },
+  {
+    "path": "space-marines/p169",
+    "file": "space-marines/p169-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.169"
+  },
+  {
+    "path": "space-marines/p170",
+    "file": "space-marines/p170-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.170"
+  },
+  {
+    "path": "space-marines/p171",
+    "file": "space-marines/p171-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.171"
+  },
+  {
+    "path": "space-marines/p172",
+    "file": "space-marines/p172-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.172"
+  },
+  {
+    "path": "space-marines/p173",
+    "file": "space-marines/p173-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.173"
+  },
+  {
+    "path": "space-marines/p174",
+    "file": "space-marines/p174-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.174"
+  },
+  {
+    "path": "space-marines/p175",
+    "file": "space-marines/p175-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.175"
+  },
+  {
+    "path": "space-marines/p176",
+    "file": "space-marines/p176-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.176"
+  },
+  {
+    "path": "space-marines/p177",
+    "file": "space-marines/p177-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.177"
+  },
+  {
+    "path": "space-marines/p178",
+    "file": "space-marines/p178-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.178"
+  },
+  {
+    "path": "space-marines/p179",
+    "file": "space-marines/p179-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.179"
+  },
+  {
+    "path": "space-marines/p180",
+    "file": "space-marines/p180-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.180"
+  },
+  {
+    "path": "space-marines/p181",
+    "file": "space-marines/p181-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.181"
+  },
+  {
+    "path": "space-marines/p182",
+    "file": "space-marines/p182-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.182"
+  },
+  {
+    "path": "space-marines/p183",
+    "file": "space-marines/p183-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.183"
+  },
+  {
+    "path": "space-marines/p184",
+    "file": "space-marines/p184-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.184"
+  },
+  {
+    "path": "space-marines/p185",
+    "file": "space-marines/p185-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.185"
+  },
+  {
+    "path": "space-marines/p186",
+    "file": "space-marines/p186-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.186"
+  },
+  {
+    "path": "space-marines/p187",
+    "file": "space-marines/p187-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.187"
+  },
+  {
+    "path": "space-marines/p188",
+    "file": "space-marines/p188-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.188"
+  },
+  {
+    "path": "space-marines/p189",
+    "file": "space-marines/p189-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.189"
+  },
+  {
+    "path": "space-marines/p190",
+    "file": "space-marines/p190-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.190"
+  },
+  {
+    "path": "space-marines/p191",
+    "file": "space-marines/p191-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.191"
+  },
+  {
+    "path": "space-marines/p192",
+    "file": "space-marines/p192-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.192"
+  },
+  {
+    "path": "space-marines/p193",
+    "file": "space-marines/p193-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.193"
+  },
+  {
+    "path": "space-marines/p194",
+    "file": "space-marines/p194-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.194"
+  },
+  {
+    "path": "space-marines/p195",
+    "file": "space-marines/p195-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.195"
+  },
+  {
+    "path": "space-marines/p196",
+    "file": "space-marines/p196-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.196"
+  },
+  {
+    "path": "space-marines/p197",
+    "file": "space-marines/p197-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.197"
+  },
+  {
+    "path": "space-marines/p198",
+    "file": "space-marines/p198-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.198"
+  },
+  {
+    "path": "space-marines/p199",
+    "file": "space-marines/p199-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.199"
+  },
+  {
+    "path": "space-marines/p200",
+    "file": "space-marines/p200-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.200"
+  },
+  {
+    "path": "space-marines/p201",
+    "file": "space-marines/p201-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.201"
+  },
+  {
+    "path": "space-marines/p202",
+    "file": "space-marines/p202-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.202"
+  },
+  {
+    "path": "space-marines/p203",
+    "file": "space-marines/p203-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.203"
+  },
+  {
+    "path": "space-marines/p204",
+    "file": "space-marines/p204-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.204"
+  },
+  {
+    "path": "space-marines/p205",
+    "file": "space-marines/p205-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.205"
+  },
+  {
+    "path": "space-marines/p206",
+    "file": "space-marines/p206-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.206"
+  },
+  {
+    "path": "space-marines/p207",
+    "file": "space-marines/p207-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.207"
+  },
+  {
+    "path": "space-marines/p208",
+    "file": "space-marines/p208-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.208"
+  },
+  {
+    "path": "space-marines/p209",
+    "file": "space-marines/p209-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.209"
+  },
+  {
+    "path": "space-marines/p210",
+    "file": "space-marines/p210-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.210"
+  },
+  {
+    "path": "space-marines/p211",
+    "file": "space-marines/p211-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.211"
+  },
+  {
+    "path": "space-marines/p212",
+    "file": "space-marines/p212-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.212"
+  },
+  {
+    "path": "space-marines/p213",
+    "file": "space-marines/p213-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.213"
+  },
+  {
+    "path": "space-marines/p214",
+    "file": "space-marines/p214-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.214"
+  },
+  {
+    "path": "space-marines/p215",
+    "file": "space-marines/p215-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.215"
+  },
+  {
+    "path": "space-marines/p216",
+    "file": "space-marines/p216-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.216"
+  },
+  {
+    "path": "space-marines/p217",
+    "file": "space-marines/p217-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Marines, p.217"
+  },
+  {
+    "path": "space-wolves/p01",
+    "file": "space-wolves/p01-space-wolves.md",
+    "title": "SPACE WOLVES",
+    "url": "Space Wolves, p.1"
+  },
+  {
+    "path": "space-wolves/p02",
+    "file": "space-wolves/p02-champions-of-fenris.md",
+    "title": "CHAMPIONS OF FENRIS",
+    "url": "Space Wolves, p.2"
+  },
+  {
+    "path": "space-wolves/p03",
+    "file": "space-wolves/p03-legends-of-saga-and-song.md",
+    "title": "LEGENDS OF SAGA AND SONG",
+    "url": "Space Wolves, p.3"
+  },
+  {
+    "path": "space-wolves/p04",
+    "file": "space-wolves/p04-veterans-of-the-fang.md",
+    "title": "VETERANS OF THE FANG",
+    "url": "Space Wolves, p.4"
+  },
+  {
+    "path": "space-wolves/p05",
+    "file": "space-wolves/p05-saga-of-the-great-wolf.md",
+    "title": "SAGA OF THE GREAT WOLF",
+    "url": "Space Wolves, p.5"
+  },
+  {
+    "path": "space-wolves/p06",
+    "file": "space-wolves/p06-the-foe-foreseen.md",
+    "title": "THE FOE FORESEEN",
+    "url": "Space Wolves, p.6"
+  },
+  {
+    "path": "space-wolves/p07",
+    "file": "space-wolves/p07-wolf-scouts.md",
+    "title": "WOLF SCOUTS",
+    "url": "Space Wolves, p.7"
+  },
+  {
+    "path": "space-wolves/p08",
+    "file": "space-wolves/p08-unit-composition.md",
+    "title": "UNIT COMPOSITION",
+    "url": "Space Wolves, p.8"
+  },
+  {
+    "path": "space-wolves/p09",
+    "file": "space-wolves/p09-space-wolves.md",
+    "title": "SPACE WOLVES",
+    "url": "Space Wolves, p.9"
+  },
+  {
+    "path": "space-wolves/p10",
+    "file": "space-wolves/p10-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.10"
+  },
+  {
+    "path": "space-wolves/p11",
+    "file": "space-wolves/p11-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.11"
+  },
+  {
+    "path": "space-wolves/p12",
+    "file": "space-wolves/p12-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.12"
+  },
+  {
+    "path": "space-wolves/p13",
+    "file": "space-wolves/p13-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.13"
+  },
+  {
+    "path": "space-wolves/p14",
+    "file": "space-wolves/p14-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.14"
+  },
+  {
+    "path": "space-wolves/p15",
+    "file": "space-wolves/p15-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.15"
+  },
+  {
+    "path": "space-wolves/p16",
+    "file": "space-wolves/p16-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.16"
+  },
+  {
+    "path": "space-wolves/p17",
+    "file": "space-wolves/p17-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.17"
+  },
+  {
+    "path": "space-wolves/p18",
+    "file": "space-wolves/p18-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.18"
+  },
+  {
+    "path": "space-wolves/p19",
+    "file": "space-wolves/p19-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.19"
+  },
+  {
+    "path": "space-wolves/p20",
+    "file": "space-wolves/p20-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.20"
+  },
+  {
+    "path": "space-wolves/p21",
+    "file": "space-wolves/p21-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.21"
+  },
+  {
+    "path": "space-wolves/p22",
+    "file": "space-wolves/p22-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.22"
+  },
+  {
+    "path": "space-wolves/p23",
+    "file": "space-wolves/p23-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.23"
+  },
+  {
+    "path": "space-wolves/p24",
+    "file": "space-wolves/p24-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.24"
+  },
+  {
+    "path": "space-wolves/p25",
+    "file": "space-wolves/p25-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.25"
+  },
+  {
+    "path": "space-wolves/p26",
+    "file": "space-wolves/p26-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.26"
+  },
+  {
+    "path": "space-wolves/p27",
+    "file": "space-wolves/p27-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.27"
+  },
+  {
+    "path": "space-wolves/p28",
+    "file": "space-wolves/p28-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.28"
+  },
+  {
+    "path": "space-wolves/p29",
+    "file": "space-wolves/p29-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.29"
+  },
+  {
+    "path": "space-wolves/p30",
+    "file": "space-wolves/p30-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.30"
+  },
+  {
+    "path": "space-wolves/p31",
+    "file": "space-wolves/p31-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.31"
+  },
+  {
+    "path": "space-wolves/p32",
+    "file": "space-wolves/p32-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.32"
+  },
+  {
+    "path": "space-wolves/p33",
+    "file": "space-wolves/p33-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.33"
+  },
+  {
+    "path": "space-wolves/p34",
+    "file": "space-wolves/p34-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.34"
+  },
+  {
+    "path": "space-wolves/p35",
+    "file": "space-wolves/p35-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.35"
+  },
+  {
+    "path": "space-wolves/p36",
+    "file": "space-wolves/p36-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.36"
+  },
+  {
+    "path": "space-wolves/p37",
+    "file": "space-wolves/p37-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.37"
+  },
+  {
+    "path": "space-wolves/p38",
+    "file": "space-wolves/p38-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.38"
+  },
+  {
+    "path": "space-wolves/p39",
+    "file": "space-wolves/p39-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.39"
+  },
+  {
+    "path": "space-wolves/p40",
+    "file": "space-wolves/p40-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.40"
+  },
+  {
+    "path": "space-wolves/p41",
+    "file": "space-wolves/p41-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.41"
+  },
+  {
+    "path": "space-wolves/p42",
+    "file": "space-wolves/p42-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.42"
+  },
+  {
+    "path": "space-wolves/p43",
+    "file": "space-wolves/p43-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.43"
+  },
+  {
+    "path": "space-wolves/p44",
+    "file": "space-wolves/p44-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.44"
+  },
+  {
+    "path": "space-wolves/p45",
+    "file": "space-wolves/p45-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Space Wolves, p.45"
+  },
+  {
+    "path": "drukhari/p01",
+    "file": "drukhari/p01-drukhari.md",
+    "title": "DRUKHARI",
+    "url": "Drukhari, p.1"
+  },
+  {
+    "path": "drukhari/p02",
+    "file": "drukhari/p02-exhibition-of-slaughter.md",
+    "title": "EXHIBITION OF SLAUGHTER",
+    "url": "Drukhari, p.2"
+  },
+  {
+    "path": "drukhari/p03",
+    "file": "drukhari/p03-kabalite-agonysts.md",
+    "title": "KABALITE AGONYSTS",
+    "url": "Drukhari, p.3"
+  },
+  {
+    "path": "drukhari/p04",
+    "file": "drukhari/p04-tools-of-torment.md",
+    "title": "TOOLS OF TORMENT",
+    "url": "Drukhari, p.4"
+  },
+  {
+    "path": "drukhari/p05",
+    "file": "drukhari/p05-reaper-s-wager.md",
+    "title": "REAPER'S WAGER",
+    "url": "Drukhari, p.5"
+  },
+  {
+    "path": "drukhari/p06",
+    "file": "drukhari/p06-malicious-frenzy.md",
+    "title": "MALICIOUS FRENZY",
+    "url": "Drukhari, p.6"
+  },
+  {
+    "path": "drukhari/p07",
+    "file": "drukhari/p07-drukhari.md",
+    "title": "DRUKHARI",
+    "url": "Drukhari, p.7"
+  },
+  {
+    "path": "drukhari/p08",
+    "file": "drukhari/p08-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Drukhari, p.8"
+  },
+  {
+    "path": "drukhari/p09",
+    "file": "drukhari/p09-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Drukhari, p.9"
+  },
+  {
+    "path": "drukhari/p10",
+    "file": "drukhari/p10-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Drukhari, p.10"
+  },
+  {
+    "path": "drukhari/p11",
+    "file": "drukhari/p11-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Drukhari, p.11"
+  },
+  {
+    "path": "drukhari/p12",
+    "file": "drukhari/p12-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Drukhari, p.12"
+  },
+  {
+    "path": "drukhari/p13",
+    "file": "drukhari/p13-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Drukhari, p.13"
+  },
+  {
+    "path": "drukhari/p14",
+    "file": "drukhari/p14-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Drukhari, p.14"
+  },
+  {
+    "path": "drukhari/p15",
+    "file": "drukhari/p15-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Drukhari, p.15"
+  },
+  {
+    "path": "drukhari/p16",
+    "file": "drukhari/p16-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Drukhari, p.16"
+  },
+  {
+    "path": "drukhari/p17",
+    "file": "drukhari/p17-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Drukhari, p.17"
+  },
+  {
+    "path": "drukhari/p18",
+    "file": "drukhari/p18-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Drukhari, p.18"
+  },
+  {
+    "path": "drukhari/p19",
+    "file": "drukhari/p19-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Drukhari, p.19"
+  },
+  {
+    "path": "drukhari/p20",
+    "file": "drukhari/p20-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Drukhari, p.20"
+  },
+  {
+    "path": "drukhari/p21",
+    "file": "drukhari/p21-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Drukhari, p.21"
+  },
+  {
+    "path": "genestealer-cults/p01",
+    "file": "genestealer-cults/p01-genestealer-cults.md",
+    "title": "GENESTEALER CULTS",
+    "url": "Genestealer Cults, p.1"
+  },
+  {
+    "path": "genestealer-cults/p02",
+    "file": "genestealer-cults/p02-heroes-of-the-uprising.md",
+    "title": "HEROES OF THE UPRISING",
+    "url": "Genestealer Cults, p.2"
+  },
+  {
+    "path": "genestealer-cults/p03",
+    "file": "genestealer-cults/p03-purestrain-broodswarm.md",
+    "title": "PURESTRAIN BROODSWARM",
+    "url": "Genestealer Cults, p.3"
+  },
+  {
+    "path": "genestealer-cults/p04",
+    "file": "genestealer-cults/p04-xenocult-masses.md",
+    "title": "XENOCULT MASSES",
+    "url": "Genestealer Cults, p.4"
+  },
+  {
+    "path": "genestealer-cults/p05",
+    "file": "genestealer-cults/p05-final-day.md",
+    "title": "FINAL DAY",
+    "url": "Genestealer Cults, p.5"
+  },
+  {
+    "path": "genestealer-cults/p06",
+    "file": "genestealer-cults/p06-hyperferocity.md",
+    "title": "HYPERFEROCITY",
+    "url": "Genestealer Cults, p.6"
+  },
+  {
+    "path": "genestealer-cults/p07",
+    "file": "genestealer-cults/p07-genestealer-cults.md",
+    "title": "GENESTEALER CULTS",
+    "url": "Genestealer Cults, p.7"
+  },
+  {
+    "path": "genestealer-cults/p08",
+    "file": "genestealer-cults/p08-integrated-tactics-detachment-rule-brood-brothers.md",
+    "title": "Integrated Tactics Detachment Rule, Brood Brothers Section",
+    "url": "Genestealer Cults, p.8"
+  },
+  {
+    "path": "genestealer-cults/p09",
+    "file": "genestealer-cults/p09-sanctus.md",
+    "title": "Sanctus",
+    "url": "Genestealer Cults, p.9"
+  },
+  {
+    "path": "genestealer-cults/p10",
+    "file": "genestealer-cults/p10-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Genestealer Cults, p.10"
+  },
+  {
+    "path": "genestealer-cults/p11",
+    "file": "genestealer-cults/p11-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Genestealer Cults, p.11"
+  },
+  {
+    "path": "necrons/p01",
+    "file": "necrons/p01-necrons.md",
+    "title": "NECRONS",
+    "url": "Necrons, p.1"
+  },
+  {
+    "path": "necrons/p02",
+    "file": "necrons/p02-hand-of-the-dynasty.md",
+    "title": "HAND OF THE DYNASTY",
+    "url": "Necrons, p.2"
+  },
+  {
+    "path": "necrons/p03",
+    "file": "necrons/p03-skyshroud-spearhead.md",
+    "title": "SKYSHROUD SPEARHEAD",
+    "url": "Necrons, p.3"
+  },
+  {
+    "path": "necrons/p04",
+    "file": "necrons/p04-the-phaeron-s-armoury.md",
+    "title": "THE PHAERON'S ARMOURY",
+    "url": "Necrons, p.4"
+  },
+  {
+    "path": "necrons/p05",
+    "file": "necrons/p05-starshatter-arsenal.md",
+    "title": "STARSHATTER ARSENAL",
+    "url": "Necrons, p.5"
+  },
+  {
+    "path": "necrons/p06",
+    "file": "necrons/p06-merciless-reclamation.md",
+    "title": "MERCILESS RECLAMATION",
+    "url": "Necrons, p.6"
+  },
+  {
+    "path": "necrons/p07",
+    "file": "necrons/p07-cryptek-conclave.md",
+    "title": "CRYPTEK CONCLAVE",
+    "url": "Necrons, p.7"
+  },
+  {
+    "path": "necrons/p08",
+    "file": "necrons/p08-molecular-targeting.md",
+    "title": "MOLECULAR TARGETING",
+    "url": "Necrons, p.8"
+  },
+  {
+    "path": "necrons/p09",
+    "file": "necrons/p09-cursed-legion.md",
+    "title": "CURSED LEGION",
+    "url": "Necrons, p.9"
+  },
+  {
+    "path": "necrons/p10",
+    "file": "necrons/p10-methodical-murder.md",
+    "title": "METHODICAL MURDER",
+    "url": "Necrons, p.10"
+  },
+  {
+    "path": "necrons/p11",
+    "file": "necrons/p11-pantheon-of-woe.md",
+    "title": "PANTHEON OF WOE",
+    "url": "Necrons, p.11"
+  },
+  {
+    "path": "necrons/p12",
+    "file": "necrons/p12-disharmonisation-cascade.md",
+    "title": "DISHARMONISATION CASCADE",
+    "url": "Necrons, p.12"
+  },
+  {
+    "path": "necrons/p13",
+    "file": "necrons/p13-canoptek-macrocytes.md",
+    "title": "CANOPTEK MACROCYTES",
+    "url": "Necrons, p.13"
+  },
+  {
+    "path": "necrons/p14",
+    "file": "necrons/p14-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Necrons, p.14"
+  },
+  {
+    "path": "necrons/p15",
+    "file": "necrons/p15-canoptek-tomb-crawlers.md",
+    "title": "CANOPTEK TOMB CRAWLERS",
+    "url": "Necrons, p.15"
+  },
+  {
+    "path": "necrons/p16",
+    "file": "necrons/p16-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Necrons, p.16"
+  },
+  {
+    "path": "necrons/p17",
+    "file": "necrons/p17-geomancer.md",
+    "title": "GEOMANCER",
+    "url": "Necrons, p.17"
+  },
+  {
+    "path": "necrons/p18",
+    "file": "necrons/p18-leader.md",
+    "title": "LEADER",
+    "url": "Necrons, p.18"
+  },
+  {
+    "path": "necrons/p19",
+    "file": "necrons/p19-c-tan-shard-of-the-nightbringer.md",
+    "title": "C'TAN SHARD OF THE NIGHTBRINGER",
+    "url": "Necrons, p.19"
+  },
+  {
+    "path": "necrons/p20",
+    "file": "necrons/p20-enslaved-star-god.md",
+    "title": "ENSLAVED STAR GOD",
+    "url": "Necrons, p.20"
+  },
+  {
+    "path": "necrons/p21",
+    "file": "necrons/p21-c-tan-shard-of-the-void-dragon.md",
+    "title": "C'TAN SHARD OF THE VOID DRAGON",
+    "url": "Necrons, p.21"
+  },
+  {
+    "path": "necrons/p22",
+    "file": "necrons/p22-enslaved-star-god.md",
+    "title": "ENSLAVED STAR GOD",
+    "url": "Necrons, p.22"
+  },
+  {
+    "path": "necrons/p23",
+    "file": "necrons/p23-c-tan-shard-of-the-deceiver.md",
+    "title": "C'TAN SHARD OF THE DECEIVER",
+    "url": "Necrons, p.23"
+  },
+  {
+    "path": "necrons/p24",
+    "file": "necrons/p24-enslaved-star-god.md",
+    "title": "ENSLAVED STAR GOD:",
+    "url": "Necrons, p.24"
+  },
+  {
+    "path": "necrons/p25",
+    "file": "necrons/p25-transcendent-c-tan.md",
+    "title": "TRANSCENDENT C'TAN",
+    "url": "Necrons, p.25"
+  },
+  {
+    "path": "necrons/p26",
+    "file": "necrons/p26-enslaved-star-god.md",
+    "title": "ENSLAVED STAR GOD",
+    "url": "Necrons, p.26"
+  },
+  {
+    "path": "necrons/p27",
+    "file": "necrons/p27-nekrosor-ammentar.md",
+    "title": "NEKROSOR AMMENTAR",
+    "url": "Necrons, p.27"
+  },
+  {
+    "path": "necrons/p28",
+    "file": "necrons/p28-keywords-infantry-character-epic-hero-destroyer-cu.md",
+    "title": "KEYWORDS: Infantry, Character, Epic Hero, Destroyer Cult,",
+    "url": "Necrons, p.28"
+  },
+  {
+    "path": "necrons/p29",
+    "file": "necrons/p29-necrons.md",
+    "title": "NECRONS",
+    "url": "Necrons, p.29"
+  },
+  {
+    "path": "necrons/p30",
+    "file": "necrons/p30-faqs.md",
+    "title": "FAQS",
+    "url": "Necrons, p.30"
+  },
+  {
+    "path": "necrons/p31",
+    "file": "necrons/p31-seraptek-heavy-construct.md",
+    "title": "SERAPTEK HEAVY CONSTRUCT",
+    "url": "Necrons, p.31"
+  },
+  {
+    "path": "necrons/p32",
+    "file": "necrons/p32-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Necrons, p.32"
+  },
+  {
+    "path": "necrons/p33",
+    "file": "necrons/p33-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.33"
+  },
+  {
+    "path": "necrons/p34",
+    "file": "necrons/p34-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.34"
+  },
+  {
+    "path": "necrons/p35",
+    "file": "necrons/p35-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.35"
+  },
+  {
+    "path": "necrons/p36",
+    "file": "necrons/p36-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.36"
+  },
+  {
+    "path": "necrons/p37",
+    "file": "necrons/p37-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.37"
+  },
+  {
+    "path": "necrons/p38",
+    "file": "necrons/p38-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.38"
+  },
+  {
+    "path": "necrons/p39",
+    "file": "necrons/p39-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.39"
+  },
+  {
+    "path": "necrons/p40",
+    "file": "necrons/p40-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.40"
+  },
+  {
+    "path": "necrons/p41",
+    "file": "necrons/p41-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.41"
+  },
+  {
+    "path": "necrons/p42",
+    "file": "necrons/p42-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.42"
+  },
+  {
+    "path": "necrons/p43",
+    "file": "necrons/p43-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.43"
+  },
+  {
+    "path": "necrons/p44",
+    "file": "necrons/p44-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.44"
+  },
+  {
+    "path": "necrons/p45",
+    "file": "necrons/p45-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.45"
+  },
+  {
+    "path": "necrons/p46",
+    "file": "necrons/p46-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.46"
+  },
+  {
+    "path": "necrons/p47",
+    "file": "necrons/p47-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.47"
+  },
+  {
+    "path": "necrons/p48",
+    "file": "necrons/p48-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.48"
+  },
+  {
+    "path": "necrons/p49",
+    "file": "necrons/p49-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.49"
+  },
+  {
+    "path": "necrons/p50",
+    "file": "necrons/p50-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.50"
+  },
+  {
+    "path": "necrons/p51",
+    "file": "necrons/p51-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.51"
+  },
+  {
+    "path": "necrons/p52",
+    "file": "necrons/p52-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.52"
+  },
+  {
+    "path": "necrons/p53",
+    "file": "necrons/p53-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.53"
+  },
+  {
+    "path": "necrons/p54",
+    "file": "necrons/p54-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.54"
+  },
+  {
+    "path": "necrons/p55",
+    "file": "necrons/p55-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.55"
+  },
+  {
+    "path": "necrons/p56",
+    "file": "necrons/p56-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Necrons, p.56"
+  },
+  {
+    "path": "tau-empire/p01",
+    "file": "tau-empire/p01-t-au-empire.md",
+    "title": "T'AU EMPIRE",
+    "url": "Tau Empire, p.1"
+  },
+  {
+    "path": "tau-empire/p02",
+    "file": "tau-empire/p02-advanced-acquisition-cadre.md",
+    "title": "ADVANCED ACQUISITION CADRE",
+    "url": "Tau Empire, p.2"
+  },
+  {
+    "path": "tau-empire/p03",
+    "file": "tau-empire/p03-auxiliary-cadre.md",
+    "title": "AUXILIARY CADRE",
+    "url": "Tau Empire, p.3"
+  },
+  {
+    "path": "tau-empire/p04",
+    "file": "tau-empire/p04-experimental.md",
+    "title": "EXPERIMENTAL",
+    "url": "Tau Empire, p.4"
+  },
+  {
+    "path": "tau-empire/p05",
+    "file": "tau-empire/p05-the-twin-lance.md",
+    "title": "THE TWIN LANCE",
+    "url": "Tau Empire, p.5"
+  },
+  {
+    "path": "tau-empire/p06",
+    "file": "tau-empire/p06-unit-composition.md",
+    "title": "UNIT COMPOSITION",
+    "url": "Tau Empire, p.6"
+  },
+  {
+    "path": "tau-empire/p07",
+    "file": "tau-empire/p07-stealth-battlesuits.md",
+    "title": "STEALTH BATTLESUITS",
+    "url": "Tau Empire, p.7"
+  },
+  {
+    "path": "tau-empire/p08",
+    "file": "tau-empire/p08-unit-composition.md",
+    "title": "UNIT COMPOSITION",
+    "url": "Tau Empire, p.8"
+  },
+  {
+    "path": "tau-empire/p09",
+    "file": "tau-empire/p09-vespid-stingwings.md",
+    "title": "VESPID STINGWINGS",
+    "url": "Tau Empire, p.9"
+  },
+  {
+    "path": "tau-empire/p10",
+    "file": "tau-empire/p10-unit-composition.md",
+    "title": "UNIT COMPOSITION",
+    "url": "Tau Empire, p.10"
+  },
+  {
+    "path": "tau-empire/p11",
+    "file": "tau-empire/p11-ta-unar-supremacy-armour.md",
+    "title": "TA'UNAR SUPREMACY ARMOUR",
+    "url": "Tau Empire, p.11"
+  },
+  {
+    "path": "tau-empire/p12",
+    "file": "tau-empire/p12-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Tau Empire, p.12"
+  },
+  {
+    "path": "tau-empire/p13",
+    "file": "tau-empire/p13-tiger-shark.md",
+    "title": "TIGER SHARK",
+    "url": "Tau Empire, p.13"
+  },
+  {
+    "path": "tau-empire/p14",
+    "file": "tau-empire/p14-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Tau Empire, p.14"
+  },
+  {
+    "path": "tau-empire/p15",
+    "file": "tau-empire/p15-ax-1-0-tiger-shark.md",
+    "title": "AX-1-0 TIGER SHARK",
+    "url": "Tau Empire, p.15"
+  },
+  {
+    "path": "tau-empire/p16",
+    "file": "tau-empire/p16-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Tau Empire, p.16"
+  },
+  {
+    "path": "tau-empire/p17",
+    "file": "tau-empire/p17-manta.md",
+    "title": "MANTA",
+    "url": "Tau Empire, p.17"
+  },
+  {
+    "path": "tau-empire/p18",
+    "file": "tau-empire/p18-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Tau Empire, p.18"
+  },
+  {
+    "path": "tau-empire/p19",
+    "file": "tau-empire/p19-t-au-empire.md",
+    "title": "T'AU EMPIRE",
+    "url": "Tau Empire, p.19"
+  },
+  {
+    "path": "tau-empire/p20",
+    "file": "tau-empire/p20-ethereal-abilities.md",
+    "title": "Ethereal, Abilities",
+    "url": "Tau Empire, p.20"
+  },
+  {
+    "path": "tau-empire/p21",
+    "file": "tau-empire/p21-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.21"
+  },
+  {
+    "path": "tau-empire/p22",
+    "file": "tau-empire/p22-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.22"
+  },
+  {
+    "path": "tau-empire/p23",
+    "file": "tau-empire/p23-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.23"
+  },
+  {
+    "path": "tau-empire/p24",
+    "file": "tau-empire/p24-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.24"
+  },
+  {
+    "path": "tau-empire/p25",
+    "file": "tau-empire/p25-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.25"
+  },
+  {
+    "path": "tau-empire/p26",
+    "file": "tau-empire/p26-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.26"
+  },
+  {
+    "path": "tau-empire/p27",
+    "file": "tau-empire/p27-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.27"
+  },
+  {
+    "path": "tau-empire/p28",
+    "file": "tau-empire/p28-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.28"
+  },
+  {
+    "path": "tau-empire/p29",
+    "file": "tau-empire/p29-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.29"
+  },
+  {
+    "path": "tau-empire/p30",
+    "file": "tau-empire/p30-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.30"
+  },
+  {
+    "path": "tau-empire/p31",
+    "file": "tau-empire/p31-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.31"
+  },
+  {
+    "path": "tau-empire/p32",
+    "file": "tau-empire/p32-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.32"
+  },
+  {
+    "path": "tau-empire/p33",
+    "file": "tau-empire/p33-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.33"
+  },
+  {
+    "path": "tau-empire/p34",
+    "file": "tau-empire/p34-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.34"
+  },
+  {
+    "path": "tau-empire/p35",
+    "file": "tau-empire/p35-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.35"
+  },
+  {
+    "path": "tau-empire/p36",
+    "file": "tau-empire/p36-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.36"
+  },
+  {
+    "path": "tau-empire/p37",
+    "file": "tau-empire/p37-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.37"
+  },
+  {
+    "path": "tau-empire/p38",
+    "file": "tau-empire/p38-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.38"
+  },
+  {
+    "path": "tau-empire/p39",
+    "file": "tau-empire/p39-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.39"
+  },
+  {
+    "path": "tau-empire/p40",
+    "file": "tau-empire/p40-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.40"
+  },
+  {
+    "path": "tau-empire/p41",
+    "file": "tau-empire/p41-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.41"
+  },
+  {
+    "path": "tau-empire/p42",
+    "file": "tau-empire/p42-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.42"
+  },
+  {
+    "path": "tau-empire/p43",
+    "file": "tau-empire/p43-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.43"
+  },
+  {
+    "path": "tau-empire/p44",
+    "file": "tau-empire/p44-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.44"
+  },
+  {
+    "path": "tau-empire/p45",
+    "file": "tau-empire/p45-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.45"
+  },
+  {
+    "path": "tau-empire/p46",
+    "file": "tau-empire/p46-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.46"
+  },
+  {
+    "path": "tau-empire/p47",
+    "file": "tau-empire/p47-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.47"
+  },
+  {
+    "path": "tau-empire/p48",
+    "file": "tau-empire/p48-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.48"
+  },
+  {
+    "path": "tau-empire/p49",
+    "file": "tau-empire/p49-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.49"
+  },
+  {
+    "path": "tau-empire/p50",
+    "file": "tau-empire/p50-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.50"
+  },
+  {
+    "path": "tau-empire/p51",
+    "file": "tau-empire/p51-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.51"
+  },
+  {
+    "path": "tau-empire/p52",
+    "file": "tau-empire/p52-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.52"
+  },
+  {
+    "path": "tau-empire/p53",
+    "file": "tau-empire/p53-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.53"
+  },
+  {
+    "path": "tau-empire/p54",
+    "file": "tau-empire/p54-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.54"
+  },
+  {
+    "path": "tau-empire/p55",
+    "file": "tau-empire/p55-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.55"
+  },
+  {
+    "path": "tau-empire/p56",
+    "file": "tau-empire/p56-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.56"
+  },
+  {
+    "path": "tau-empire/p57",
+    "file": "tau-empire/p57-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.57"
+  },
+  {
+    "path": "tau-empire/p58",
+    "file": "tau-empire/p58-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.58"
+  },
+  {
+    "path": "tau-empire/p59",
+    "file": "tau-empire/p59-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.59"
+  },
+  {
+    "path": "tau-empire/p60",
+    "file": "tau-empire/p60-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.60"
+  },
+  {
+    "path": "tau-empire/p61",
+    "file": "tau-empire/p61-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tau Empire, p.61"
+  },
+  {
+    "path": "tyranids/p01",
+    "file": "tyranids/p01-tyranids.md",
+    "title": "TYRANIDS",
+    "url": "Tyranids, p.1"
+  },
+  {
+    "path": "tyranids/p02",
+    "file": "tyranids/p02-ambush-predators.md",
+    "title": "AMBUSH PREDATORS",
+    "url": "Tyranids, p.2"
+  },
+  {
+    "path": "tyranids/p03",
+    "file": "tyranids/p03-talons-of-the-norn-queen.md",
+    "title": "TALONS OF THE NORN QUEEN",
+    "url": "Tyranids, p.3"
+  },
+  {
+    "path": "tyranids/p04",
+    "file": "tyranids/p04-warrior-bioform-onslaught.md",
+    "title": "WARRIOR BIOFORM ONSLAUGHT",
+    "url": "Tyranids, p.4"
+  },
+  {
+    "path": "tyranids/p05",
+    "file": "tyranids/p05-subterranean.md",
+    "title": "SUBTERRANEAN",
+    "url": "Tyranids, p.5"
+  },
+  {
+    "path": "tyranids/p06",
+    "file": "tyranids/p06-adaptive-optimisation.md",
+    "title": "ADAPTIVE OPTIMISATION",
+    "url": "Tyranids, p.6"
+  },
+  {
+    "path": "tyranids/p07",
+    "file": "tyranids/p07-the-red-terror.md",
+    "title": "THE RED TERROR",
+    "url": "Tyranids, p.7"
+  },
+  {
+    "path": "tyranids/p08",
+    "file": "tyranids/p08-a-serpentine-fiend-that-tunnels-beneath-the-battle.md",
+    "title": "A serpentine fiend that tunnels beneath the battlefield to strike",
+    "url": "Tyranids, p.8"
+  },
+  {
+    "path": "tyranids/p09",
+    "file": "tyranids/p09-tyranid-prime-with-lash-whip.md",
+    "title": "TYRANID PRIME WITH LASH WHIP",
+    "url": "Tyranids, p.9"
+  },
+  {
+    "path": "tyranids/p10",
+    "file": "tyranids/p10-a-living-beacon-of-the-hive-mind-s-will-the-tyrani.md",
+    "title": "A living beacon of the Hive Mind's will, the Tyranid Prime",
+    "url": "Tyranids, p.10"
+  },
+  {
+    "path": "tyranids/p11",
+    "file": "tyranids/p11-raveners.md",
+    "title": "RAVENERS",
+    "url": "Tyranids, p.11"
+  },
+  {
+    "path": "tyranids/p12",
+    "file": "tyranids/p12-serpentine-bioforms-capable-of-a-terrifying-turn-o.md",
+    "title": "Serpentine bioforms capable of a terrifying turn of speed,",
+    "url": "Tyranids, p.12"
+  },
+  {
+    "path": "tyranids/p13",
+    "file": "tyranids/p13-hyperadapted-raveners.md",
+    "title": "HYPERADAPTED RAVENERS",
+    "url": "Tyranids, p.13"
+  },
+  {
+    "path": "tyranids/p14",
+    "file": "tyranids/p14-created-to-fight-amongst-the-vanguard-swarms-hyper.md",
+    "title": "Created to fight amongst the vanguard swarms, Hyperadapted Raveners",
+    "url": "Tyranids, p.14"
+  },
+  {
+    "path": "tyranids/p15",
+    "file": "tyranids/p15-harridan.md",
+    "title": "HARRIDAN",
+    "url": "Tyranids, p.15"
+  },
+  {
+    "path": "tyranids/p16",
+    "file": "tyranids/p16-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Tyranids, p.16"
+  },
+  {
+    "path": "tyranids/p17",
+    "file": "tyranids/p17-hierophant.md",
+    "title": "HIEROPHANT",
+    "url": "Tyranids, p.17"
+  },
+  {
+    "path": "tyranids/p18",
+    "file": "tyranids/p18-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Tyranids, p.18"
+  },
+  {
+    "path": "tyranids/p19",
+    "file": "tyranids/p19-tyranids.md",
+    "title": "TYRANIDS",
+    "url": "Tyranids, p.19"
+  },
+  {
+    "path": "tyranids/p20",
+    "file": "tyranids/p20-broodlord-parasite-of-mortrex.md",
+    "title": "Broodlord, Parasite of Mortrex",
+    "url": "Tyranids, p.20"
+  },
+  {
+    "path": "tyranids/p21",
+    "file": "tyranids/p21-q-when-using-the-reclaim-biomass-stratagem-can-the.md",
+    "title": "Q: When using the Reclaim Biomass Stratagem, can the Stratagem effect",
+    "url": "Tyranids, p.21"
+  },
+  {
+    "path": "tyranids/p22",
+    "file": "tyranids/p22-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tyranids, p.22"
+  },
+  {
+    "path": "tyranids/p23",
+    "file": "tyranids/p23-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tyranids, p.23"
+  },
+  {
+    "path": "tyranids/p24",
+    "file": "tyranids/p24-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tyranids, p.24"
+  },
+  {
+    "path": "tyranids/p25",
+    "file": "tyranids/p25-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tyranids, p.25"
+  },
+  {
+    "path": "tyranids/p26",
+    "file": "tyranids/p26-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tyranids, p.26"
+  },
+  {
+    "path": "tyranids/p27",
+    "file": "tyranids/p27-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tyranids, p.27"
+  },
+  {
+    "path": "tyranids/p28",
+    "file": "tyranids/p28-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tyranids, p.28"
+  },
+  {
+    "path": "tyranids/p29",
+    "file": "tyranids/p29-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tyranids, p.29"
+  },
+  {
+    "path": "tyranids/p30",
+    "file": "tyranids/p30-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tyranids, p.30"
+  },
+  {
+    "path": "tyranids/p31",
+    "file": "tyranids/p31-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Tyranids, p.31"
+  },
+  {
+    "path": "chaos-knights/p01",
+    "file": "chaos-knights/p01-chaos-knights.md",
+    "title": "CHAOS KNIGHTS",
+    "url": "Chaos Knights, p.1"
+  },
+  {
+    "path": "chaos-knights/p02",
+    "file": "chaos-knights/p02-bastions-of-tyranny.md",
+    "title": "BASTIONS OF TYRANNY",
+    "url": "Chaos Knights, p.2"
+  },
+  {
+    "path": "chaos-knights/p03",
+    "file": "chaos-knights/p03-hunting-warpack.md",
+    "title": "HUNTING WARPACK",
+    "url": "Chaos Knights, p.3"
+  },
+  {
+    "path": "chaos-knights/p04",
+    "file": "chaos-knights/p04-iconoclast-fiefdom.md",
+    "title": "ICONOCLAST FIEFDOM",
+    "url": "Chaos Knights, p.4"
+  },
+  {
+    "path": "chaos-knights/p05",
+    "file": "chaos-knights/p05-helhunt-lance.md",
+    "title": "HELHUNT LANCE",
+    "url": "Chaos Knights, p.5"
+  },
+  {
+    "path": "chaos-knights/p06",
+    "file": "chaos-knights/p06-feral-arrogance.md",
+    "title": "FERAL ARROGANCE",
+    "url": "Chaos Knights, p.6"
+  },
+  {
+    "path": "chaos-knights/p07",
+    "file": "chaos-knights/p07-chaos-acastus-knight-asterius.md",
+    "title": "CHAOS ACASTUS KNIGHT ASTERIUS",
+    "url": "Chaos Knights, p.7"
+  },
+  {
+    "path": "chaos-knights/p08",
+    "file": "chaos-knights/p08-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Chaos Knights, p.8"
+  },
+  {
+    "path": "chaos-knights/p09",
+    "file": "chaos-knights/p09-chaos-acastus-knight-porphyrion.md",
+    "title": "CHAOS ACASTUS KNIGHT PORPHYRION",
+    "url": "Chaos Knights, p.9"
+  },
+  {
+    "path": "chaos-knights/p10",
+    "file": "chaos-knights/p10-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Chaos Knights, p.10"
+  },
+  {
+    "path": "chaos-knights/p11",
+    "file": "chaos-knights/p11-chaos-cerastus-knight-lancer.md",
+    "title": "CHAOS CERASTUS KNIGHT LANCER",
+    "url": "Chaos Knights, p.11"
+  },
+  {
+    "path": "chaos-knights/p12",
+    "file": "chaos-knights/p12-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Chaos Knights, p.12"
+  },
+  {
+    "path": "chaos-knights/p13",
+    "file": "chaos-knights/p13-chaos-cerastus-knight-castigator.md",
+    "title": "CHAOS CERASTUS KNIGHT CASTIGATOR",
+    "url": "Chaos Knights, p.13"
+  },
+  {
+    "path": "chaos-knights/p14",
+    "file": "chaos-knights/p14-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Chaos Knights, p.14"
+  },
+  {
+    "path": "chaos-knights/p15",
+    "file": "chaos-knights/p15-chaos-cerastus-knight-acheron.md",
+    "title": "CHAOS CERASTUS KNIGHT ACHERON",
+    "url": "Chaos Knights, p.15"
+  },
+  {
+    "path": "chaos-knights/p16",
+    "file": "chaos-knights/p16-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Chaos Knights, p.16"
+  },
+  {
+    "path": "chaos-knights/p17",
+    "file": "chaos-knights/p17-chaos-cerastus-knight-atrapos.md",
+    "title": "CHAOS CERASTUS KNIGHT ATRAPOS",
+    "url": "Chaos Knights, p.17"
+  },
+  {
+    "path": "chaos-knights/p18",
+    "file": "chaos-knights/p18-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Chaos Knights, p.18"
+  },
+  {
+    "path": "chaos-knights/p19",
+    "file": "chaos-knights/p19-chaos-questoris-knight-magaera.md",
+    "title": "CHAOS QUESTORIS KNIGHT MAGAERA",
+    "url": "Chaos Knights, p.19"
+  },
+  {
+    "path": "chaos-knights/p20",
+    "file": "chaos-knights/p20-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Chaos Knights, p.20"
+  },
+  {
+    "path": "chaos-knights/p21",
+    "file": "chaos-knights/p21-chaos-questoris-knight-styrix.md",
+    "title": "CHAOS QUESTORIS KNIGHT STYRIX",
+    "url": "Chaos Knights, p.21"
+  },
+  {
+    "path": "chaos-knights/p22",
+    "file": "chaos-knights/p22-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Chaos Knights, p.22"
+  },
+  {
+    "path": "chaos-knights/p23",
+    "file": "chaos-knights/p23-war-dog-moirax.md",
+    "title": "WAR DOG MOIRAX",
+    "url": "Chaos Knights, p.23"
+  },
+  {
+    "path": "chaos-knights/p24",
+    "file": "chaos-knights/p24-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Chaos Knights, p.24"
+  },
+  {
+    "path": "chaos-knights/p25",
+    "file": "chaos-knights/p25-chaos-knights.md",
+    "title": "CHAOS KNIGHTS",
+    "url": "Chaos Knights, p.25"
+  },
+  {
+    "path": "death-guard/p01",
+    "file": "death-guard/p01-death-guard.md",
+    "title": "DEATH GUARD",
+    "url": "Death Guard, p.1"
+  },
+  {
+    "path": "death-guard/p02",
+    "file": "death-guard/p02-contagion-engines.md",
+    "title": "CONTAGION ENGINES",
+    "url": "Death Guard, p.2"
+  },
+  {
+    "path": "death-guard/p03",
+    "file": "death-guard/p03-flyblown-host.md",
+    "title": "FLYBLOWN HOST",
+    "url": "Death Guard, p.3"
+  },
+  {
+    "path": "death-guard/p04",
+    "file": "death-guard/p04-paragons-of-putrescence.md",
+    "title": "PARAGONS OF PUTRESCENCE",
+    "url": "Death Guard, p.4"
+  },
+  {
+    "path": "death-guard/p05",
+    "file": "death-guard/p05-defiler.md",
+    "title": "DEFILER",
+    "url": "Death Guard, p.5"
+  },
+  {
+    "path": "death-guard/p06",
+    "file": "death-guard/p06-defiler.md",
+    "title": "DEFILER",
+    "url": "Death Guard, p.6"
+  },
+  {
+    "path": "death-guard/p07",
+    "file": "death-guard/p07-death-guard.md",
+    "title": "DEATH GUARD",
+    "url": "Death Guard, p.7"
+  },
+  {
+    "path": "death-guard/p08",
+    "file": "death-guard/p08-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Death Guard, p.8"
+  },
+  {
+    "path": "death-guard/p09",
+    "file": "death-guard/p09-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Death Guard, p.9"
+  },
+  {
+    "path": "death-guard/p10",
+    "file": "death-guard/p10-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Death Guard, p.10"
+  },
+  {
+    "path": "death-guard/p11",
+    "file": "death-guard/p11-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Death Guard, p.11"
+  },
+  {
+    "path": "death-guard/p12",
+    "file": "death-guard/p12-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Death Guard, p.12"
+  },
+  {
+    "path": "death-guard/p13",
+    "file": "death-guard/p13-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Death Guard, p.13"
+  },
+  {
+    "path": "death-guard/p14",
+    "file": "death-guard/p14-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Death Guard, p.14"
+  },
+  {
+    "path": "death-guard/p15",
+    "file": "death-guard/p15-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Death Guard, p.15"
+  },
+  {
+    "path": "death-guard/p16",
+    "file": "death-guard/p16-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Death Guard, p.16"
+  },
+  {
+    "path": "death-guard/p17",
+    "file": "death-guard/p17-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Death Guard, p.17"
+  },
+  {
+    "path": "emperor-s-children/p01",
+    "file": "emperor-s-children/p01-emperor-s-children.md",
+    "title": "EMPEROR'S CHILDREN",
+    "url": "Emperor S Children, p.1"
+  },
+  {
+    "path": "emperor-s-children/p02",
+    "file": "emperor-s-children/p02-elegant-brutes.md",
+    "title": "ELEGANT BRUTES",
+    "url": "Emperor S Children, p.2"
+  },
+  {
+    "path": "emperor-s-children/p03",
+    "file": "emperor-s-children/p03-frenzied-host.md",
+    "title": "FRENZIED HOST",
+    "url": "Emperor S Children, p.3"
+  },
+  {
+    "path": "emperor-s-children/p04",
+    "file": "emperor-s-children/p04-spectacle-of-slaughter.md",
+    "title": "SPECTACLE OF SLAUGHTER",
+    "url": "Emperor S Children, p.4"
+  },
+  {
+    "path": "emperor-s-children/p05",
+    "file": "emperor-s-children/p05-court-of-the.md",
+    "title": "COURT OF THE",
+    "url": "Emperor S Children, p.5"
+  },
+  {
+    "path": "emperor-s-children/p06",
+    "file": "emperor-s-children/p06-contemptuous-disregard.md",
+    "title": "CONTEMPTUOUS DISREGARD",
+    "url": "Emperor S Children, p.6"
+  },
+  {
+    "path": "emperor-s-children/p07",
+    "file": "emperor-s-children/p07-defiler.md",
+    "title": "DEFILER",
+    "url": "Emperor S Children, p.7"
+  },
+  {
+    "path": "emperor-s-children/p08",
+    "file": "emperor-s-children/p08-defiler.md",
+    "title": "DEFILER",
+    "url": "Emperor S Children, p.8"
+  },
+  {
+    "path": "emperor-s-children/p09",
+    "file": "emperor-s-children/p09-emperor-s-children.md",
+    "title": "EMPEROR'S CHILDREN",
+    "url": "Emperor S Children, p.9"
+  },
+  {
+    "path": "emperor-s-children/p10",
+    "file": "emperor-s-children/p10-faqs.md",
+    "title": "FAQS",
+    "url": "Emperor S Children, p.10"
+  },
+  {
+    "path": "world-eaters/p01",
+    "file": "world-eaters/p01-world-eaters.md",
+    "title": "WORLD EATERS",
+    "url": "World Eaters, p.1"
+  },
+  {
+    "path": "world-eaters/p02",
+    "file": "world-eaters/p02-brazen-engines.md",
+    "title": "BRAZEN ENGINES",
+    "url": "World Eaters, p.2"
+  },
+  {
+    "path": "world-eaters/p03",
+    "file": "world-eaters/p03-butchers-of-khorne.md",
+    "title": "BUTCHERS OF KHORNE",
+    "url": "World Eaters, p.3"
+  },
+  {
+    "path": "world-eaters/p04",
+    "file": "world-eaters/p04-vessels-of-wrath.md",
+    "title": "VESSELS OF WRATH",
+    "url": "World Eaters, p.4"
+  },
+  {
+    "path": "world-eaters/p05",
+    "file": "world-eaters/p05-defiler.md",
+    "title": "DEFILER",
+    "url": "World Eaters, p.5"
+  },
+  {
+    "path": "world-eaters/p06",
+    "file": "world-eaters/p06-defiler.md",
+    "title": "DEFILER",
+    "url": "World Eaters, p.6"
+  },
+  {
+    "path": "world-eaters/p07",
+    "file": "world-eaters/p07-world-eaters.md",
+    "title": "WORLD EATERS",
+    "url": "World Eaters, p.7"
+  },
+  {
+    "path": "world-eaters/p08",
+    "file": "world-eaters/p08-helbrute-frenzy-ability.md",
+    "title": "Helbrute, Frenzy Ability",
+    "url": "World Eaters, p.8"
+  },
+  {
+    "path": "adepta-sororitas/p01",
+    "file": "adepta-sororitas/p01-adepta-sororitas.md",
+    "title": "ADEPTA SORORITAS",
+    "url": "Adepta Sororitas, p.1"
+  },
+  {
+    "path": "adepta-sororitas/p02",
+    "file": "adepta-sororitas/p02-chorus-of-condemnation.md",
+    "title": "CHORUS OF CONDEMNATION",
+    "url": "Adepta Sororitas, p.2"
+  },
+  {
+    "path": "adepta-sororitas/p03",
+    "file": "adepta-sororitas/p03-sacred-champions.md",
+    "title": "SACRED CHAMPIONS",
+    "url": "Adepta Sororitas, p.3"
+  },
+  {
+    "path": "adepta-sororitas/p04",
+    "file": "adepta-sororitas/p04-sanctified-orators.md",
+    "title": "SANCTIFIED ORATORS",
+    "url": "Adepta Sororitas, p.4"
+  },
+  {
+    "path": "adepta-sororitas/p05",
+    "file": "adepta-sororitas/p05-champions-of-faith.md",
+    "title": "CHAMPIONS OF FAITH",
+    "url": "Adepta Sororitas, p.5"
+  },
+  {
+    "path": "adepta-sororitas/p06",
+    "file": "adepta-sororitas/p06-shield-of-denial.md",
+    "title": "SHIELD OF DENIAL",
+    "url": "Adepta Sororitas, p.6"
+  },
+  {
+    "path": "adepta-sororitas/p07",
+    "file": "adepta-sororitas/p07-intranzia-fraye.md",
+    "title": "INTRANZIA FRAYE",
+    "url": "Adepta Sororitas, p.7"
+  },
+  {
+    "path": "adepta-sororitas/p08",
+    "file": "adepta-sororitas/p08-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Adepta Sororitas, p.8"
+  },
+  {
+    "path": "adepta-sororitas/p09",
+    "file": "adepta-sororitas/p09-sanctifiers.md",
+    "title": "SANCTIFIERS",
+    "url": "Adepta Sororitas, p.9"
+  },
+  {
+    "path": "adepta-sororitas/p10",
+    "file": "adepta-sororitas/p10-wargear-abilities.md",
+    "title": "WARGEAR ABILITIES",
+    "url": "Adepta Sororitas, p.10"
+  },
+  {
+    "path": "adepta-sororitas/p11",
+    "file": "adepta-sororitas/p11-celestian-insidiants.md",
+    "title": "CELESTIAN INSIDIANTS",
+    "url": "Adepta Sororitas, p.11"
+  },
+  {
+    "path": "adepta-sororitas/p12",
+    "file": "adepta-sororitas/p12-celestian-insidiants.md",
+    "title": "CELESTIAN INSIDIANTS",
+    "url": "Adepta Sororitas, p.12"
+  },
+  {
+    "path": "adepta-sororitas/p13",
+    "file": "adepta-sororitas/p13-adepta-sororitas.md",
+    "title": "ADEPTA SORORITAS",
+    "url": "Adepta Sororitas, p.13"
+  },
+  {
+    "path": "adepta-sororitas/p14",
+    "file": "adepta-sororitas/p14-immolator-transport-section-second-paragraph.md",
+    "title": "Immolator, Transport section, second paragraph",
+    "url": "Adepta Sororitas, p.14"
+  },
+  {
+    "path": "adepta-sororitas/p15",
+    "file": "adepta-sororitas/p15-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Adepta Sororitas, p.15"
+  },
+  {
+    "path": "adepta-sororitas/p16",
+    "file": "adepta-sororitas/p16-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Adepta Sororitas, p.16"
+  },
+  {
+    "path": "adepta-sororitas/p17",
+    "file": "adepta-sororitas/p17-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Adepta Sororitas, p.17"
+  },
+  {
+    "path": "adepta-sororitas/p18",
+    "file": "adepta-sororitas/p18-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Adepta Sororitas, p.18"
+  },
+  {
+    "path": "adepta-sororitas/p19",
+    "file": "adepta-sororitas/p19-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Adepta Sororitas, p.19"
+  },
+  {
+    "path": "adepta-sororitas/p20",
+    "file": "adepta-sororitas/p20-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Adepta Sororitas, p.20"
+  },
+  {
+    "path": "adepta-sororitas/p21",
+    "file": "adepta-sororitas/p21-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Adepta Sororitas, p.21"
+  },
+  {
+    "path": "adepta-sororitas/p22",
+    "file": "adepta-sororitas/p22-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Adepta Sororitas, p.22"
+  },
+  {
+    "path": "adepta-sororitas/p23",
+    "file": "adepta-sororitas/p23-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Adepta Sororitas, p.23"
+  },
+  {
+    "path": "adepta-sororitas/p24",
+    "file": "adepta-sororitas/p24-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Adepta Sororitas, p.24"
+  },
+  {
+    "path": "adeptus-custodes/p01",
+    "file": "adeptus-custodes/p01-adeptus-custodes.md",
+    "title": "ADEPTUS CUSTODES",
+    "url": "Adeptus Custodes, p.1"
+  },
+  {
+    "path": "adeptus-custodes/p02",
+    "file": "adeptus-custodes/p02-might-of-the-moritoi.md",
+    "title": "MIGHT OF THE MORITOI",
+    "url": "Adeptus Custodes, p.2"
+  },
+  {
+    "path": "adeptus-custodes/p03",
+    "file": "adeptus-custodes/p03-silent-hunters.md",
+    "title": "SILENT HUNTERS",
+    "url": "Adeptus Custodes, p.3"
+  },
+  {
+    "path": "adeptus-custodes/p04",
+    "file": "adeptus-custodes/p04-tharanatoi-hammerblow.md",
+    "title": "THARANATOI HAMMERBLOW",
+    "url": "Adeptus Custodes, p.4"
+  },
+  {
+    "path": "adeptus-custodes/p05",
+    "file": "adeptus-custodes/p05-lions-of-the-emperor.md",
+    "title": "LIONS OF THE EMPEROR",
+    "url": "Adeptus Custodes, p.5"
+  },
+  {
+    "path": "adeptus-custodes/p06",
+    "file": "adeptus-custodes/p06-gilded-champion.md",
+    "title": "GILDED CHAMPION",
+    "url": "Adeptus Custodes, p.6"
+  },
+  {
+    "path": "adeptus-custodes/p07",
+    "file": "adeptus-custodes/p07-solar-spearhead.md",
+    "title": "SOLAR SPEARHEAD",
+    "url": "Adeptus Custodes, p.7"
+  },
+  {
+    "path": "adeptus-custodes/p08",
+    "file": "adeptus-custodes/p08-flawless-construction.md",
+    "title": "FLAWLESS CONSTRUCTION",
+    "url": "Adeptus Custodes, p.8"
+  },
+  {
+    "path": "adeptus-custodes/p09",
+    "file": "adeptus-custodes/p09-custodian-guard-with-adrasite-and-pyrithite-spears.md",
+    "title": "CUSTODIAN GUARD WITH ADRASITE AND PYRITHITE SPEARS",
+    "url": "Adeptus Custodes, p.9"
+  },
+  {
+    "path": "adeptus-custodes/p10",
+    "file": "adeptus-custodes/p10-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Adeptus Custodes, p.10"
+  },
+  {
+    "path": "adeptus-custodes/p11",
+    "file": "adeptus-custodes/p11-sagittarum-custodians.md",
+    "title": "SAGITTARUM CUSTODIANS",
+    "url": "Adeptus Custodes, p.11"
+  },
+  {
+    "path": "adeptus-custodes/p12",
+    "file": "adeptus-custodes/p12-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Adeptus Custodes, p.12"
+  },
+  {
+    "path": "adeptus-custodes/p13",
+    "file": "adeptus-custodes/p13-aquilon-custodians.md",
+    "title": "AQUILON CUSTODIANS",
+    "url": "Adeptus Custodes, p.13"
+  },
+  {
+    "path": "adeptus-custodes/p14",
+    "file": "adeptus-custodes/p14-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Adeptus Custodes, p.14"
+  },
+  {
+    "path": "adeptus-custodes/p15",
+    "file": "adeptus-custodes/p15-contemptor-achillus-dreadnought.md",
+    "title": "CONTEMPTOR-ACHILLUS DREADNOUGHT",
+    "url": "Adeptus Custodes, p.15"
+  },
+  {
+    "path": "adeptus-custodes/p16",
+    "file": "adeptus-custodes/p16-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Adeptus Custodes, p.16"
+  },
+  {
+    "path": "adeptus-custodes/p17",
+    "file": "adeptus-custodes/p17-agamatus-custodians.md",
+    "title": "AGAMATUS CUSTODIANS",
+    "url": "Adeptus Custodes, p.17"
+  },
+  {
+    "path": "adeptus-custodes/p18",
+    "file": "adeptus-custodes/p18-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Adeptus Custodes, p.18"
+  },
+  {
+    "path": "adeptus-custodes/p19",
+    "file": "adeptus-custodes/p19-venatari-custodians.md",
+    "title": "VENATARI CUSTODIANS",
+    "url": "Adeptus Custodes, p.19"
+  },
+  {
+    "path": "adeptus-custodes/p20",
+    "file": "adeptus-custodes/p20-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Adeptus Custodes, p.20"
+  },
+  {
+    "path": "adeptus-custodes/p21",
+    "file": "adeptus-custodes/p21-pallas-grav-attack.md",
+    "title": "PALLAS GRAV-ATTACK",
+    "url": "Adeptus Custodes, p.21"
+  },
+  {
+    "path": "adeptus-custodes/p22",
+    "file": "adeptus-custodes/p22-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Adeptus Custodes, p.22"
+  },
+  {
+    "path": "adeptus-custodes/p23",
+    "file": "adeptus-custodes/p23-telemon-heavy-dreadnought.md",
+    "title": "TELEMON HEAVY DREADNOUGHT",
+    "url": "Adeptus Custodes, p.23"
+  },
+  {
+    "path": "adeptus-custodes/p24",
+    "file": "adeptus-custodes/p24-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Adeptus Custodes, p.24"
+  },
+  {
+    "path": "adeptus-custodes/p25",
+    "file": "adeptus-custodes/p25-caladius-grav-tank.md",
+    "title": "CALADIUS GRAV-TANK",
+    "url": "Adeptus Custodes, p.25"
+  },
+  {
+    "path": "adeptus-custodes/p26",
+    "file": "adeptus-custodes/p26-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Adeptus Custodes, p.26"
+  },
+  {
+    "path": "adeptus-custodes/p27",
+    "file": "adeptus-custodes/p27-coronus-grav-carrier.md",
+    "title": "CORONUS GRAV-CARRIER",
+    "url": "Adeptus Custodes, p.27"
+  },
+  {
+    "path": "adeptus-custodes/p28",
+    "file": "adeptus-custodes/p28-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Adeptus Custodes, p.28"
+  },
+  {
+    "path": "adeptus-custodes/p29",
+    "file": "adeptus-custodes/p29-orion-assault-dropship.md",
+    "title": "ORION ASSAULT DROPSHIP",
+    "url": "Adeptus Custodes, p.29"
+  },
+  {
+    "path": "adeptus-custodes/p30",
+    "file": "adeptus-custodes/p30-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Adeptus Custodes, p.30"
+  },
+  {
+    "path": "adeptus-custodes/p31",
+    "file": "adeptus-custodes/p31-ares-gunship.md",
+    "title": "ARES GUNSHIP",
+    "url": "Adeptus Custodes, p.31"
+  },
+  {
+    "path": "adeptus-custodes/p32",
+    "file": "adeptus-custodes/p32-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Adeptus Custodes, p.32"
+  },
+  {
+    "path": "adeptus-custodes/p33",
+    "file": "adeptus-custodes/p33-contemptor-galatus-dreadnought.md",
+    "title": "CONTEMPTOR-GALATUS DREADNOUGHT",
+    "url": "Adeptus Custodes, p.33"
+  },
+  {
+    "path": "adeptus-custodes/p34",
+    "file": "adeptus-custodes/p34-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Adeptus Custodes, p.34"
+  },
+  {
+    "path": "adeptus-custodes/p35",
+    "file": "adeptus-custodes/p35-adeptus-custodes.md",
+    "title": "ADEPTUS CUSTODES",
+    "url": "Adeptus Custodes, p.35"
+  },
+  {
+    "path": "adeptus-mechanicus/p01",
+    "file": "adeptus-mechanicus/p01-adeptus-mechanicus.md",
+    "title": "ADEPTUS MECHANICUS",
+    "url": "Adeptus Mechanicus, p.1"
+  },
+  {
+    "path": "adeptus-mechanicus/p02",
+    "file": "adeptus-mechanicus/p02-cohort-acquisitus.md",
+    "title": "COHORT ACQUISITUS",
+    "url": "Adeptus Mechanicus, p.2"
+  },
+  {
+    "path": "adeptus-mechanicus/p03",
+    "file": "adeptus-mechanicus/p03-lords-of-the-forge.md",
+    "title": "LORDS OF THE FORGE",
+    "url": "Adeptus Mechanicus, p.3"
+  },
+  {
+    "path": "adeptus-mechanicus/p04",
+    "file": "adeptus-mechanicus/p04-luminen-auto-choir.md",
+    "title": "LUMINEN AUTO-CHOIR",
+    "url": "Adeptus Mechanicus, p.4"
+  },
+  {
+    "path": "adeptus-mechanicus/p05",
+    "file": "adeptus-mechanicus/p05-eradication-cohort.md",
+    "title": "ERADICATION COHORT",
+    "url": "Adeptus Mechanicus, p.5"
+  },
+  {
+    "path": "adeptus-mechanicus/p06",
+    "file": "adeptus-mechanicus/p06-servo-driven-charge.md",
+    "title": "SERVO-DRIVEN CHARGE",
+    "url": "Adeptus Mechanicus, p.6"
+  },
+  {
+    "path": "adeptus-mechanicus/p07",
+    "file": "adeptus-mechanicus/p07-haloscreed.md",
+    "title": "HALOSCREED",
+    "url": "Adeptus Mechanicus, p.7"
+  },
+  {
+    "path": "adeptus-mechanicus/p08",
+    "file": "adeptus-mechanicus/p08-eradication-protocols.md",
+    "title": "ERADICATION PROTOCOLS",
+    "url": "Adeptus Mechanicus, p.8"
+  },
+  {
+    "path": "adeptus-mechanicus/p09",
+    "file": "adeptus-mechanicus/p09-thulia-ghuld.md",
+    "title": "THULIA GHULD",
+    "url": "Adeptus Mechanicus, p.9"
+  },
+  {
+    "path": "adeptus-mechanicus/p10",
+    "file": "adeptus-mechanicus/p10-faction-keywords.md",
+    "title": "FACTION KEYWORDS:",
+    "url": "Adeptus Mechanicus, p.10"
+  },
+  {
+    "path": "adeptus-mechanicus/p11",
+    "file": "adeptus-mechanicus/p11-hastarii-exterminators.md",
+    "title": "HASTARII EXTERMINATORS",
+    "url": "Adeptus Mechanicus, p.11"
+  },
+  {
+    "path": "adeptus-mechanicus/p12",
+    "file": "adeptus-mechanicus/p12-faction-keywords.md",
+    "title": "FACTION KEYWORDS:",
+    "url": "Adeptus Mechanicus, p.12"
+  },
+  {
+    "path": "adeptus-mechanicus/p13",
+    "file": "adeptus-mechanicus/p13-hastarii-fusiliers.md",
+    "title": "HASTARII FUSILIERS",
+    "url": "Adeptus Mechanicus, p.13"
+  },
+  {
+    "path": "adeptus-mechanicus/p14",
+    "file": "adeptus-mechanicus/p14-faction-keywords.md",
+    "title": "FACTION KEYWORDS:",
+    "url": "Adeptus Mechanicus, p.14"
+  },
+  {
+    "path": "adeptus-mechanicus/p15",
+    "file": "adeptus-mechanicus/p15-servitor-battleclade.md",
+    "title": "SERVITOR BATTLECLADE",
+    "url": "Adeptus Mechanicus, p.15"
+  },
+  {
+    "path": "adeptus-mechanicus/p16",
+    "file": "adeptus-mechanicus/p16-faction-keywords.md",
+    "title": "FACTION KEYWORDS:",
+    "url": "Adeptus Mechanicus, p.16"
+  },
+  {
+    "path": "adeptus-mechanicus/p17",
+    "file": "adeptus-mechanicus/p17-adeptus-mechanicus.md",
+    "title": "ADEPTUS MECHANICUS",
+    "url": "Adeptus Mechanicus, p.17"
+  },
+  {
+    "path": "adeptus-mechanicus/p18",
+    "file": "adeptus-mechanicus/p18-skitarii-marshal-servo-skull-uplink-ability.md",
+    "title": "Skitarii Marshal, Servo-skull Uplink Ability",
+    "url": "Adeptus Mechanicus, p.18"
+  },
+  {
+    "path": "adeptus-mechanicus/p19",
+    "file": "adeptus-mechanicus/p19-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Adeptus Mechanicus, p.19"
+  },
+  {
+    "path": "adeptus-mechanicus/p20",
+    "file": "adeptus-mechanicus/p20-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Adeptus Mechanicus, p.20"
+  },
+  {
+    "path": "adeptus-mechanicus/p21",
+    "file": "adeptus-mechanicus/p21-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Adeptus Mechanicus, p.21"
+  },
+  {
+    "path": "adeptus-mechanicus/p22",
+    "file": "adeptus-mechanicus/p22-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Adeptus Mechanicus, p.22"
+  },
+  {
+    "path": "adeptus-mechanicus/p23",
+    "file": "adeptus-mechanicus/p23-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Adeptus Mechanicus, p.23"
+  },
+  {
+    "path": "adeptus-mechanicus/p24",
+    "file": "adeptus-mechanicus/p24-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Adeptus Mechanicus, p.24"
+  },
+  {
+    "path": "adeptus-mechanicus/p25",
+    "file": "adeptus-mechanicus/p25-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Adeptus Mechanicus, p.25"
+  },
+  {
+    "path": "adeptus-mechanicus/p26",
+    "file": "adeptus-mechanicus/p26-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Adeptus Mechanicus, p.26"
+  },
+  {
+    "path": "adeptus-titanicus/p01",
+    "file": "adeptus-titanicus/p01-adeptus-titanicus.md",
+    "title": "ADEPTUS TITANICUS",
+    "url": "Adeptus Titanicus, p.1"
+  },
+  {
+    "path": "adeptus-titanicus/p02",
+    "file": "adeptus-titanicus/p02-adeptus-titanicus.md",
+    "title": "ADEPTUS TITANICUS",
+    "url": "Adeptus Titanicus, p.2"
+  },
+  {
+    "path": "adeptus-titanicus/p03",
+    "file": "adeptus-titanicus/p03-warhound-titan.md",
+    "title": "WARHOUND TITAN",
+    "url": "Adeptus Titanicus, p.3"
+  },
+  {
+    "path": "adeptus-titanicus/p04",
+    "file": "adeptus-titanicus/p04-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Adeptus Titanicus, p.4"
+  },
+  {
+    "path": "adeptus-titanicus/p05",
+    "file": "adeptus-titanicus/p05-reaver-titan.md",
+    "title": "REAVER TITAN",
+    "url": "Adeptus Titanicus, p.5"
+  },
+  {
+    "path": "adeptus-titanicus/p06",
+    "file": "adeptus-titanicus/p06-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Adeptus Titanicus, p.6"
+  },
+  {
+    "path": "adeptus-titanicus/p07",
+    "file": "adeptus-titanicus/p07-warbringer-nemesis-titan.md",
+    "title": "WARBRINGER NEMESIS TITAN",
+    "url": "Adeptus Titanicus, p.7"
+  },
+  {
+    "path": "adeptus-titanicus/p08",
+    "file": "adeptus-titanicus/p08-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Adeptus Titanicus, p.8"
+  },
+  {
+    "path": "adeptus-titanicus/p09",
+    "file": "adeptus-titanicus/p09-warlord-titan.md",
+    "title": "WARLORD TITAN",
+    "url": "Adeptus Titanicus, p.9"
+  },
+  {
+    "path": "adeptus-titanicus/p10",
+    "file": "adeptus-titanicus/p10-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Adeptus Titanicus, p.10"
+  },
+  {
+    "path": "astra-militarum/p01",
+    "file": "astra-militarum/p01-astra-militarum.md",
+    "title": "ASTRA MILITARUM",
+    "url": "Astra Militarum, p.1"
+  },
+  {
+    "path": "astra-militarum/p02",
+    "file": "astra-militarum/p02-abhuman-auxiliaries.md",
+    "title": "ABHUMAN AUXILIARIES",
+    "url": "Astra Militarum, p.2"
+  },
+  {
+    "path": "astra-militarum/p03",
+    "file": "astra-militarum/p03-bridgehead-strike.md",
+    "title": "BRIDGEHEAD STRIKE",
+    "url": "Astra Militarum, p.3"
+  },
+  {
+    "path": "astra-militarum/p04",
+    "file": "astra-militarum/p04-designation-force.md",
+    "title": "DESIGNATION FORCE",
+    "url": "Astra Militarum, p.4"
+  },
+  {
+    "path": "astra-militarum/p05",
+    "file": "astra-militarum/p05-steel-hammer.md",
+    "title": "STEEL HAMMER",
+    "url": "Astra Militarum, p.5"
+  },
+  {
+    "path": "astra-militarum/p06",
+    "file": "astra-militarum/p06-engine-of-wrath.md",
+    "title": "ENGINE OF WRATH",
+    "url": "Astra Militarum, p.6"
+  },
+  {
+    "path": "astra-militarum/p07",
+    "file": "astra-militarum/p07-armoured-infantry.md",
+    "title": "ARMOURED INFANTRY",
+    "url": "Astra Militarum, p.7"
+  },
+  {
+    "path": "astra-militarum/p08",
+    "file": "astra-militarum/p08-order-the-advance.md",
+    "title": "ORDER THE ADVANCE",
+    "url": "Astra Militarum, p.8"
+  },
+  {
+    "path": "astra-militarum/p09",
+    "file": "astra-militarum/p09-grizzled-company.md",
+    "title": "GRIZZLED COMPANY",
+    "url": "Astra Militarum, p.9"
+  },
+  {
+    "path": "astra-militarum/p10",
+    "file": "astra-militarum/p10-snap-to-it.md",
+    "title": "SNAP TO IT",
+    "url": "Astra Militarum, p.10"
+  },
+  {
+    "path": "astra-militarum/p11",
+    "file": "astra-militarum/p11-cadian-recon-squad.md",
+    "title": "CADIAN RECON SQUAD",
+    "url": "Astra Militarum, p.11"
+  },
+  {
+    "path": "astra-militarum/p12",
+    "file": "astra-militarum/p12-cadian-recon-squad.md",
+    "title": "CADIAN RECON SQUAD",
+    "url": "Astra Militarum, p.12"
+  },
+  {
+    "path": "astra-militarum/p13",
+    "file": "astra-militarum/p13-commissar-yarrick.md",
+    "title": "COMMISSAR YARRICK",
+    "url": "Astra Militarum, p.13"
+  },
+  {
+    "path": "astra-militarum/p14",
+    "file": "astra-militarum/p14-hero-of-hades-hive.md",
+    "title": "HERO OF HADES HIVE",
+    "url": "Astra Militarum, p.14"
+  },
+  {
+    "path": "astra-militarum/p15",
+    "file": "astra-militarum/p15-commissar-graves.md",
+    "title": "COMMISSAR GRAVES",
+    "url": "Astra Militarum, p.15"
+  },
+  {
+    "path": "astra-militarum/p16",
+    "file": "astra-militarum/p16-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Astra Militarum, p.16"
+  },
+  {
+    "path": "astra-militarum/p17",
+    "file": "astra-militarum/p17-commissar-graves-on-foot.md",
+    "title": "COMMISSAR GRAVES ON FOOT",
+    "url": "Astra Militarum, p.17"
+  },
+  {
+    "path": "astra-militarum/p18",
+    "file": "astra-militarum/p18-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Astra Militarum, p.18"
+  },
+  {
+    "path": "astra-militarum/p19",
+    "file": "astra-militarum/p19-keywords-vehicle-imperium-smoke-squadron-hippogrif.md",
+    "title": "KEYWORDS: Vehicle, Imperium, Smoke, Squadron, Hippogriff AFV",
+    "url": "Astra Militarum, p.19"
+  },
+  {
+    "path": "astra-militarum/p20",
+    "file": "astra-militarum/p20-hippogriff-afv.md",
+    "title": "HIPPOGRIFF AFV",
+    "url": "Astra Militarum, p.20"
+  },
+  {
+    "path": "astra-militarum/p21",
+    "file": "astra-militarum/p21-keywords-vehicle-imperium-smoke-squadron-transport.md",
+    "title": "KEYWORDS: Vehicle, Imperium, Smoke, Squadron, Transport,",
+    "url": "Astra Militarum, p.21"
+  },
+  {
+    "path": "astra-militarum/p22",
+    "file": "astra-militarum/p22-centaur-rsv.md",
+    "title": "CENTAUR RSV",
+    "url": "Astra Militarum, p.22"
+  },
+  {
+    "path": "astra-militarum/p23",
+    "file": "astra-militarum/p23-ratlings.md",
+    "title": "RATLINGS",
+    "url": "Astra Militarum, p.23"
+  },
+  {
+    "path": "astra-militarum/p24",
+    "file": "astra-militarum/p24-ratlings.md",
+    "title": "RATLINGS",
+    "url": "Astra Militarum, p.24"
+  },
+  {
+    "path": "astra-militarum/p25",
+    "file": "astra-militarum/p25-tempestus-aquilons.md",
+    "title": "TEMPESTUS AQUILONS",
+    "url": "Astra Militarum, p.25"
+  },
+  {
+    "path": "astra-militarum/p26",
+    "file": "astra-militarum/p26-keywords-infantry-grenades-smoke-imperium-regiment.md",
+    "title": "KEYWORDS: Infantry, Grenades, Smoke, Imperium, Regiment,",
+    "url": "Astra Militarum, p.26"
+  },
+  {
+    "path": "astra-militarum/p27",
+    "file": "astra-militarum/p27-astra-militarum.md",
+    "title": "ASTRA MILITARUM",
+    "url": "Astra Militarum, p.27"
+  },
+  {
+    "path": "astra-militarum/p28",
+    "file": "astra-militarum/p28-krieg-combat-engineers-remote-mine-ability.md",
+    "title": "Krieg Combat Engineers, Remote Mine Ability",
+    "url": "Astra Militarum, p.28"
+  },
+  {
+    "path": "astra-militarum/p29",
+    "file": "astra-militarum/p29-avenger-strike-fighter.md",
+    "title": "AVENGER STRIKE FIGHTER",
+    "url": "Astra Militarum, p.29"
+  },
+  {
+    "path": "astra-militarum/p30",
+    "file": "astra-militarum/p30-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Astra Militarum, p.30"
+  },
+  {
+    "path": "astra-militarum/p31",
+    "file": "astra-militarum/p31-cyclops-demolition-vehicle.md",
+    "title": "CYCLOPS DEMOLITION VEHICLE",
+    "url": "Astra Militarum, p.31"
+  },
+  {
+    "path": "astra-militarum/p32",
+    "file": "astra-militarum/p32-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Astra Militarum, p.32"
+  },
+  {
+    "path": "astra-militarum/p33",
+    "file": "astra-militarum/p33-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.33"
+  },
+  {
+    "path": "astra-militarum/p34",
+    "file": "astra-militarum/p34-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.34"
+  },
+  {
+    "path": "astra-militarum/p35",
+    "file": "astra-militarum/p35-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.35"
+  },
+  {
+    "path": "astra-militarum/p36",
+    "file": "astra-militarum/p36-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.36"
+  },
+  {
+    "path": "astra-militarum/p37",
+    "file": "astra-militarum/p37-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.37"
+  },
+  {
+    "path": "astra-militarum/p38",
+    "file": "astra-militarum/p38-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.38"
+  },
+  {
+    "path": "astra-militarum/p39",
+    "file": "astra-militarum/p39-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.39"
+  },
+  {
+    "path": "astra-militarum/p40",
+    "file": "astra-militarum/p40-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.40"
+  },
+  {
+    "path": "astra-militarum/p41",
+    "file": "astra-militarum/p41-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.41"
+  },
+  {
+    "path": "astra-militarum/p42",
+    "file": "astra-militarum/p42-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.42"
+  },
+  {
+    "path": "astra-militarum/p43",
+    "file": "astra-militarum/p43-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.43"
+  },
+  {
+    "path": "astra-militarum/p44",
+    "file": "astra-militarum/p44-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.44"
+  },
+  {
+    "path": "astra-militarum/p45",
+    "file": "astra-militarum/p45-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.45"
+  },
+  {
+    "path": "astra-militarum/p46",
+    "file": "astra-militarum/p46-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.46"
+  },
+  {
+    "path": "astra-militarum/p47",
+    "file": "astra-militarum/p47-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.47"
+  },
+  {
+    "path": "astra-militarum/p48",
+    "file": "astra-militarum/p48-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.48"
+  },
+  {
+    "path": "astra-militarum/p49",
+    "file": "astra-militarum/p49-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.49"
+  },
+  {
+    "path": "astra-militarum/p50",
+    "file": "astra-militarum/p50-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.50"
+  },
+  {
+    "path": "astra-militarum/p51",
+    "file": "astra-militarum/p51-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.51"
+  },
+  {
+    "path": "astra-militarum/p52",
+    "file": "astra-militarum/p52-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.52"
+  },
+  {
+    "path": "astra-militarum/p53",
+    "file": "astra-militarum/p53-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.53"
+  },
+  {
+    "path": "astra-militarum/p54",
+    "file": "astra-militarum/p54-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.54"
+  },
+  {
+    "path": "astra-militarum/p55",
+    "file": "astra-militarum/p55-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.55"
+  },
+  {
+    "path": "astra-militarum/p56",
+    "file": "astra-militarum/p56-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.56"
+  },
+  {
+    "path": "astra-militarum/p57",
+    "file": "astra-militarum/p57-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.57"
+  },
+  {
+    "path": "astra-militarum/p58",
+    "file": "astra-militarum/p58-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.58"
+  },
+  {
+    "path": "astra-militarum/p59",
+    "file": "astra-militarum/p59-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.59"
+  },
+  {
+    "path": "astra-militarum/p60",
+    "file": "astra-militarum/p60-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.60"
+  },
+  {
+    "path": "astra-militarum/p61",
+    "file": "astra-militarum/p61-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.61"
+  },
+  {
+    "path": "astra-militarum/p62",
+    "file": "astra-militarum/p62-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.62"
+  },
+  {
+    "path": "astra-militarum/p63",
+    "file": "astra-militarum/p63-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.63"
+  },
+  {
+    "path": "astra-militarum/p64",
+    "file": "astra-militarum/p64-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.64"
+  },
+  {
+    "path": "astra-militarum/p65",
+    "file": "astra-militarum/p65-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.65"
+  },
+  {
+    "path": "astra-militarum/p66",
+    "file": "astra-militarum/p66-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.66"
+  },
+  {
+    "path": "astra-militarum/p67",
+    "file": "astra-militarum/p67-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.67"
+  },
+  {
+    "path": "astra-militarum/p68",
+    "file": "astra-militarum/p68-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.68"
+  },
+  {
+    "path": "astra-militarum/p69",
+    "file": "astra-militarum/p69-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.69"
+  },
+  {
+    "path": "astra-militarum/p70",
+    "file": "astra-militarum/p70-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.70"
+  },
+  {
+    "path": "astra-militarum/p71",
+    "file": "astra-militarum/p71-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.71"
+  },
+  {
+    "path": "astra-militarum/p72",
+    "file": "astra-militarum/p72-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.72"
+  },
+  {
+    "path": "astra-militarum/p73",
+    "file": "astra-militarum/p73-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.73"
+  },
+  {
+    "path": "astra-militarum/p74",
+    "file": "astra-militarum/p74-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.74"
+  },
+  {
+    "path": "astra-militarum/p75",
+    "file": "astra-militarum/p75-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.75"
+  },
+  {
+    "path": "astra-militarum/p76",
+    "file": "astra-militarum/p76-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.76"
+  },
+  {
+    "path": "astra-militarum/p77",
+    "file": "astra-militarum/p77-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.77"
+  },
+  {
+    "path": "astra-militarum/p78",
+    "file": "astra-militarum/p78-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.78"
+  },
+  {
+    "path": "astra-militarum/p79",
+    "file": "astra-militarum/p79-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.79"
+  },
+  {
+    "path": "astra-militarum/p80",
+    "file": "astra-militarum/p80-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.80"
+  },
+  {
+    "path": "astra-militarum/p81",
+    "file": "astra-militarum/p81-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.81"
+  },
+  {
+    "path": "astra-militarum/p82",
+    "file": "astra-militarum/p82-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.82"
+  },
+  {
+    "path": "astra-militarum/p83",
+    "file": "astra-militarum/p83-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.83"
+  },
+  {
+    "path": "astra-militarum/p84",
+    "file": "astra-militarum/p84-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.84"
+  },
+  {
+    "path": "astra-militarum/p85",
+    "file": "astra-militarum/p85-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.85"
+  },
+  {
+    "path": "astra-militarum/p86",
+    "file": "astra-militarum/p86-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.86"
+  },
+  {
+    "path": "astra-militarum/p87",
+    "file": "astra-militarum/p87-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.87"
+  },
+  {
+    "path": "astra-militarum/p88",
+    "file": "astra-militarum/p88-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.88"
+  },
+  {
+    "path": "astra-militarum/p89",
+    "file": "astra-militarum/p89-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.89"
+  },
+  {
+    "path": "astra-militarum/p90",
+    "file": "astra-militarum/p90-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.90"
+  },
+  {
+    "path": "astra-militarum/p91",
+    "file": "astra-militarum/p91-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.91"
+  },
+  {
+    "path": "astra-militarum/p92",
+    "file": "astra-militarum/p92-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.92"
+  },
+  {
+    "path": "astra-militarum/p93",
+    "file": "astra-militarum/p93-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.93"
+  },
+  {
+    "path": "astra-militarum/p94",
+    "file": "astra-militarum/p94-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.94"
+  },
+  {
+    "path": "astra-militarum/p95",
+    "file": "astra-militarum/p95-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.95"
+  },
+  {
+    "path": "astra-militarum/p96",
+    "file": "astra-militarum/p96-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.96"
+  },
+  {
+    "path": "astra-militarum/p97",
+    "file": "astra-militarum/p97-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.97"
+  },
+  {
+    "path": "astra-militarum/p98",
+    "file": "astra-militarum/p98-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.98"
+  },
+  {
+    "path": "astra-militarum/p99",
+    "file": "astra-militarum/p99-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.99"
+  },
+  {
+    "path": "astra-militarum/p100",
+    "file": "astra-militarum/p100-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.100"
+  },
+  {
+    "path": "astra-militarum/p101",
+    "file": "astra-militarum/p101-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.101"
+  },
+  {
+    "path": "astra-militarum/p102",
+    "file": "astra-militarum/p102-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.102"
+  },
+  {
+    "path": "astra-militarum/p103",
+    "file": "astra-militarum/p103-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.103"
+  },
+  {
+    "path": "astra-militarum/p104",
+    "file": "astra-militarum/p104-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.104"
+  },
+  {
+    "path": "astra-militarum/p105",
+    "file": "astra-militarum/p105-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.105"
+  },
+  {
+    "path": "astra-militarum/p106",
+    "file": "astra-militarum/p106-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.106"
+  },
+  {
+    "path": "astra-militarum/p107",
+    "file": "astra-militarum/p107-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.107"
+  },
+  {
+    "path": "astra-militarum/p108",
+    "file": "astra-militarum/p108-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.108"
+  },
+  {
+    "path": "astra-militarum/p109",
+    "file": "astra-militarum/p109-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.109"
+  },
+  {
+    "path": "astra-militarum/p110",
+    "file": "astra-militarum/p110-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.110"
+  },
+  {
+    "path": "astra-militarum/p111",
+    "file": "astra-militarum/p111-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.111"
+  },
+  {
+    "path": "astra-militarum/p112",
+    "file": "astra-militarum/p112-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.112"
+  },
+  {
+    "path": "astra-militarum/p113",
+    "file": "astra-militarum/p113-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.113"
+  },
+  {
+    "path": "astra-militarum/p114",
+    "file": "astra-militarum/p114-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.114"
+  },
+  {
+    "path": "astra-militarum/p115",
+    "file": "astra-militarum/p115-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.115"
+  },
+  {
+    "path": "astra-militarum/p116",
+    "file": "astra-militarum/p116-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.116"
+  },
+  {
+    "path": "astra-militarum/p117",
+    "file": "astra-militarum/p117-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.117"
+  },
+  {
+    "path": "astra-militarum/p118",
+    "file": "astra-militarum/p118-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.118"
+  },
+  {
+    "path": "astra-militarum/p119",
+    "file": "astra-militarum/p119-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.119"
+  },
+  {
+    "path": "astra-militarum/p120",
+    "file": "astra-militarum/p120-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.120"
+  },
+  {
+    "path": "astra-militarum/p121",
+    "file": "astra-militarum/p121-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.121"
+  },
+  {
+    "path": "astra-militarum/p122",
+    "file": "astra-militarum/p122-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.122"
+  },
+  {
+    "path": "astra-militarum/p123",
+    "file": "astra-militarum/p123-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.123"
+  },
+  {
+    "path": "astra-militarum/p124",
+    "file": "astra-militarum/p124-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.124"
+  },
+  {
+    "path": "astra-militarum/p125",
+    "file": "astra-militarum/p125-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.125"
+  },
+  {
+    "path": "astra-militarum/p126",
+    "file": "astra-militarum/p126-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.126"
+  },
+  {
+    "path": "astra-militarum/p127",
+    "file": "astra-militarum/p127-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.127"
+  },
+  {
+    "path": "astra-militarum/p128",
+    "file": "astra-militarum/p128-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.128"
+  },
+  {
+    "path": "astra-militarum/p129",
+    "file": "astra-militarum/p129-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.129"
+  },
+  {
+    "path": "astra-militarum/p130",
+    "file": "astra-militarum/p130-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.130"
+  },
+  {
+    "path": "astra-militarum/p131",
+    "file": "astra-militarum/p131-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.131"
+  },
+  {
+    "path": "astra-militarum/p132",
+    "file": "astra-militarum/p132-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.132"
+  },
+  {
+    "path": "astra-militarum/p133",
+    "file": "astra-militarum/p133-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.133"
+  },
+  {
+    "path": "astra-militarum/p134",
+    "file": "astra-militarum/p134-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.134"
+  },
+  {
+    "path": "astra-militarum/p135",
+    "file": "astra-militarum/p135-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.135"
+  },
+  {
+    "path": "astra-militarum/p136",
+    "file": "astra-militarum/p136-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.136"
+  },
+  {
+    "path": "astra-militarum/p137",
+    "file": "astra-militarum/p137-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.137"
+  },
+  {
+    "path": "astra-militarum/p138",
+    "file": "astra-militarum/p138-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.138"
+  },
+  {
+    "path": "astra-militarum/p139",
+    "file": "astra-militarum/p139-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.139"
+  },
+  {
+    "path": "astra-militarum/p140",
+    "file": "astra-militarum/p140-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.140"
+  },
+  {
+    "path": "astra-militarum/p141",
+    "file": "astra-militarum/p141-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.141"
+  },
+  {
+    "path": "astra-militarum/p142",
+    "file": "astra-militarum/p142-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.142"
+  },
+  {
+    "path": "astra-militarum/p143",
+    "file": "astra-militarum/p143-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.143"
+  },
+  {
+    "path": "astra-militarum/p144",
+    "file": "astra-militarum/p144-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.144"
+  },
+  {
+    "path": "astra-militarum/p145",
+    "file": "astra-militarum/p145-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.145"
+  },
+  {
+    "path": "astra-militarum/p146",
+    "file": "astra-militarum/p146-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.146"
+  },
+  {
+    "path": "astra-militarum/p147",
+    "file": "astra-militarum/p147-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.147"
+  },
+  {
+    "path": "astra-militarum/p148",
+    "file": "astra-militarum/p148-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.148"
+  },
+  {
+    "path": "astra-militarum/p149",
+    "file": "astra-militarum/p149-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.149"
+  },
+  {
+    "path": "astra-militarum/p150",
+    "file": "astra-militarum/p150-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.150"
+  },
+  {
+    "path": "astra-militarum/p151",
+    "file": "astra-militarum/p151-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.151"
+  },
+  {
+    "path": "astra-militarum/p152",
+    "file": "astra-militarum/p152-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.152"
+  },
+  {
+    "path": "astra-militarum/p153",
+    "file": "astra-militarum/p153-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.153"
+  },
+  {
+    "path": "astra-militarum/p154",
+    "file": "astra-militarum/p154-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.154"
+  },
+  {
+    "path": "astra-militarum/p155",
+    "file": "astra-militarum/p155-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.155"
+  },
+  {
+    "path": "astra-militarum/p156",
+    "file": "astra-militarum/p156-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Astra Militarum, p.156"
+  },
+  {
+    "path": "imperial-agents/p01",
+    "file": "imperial-agents/p01-imperial-agents.md",
+    "title": "IMPERIAL AGENTS",
+    "url": "Imperial Agents, p.1"
+  },
+  {
+    "path": "imperial-agents/p02",
+    "file": "imperial-agents/p02-veiled-blade.md",
+    "title": "VEILED BLADE",
+    "url": "Imperial Agents, p.2"
+  },
+  {
+    "path": "imperial-agents/p03",
+    "file": "imperial-agents/p03-prime-target.md",
+    "title": "PRIME TARGET",
+    "url": "Imperial Agents, p.3"
+  },
+  {
+    "path": "imperial-agents/p04",
+    "file": "imperial-agents/p04-inquisitor-kroyle.md",
+    "title": "INQUISITOR KROYLE",
+    "url": "Imperial Agents, p.4"
+  },
+  {
+    "path": "imperial-agents/p05",
+    "file": "imperial-agents/p05-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Imperial Agents, p.5"
+  },
+  {
+    "path": "imperial-agents/p06",
+    "file": "imperial-agents/p06-aquila-kill-team.md",
+    "title": "AQUILA KILL TEAM",
+    "url": "Imperial Agents, p.6"
+  },
+  {
+    "path": "imperial-agents/p07",
+    "file": "imperial-agents/p07-wargear-abilities.md",
+    "title": "WARGEAR ABILITIES",
+    "url": "Imperial Agents, p.7"
+  },
+  {
+    "path": "imperial-agents/p08",
+    "file": "imperial-agents/p08-sanctifiers.md",
+    "title": "SANCTIFIERS",
+    "url": "Imperial Agents, p.8"
+  },
+  {
+    "path": "imperial-agents/p09",
+    "file": "imperial-agents/p09-sanctifiers.md",
+    "title": "SANCTIFIERS",
+    "url": "Imperial Agents, p.9"
+  },
+  {
+    "path": "imperial-agents/p10",
+    "file": "imperial-agents/p10-imperial-agents.md",
+    "title": "IMPERIAL AGENTS",
+    "url": "Imperial Agents, p.10"
+  },
+  {
+    "path": "imperial-agents/p11",
+    "file": "imperial-agents/p11-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.11"
+  },
+  {
+    "path": "imperial-agents/p12",
+    "file": "imperial-agents/p12-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.12"
+  },
+  {
+    "path": "imperial-agents/p13",
+    "file": "imperial-agents/p13-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.13"
+  },
+  {
+    "path": "imperial-agents/p14",
+    "file": "imperial-agents/p14-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.14"
+  },
+  {
+    "path": "imperial-agents/p15",
+    "file": "imperial-agents/p15-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.15"
+  },
+  {
+    "path": "imperial-agents/p16",
+    "file": "imperial-agents/p16-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.16"
+  },
+  {
+    "path": "imperial-agents/p17",
+    "file": "imperial-agents/p17-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.17"
+  },
+  {
+    "path": "imperial-agents/p18",
+    "file": "imperial-agents/p18-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.18"
+  },
+  {
+    "path": "imperial-agents/p19",
+    "file": "imperial-agents/p19-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.19"
+  },
+  {
+    "path": "imperial-agents/p20",
+    "file": "imperial-agents/p20-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.20"
+  },
+  {
+    "path": "imperial-agents/p21",
+    "file": "imperial-agents/p21-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.21"
+  },
+  {
+    "path": "imperial-agents/p22",
+    "file": "imperial-agents/p22-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.22"
+  },
+  {
+    "path": "imperial-agents/p23",
+    "file": "imperial-agents/p23-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.23"
+  },
+  {
+    "path": "imperial-agents/p24",
+    "file": "imperial-agents/p24-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.24"
+  },
+  {
+    "path": "imperial-agents/p25",
+    "file": "imperial-agents/p25-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.25"
+  },
+  {
+    "path": "imperial-agents/p26",
+    "file": "imperial-agents/p26-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.26"
+  },
+  {
+    "path": "imperial-agents/p27",
+    "file": "imperial-agents/p27-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.27"
+  },
+  {
+    "path": "imperial-agents/p28",
+    "file": "imperial-agents/p28-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.28"
+  },
+  {
+    "path": "imperial-agents/p29",
+    "file": "imperial-agents/p29-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.29"
+  },
+  {
+    "path": "imperial-agents/p30",
+    "file": "imperial-agents/p30-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.30"
+  },
+  {
+    "path": "imperial-agents/p31",
+    "file": "imperial-agents/p31-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.31"
+  },
+  {
+    "path": "imperial-agents/p32",
+    "file": "imperial-agents/p32-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.32"
+  },
+  {
+    "path": "imperial-agents/p33",
+    "file": "imperial-agents/p33-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.33"
+  },
+  {
+    "path": "imperial-agents/p34",
+    "file": "imperial-agents/p34-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.34"
+  },
+  {
+    "path": "imperial-agents/p35",
+    "file": "imperial-agents/p35-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.35"
+  },
+  {
+    "path": "imperial-agents/p36",
+    "file": "imperial-agents/p36-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.36"
+  },
+  {
+    "path": "imperial-agents/p37",
+    "file": "imperial-agents/p37-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.37"
+  },
+  {
+    "path": "imperial-agents/p38",
+    "file": "imperial-agents/p38-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.38"
+  },
+  {
+    "path": "imperial-agents/p39",
+    "file": "imperial-agents/p39-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.39"
+  },
+  {
+    "path": "imperial-agents/p40",
+    "file": "imperial-agents/p40-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.40"
+  },
+  {
+    "path": "imperial-agents/p41",
+    "file": "imperial-agents/p41-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.41"
+  },
+  {
+    "path": "imperial-agents/p42",
+    "file": "imperial-agents/p42-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.42"
+  },
+  {
+    "path": "imperial-agents/p43",
+    "file": "imperial-agents/p43-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.43"
+  },
+  {
+    "path": "imperial-agents/p44",
+    "file": "imperial-agents/p44-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.44"
+  },
+  {
+    "path": "imperial-agents/p45",
+    "file": "imperial-agents/p45-warhammer-l-e-g-e-n-d-s.md",
+    "title": "WARHAMMER L E G E N D S",
+    "url": "Imperial Agents, p.45"
+  },
+  {
+    "path": "imperial-knights/p01",
+    "file": "imperial-knights/p01-imperial-knights.md",
+    "title": "IMPERIAL KNIGHTS",
+    "url": "Imperial Knights, p.1"
+  },
+  {
+    "path": "imperial-knights/p02",
+    "file": "imperial-knights/p02-dominus-foebreakers.md",
+    "title": "DOMINUS FOEBREAKERS",
+    "url": "Imperial Knights, p.2"
+  },
+  {
+    "path": "imperial-knights/p03",
+    "file": "imperial-knights/p03-questor-forgepact.md",
+    "title": "QUESTOR FORGEPACT",
+    "url": "Imperial Knights, p.3"
+  },
+  {
+    "path": "imperial-knights/p04",
+    "file": "imperial-knights/p04-throne-bonded-outriders.md",
+    "title": "THRONE-BONDED OUTRIDERS",
+    "url": "Imperial Knights, p.4"
+  },
+  {
+    "path": "imperial-knights/p05",
+    "file": "imperial-knights/p05-freeblade-company.md",
+    "title": "FREEBLADE COMPANY",
+    "url": "Imperial Knights, p.5"
+  },
+  {
+    "path": "imperial-knights/p06",
+    "file": "imperial-knights/p06-noble-sacrifice.md",
+    "title": "NOBLE SACRIFICE",
+    "url": "Imperial Knights, p.6"
+  },
+  {
+    "path": "imperial-knights/p07",
+    "file": "imperial-knights/p07-knight-destrier.md",
+    "title": "KNIGHT DESTRIER",
+    "url": "Imperial Knights, p.7"
+  },
+  {
+    "path": "imperial-knights/p08",
+    "file": "imperial-knights/p08-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Imperial Knights, p.8"
+  },
+  {
+    "path": "imperial-knights/p09",
+    "file": "imperial-knights/p09-acastus-knight-asterius.md",
+    "title": "ACASTUS KNIGHT ASTERIUS",
+    "url": "Imperial Knights, p.9"
+  },
+  {
+    "path": "imperial-knights/p10",
+    "file": "imperial-knights/p10-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Imperial Knights, p.10"
+  },
+  {
+    "path": "imperial-knights/p11",
+    "file": "imperial-knights/p11-acastus-knight-porphyrion.md",
+    "title": "ACASTUS KNIGHT PORPHYRION",
+    "url": "Imperial Knights, p.11"
+  },
+  {
+    "path": "imperial-knights/p12",
+    "file": "imperial-knights/p12-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Imperial Knights, p.12"
+  },
+  {
+    "path": "imperial-knights/p13",
+    "file": "imperial-knights/p13-cerastus-knight-lancer.md",
+    "title": "CERASTUS KNIGHT LANCER",
+    "url": "Imperial Knights, p.13"
+  },
+  {
+    "path": "imperial-knights/p14",
+    "file": "imperial-knights/p14-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Imperial Knights, p.14"
+  },
+  {
+    "path": "imperial-knights/p15",
+    "file": "imperial-knights/p15-cerastus-knight-castigator.md",
+    "title": "CERASTUS KNIGHT CASTIGATOR",
+    "url": "Imperial Knights, p.15"
+  },
+  {
+    "path": "imperial-knights/p16",
+    "file": "imperial-knights/p16-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Imperial Knights, p.16"
+  },
+  {
+    "path": "imperial-knights/p17",
+    "file": "imperial-knights/p17-cerastus-knight-acheron.md",
+    "title": "CERASTUS KNIGHT ACHERON",
+    "url": "Imperial Knights, p.17"
+  },
+  {
+    "path": "imperial-knights/p18",
+    "file": "imperial-knights/p18-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Imperial Knights, p.18"
+  },
+  {
+    "path": "imperial-knights/p19",
+    "file": "imperial-knights/p19-cerastus-knight-atrapos.md",
+    "title": "CERASTUS KNIGHT ATRAPOS",
+    "url": "Imperial Knights, p.19"
+  },
+  {
+    "path": "imperial-knights/p20",
+    "file": "imperial-knights/p20-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Imperial Knights, p.20"
+  },
+  {
+    "path": "imperial-knights/p21",
+    "file": "imperial-knights/p21-questoris-knight-magaera.md",
+    "title": "QUESTORIS KNIGHT MAGAERA",
+    "url": "Imperial Knights, p.21"
+  },
+  {
+    "path": "imperial-knights/p22",
+    "file": "imperial-knights/p22-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Imperial Knights, p.22"
+  },
+  {
+    "path": "imperial-knights/p23",
+    "file": "imperial-knights/p23-questoris-knight-styrix.md",
+    "title": "QUESTORIS KNIGHT STYRIX",
+    "url": "Imperial Knights, p.23"
+  },
+  {
+    "path": "imperial-knights/p24",
+    "file": "imperial-knights/p24-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Imperial Knights, p.24"
+  },
+  {
+    "path": "imperial-knights/p25",
+    "file": "imperial-knights/p25-armiger-moirax.md",
+    "title": "ARMIGER MOIRAX",
+    "url": "Imperial Knights, p.25"
+  },
+  {
+    "path": "imperial-knights/p26",
+    "file": "imperial-knights/p26-wargear-options.md",
+    "title": "WARGEAR OPTIONS",
+    "url": "Imperial Knights, p.26"
+  },
+  {
+    "path": "imperial-knights/p27",
+    "file": "imperial-knights/p27-imperial-knights.md",
+    "title": "IMPERIAL KNIGHTS",
+    "url": "Imperial Knights, p.27"
+  },
+  {
+    "path": "dominatus-event-companion/p01",
+    "file": "dominatus-event-companion/p01-introduction.md",
+    "title": "INTRODUCTION",
+    "url": "Dominatus Event Companion, p.1"
+  },
+  {
+    "path": "dominatus-event-companion/p02",
+    "file": "dominatus-event-companion/p02-warhammer-dominatus.md",
+    "title": "WARHAMMER DOMINATUS",
+    "url": "Dominatus Event Companion, p.2"
+  },
+  {
+    "path": "dominatus-event-companion/p03",
+    "file": "dominatus-event-companion/p03-declare-battle-formations.md",
+    "title": "DECLARE BATTLE FORMATIONS",
+    "url": "Dominatus Event Companion, p.3"
+  },
+  {
+    "path": "dominatus-event-companion/p04",
+    "file": "dominatus-event-companion/p04-cumulative-and.md",
+    "title": "'CUMULATIVE' AND",
+    "url": "Dominatus Event Companion, p.4"
+  },
+  {
+    "path": "dominatus-event-companion/p05",
+    "file": "dominatus-event-companion/p05-there-are-countless-different-ways-in-which-a.md",
+    "title": "There are countless different ways in which a",
+    "url": "Dominatus Event Companion, p.5"
+  },
+  {
+    "path": "doubles-event-companion/p01",
+    "file": "doubles-event-companion/p01-introduction.md",
+    "title": "INTRODUCTION",
+    "url": "Doubles Event Companion, p.1"
+  },
+  {
+    "path": "doubles-event-companion/p02",
+    "file": "doubles-event-companion/p02-determine-a-layout.md",
+    "title": "DETERMINE A LAYOUT",
+    "url": "Doubles Event Companion, p.2"
+  },
+  {
+    "path": "doubles-event-companion/p03",
+    "file": "doubles-event-companion/p03-cumulative-and.md",
+    "title": "'CUMULATIVE' AND",
+    "url": "Doubles Event Companion, p.3"
+  },
+  {
+    "path": "doubles-event-companion/p04",
+    "file": "doubles-event-companion/p04-warhammer-doubles-events.md",
+    "title": "WARHAMMER DOUBLES EVENTS",
+    "url": "Doubles Event Companion, p.4"
+  },
+  {
+    "path": "event-companion/p01",
+    "file": "event-companion/p01-introduction.md",
+    "title": "INTRODUCTION",
+    "url": "Event Companion, p.1"
+  },
+  {
+    "path": "event-companion/p02",
+    "file": "event-companion/p02-select-secondary-missions.md",
+    "title": "SELECT SECONDARY MISSIONS",
+    "url": "Event Companion, p.2"
+  },
+  {
+    "path": "event-companion/p03",
+    "file": "event-companion/p03-cumulative-and.md",
+    "title": "'CUMULATIVE' AND",
+    "url": "Event Companion, p.3"
+  },
+  {
+    "path": "event-companion/p04",
+    "file": "event-companion/p04-chapter-approved-mission-deck.md",
+    "title": "CHAPTER APPROVED MISSION DECK",
+    "url": "Event Companion, p.4"
+  },
+  {
+    "path": "event-companion/p05",
+    "file": "event-companion/p05-there-are-countless-different-ways-in-which-a.md",
+    "title": "There are countless different ways in which a",
+    "url": "Event Companion, p.5"
+  },
+  {
+    "path": "event-companion/p06",
+    "file": "event-companion/p06-afterword.md",
+    "title": "AFTERWORD",
+    "url": "Event Companion, p.6"
+  },
+  {
+    "path": "event-companion/p07",
+    "file": "event-companion/p07-the-following-layouts-are-presented-for-warhammer.md",
+    "title": "The following layouts are presented for Warhammer",
+    "url": "Event Companion, p.7"
+  },
+  {
+    "path": "event-companion/p08",
+    "file": "event-companion/p08-layouts-key.md",
+    "title": "LAYOUTS KEY",
+    "url": "Event Companion, p.8"
+  },
+  {
+    "path": "event-companion/p09",
+    "file": "event-companion/p09-event-companion-p-9.md",
+    "title": "Event Companion p.9",
+    "url": "Event Companion, p.9"
+  },
+  {
+    "path": "event-companion/p10",
+    "file": "event-companion/p10-event-companion-p-10.md",
+    "title": "Event Companion p.10",
+    "url": "Event Companion, p.10"
+  },
+  {
+    "path": "event-companion/p11",
+    "file": "event-companion/p11-event-companion-p-11.md",
+    "title": "Event Companion p.11",
+    "url": "Event Companion, p.11"
+  },
+  {
+    "path": "event-companion/p12",
+    "file": "event-companion/p12-event-companion-p-12.md",
+    "title": "Event Companion p.12",
+    "url": "Event Companion, p.12"
+  },
+  {
+    "path": "event-companion/p13",
+    "file": "event-companion/p13-event-companion-p-13.md",
+    "title": "Event Companion p.13",
+    "url": "Event Companion, p.13"
+  },
+  {
+    "path": "event-companion/p14",
+    "file": "event-companion/p14-event-companion-p-14.md",
+    "title": "Event Companion p.14",
+    "url": "Event Companion, p.14"
+  },
+  {
+    "path": "event-companion/p15",
+    "file": "event-companion/p15-event-companion-p-15.md",
+    "title": "Event Companion p.15",
+    "url": "Event Companion, p.15"
+  },
+  {
+    "path": "event-companion/p16",
+    "file": "event-companion/p16-event-companion-p-16.md",
+    "title": "Event Companion p.16",
+    "url": "Event Companion, p.16"
+  },
+  {
+    "path": "event-companion/p17",
+    "file": "event-companion/p17-event-companion-p-17.md",
+    "title": "Event Companion p.17",
+    "url": "Event Companion, p.17"
+  },
+  {
+    "path": "event-companion/p18",
+    "file": "event-companion/p18-event-companion-p-18.md",
+    "title": "Event Companion p.18",
+    "url": "Event Companion, p.18"
+  },
+  {
+    "path": "event-companion/p19",
+    "file": "event-companion/p19-event-companion-p-19.md",
+    "title": "Event Companion p.19",
+    "url": "Event Companion, p.19"
+  },
+  {
+    "path": "event-companion/p20",
+    "file": "event-companion/p20-event-companion-p-20.md",
+    "title": "Event Companion p.20",
+    "url": "Event Companion, p.20"
+  },
+  {
+    "path": "event-companion/p21",
+    "file": "event-companion/p21-event-companion-p-21.md",
+    "title": "Event Companion p.21",
+    "url": "Event Companion, p.21"
+  },
+  {
+    "path": "event-companion/p22",
+    "file": "event-companion/p22-event-companion-p-22.md",
+    "title": "Event Companion p.22",
+    "url": "Event Companion, p.22"
+  },
+  {
+    "path": "event-companion/p23",
+    "file": "event-companion/p23-event-companion-p-23.md",
+    "title": "Event Companion p.23",
+    "url": "Event Companion, p.23"
+  },
+  {
+    "path": "event-companion/p24",
+    "file": "event-companion/p24-event-companion-p-24.md",
+    "title": "Event Companion p.24",
+    "url": "Event Companion, p.24"
+  },
+  {
+    "path": "event-companion/p25",
+    "file": "event-companion/p25-event-companion-p-25.md",
+    "title": "Event Companion p.25",
+    "url": "Event Companion, p.25"
+  },
+  {
+    "path": "event-companion/p26",
+    "file": "event-companion/p26-event-companion-p-26.md",
+    "title": "Event Companion p.26",
+    "url": "Event Companion, p.26"
+  },
+  {
+    "path": "event-companion/p27",
+    "file": "event-companion/p27-event-companion-p-27.md",
+    "title": "Event Companion p.27",
+    "url": "Event Companion, p.27"
+  },
+  {
+    "path": "event-companion/p28",
+    "file": "event-companion/p28-event-companion-p-28.md",
+    "title": "Event Companion p.28",
+    "url": "Event Companion, p.28"
+  },
+  {
+    "path": "event-companion/p29",
+    "file": "event-companion/p29-event-companion-p-29.md",
+    "title": "Event Companion p.29",
+    "url": "Event Companion, p.29"
+  },
+  {
+    "path": "event-companion/p30",
+    "file": "event-companion/p30-event-companion-p-30.md",
+    "title": "Event Companion p.30",
+    "url": "Event Companion, p.30"
+  },
+  {
+    "path": "event-companion/p31",
+    "file": "event-companion/p31-event-companion-p-31.md",
+    "title": "Event Companion p.31",
+    "url": "Event Companion, p.31"
+  },
+  {
+    "path": "event-companion/p32",
+    "file": "event-companion/p32-event-companion-p-32.md",
+    "title": "Event Companion p.32",
+    "url": "Event Companion, p.32"
+  },
+  {
+    "path": "event-companion/p33",
+    "file": "event-companion/p33-event-companion-p-33.md",
+    "title": "Event Companion p.33",
+    "url": "Event Companion, p.33"
+  },
+  {
+    "path": "event-companion/p34",
+    "file": "event-companion/p34-event-companion-p-34.md",
+    "title": "Event Companion p.34",
+    "url": "Event Companion, p.34"
+  },
+  {
+    "path": "event-companion/p35",
+    "file": "event-companion/p35-event-companion-p-35.md",
+    "title": "Event Companion p.35",
+    "url": "Event Companion, p.35"
+  },
+  {
+    "path": "event-companion/p36",
+    "file": "event-companion/p36-event-companion-p-36.md",
+    "title": "Event Companion p.36",
+    "url": "Event Companion, p.36"
+  },
+  {
+    "path": "event-companion/p37",
+    "file": "event-companion/p37-event-companion-p-37.md",
+    "title": "Event Companion p.37",
+    "url": "Event Companion, p.37"
+  },
+  {
+    "path": "event-companion/p38",
+    "file": "event-companion/p38-event-companion-p-38.md",
+    "title": "Event Companion p.38",
+    "url": "Event Companion, p.38"
+  },
+  {
+    "path": "event-companion/p39",
+    "file": "event-companion/p39-event-companion-p-39.md",
+    "title": "Event Companion p.39",
+    "url": "Event Companion, p.39"
+  },
+  {
+    "path": "event-companion/p40",
+    "file": "event-companion/p40-event-companion-p-40.md",
+    "title": "Event Companion p.40",
+    "url": "Event Companion, p.40"
+  },
+  {
+    "path": "event-companion/p41",
+    "file": "event-companion/p41-event-companion-p-41.md",
+    "title": "Event Companion p.41",
+    "url": "Event Companion, p.41"
+  },
+  {
+    "path": "event-companion/p42",
+    "file": "event-companion/p42-event-companion-p-42.md",
+    "title": "Event Companion p.42",
+    "url": "Event Companion, p.42"
+  },
+  {
+    "path": "event-companion/p43",
+    "file": "event-companion/p43-event-companion-p-43.md",
+    "title": "Event Companion p.43",
+    "url": "Event Companion, p.43"
+  },
+  {
+    "path": "event-companion/p44",
+    "file": "event-companion/p44-event-companion-p-44.md",
+    "title": "Event Companion p.44",
+    "url": "Event Companion, p.44"
+  },
+  {
+    "path": "event-companion/p45",
+    "file": "event-companion/p45-event-companion-p-45.md",
+    "title": "Event Companion p.45",
+    "url": "Event Companion, p.45"
+  },
+  {
+    "path": "event-companion/p46",
+    "file": "event-companion/p46-event-companion-p-46.md",
+    "title": "Event Companion p.46",
+    "url": "Event Companion, p.46"
+  },
+  {
+    "path": "event-companion/p47",
+    "file": "event-companion/p47-event-companion-p-47.md",
+    "title": "Event Companion p.47",
+    "url": "Event Companion, p.47"
+  },
+  {
+    "path": "event-companion/p48",
+    "file": "event-companion/p48-event-companion-p-48.md",
+    "title": "Event Companion p.48",
+    "url": "Event Companion, p.48"
+  },
+  {
+    "path": "event-companion/p49",
+    "file": "event-companion/p49-event-companion-p-49.md",
+    "title": "Event Companion p.49",
+    "url": "Event Companion, p.49"
+  },
+  {
+    "path": "event-companion/p50",
+    "file": "event-companion/p50-event-companion-p-50.md",
+    "title": "Event Companion p.50",
+    "url": "Event Companion, p.50"
+  },
+  {
+    "path": "event-companion/p51",
+    "file": "event-companion/p51-event-companion-p-51.md",
+    "title": "Event Companion p.51",
+    "url": "Event Companion, p.51"
+  },
+  {
+    "path": "event-companion/p52",
+    "file": "event-companion/p52-event-companion-p-52.md",
+    "title": "Event Companion p.52",
+    "url": "Event Companion, p.52"
+  },
+  {
+    "path": "event-companion/p53",
+    "file": "event-companion/p53-event-companion-p-53.md",
+    "title": "Event Companion p.53",
+    "url": "Event Companion, p.53"
+  },
+  {
+    "path": "event-companion/p54",
+    "file": "event-companion/p54-base-size-guide.md",
+    "title": "BASE SIZE GUIDE",
+    "url": "Event Companion, p.54"
+  },
+  {
+    "path": "event-companion/p55",
+    "file": "event-companion/p55-adepta-sororitas.md",
+    "title": "ADEPTA SORORITAS",
+    "url": "Event Companion, p.55"
+  },
+  {
+    "path": "event-companion/p56",
+    "file": "event-companion/p56-adeptus-custodes.md",
+    "title": "ADEPTUS CUSTODES",
+    "url": "Event Companion, p.56"
+  },
+  {
+    "path": "event-companion/p57",
+    "file": "event-companion/p57-adeptus-mechanicus.md",
+    "title": "ADEPTUS MECHANICUS",
+    "url": "Event Companion, p.57"
+  },
+  {
+    "path": "event-companion/p58",
+    "file": "event-companion/p58-adeptus-titanicus.md",
+    "title": "ADEPTUS TITANICUS",
+    "url": "Event Companion, p.58"
+  },
+  {
+    "path": "event-companion/p59",
+    "file": "event-companion/p59-aeldari.md",
+    "title": "AELDARI",
+    "url": "Event Companion, p.59"
+  },
+  {
+    "path": "event-companion/p60",
+    "file": "event-companion/p60-unit.md",
+    "title": "UNIT",
+    "url": "Event Companion, p.60"
+  },
+  {
+    "path": "event-companion/p61",
+    "file": "event-companion/p61-astra-militarum.md",
+    "title": "ASTRA MILITARUM",
+    "url": "Event Companion, p.61"
+  },
+  {
+    "path": "event-companion/p62",
+    "file": "event-companion/p62-unit.md",
+    "title": "UNIT",
+    "url": "Event Companion, p.62"
+  },
+  {
+    "path": "event-companion/p63",
+    "file": "event-companion/p63-black-templars.md",
+    "title": "BLACK TEMPLARS",
+    "url": "Event Companion, p.63"
+  },
+  {
+    "path": "event-companion/p64",
+    "file": "event-companion/p64-blood-angels.md",
+    "title": "BLOOD ANGELS",
+    "url": "Event Companion, p.64"
+  },
+  {
+    "path": "event-companion/p65",
+    "file": "event-companion/p65-chaos-daemons.md",
+    "title": "CHAOS DAEMONS",
+    "url": "Event Companion, p.65"
+  },
+  {
+    "path": "event-companion/p66",
+    "file": "event-companion/p66-unit.md",
+    "title": "UNIT",
+    "url": "Event Companion, p.66"
+  },
+  {
+    "path": "event-companion/p67",
+    "file": "event-companion/p67-chaos-knights.md",
+    "title": "CHAOS KNIGHTS",
+    "url": "Event Companion, p.67"
+  },
+  {
+    "path": "event-companion/p68",
+    "file": "event-companion/p68-chaos-space-marines.md",
+    "title": "CHAOS SPACE MARINES",
+    "url": "Event Companion, p.68"
+  },
+  {
+    "path": "event-companion/p69",
+    "file": "event-companion/p69-unit.md",
+    "title": "UNIT",
+    "url": "Event Companion, p.69"
+  },
+  {
+    "path": "event-companion/p70",
+    "file": "event-companion/p70-dark-angels.md",
+    "title": "DARK ANGELS",
+    "url": "Event Companion, p.70"
+  },
+  {
+    "path": "event-companion/p71",
+    "file": "event-companion/p71-death-guard.md",
+    "title": "DEATH GUARD",
+    "url": "Event Companion, p.71"
+  },
+  {
+    "path": "event-companion/p72",
+    "file": "event-companion/p72-deathwatch.md",
+    "title": "DEATHWATCH",
+    "url": "Event Companion, p.72"
+  },
+  {
+    "path": "event-companion/p73",
+    "file": "event-companion/p73-drukhari.md",
+    "title": "DRUKHARI",
+    "url": "Event Companion, p.73"
+  },
+  {
+    "path": "event-companion/p74",
+    "file": "event-companion/p74-emperor-s-children.md",
+    "title": "EMPEROR'S CHILDREN",
+    "url": "Event Companion, p.74"
+  },
+  {
+    "path": "event-companion/p75",
+    "file": "event-companion/p75-genestealer-cults.md",
+    "title": "GENESTEALER CULTS",
+    "url": "Event Companion, p.75"
+  },
+  {
+    "path": "event-companion/p76",
+    "file": "event-companion/p76-grey-knights.md",
+    "title": "GREY KNIGHTS",
+    "url": "Event Companion, p.76"
+  },
+  {
+    "path": "event-companion/p77",
+    "file": "event-companion/p77-imperial-agents.md",
+    "title": "IMPERIAL AGENTS",
+    "url": "Event Companion, p.77"
+  },
+  {
+    "path": "event-companion/p78",
+    "file": "event-companion/p78-imperial-knights.md",
+    "title": "IMPERIAL KNIGHTS",
+    "url": "Event Companion, p.78"
+  },
+  {
+    "path": "event-companion/p79",
+    "file": "event-companion/p79-leagues-of-votann.md",
+    "title": "LEAGUES OF VOTANN",
+    "url": "Event Companion, p.79"
+  },
+  {
+    "path": "event-companion/p80",
+    "file": "event-companion/p80-necrons.md",
+    "title": "NECRONS",
+    "url": "Event Companion, p.80"
+  },
+  {
+    "path": "event-companion/p81",
+    "file": "event-companion/p81-unit.md",
+    "title": "UNIT",
+    "url": "Event Companion, p.81"
+  },
+  {
+    "path": "event-companion/p82",
+    "file": "event-companion/p82-orks.md",
+    "title": "ORKS",
+    "url": "Event Companion, p.82"
+  },
+  {
+    "path": "event-companion/p83",
+    "file": "event-companion/p83-unit.md",
+    "title": "UNIT",
+    "url": "Event Companion, p.83"
+  },
+  {
+    "path": "event-companion/p84",
+    "file": "event-companion/p84-space-marines.md",
+    "title": "SPACE MARINES",
+    "url": "Event Companion, p.84"
+  },
+  {
+    "path": "event-companion/p85",
+    "file": "event-companion/p85-unit.md",
+    "title": "UNIT",
+    "url": "Event Companion, p.85"
+  },
+  {
+    "path": "event-companion/p86",
+    "file": "event-companion/p86-unit.md",
+    "title": "UNIT",
+    "url": "Event Companion, p.86"
+  },
+  {
+    "path": "event-companion/p87",
+    "file": "event-companion/p87-space-wolves.md",
+    "title": "SPACE WOLVES",
+    "url": "Event Companion, p.87"
+  },
+  {
+    "path": "event-companion/p88",
+    "file": "event-companion/p88-t-au-empire.md",
+    "title": "T'AU EMPIRE",
+    "url": "Event Companion, p.88"
+  },
+  {
+    "path": "event-companion/p89",
+    "file": "event-companion/p89-unit.md",
+    "title": "UNIT",
+    "url": "Event Companion, p.89"
+  },
+  {
+    "path": "event-companion/p90",
+    "file": "event-companion/p90-thousand-sons.md",
+    "title": "THOUSAND SONS",
+    "url": "Event Companion, p.90"
+  },
+  {
+    "path": "event-companion/p91",
+    "file": "event-companion/p91-tyranids.md",
+    "title": "TYRANIDS",
+    "url": "Event Companion, p.91"
+  },
+  {
+    "path": "event-companion/p92",
+    "file": "event-companion/p92-unit.md",
+    "title": "UNIT",
+    "url": "Event Companion, p.92"
+  },
+  {
+    "path": "event-companion/p93",
+    "file": "event-companion/p93-world-eaters.md",
+    "title": "WORLD EATERS",
+    "url": "Event Companion, p.93"
+  }
+]

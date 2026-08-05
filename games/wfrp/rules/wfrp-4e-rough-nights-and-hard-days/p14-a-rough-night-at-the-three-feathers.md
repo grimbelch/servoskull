@@ -1,0 +1,122 @@
+> Source: Wfrp 4E Rough Nights And Hard Days, p.14 ([WFRP][4E] - Rough Nights and Hard Days.pdf)
+> Section: A Rough Night at the Three Feathers > Map of the Three Feathers
+
+# A ROUGH NIGHT AT THE THREE FEATHERS
+
+##### A ROUGH NIGHT AT THE THREE FEATHERS III
+
+If weapons are drawn, or a fight lasts for more than 2 Rounds,
+the landlord and staff step in, aided by as many of the inn's other
+patrons as necessary.
+
+**10:00 p.m.**
+A servant comes down from the gravin's rooms and orders all
+her party to bed: they will be starting at first light tomorrow.
+Reluctantly, various servants and guards finish their drinks and
+drift off to the dormitory.
+
+At about the same time, 'Herr Schmidt' comes down for a bottle
+of wine. On his way back to his room, he is approached by one
+of the gravin's servants. An inaudible but clearly heated exchange
+takes place, and 'Schmidt' hurries back upstairs looking angry.
+The servant heads off to the dormitory. Characters with the _Lip_
+_Reading_ Talent may learn that the servant is threatening to tell
+someone something, but that is all.
+
+**10:10 p.m.**
+Bruno Franke returns to the bar, grinning broadly and looking
+around with theatrically exaggerated caution to make sure that
+none of the gravin's party is still there. He orders a mug of ale,
+telling the barman to 'keep 'em coming,' and sits down at table
+_a_ with the two boatmen. After a few minutes, an arm­wrestling
+contest starts again. Ursula watches for a while and then
+challenges Bruno, putting ten silver shillings on the table.
+
+Bruno demurs for a moment, but accepts the challenge: a small
+crowd gathers. Bruno's arm begins to go down - he was being
+gentle with the lady - but he quickly applies his full strength
+and the contest begins in earnest. Neither contestant moves - a
+sheen of sweat breaks out on Bruno's forehead, but it is an even
+match. Then Ursula's arm wavers, and Bruno - no longer the
+gentleman - forces the Bounty Hunter's arm slowly but surely
+down to the table.
+
+Bruno looks at Ursula with a new respect, and the two of them
+spend some time talking and drinking together. Bruno will not
+accept any more arm-wrestling challenges tonight.
+
+A few minutes later, another tray of fresh drinks is taken to
+Bruno's table. One mug of ale is drugged: it is intended for
+Bruno, but the GM should take care that someone else drinks
+it - a minor NPC or one of the adventurers. The ale is laced with
+Heartkill ( **WFRP,** page 306).
+
+If and when the victim of the drugged ale passes out, a successful
+**Average (+20) Perception** Test reveals that one of the staff
+suddenly looks worried and leaves. If the Characters pursue this
+individual, he escapes through the darkness of the courtyard.
+
+**10:15 p.m.**
+One of the 'initiates' comes down and speaks to the landlord.
+Successful _Lip Reading_ reveals that the 'initiates' are expecting
+a boat during the night, and want the landlord to tell them the
+moment it arrives. The 'initiate' then returns to their room.
+
+As soon as the 'initiate' has left, Ursula goes to speak to the
+landlord. Successful _Lip Reading_ reveals that she is asking the
+landlord about them, and he is telling her what they told him. A
+few coins change hands, and Ursula goes back to Bruno's table.
+
+**10:25 p.m.**
+One of the gravin's servants comes down and orders Bruno to
+bed, explaining that the gravin checked his room and found him
+missing. He returns sheepishly upstairs.
+
+**10:40 p.m.**
+Gustaf Rechtshandler comes downstairs, dressed in a nightshirt
+and a silk dressing-gown. As he enters the barroom, one of the
+three _Ordo Ultima_ cultists leaves their table and heads upstairs.
+Rechtshandler orders a brandy and takes it back to his room
+(room 3). A few minutes later, the other two cultists go upstairs
+to their room (room 8).
+
+**10:45 p.m.**
+One of the _Ordo Ultima_ cultists knocks on the door of
+Rechtshandler's room. The lawyer answers it after a moment and
+there is a brief exchange of words - too low to hear - before
+the cultist is admitted. A minute or so later, raised voices can
+be heard on a successful **Challenging (+0) Perception** Test (the
+Test is **Average (+20)** if a Characters is listening by the door):
+Rechtshandler says he will not submit to blackmail, and the other
+says that he has no choice. Abruptly, everything goes quiet.
+
+**10:50 p.m.**
+Rechtshandler quietly opens the door of his room and looks
+outside. If there is anyone in the passage, he says that he thought
+he heard something outside: he closes the door, checking the
+passage again five minutes later. When the coast is clear he drags
+the cultist's body out. If the PCs' room is empty, he will leave the
+body there, completely by chance: if not, he will leave it in the
+linen cupboard.
+
+**11:00 p.m.**
+'Schmidt' comes downstairs looking worried. If the PCs are still
+in the barroom, he asks one of them to take a message to the
+dormitory for him, offering 5 silver shillings for the Character's
+trouble. The job is to tell one of the gravin's servants - a Hans
+Erpresser - that 'Schmidt' wants to see him. If the PCs are
+not in the barroom, 'Schmidt' hires one of the boatmen to carry
+the message. Having paid the messenger, 'Schmidt' returns to
+his room.
+
+**11:05 p.m.**
+Erpresser goes to see 'Schmidt' in his room. He knocks on the
+door and is admitted straight away. There is a single thump (heard
+with a successful **Challenging (+0) Perception** Test; the Test is
+**Average (+20)** if a Characters is listening by the door or in an
+adjoining room) as 'Schmidt' kills the servant. A few moments
+later, 'Schmidt' cautiously opens his door to see if the passage is
+clear, and will attempt to dispose of the body in the same way as
+Rechtshandler (see _10:50 p.m._ above).
+
+13

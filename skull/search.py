@@ -16,6 +16,17 @@ except ImportError:
 
 
 
+def _game_rules_dir(game_name: str) -> pathlib.Path:
+    """Resolve game rules directory under games/{game_name}/rules or games/{game_name}."""
+    repo_root = pathlib.Path(__file__).resolve().parent.parent
+    game_path = repo_root / "games" / game_name
+    if (game_path / "rules").exists():
+        return game_path / "rules"
+    if game_path.exists():
+        return game_path
+    return repo_root / "games" / "rules" / game_name
+
+
 def _rules_dir() -> pathlib.Path:
     """Resolve the offline rules library dir without depending on skull.config."""
     repo_root = pathlib.Path(__file__).resolve().parent.parent
@@ -506,7 +517,7 @@ def _search_rules_library(base: pathlib.Path, query: str, routes: list | None = 
 # ── Local Necromunda ruleset (offline library) ────────────────────────────────
 # The full Necromunda ruleset (Rules as Written) is mirrored to
 # _rules_dir()/necromunda as one Markdown file per page. Offline-only.
-_NECRO_DIR = _rules_dir() / "necromunda"
+_NECRO_DIR = _game_rules_dir("necromunda")
 
 
 def necromunda_rules(query: str) -> str:
@@ -523,7 +534,7 @@ def necromunda_rules(query: str) -> str:
 # The 11th-edition core rules, faction packs, and event companions, ingested from
 # PDF to _rules_dir()/warhammer40k via Rules/ingest_pdf.py. Offline-only (no live
 # fallback — these are PDFs, not a website).
-_W40K_DIR = _rules_dir() / "warhammer40k"
+_W40K_DIR = _game_rules_dir("warhammer40k")
 
 
 def _w40k_faction_note(query: str) -> str:
@@ -575,7 +586,7 @@ def warhammer40k_rules(query: str) -> str:
 # optional rules, and army books, ingested from PDF to _rules_dir()/netepic via
 # Rules/ingest_pdf.py. Offline-only. This is a DIFFERENT game from Net Epic
 # Armageddon (see netea_rules above), which is why it has its own library.
-_NETEPIC_DIR = _rules_dir() / "netepic"
+_NETEPIC_DIR = _game_rules_dir("netepic")
 
 
 def netepic_rules(query: str) -> str:
@@ -592,7 +603,7 @@ def netepic_rules(query: str) -> str:
 # _rules_dir()/netea via Rules/ingest_pdf.py. Previously fetched live from
 # tp.net-armageddon.org; now offline-only. This is a DIFFERENT game from NetEpic /
 # Epic 2nd edition (see netepic_rules above).
-_NETEA_DIR = _rules_dir() / "netea"
+_NETEA_DIR = _game_rules_dir("netea")
 
 
 def netea_rules(query: str) -> str:
@@ -606,6 +617,6 @@ def netea_rules(query: str) -> str:
 
 # ── Local Warhammer Fantasy Roleplay 4E ruleset (modularized in games.roleplay.whfrp) ──
 def whfrp_rules(query: str) -> str:
-    from games.roleplay.whfrp.search import whfrp_rules as _whfrp_rules
+    from games.wfrp.search import whfrp_rules as _whfrp_rules
     return _whfrp_rules(query)
 

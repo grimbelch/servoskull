@@ -1,0 +1,131 @@
+> Source: Wfrp 4E Rough Nights And Hard Days, p.29 ([WFRP][4E] - Rough Nights and Hard Days.pdf)
+> Section: A Day at the Trials > Map of the Arena
+
+# WARHAMMER FANTASY ROLEPL AY
+
+WARHAMMER FANTASY ROLEPL AY
+
+While the adventurers are looking at the source of the
+commotion, he slips a blowgun and a small wallet of poisoned
+darts into the clothing of the Character who looks least likely
+to notice the attempt. This is treated identically to pocketpicking - it just works in the opposite direction - so requires
+an **Opposed Sleight of Hand/Perception** Test to succeed, with
+the Difficulty modified according to the circumstances as you
+see fit. The wallet has spaces for four darts, but it contains only
+three: the significance of this is revealed later (see _10:45 a.m._ ).
+The three darts are coated with Black Lotus ( **WFRP,** p. 306).
+
+**10:15 a.m.**
+
+Work on the stands is completed. Servants hang curtains while
+others position chairs and bring cushions. A successful **Perception**
+Test allows the adventurers to notice the two _Ordo Ultima_ cultists
+(see _9:45 a.m._ above) among those bringing cushions. They speak
+briefly to a liveried official who points them to a space on the
+right of the gravin's chair, and they leave a cushion there.
+
+The cushion has a concealed needle coated in Black Lotus
+( **WFRP**,
+p. 306). Unless the adventurers investigate and find the
+needle, Rechtshandler will sit on it when the gravin's party takes
+their seats at 11:00 a.m.
+
+**10:30 a.m.**
+
+A mob of street urchins, tired of waiting for the trial to begin,
+starts to scuffle among themselves. Two of them begin fighting
+in earnest, and one breaks away with several of his fellows in hot
+pursuit. Apparently by chance, he runs right into one or more
+of the adventurers. Seconds later, the whole mob of pursuing
+urchins does the same thing.
+
+If the gravin's champion is with the Characters, the urchins target
+him or her; if not, they pick the toughest-looking PC in the
+honest but mistaken belief that this is the Ambosstein champion.
+As they bump and buffet their way past their target, three attacks
+will be made on that Character's legs. Knees and hamstrings are
+the main targets, with the aim of rendering the gravin's champion
+incapable of fighting. The urchins attack with a modest **WS** of 20.
+Use the normal combat rules, with all three attacks taking place
+in the same Round and benefitting from the Outnumbering
+rules. Unless the target Character has an appropriate Talent to
+avoid Surprise, it requires a **Very Hard (−30) Perception** Test to
+spot the makeshift knives being drawn. If this Test is failed, the
+target receives a _Surprised_ Condition.
+
+The urchins are small, quick, and streetwise. They know every
+alley, every gap between two buildings, and every hole in every
+wall and fence in the whole town of Kemperbad. Catching them
+will be a challenge - if you wish to use the Pursuit rules, the
+urchins have an Athletics of 40 and start at a Distance of 4 - but
+
+if even one is detained, it won't take much to force a confession.
+A stranger gave the urchins a small bag of coins containing 80d,
+a small fortune in their eyes, to disable the gravin's champion. The
+urchins can give a description of this stranger, which matches the
+Dammenblatz agent (see page 18).
+
+**10:45 a.m.**
+The von Dammenblatz party arrives. Led by a drummer-boy
+and a servant carrying the family's banner, it consists of Baron
+Eberhardt, on horseback; his widowed mother the dowager
+Baroness Violetta, riding in a sedan chair; his champion, Heinrich
+Böttcher; and a dozen or so footmen and other servants. They
+take their places to the left of the magistrates.
+
+Böttcher takes a moment to acknowledge the crowd's cheers
+before heading to his pavilion. However, as he does so, he flinches
+for a moment before pulling a small, feathered dart from the
+leather of his breeches. Baron von Dammenblatz hurries to his
+champion's side, followed by a liveried junior official; it appears
+that an attempt has been made to injure or even kill the Baron's
+champion. Von Dammenblatz claims, very loudly, that someone
+in the Ambosstein party is behind the attempt, probably acting
+on the orders of their unscrupulous mistress. He points to the
+adventurers, Gustaf Rechtshandler the lawyer, and anyone else
+in Ambosstein livery, and insists that they be searched forthwith.
+
+If the blowgun and darts are found on one of the adventurers (see
+
+_10:00 a.m._
+above), it is clear that the dart fired at Böttcher is an
+exact match for those in the wallet. The Character in question is
+immediately marched off to the cells, stripped of all equipment, and
+locked up. The gravin will face some questions after the trial is over.
+
+**11:00 a.m.**
+
+Gravin Maria-Ulrike arrives with her own retinue of servants
+
+and hired guards. Anyone watching the witch hunter, Matthias
+Hubkind, will see him studying the gravin intently, as if searching
+for something.
+
+If the cushion with the hidden needle has not been found (see
+_10:15 a.m._ above) Gustaf Rechtshandler stands up with a yelp
+as the gravin's party seats itself. He picks up the cushion from
+**WFRP**,
+his seat and finds the hidden needle: the Black Lotus (
+p. 306) is already in his system and he's beginning to choke. If
+Rechshandler falls to 0 Wounds, he dies, face swollen and black,
+bloody froth spilling from his nose and lips.
+
+Unless the cultists are captured and the truth comes out, the
+gravin assumes that the attempt on her lawyer's life comes from
+Baron von Dammenblatz. She complains to the magistrates, who
+deliberate for a few minutes before ruling that her complaint
+against von Dammenblatz is a separate case, which must be heard
+after the trial by combat. Meanwhile, if required, a clerk stands in
+for Rechtshandler.
+
+**11:15 a.m.**
+
+Flanked by two watchmen, a herald in the town's livery marches
+into the ring and blows three flourishes on a trumpet.
+
+_'Hear ye, hear ye!'_ he cries. _'Order and silence for their worshipful_
+_eminences, Magistrate Hannes Richter, Magistrate Hanna Anwalt, and_
+_Assistant Magistrate Gerhard Urteil!'_ The hubbub around the ring
+dies down a little as the town's three magistrates take their seats.
+
+28

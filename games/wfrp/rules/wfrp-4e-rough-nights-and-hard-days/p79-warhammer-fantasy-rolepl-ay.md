@@ -1,0 +1,108 @@
+> Source: Wfrp 4E Rough Nights And Hard Days, p.79 ([WFRP][4E] - Rough Nights and Hard Days.pdf)
+> Section: Lord of Ubersreik > Concluding the Adventure > What Next?
+
+# WARHAMMER FANTASY ROLEPL AY
+
+WARHAMMER FANTASY ROLEPL AY
+
+If the Gutter Runner is stopped inside the mansion, it throws
+a smoke bomb to cover its escape. If it is cornered and cannot
+escape, it will fight to the death.
+
+**11:45 p.m.**
+The sounds of a fight are heard from upstairs. Volker Volkmann,
+Netta's husband, has surprised her and Doktor Krupp. His hands
+are locked about the physician's throat as she stands by screaming
+for him to stop.
+
+If the Characters intervene and resolve the situation without
+
+bloodshed, Lady Nacht notes this, and the noble House
+employing them will benefit.
+
+**Midnight**
+If the PCs have not yet found the body on the garden (see 11:30
+above), there is a shout from outside as another guest does so. If
+the party has not yet been disrupted by an outbreak of mutations,
+an assistant cook staggers in from the kitchen, clutching his
+throat with a hand that grows furrier and more wickedly clawed
+before the company's eyes. Guests flee in terror and dismay: no
+one will ever forget this ball or its dreadful aftermath.
+
+If questioned, the servant will admit to sampling some ale from
+a new barrel about ten minutes ago. Depending on how cruel
+you are feeling, the barrel may not yet have been put out for the
+guests, and mutations are restricted to a handful of kitchen staff
+- or it may have been sitting on the bar in the dining room for
+the last five minutes, exposing everyone who drank from it to the
+Warpstone it contains.
+
+No matter the case, the breakout of mutation ends the masquerade
+in panicked embarrassment as witch hunters, the Cult of Sigmar,
+and the Watch are summoned to investigate what happened.
+
+If the gravin remains alive, and Baron Eberhardt von Dammenblatz,
+drunken and enraged, confronts her and the Characters as they
+leave the party. He is armed with a pistol, and demands immediate
+satisfaction over the death of his father. He demands the gravin
+duel him, though she steadfastly refuses. This confrontation draws
+a crowd of other nobles who all denounce Dammenblatz, though
+
+**CONCLUDING**
+**THE ADVENTURE**
+
+**S** **o** **, W** **ho** **W** **ins** **?**
+There is a high chance the ball ends in confusion, amid a Skaven
+attack and an outbreak of mutation. All thoughts of the lordship
+of Ubersreik are set aside as the townsfolk and the visiting
+nobles fight the crisis as best they can. After the dust has settled,
+it is unlikely Lady Nacht recommends any of the gathered noble
+Houses to take Ubersreik's title. However, if the Characters did
+very well, Nacht will notice this, and will hire the party herself
+in future. If one of the nobles fairs particularly well during the
+course of the ball, you may feel Nacht conveys this to Altdorf.
+Unfortunately, the Emperor has other problems, and will not act
+on any communiqués sent his way. For more on what's happening
+with the Emperor, refer to **The Enemy Within Campaign** .
+
+**E** **xperience** **P** **oint** **A** **wards**
+
+As well as the usual awards for good roleplaying and bright ideas,
+XP should be awarded for the following:
+
+10-20 points per incident for advancing the interests of the
+Characters' noble House
+
+10-20 points per incident for thwarting an attempt to embarrass
+the Characters' noble House
+
+10-20 points per incident for embarrassing a rival family
+10 points each for 'killing' the 'fur stole' and the 'stuffed boar'
+20 points for subduing Mattais Hubkind (+10 if he is not
+wounded)
+30 points for thwarting each Skaven plot
+30 points for killing a Skaven.
+
+**W** **hat** **N** **ext** **?**
+The end of the ball leaves two matters to be resolved: the lordship of
+Ubersreik and what to do about the Skaven. Even a family whose
+cause is lost will be able to put themselves back in contention - if
+they can locate and wipe out this threat beneath the city.
+
+Gravin Maria-Ulrike is in a strong position, as she likely has a
+group of adventurers already in her employ. She will send the
+Characters to deal with the 'foul Beastmen' right away as her rivals
+scramble to hire skilled rat catchers, sewer jacks, mercenaries, and
+other professionals from the town. If the PCs are on good terms
+with Captain Erwin Blucher of the local State Army garrison
+and Captain Andrea Pfeffer of the Watch, they may be able to
+count on a handful of Watchmen as extra muscle.
+
+Tracking the Skaven is challenging but not impossible. The
+collapsed tunnel from the well leads into the sewers, and
+tracks might also be picked up from the points where the
+Dwarfs defended their beer cart ( _7:30 p.m._ ), where a Skaven
+climbed the wall to block the kitchen chimney ( _10:15 p.m._ ), or
+where a Skaven ambushed a guest in the garden ( _11:30 p.m._ ).
+
+78

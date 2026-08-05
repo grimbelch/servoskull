@@ -37,7 +37,10 @@ settings.json
 # Offline game rulesets the skull references (see skull/search.py, RULES_DIR).
 # Official Games Workshop rules text (Necromunda, Warhammer 40k) is copyrighted —
 # kept local only, never committed to this public repo.
+*.pdf
 games/rules/*
+games/*/rules/manuals/*
+games/*/rules/**/*.pdf
 Rules/*
 !games/rules/README.md
 !games/rules/ingest_pdf.py
@@ -47,6 +50,16 @@ Rules/*
 !Rules/README.md
 !Rules/ingest_pdf.py
 !Rules/clean_necromunda_tables.py
-!Rules/netepic/
-!Rules/netea/
+# Scratch and temporary scripts
+scratch/
+extract_js.py
+fix.py
+mock_*.js
+run_*.js
+test*
+update_walkthrough.py
+skull/web_bak.py
+skull/web_new.py
+skull/web_server.py
+
 
