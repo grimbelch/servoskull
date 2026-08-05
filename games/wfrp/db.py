@@ -200,8 +200,25 @@ def init_db() -> None:
                 qualities TEXT DEFAULT '-'
             );
 
-            
-            
+            CREATE TABLE IF NOT EXISTS bestiary_catalog (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL,
+                description TEXT DEFAULT '',
+                m TEXT DEFAULT '-',
+                ws TEXT DEFAULT '-',
+                bs TEXT DEFAULT '-',
+                s TEXT DEFAULT '-',
+                t TEXT DEFAULT '-',
+                i TEXT DEFAULT '-',
+                ag TEXT DEFAULT '-',
+                dex TEXT DEFAULT '-',
+                int TEXT DEFAULT '-',
+                wp TEXT DEFAULT '-',
+                fel TEXT DEFAULT '-',
+                w TEXT DEFAULT '-',
+                traits TEXT DEFAULT '',
+                optional_traits TEXT DEFAULT ''
+            );
 
             CREATE TABLE IF NOT EXISTS trappings_catalog (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
