@@ -2583,9 +2583,26 @@ HTML_CLIENT = """<!DOCTYPE html>
                     <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; background: #fff8ee; border: 1.5px solid #8b7961; border-radius: 4px; padding: 10px; text-align: center; font-size: 12px;">
                         <div><strong>Movement:</strong> <span id="cc-derived-move" style="font-weight:bold; color:#7a1717; font-size:14px;">4</span></div>
                         <div><strong>Wounds:</strong> <span id="cc-derived-wounds" style="font-weight:bold; color:#7a1717; font-size:14px;">12</span></div>
-                        <div><strong>Fate / Fortune:</strong> <span id="cc-derived-fate" style="font-weight:bold; color:#7a1717; font-size:14px;">3 / 3</span></div>
-                        <div><strong>Resilience / Resolve:</strong> <span id="cc-derived-resilience" style="font-weight:bold; color:#7a1717; font-size:14px;">2 / 2</span></div>
+                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                            <strong>Fate / Fortune:</strong>
+                            <div style="display:flex; justify-content:center; align-items:center; gap:5px; margin-top:4px;">
+                                <button type="button" onclick="adjustWizardExtraPoints('fate', -1)" style="padding:0 5px; cursor:pointer;">-</button>
+                                <span id="cc-derived-fate" style="font-weight:bold; color:#7a1717; font-size:14px;">2 / 2</span>
+                                <button type="button" onclick="adjustWizardExtraPoints('fate', 1)" style="padding:0 5px; cursor:pointer;">+</button>
+                            </div>
+                        </div>
+                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                            <strong>Resilience / Resolve:</strong>
+                            <div style="display:flex; justify-content:center; align-items:center; gap:5px; margin-top:4px;">
+                                <button type="button" onclick="adjustWizardExtraPoints('resilience', -1)" style="padding:0 5px; cursor:pointer;">-</button>
+                                <span id="cc-derived-resilience" style="font-weight:bold; color:#7a1717; font-size:14px;">1 / 1</span>
+                                <button type="button" onclick="adjustWizardExtraPoints('resilience', 1)" style="padding:0 5px; cursor:pointer;">+</button>
+                            </div>
+                        </div>
                         <div><strong>Starting XP Bonus:</strong> <span id="cc-derived-xp" style="font-weight:bold; color:#2e7d32; font-size:14px;">+20 XP</span></div>
+                    </div>
+                    <div id="cc-extra-points-tracker" style="text-align:center; font-size:12px; font-weight:bold; color:#7a1717; margin-top:8px;">
+                        Extra Points Remaining: <span id="cc-extra-points-remaining">3</span>
                     </div>
                 </fieldset>
 
