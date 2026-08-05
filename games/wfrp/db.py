@@ -469,6 +469,7 @@ def get_campaign_dict(slug_or_name: str) -> Optional[dict]:
     cur_chars = conn.execute("SELECT * FROM characters WHERE campaign_id = ?", (cid,))
     chars_list = []
     for c_row in cur_chars.fetchall():
+        c_dict = dict(c_row)
         race_val = c_dict.pop("species", None) or c_dict.get("race") or "Human"
         c_dict["race"] = race_val
         c_dict["species"] = race_val
