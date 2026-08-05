@@ -2267,6 +2267,12 @@ HTML_CLIENT = """<!DOCTYPE html>
                     <h2 style="font-family: var(--font-title); font-size: 18px; font-weight: bold; color: #7a1717; margin: 0;">PARTY HEROES & AGENTS</h2>
                     <span id="roster-count-badge" style="font-family: var(--font-title); font-size: 13px; font-weight: bold; color: #5c4732;">1 CHARACTER</span>
                 </div>
+                <!-- Character Cards Grid (WFRP Rulebook Table Style) -->
+                <div id="character-roster-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px; margin-bottom: 36px;">
+                    <div style="grid-column: 1/-1; text-align: center; padding: 40px; background: #e9e0d0; border: 1.5px dashed #8b7961; border-radius: 4px; color: #5c4732; font-size: 15px;">
+                        Loading party roster...
+                    </div>
+                </div>
             </div>
 
             <!-- TAB 2: NPCS CONTAINER -->
@@ -2310,13 +2316,6 @@ HTML_CLIENT = """<!DOCTYPE html>
                 </div>
                 <div id="comp-timeline-list" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 30px;">
                     <div style="text-align: center; padding: 30px; background: #e9e0d0; border: 1.5px dashed #8b7961; border-radius: 4px; color: #5c4732;">No timeline entries recorded.</div>
-                </div>
-            </div>
-
-            <!-- Character Cards Grid (WFRP Rulebook Table Style) -->
-            <div id="character-roster-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px; margin-bottom: 36px;">
-                <div style="grid-column: 1/-1; text-align: center; padding: 40px; background: #e9e0d0; border: 1.5px dashed #8b7961; border-radius: 4px; color: #5c4732; font-size: 15px;">
-                    Loading party roster...
                 </div>
             </div>
 
