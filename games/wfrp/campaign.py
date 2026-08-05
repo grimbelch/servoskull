@@ -498,10 +498,26 @@ def swap_characteristics(char_block: dict, char1: str, char2: str) -> dict:
 
 
 def normalize_character(char_dict: dict) -> dict:
-    """Ensure all fields from WFRP 4E Character Sheet (pages 344-345) exist."""
+    """Ensure all fields from WFRP 4E Character Sheet exist and aliases are mapped."""
     c = dict(char_dict)
-    c.setdefault("name", "Unnamed Adventurer")
-    c.setdefault("race", "Human")
+    c["name"] = c.get("name") or "Unnamed Adventurer"
+
+    race_val = c.get("race") or c.get("species") or "Human"
+    c["race"] = race_val
+    c["species"] = race_val
+
+    hair_val = c.get("hair_color") or c.get("hair") or ""
+    c["hair"] = hair_val
+    c["hair_color"] = hair_val
+
+    eye_val = c.get("eye_color") or c.get("eyes") or ""
+    c["eyes"] = eye_val
+    c["eye_color"] = eye_val
+
+    star_val = c.get("star_sign") or c.get("starsign") or ""
+    c["starsign"] = star_val
+    c["star_sign"] = star_val
+
     c.setdefault("class", "Peasants")
     c.setdefault("career", "Villager")
     c.setdefault("career_level", "Villager (Brass 2)")
@@ -509,10 +525,7 @@ def normalize_character(char_dict: dict) -> dict:
     c.setdefault("status", "Brass 2")
     c.setdefault("age", None)
     c.setdefault("height", "")
-    c.setdefault("hair_color", "")
-    c.setdefault("eye_color", "")
     c.setdefault("doomed", "")
-    c.setdefault("star_sign", "")
     c.setdefault("motivation", "")
     
     # Characteristics

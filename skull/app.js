@@ -900,7 +900,7 @@ function openCharSheetModal(idx) {
     };
 
     setVal('m-char-name', c.name);
-    setVal('m-char-species', c.race);
+    setVal('m-char-species', c.species || c.race);
     setVal('m-char-class', c.class);
     setVal('m-char-career', c.career);
     setVal('m-char-level', c.career_level);
@@ -1198,7 +1198,8 @@ async function saveModalCharSheet() {
     const updatedChar = {
         name: getVal('m-char-name', 'Unnamed Agent'),
         original_name: editingCharOriginalName || getVal('m-char-name', 'Unnamed Agent'),
-        race: getVal('m-char-race', ''),
+        race: getVal('m-char-species', getVal('m-char-race', '')),
+        species: getVal('m-char-species', getVal('m-char-race', '')),
         class: getVal('m-char-class', ''),
         career: getVal('m-char-career', ''),
         career_level: getVal('m-char-level', ''),
@@ -1206,9 +1207,12 @@ async function saveModalCharSheet() {
         status: getVal('m-char-status', ''),
         age: ageVal ? parseInt(ageVal, 10) : null,
         height: getVal('m-char-height', ''),
+        hair: getVal('m-char-hair', ''),
         hair_color: getVal('m-char-hair', ''),
+        eyes: getVal('m-char-eyes', ''),
         eye_color: getVal('m-char-eyes', ''),
         doomed: getVal('m-char-doomed', ''),
+        starsign: getVal('m-char-starsign', ''),
         star_sign: getVal('m-char-starsign', ''),
         motivation: getVal('m-char-motivation', ''),
         characteristics: chars,
@@ -2136,6 +2140,7 @@ async function finishCharacterCreationWizard() {
         id: 'char_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
         name: name,
         race: raceDisplay,
+        species: raceDisplay,
         class: className,
         career: career,
         career_level: careerLevel,
@@ -2143,8 +2148,11 @@ async function finishCharacterCreationWizard() {
         age: getVal('cc-age', '25'),
         height: getVal('cc-height', "5'10\""),
         hair: getVal('cc-hair', 'Brown'),
+        hair_color: getVal('cc-hair', 'Brown'),
         eyes: getVal('cc-eyes', 'Blue'),
+        eye_color: getVal('cc-eyes', 'Blue'),
         starsign: getVal('cc-starsign', 'The Two Bullocks'),
+        star_sign: getVal('cc-starsign', 'The Two Bullocks'),
         characteristics: characteristics,
         wounds: { max: woundsMax, current: woundsMax },
         fate: wizardRollData ? wizardRollData.fate : 2,
