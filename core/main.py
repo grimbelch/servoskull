@@ -1397,6 +1397,29 @@ def main():
         _RE_REBOOT = re.compile(r"\b(reboot(\s+system|\s+yourself|\s+the\s+system)?|restart\s+(system|yourself))\b")
         _RE_SHUTDOWN = re.compile(r"\b(shutdown(\s+system|\s+yourself)?|power\s+(down|off)|turn\s+off)\b")
         
+        # ── 3a-7. Detect Display Rotation commands ──────────────
+        if ("rotate" in _t_norm or "turn" in _t_norm or "adjust" in _t_norm or "tilt" in _t_norm) and ("display" in _t_norm or "screen" in _t_norm or "eye" in _t_norm):
+            m = re.search(r"([+-]?\d+(?:\.\d+)?)", _t_norm)
+            if m:
+                val = float(m.group(1))
+                if "counter" in _t_norm or "left" in _t_norm or "ccw" in _t_norm:
+                    deg_change = -abs(val)
+                elif "clockwise" in _t_norm or "right" in _t_norm or "cw" in _t_norm:
+                    deg_change = abs(val)
+                else:
+                    deg_change = val
+                
+                is_absolute = "to" in _t_norm and "by" not in _t_norm
+                res_msg = config.set_display_rotation(deg_change, relative=not is_absolute)
+                print(f"[skull] Local display rotation intent: {res_msg}")
+                try:
+                    speech_wav = tts.synthesize(res_msg)
+                    eyes.on()
+                    _speak_interruptible(speech_wav, on_wake)
+                except Exception:
+                    pass
+                continue
+        
         maintenance_handled = False
         if _RE_REFRESH.search(_t):
             print("[skull] Local voice cache refresh intent detected.")
