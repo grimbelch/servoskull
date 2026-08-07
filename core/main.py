@@ -1352,7 +1352,7 @@ def main():
                 except Exception:
                     pass
                 continue
-            elif "jax" in _t_norm or "dog" in _t_norm or "retriever" in _t_norm:
+            elif any(w in _t_norm for w in ("jax", "jex", "jacks", "jack", "jac", "jaxx", "dog", "retriever")):
                 print("[skull] Local personality switch to 'jax' detected.")
                 msg = switch_personality("jax")
                 try:

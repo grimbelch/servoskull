@@ -2834,7 +2834,7 @@ def _tool_shutdown_system(i):
 
 def _tool_switch_personality(i):
     target = str(i.get("personality", "")).strip().lower()
-    if target in ("jack", "jacks", "jax", "retriever", "dog", "golden retriever"):
+    if target in ("jack", "jacks", "jax", "jex", "jac", "jaxx", "retriever", "dog", "golden retriever"):
         target = "jax"
     elif target in ("omega7", "omega-7", "skull", "servoskull", "servo-skull"):
         target = "omega7"
