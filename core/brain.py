@@ -1478,6 +1478,18 @@ def get_active_tools_for_game(game_name: str) -> list[dict]:
     """Filter the complete _TOOLS list so that game-specific rule and campaign tools
     are ONLY exposed to the LLM when their corresponding game is active.
     This prevents cross-game tool calls (e.g. calling 40k rules while playing WFRP)."""
+    if config.SKULL_NAME.lower() == "jax":
+        # Jax is a Golden Retriever companion — strip out all Grimdark / Warhammer / Tech-Priest specific tools
+        forbidden_jax_tools = {
+            "play_ambient_hymn", "set_candles", "shift_mood", "auspex_scan", "purge_identity",
+            "warhammer40k_rules", "necromunda_rules", "netepic_rules", "netea_rules", "whfrp_rules",
+            "whfrp_lookup_character", "whfrp_lookup_npc", "whfrp_lookup_location", "whfrp_log_timeline_event",
+            "roll_whfrp_dice", "start_campaign", "list_campaigns", "get_campaign_state", "save_campaign_state",
+            "roll_character_stats", "save_character", "roll_random_talent", "get_species_info",
+            "get_class_trappings", "roll_starting_wealth", "roll_physical_details"
+        }
+        return [t for t in _TOOLS if t.get("name") not in forbidden_jax_tools]
+
     g_lower = (game_name or "").lower()
 
     whfrp_tools = {

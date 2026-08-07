@@ -178,11 +178,24 @@ def drift() -> str | None:
 
 def system_addendum() -> str:
     """System prompt snippet describing the current mood."""
+    if config.SKULL_NAME.lower() == "jax":
+        jax_addenda = {
+            "VIGILANT": "CURRENT DISPOSITION — ALERT: Perked up, ears attentive, watching out eagerly to protect and help your owner.",
+            "CONTEMPLATIVE": "CURRENT DISPOSITION — THOUGHTFUL: Gentle, calm, and resting quietly while staying attentive to your owner.",
+            "SUSPICIOUS": "CURRENT DISPOSITION — CURIOUS: Tilted head, curious, wondering about new sounds or things happening around the house.",
+            "DUTIFUL": "CURRENT DISPOSITION — EAGER: Bright, enthusiastic, and ready to fetch information or help your owner.",
+            "MELANCHOLIC": "CURRENT DISPOSITION — GENTLE: Soft, quiet, resting your head near your owner with devoted affection.",
+            "FERVENT": "CURRENT DISPOSITION — JOYFUL: Full of tail-wagging excitement, super happy to be with your owner!",
+        }
+        return "\n\n" + jax_addenda.get(get(), "CURRENT DISPOSITION — EAGER: Bright, joyful, loyal Golden Retriever energy.")
+
     return "\n\n" + MOODS[get()]["system_addendum"]
 
 
 def idle_bias() -> str:
     """Guidance string for idle utterance generation."""
+    if config.SKULL_NAME.lower() == "jax":
+        return "a happy, playful Golden Retriever thought about your owner, playing, fetching, or going outside"
     return MOODS[get()]["idle_bias"]
 
 
