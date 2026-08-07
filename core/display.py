@@ -308,23 +308,42 @@ def _make_iris_mask():
     return m
 
 
+def _heart_polygon(cx: float, cy: float, scale: float, num_points: int = 60) -> list[tuple[float, float]]:
+    """Parametric heart curve, scaled and centered at (cx, cy)."""
+    pts = []
+    for i in range(num_points):
+        t = 2.0 * math.pi * i / num_points
+        x = 16.0 * (math.sin(t) ** 3)
+        y = -(13.0 * math.cos(t) - 5.0 * math.cos(2.0 * t) - 2.0 * math.cos(3.0 * t) - math.cos(4.0 * t))
+        pts.append((cx + x * scale, cy + y * scale + 3.5 * scale))
+    return pts
+
+
 def _make_bezel():
     """Static background bezel.
     Omega-7 gets an Adeptus Mechanicus cog wheel with dark central aperture.
-    Jax gets a smooth warm golden collar-ring bezel.
+    Jax gets a sleek Golden Retriever collar tag display bezel (inspired by Up).
     """
     if config.SKULL_NAME.lower() == "jax":
-        GEAR = (70, 50, 15)     # warm bronze body
-        EDGE = (220, 175, 40)   # warm gold edge
-        DARK = (20, 15, 10)     # recessed dark background
-        RIM = (240, 160, 20)    # glowing warm amber rim
+        GOLD_RIM = (215, 170, 40)   # warm metallic gold collar tag rim
+        BRASS_EDGE = (140, 105, 25) # dark brass bevel
+        DARK = (15, 12, 20)        # deep dark aperture face
 
         bg = Image.new("RGB", (W, H), (0, 0, 0))
         d = ImageDraw.Draw(bg)
-        d.ellipse([_CX - 116, _CY - 116, _CX + 116, _CY + 116], fill=GEAR, outline=EDGE, width=4)
-        d.ellipse([_CX - 85, _CY - 85, _CX + 85, _CY + 85], outline=EDGE, width=2)
-        d.ellipse([_CX - 83, _CY - 83, _CX + 83, _CY + 83], fill=DARK)
-        d.ellipse([_CX - 75, _CY - 75, _CX + 75, _CY + 75], outline=RIM, width=3)
+
+        # Metallic collar tag outer ring
+        d.ellipse([_CX - 116, _CY - 116, _CX + 116, _CY + 116], fill=(35, 28, 20), outline=GOLD_RIM, width=5)
+        d.ellipse([_CX - 110, _CY - 110, _CX + 110, _CY + 110], outline=BRASS_EDGE, width=2)
+
+        # Accent studs around collar tag ring
+        for deg in range(0, 360, 45):
+            a = math.radians(deg)
+            sx, sy = _CX + 102 * math.cos(a), _CY + 102 * math.sin(a)
+            d.ellipse([sx - 4, sy - 4, sx + 4, sy + 4], fill=GOLD_RIM, outline=(240, 200, 70))
+
+        # Inner display aperture
+        d.ellipse([_CX - 88, _CY - 88, _CX + 88, _CY + 88], fill=DARK, outline=(70, 50, 25), width=3)
         return bg
 
     GEAR = (60, 62, 70)     # gunmetal cog body
@@ -354,8 +373,51 @@ def _make_bezel():
 
 def _render_frame(bezel, mask, amp: float, angle: float = 0.0, blink: float = 0.0, look_x: float = 0.0, look_y: float = 0.0):
     img = bezel.rotate(angle, resample=Image.BICUBIC) if angle else bezel.copy()
-    is_jax = (config.SKULL_NAME.lower() == "jax")
-    base = (255, 175, 20) if is_jax and _mood_rgb == (255, 40, 30) else _mood_rgb
+    if config.SKULL_NAME.lower() == "jax":
+        base = _mood_rgb if _mood_rgb != (255, 32, 32) else (240, 45, 80)
+        now = time.monotonic()
+        beat_cycle = (now * 2.2) % 1.0
+        if beat_cycle < 0.15:
+            rhythm_bounce = math.sin((beat_cycle / 0.15) * math.pi) * 0.22
+        elif 0.25 < beat_cycle < 0.40:
+            rhythm_bounce = math.sin(((beat_cycle - 0.25) / 0.15) * math.pi) * 0.14
+        else:
+            rhythm_bounce = 0.0
+
+        base_scale = 3.2 + 2.8 * amp + rhythm_bounce * (1.0 + 0.5 * amp)
+        intensity = 0.35 + 0.65 * amp
+
+        cx = _CX + look_x
+        cy = _CY + look_y
+
+        layer = Image.new("RGB", (W, H), (0, 0, 0))
+        d = ImageDraw.Draw(layer)
+
+        # 1. Broad outer ambient glow
+        d.polygon(_heart_polygon(cx, cy, scale=base_scale * 1.65), fill=_scale(base, intensity * 0.15))
+        # 2. Medium halo glow
+        d.polygon(_heart_polygon(cx, cy, scale=base_scale * 1.35), fill=_scale(base, intensity * 0.40))
+        # 3. Main glowing heart body
+        d.polygon(_heart_polygon(cx, cy, scale=base_scale), fill=_scale(base, intensity), outline=_scale(base, min(1.0, intensity * 1.3)), width=2)
+        # 4. Bright inner hot core
+        d.polygon(_heart_polygon(cx, cy, scale=base_scale * 0.58), fill=_scale((255, 225, 235), min(1.0, intensity * 1.4)))
+
+        # 5. Shiny highlight spot on top-left of the heart
+        hl_scale = max(1.5, base_scale * 0.25)
+        hl_cx = cx - 3.8 * base_scale
+        hl_cy = cy - 3.5 * base_scale
+        d.ellipse([hl_cx - hl_scale, hl_cy - hl_scale, hl_cx + hl_scale, hl_cy + hl_scale], fill=(255, 255, 255))
+
+        if blink > 0.0:
+            open_h = max(1, int(round(H * (1.0 - blink))))
+            squashed = layer.resize((W, open_h), resample=Image.BILINEAR)
+            layer = Image.new("RGB", (W, H), (0, 0, 0))
+            layer.paste(squashed, (0, (H - open_h) // 2))
+
+        img.paste(layer, (0, 0), mask)
+        return img
+
+    base = _mood_rgb
     intensity = 0.25 + 0.75 * amp           # never fully dark
     iris_r = 30 + 30 * amp                   # iris grows as it "speaks"
 
@@ -372,7 +434,7 @@ def _render_frame(bezel, mask, amp: float, angle: float = 0.0, blink: float = 0.
     disc(iris_r * 1.45, _scale(base, intensity * 0.32))  # glow
     disc(iris_r, _scale(base, intensity))                # iris
     disc(iris_r * 0.55, _scale(base, min(1.0, intensity * 1.4)))  # hot core
-    disc(iris_r * 0.26, (10, 10, 10) if is_jax else (8, 0, 0))   # pupil
+    disc(iris_r * 0.26, (8, 0, 0))                       # pupil
 
     if blink > 0.0:
         # Squash the iris layer vertically about centre — an eyelid closing to a

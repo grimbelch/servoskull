@@ -115,9 +115,9 @@ OPENAI_API_KEY = _cfg("OPENAI_API_KEY", "")
 ELEVENLABS_API_KEY = _cfg("ELEVENLABS_API_KEY", "")
 SKULL_NAME = _cfg("SKULL_NAME", "Omega-7")
 if SKULL_NAME.lower() == "jax":
-    ELEVENLABS_VOICE_ID = _cfg("ELEVENLABS_VOICE_ID", "iobaQpeXgr4YGdPjnDkJ")
+    ELEVENLABS_VOICE_ID = _cfg("ELEVENLABS_VOICE_ID_JAX", "iobaQpeXgr4YGdPjnDkJ")
 else:
-    ELEVENLABS_VOICE_ID = _cfg("ELEVENLABS_VOICE_ID", "vBdCQX5p68m6c9bZ1DP0")
+    ELEVENLABS_VOICE_ID = _cfg("ELEVENLABS_VOICE_ID_OMEGA7", "vBdCQX5p68m6c9bZ1DP0")
 
 # ── Bambu 3D Printer ─────────────────────────────────────────────────────────────
 BAMBU_PRINTER_IP = _cfg("BAMBU_PRINTER_IP", "")
@@ -140,9 +140,9 @@ RESET_VOICE_CACHE = _cfg("RESET_VOICE_CACHE", "false").lower() == "true"
 # ── Wake word (openWakeWord) ─────────────────────────────────────────────────────
 # A built-in model name (e.g. "hey_jarvis") or a path to a custom .onnx model.
 if SKULL_NAME.lower() == "jax":
-    WAKE_WORD_MODEL = _cfg("WAKE_WORD_MODEL", "models/Hey_Buddy.onnx")
+    WAKE_WORD_MODEL = _cfg("WAKE_WORD_MODEL_JAX", "models/Hey_Buddy.onnx")
 else:
-    WAKE_WORD_MODEL = _cfg("WAKE_WORD_MODEL", "models/servitor.onnx")
+    WAKE_WORD_MODEL = _cfg("WAKE_WORD_MODEL_OMEGA7", "models/servitor.onnx")
 WAKE_WORD_THRESHOLD = float(_cfg("WAKE_WORD_THRESHOLD", "0.65"))
 
 
