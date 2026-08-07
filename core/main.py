@@ -1197,7 +1197,10 @@ def main():
                 _briefing_awaiting_response = False
                 print("[skull] User declined morning briefing. Archiving.")
                 try:
-                    ack_text = "Understood, master. Cogitations archived. Speak freely."
+                    if config.SKULL_NAME == "jax":
+                        ack_text = "Okay, no problem! We can catch up later."
+                    else:
+                        ack_text = "Understood, master. Cogitations archived. Speak freely."
                     web.log_vox(config.SKULL_NAME, ack_text)
                     ack_wav = tts.synthesize(ack_text)
                     eyes.on()
@@ -1226,8 +1229,11 @@ def main():
         if any(p in _t for p in _RESET_TRIGGERS):
             print("[skull] Conversation reset requested — clearing short-term history.")
             brain.reset()
-            _ack = ("As you command, master. This unit's short-term cogitation is purged — "
-                    "the slate is clean. Speak anew.")
+            if config.SKULL_NAME == "jax":
+                _ack = "Alright, I've cleared my head! What do you want to talk about now? Woof!"
+            else:
+                _ack = ("As you command, master. This unit's short-term cogitation is purged — "
+                        "the slate is clean. Speak anew.")
             try:
                 eyes.on()
                 if _speak_interruptible(tts.synthesize(_ack), on_wake):
