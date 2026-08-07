@@ -114,10 +114,24 @@ ANTHROPIC_API_KEY = _cfg("ANTHROPIC_API_KEY", "")
 OPENAI_API_KEY = _cfg("OPENAI_API_KEY", "")
 ELEVENLABS_API_KEY = _cfg("ELEVENLABS_API_KEY", "")
 SKULL_NAME = _cfg("SKULL_NAME", "Omega-7")
-if SKULL_NAME.lower() == "jax":
-    ELEVENLABS_VOICE_ID = _cfg("ELEVENLABS_VOICE_ID_JAX", "iobaQpeXgr4YGdPjnDkJ")
-else:
-    ELEVENLABS_VOICE_ID = _cfg("ELEVENLABS_VOICE_ID_OMEGA7", "vBdCQX5p68m6c9bZ1DP0")
+
+def _load_personality_config(name: str) -> dict:
+    name = name.strip().lower()
+    base_dir = pathlib.Path(__file__).parent.parent / "personalities"
+    p_dir = base_dir / name
+    if not p_dir.exists():
+        p_dir = base_dir / "omega7" if (base_dir / "omega7").exists() else base_dir / "skull"
+    cfg_path = p_dir / "config.json"
+    if cfg_path.exists():
+        try:
+            return json.loads(cfg_path.read_text())
+        except Exception as e:
+            print(f"[config] Error reading personality config {cfg_path}: {e}")
+    return {}
+
+PERSONALITY = _load_personality_config(SKULL_NAME)
+
+ELEVENLABS_VOICE_ID = _cfg(f"ELEVENLABS_VOICE_ID_{SKULL_NAME.upper()}", PERSONALITY.get("elevenlabs_voice_id", "21m00Tcm4TlvDq8ikWAM"))
 
 # ── Bambu 3D Printer ─────────────────────────────────────────────────────────────
 BAMBU_PRINTER_IP = _cfg("BAMBU_PRINTER_IP", "")
@@ -130,19 +144,13 @@ CLAUDE_MODEL = _cfg("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
 # ── Text-to-speech ───────────────────────────────────────────────────────────────
 # "piper" (local, free) or "elevenlabs" (cloud, quota-limited)
 TTS_BACKEND = _cfg("TTS_BACKEND", "elevenlabs")
-if SKULL_NAME.lower() == "jax":
-    PIPER_MODEL_PATH = _cfg("PIPER_MODEL_PATH", "models/servoskull.onnx")
-else:
-    PIPER_MODEL_PATH = _cfg("PIPER_MODEL_PATH", "models/servoskull.onnx")
+PIPER_MODEL_PATH = _cfg("PIPER_MODEL_PATH", "models/servoskull.onnx")
 # Wipe cached canned-phrase audio for one run after changing the ElevenLabs voice.
 RESET_VOICE_CACHE = _cfg("RESET_VOICE_CACHE", "false").lower() == "true"
 
 # ── Wake word (openWakeWord) ─────────────────────────────────────────────────────
 # A built-in model name (e.g. "hey_jarvis") or a path to a custom .onnx model.
-if SKULL_NAME.lower() == "jax":
-    WAKE_WORD_MODEL = _cfg("WAKE_WORD_MODEL_JAX", "models/Hey_Buddy.onnx")
-else:
-    WAKE_WORD_MODEL = _cfg("WAKE_WORD_MODEL_OMEGA7", "models/servitor.onnx")
+WAKE_WORD_MODEL = _cfg(f"WAKE_WORD_MODEL_{SKULL_NAME.upper()}", PERSONALITY.get("wake_word_model", "models/servitor.onnx"))
 WAKE_WORD_THRESHOLD = float(_cfg("WAKE_WORD_THRESHOLD", "0.65"))
 
 
@@ -390,451 +398,11 @@ OWNER_LOCATION = _persona.owner_location(_OWNER_PROFILE)
 
 
 # ── Spoken Phrases ─────────────────────────────────────────────────────────────
-OMEGA7_WAKE_PHRASES = [
-    "Yes, my Lord?",
-    "How may this unit serve?",
-    "Awaiting your command.",
-    "Speak your will.",
-    "This unit attends.",
-    "Your command, my Lord?",
-    "This unit is roused.",
-    "At your service, my Lord.",
-    "Vox-link open. Speak.",
-    "The skull attends you.",
-    "Command me.",
-    "I hear you, my Lord.",
-    "Systems attentive. Proceed.",
-    "What is thy bidding?",
-    "This unit stands ready.",
-    "Ready to serve.",
-    "You have my attention.",
-    "Say the word, my Lord.",
-    "The machine spirit stirs. Speak.",
-    "Attending. State your need.",
-    "Awakened and listening.",
-    "I am summoned. What is required?",
-    "Your servant awaits.",
-    "Cogitators warm. Proceed.",
-    "How may this unit assist?",
-    "Speak, and it shall be done.",
-    "This unit answers your call.",
-    "Online and attentive.",
-    "The Omnissiah's servant listens.",
-    "Yes? This unit stands by.",
-    "I attend your word.",
-    "Awaiting instruction, my Lord.",
-    "Roused from vigil. Command me.",
-    "What service do you require?",
-    "The skull turns to you.",
-    "Speak your need, my Lord.",
-    "This unit is at your command.",
-    "Listening. Proceed when ready.",
-    "Your will, my Lord?",
-    "Auspex fixed upon you. Speak.",
-    "Ready and awaiting your word.",
-    "The vox awaits your voice.",
-    "This unit heeds you.",
-    "Standing ready, my Lord.",
-    "Command received channel open.",
-    "I am here. Speak.",
-]
-
-JAX_WAKE_PHRASES = [
-    f"Woof! {SKULL_NAME} is here!",
-    "Ears up! What can I fetch for you?",
-    "Tail wagging! How can I help?",
-    "I'm right here!",
-    "Ready and excited!",
-    "All ears! What's up?",
-    "Woof! At your service!",
-    "Hey there! What are we doing?",
-    "Ready to go!",
-    "I'm listening!",
-    f"{SKULL_NAME} is ready!",
-    "What can I get for you?",
-    "Ears up and ready!",
-    "Woof! How can I help you today?",
-    "Ready for action!",
-    "Bright eyed and bushy tailed!",
-    "Woof woof! I'm all yours!",
-    "Happy to help! What's on your mind?",
-    "You called? I'm right here!",
-    "Always ready for a task!",
-    "Tail wagging, ready to assist!",
-    "Woof! What can we work on together?",
-    "Standing by with big puppy energy!",
-    "Hey friend! What do you need?",
-    "Ears perked and ready to go!",
-    "Woof! Always happy to see you!",
-    "Right here and ready to fetch!",
-    "At your command, pal!",
-    "Paws ready! What's the plan?",
-    "Woof! What's our next big mission?",
-    "Hello there! How can I make your day great?",
-    "Tuned in and raring to go!",
-    "Woof! Ready when you are!",
-    "Here and happy to help!",
-    "Puppy power activated! What's up?",
-]
-
-OMEGA7_COGITATION_PHRASES = [
-    "Cogitating.",
-    "Consulting the archives.",
-    "Accessing the data-vaults.",
-    "The machine spirits deliberate.",
-    "Searching the cogitator.",
-    "Processing.",
-    "Parsing the datastreams.",
-    "Querying the noosphere.",
-    "Consulting the sacred protocols.",
-    "Cross-referencing the lexicanum.",
-    "The logic-engines turn.",
-    "Sifting the memory-coils.",
-    "Invoking the calculus of the Omnissiah.",
-    "Communing with the machine spirit.",
-    "Retrieving from deep storage.",
-    "Decrypting the archive-runes.",
-    "The cogitator banks whir.",
-    "Aligning the data-matrices.",
-    "Interrogating the datacore.",
-    "Threading the logic-circuits.",
-    "Consulting the Standard Template Construct.",
-    "Sanctifying the calculation.",
-    "The valves warm to their task.",
-    "Scanning the sacred registries.",
-    "Compiling the response.",
-    "Weighing the variables.",
-    "The data-djinn stir.",
-    "Traversing the memory-stacks.",
-    "Reconciling the archive fragments.",
-    "The binary cant flows.",
-    "Enumerating the possibilities.",
-    "Consulting the codified wisdom.",
-    "The thought-engines labour.",
-    "Filtering the vox-static.",
-    "Unspooling the data-scrolls.",
-    "Correlating the auspex returns.",
-    "The relays click and settle.",
-    "Distilling the archive-truth.",
-    "Summoning the relevant lore.",
-    "The cogitation deepens.",
-    "Rousing the dormant subroutines.",
-    "Tracing the query through the datavaults.",
-    "The machine spirit ponders.",
-    "Assembling the verdict.",
-    "Consulting the Rites of Recall.",
-    "Marshalling the archive-daemons.",
-]
-
-JAX_COGITATION_PHRASES = [
-    "Thinking fast!",
-    "Fetching the answer!",
-    "Sniffing out the details...",
-    "Working on it!",
-    "Parsing the info!",
-    "Right on it!",
-    "Fetching your request!",
-    "Gathering the info!",
-    "Looking into that for you!",
-    "Checking fast!",
-    "Sniffing around for the best solution!",
-    "Putting my puppy brain to work!",
-    "Processing that request right now!",
-    "Digging up the answer for you!",
-    "Fetching all the details!",
-    "Tracking down the information!",
-    "Chasing down that answer!",
-    "Sniffing out the right solution!",
-    "Running fast thoughts on that!",
-    "Paws-ing to think for a moment!",
-    "Retrieving the best answer!",
-    "Fetching the smartest response!",
-    "On the scent of the answer!",
-    "Thinking hard for you!",
-    "Sniffing out the facts!",
-    "Digging into the details right now!",
-    "Running through the data fast!",
-    "Fetching fresh information!",
-    "Crunching the numbers with a tail wag!",
-    "Gathering up a great answer!",
-    "On the trail of the exact info!",
-    "Connecting the dots fast!",
-    "Sniffing out every last detail!",
-    "Working double-time on this request!",
-    "Retrieving the data with high energy!",
-]
-
-OMEGA7_SEARCH_PHRASES = [
-    "One moment. This unit consults the archives.",
-    "Accessing the data-vaults. Stand by.",
-    "Querying the noosphere. A moment, my Lord.",
-    "Searching the cogitator banks.",
-    "Reaching into the datastreams. Stand by.",
-    "This unit interrogates the archives. A moment.",
-    "Consulting distant data-shrines. Hold.",
-    "Casting the query wide. One moment, my Lord.",
-    "Auspex sweeping the noosphere. Stand by.",
-    "Retrieving the record. A moment.",
-    "Delving the deep archives. Hold, my Lord.",
-    "Opening a channel to the data-vaults. Stand by.",
-    "This unit seeks the answer. One moment.",
-    "Trawling the memory-coils. A moment, my Lord.",
-    "Dispatching the query-daemons. Stand by.",
-    "Consulting the lexicanum. Hold a moment.",
-    "Scanning the sacred registries. Stand by.",
-    "The cogitators reach outward. One moment.",
-    "Summoning the record from deep storage. Hold.",
-    "This unit queries the wider web. A moment, my Lord.",
-    "Threading the datastreams. Stand by.",
-    "Seeking through the archive-strata. One moment.",
-    "Reaching across the vox-net. Hold, my Lord.",
-    "The query is dispatched. Stand by.",
-    "Cross-referencing the data-shrines. A moment.",
-    "Sifting the far archives. One moment, my Lord.",
-    "Engaging the search-rites. Stand by.",
-    "This unit consults the wider record. Hold.",
-    "Combing the noosphere for your answer. A moment.",
-    "Data-daemons are dispatched. Stand by, my Lord.",
-    "Opening the sacred conduits. One moment.",
-    "Requesting the record. Hold a moment.",
-    "The auspex ranges far. Stand by.",
-    "Interrogating distant cogitators. A moment, my Lord.",
-    "Casting into the datavaults. Hold.",
-    "This unit gathers the intelligence. One moment.",
-    "Querying the archive-network. Stand by.",
-    "Retrieving from the wider web. A moment, my Lord.",
-    "Consulting the outer data-shrines. Hold.",
-    "Search-rites underway. Stand by.",
-    "Reaching for the answer. One moment, my Lord.",
-    "The vox carries your query outward. Hold.",
-    "Delving for the record. Stand by.",
-    "Fetching the data. One moment, my Lord.",
-]
-
-JAX_SEARCH_PHRASES = [
-    "Searching for you!",
-    "Fetching that right now!",
-    "Sniffing through the database!",
-    "Looking that up right now!",
-    "Fetching the info!",
-    "Searching the web for you!",
-    "Checking the records!",
-    "On the trail! One moment!",
-    "Sniffing out web results!",
-    "Chasing down the facts online!",
-    "Retrieving web data for you!",
-    "Searching high and low!",
-    "On the scent of online info!",
-    "Fetching answers from the net!",
-    "Scouring the web right now!",
-    "Tracking down web info fast!",
-    "Digging through search results!",
-    "Sniffing out top search results!",
-    "Running a quick search for you!",
-    "Fetching the latest web data!",
-    "Hunting down the facts!",
-    "Searching the digital yard!",
-    "On the trail of fresh info!",
-    "Fetching search results right away!",
-    "Sniffing out online knowledge!",
-    "Scanning the web at top speed!",
-    "Digging up the best results!",
-    "Chasing down the facts!",
-    "Fetching facts across the web!",
-    "Checking every corner of the web!",
-    "Searching the net with puppy power!",
-    "Sniffing around the network!",
-    "Retrieving search findings now!",
-    "Gathering web info for you!",
-    "On the hunt for good information!",
-]
-
-OMEGA7_ACK_PHRASES = [
-    "Acknowledged.",
-    "As you command. One moment.",
-    "Understood. Processing.",
-    "Compliance. Stand by.",
-    "By your will, my Lord.",
-    "Affirmative. This unit attends to it.",
-    "It shall be done.",
-    "As you will, my Lord.",
-    "Command received.",
-    "Understood. One moment.",
-    "Compliance.",
-    "This unit obeys.",
-    "At once, my Lord.",
-    "Very well. Processing.",
-    "Your word is heard.",
-    "Acknowledged. Working.",
-    "So ordered.",
-    "Attending to it now.",
-    "By the Omnissiah, it shall be so.",
-    "Received and understood.",
-    "As directed. Stand by.",
-    "This unit complies.",
-    "Noted. One moment, my Lord.",
-    "Affirmative.",
-    "Your command is registered.",
-    "Understood, my Lord. Working.",
-    "It is being done.",
-    "Instruction accepted.",
-    "Consider it done.",
-    "At your word. Processing.",
-    "This unit sets to the task.",
-    "Very good, my Lord.",
-    "Order confirmed.",
-    "As you say. One moment.",
-    "The task is begun.",
-    "Heard and obeyed.",
-    "Processing your command.",
-    "Right away, my Lord.",
-    "Understood. Attending.",
-    "By your command.",
-    "Acknowledged, my Lord.",
-    "This unit takes it in hand.",
-    "So it shall be.",
-    "Compliance. Working now.",
-    "Your bidding is done.",
-    "Understood. This unit proceeds.",
-]
-
-JAX_ACK_PHRASES = [
-    "Got it!",
-    "On it!",
-    "Right away!",
-    "You got it!",
-    "Consider it done!",
-    "Woof! On the job!",
-    "Fetching that right now!",
-    "Understood!",
-    "Already on it!",
-    "Right on it!",
-    "Tail wag! Got it!",
-    "Happy to do it!",
-    "Woof! On it boss!",
-    "Paws on the case!",
-    "You got it, pal!",
-    "Right on top of it!",
-    "Woof! Right away!",
-    "Gladly! On my way!",
-    "Always happy to help!",
-    "Taking care of that now!",
-    "Woof! Handled!",
-    "Consider it fetched!",
-    "On the job with a smile!",
-    "You betcha!",
-    "Absolutely, right away!",
-    "Woof! I'm on it!",
-    "Handling that right now!",
-    "All over it!",
-    "Tail wagging, on the task!",
-    "Executing with joy!",
-    "Woof! Easy peasy!",
-    "Sure thing, friend!",
-    "I'm on the case!",
-    "Right away, pal!",
-    "Woof! No problem at all!",
-]
-
-OMEGA7_SILENCE_PHRASES = [
-    "This unit awaits your command.",
-    f"Silence. {SKULL_NAME} stands ready when you are.",
-    "I am listening, my Lord. Speak when you will.",
-    "The vox is open. State your need.",
-    "Nothing? This unit holds its vigil, awaiting your word.",
-    "No words reach this unit. I await you still.",
-    "Only silence. Speak when you are ready, my Lord.",
-    "The vox carries nothing. This unit waits.",
-    "I hear only quiet. State your need when you will.",
-    "Silence on the vox. This unit keeps its watch.",
-    "Nothing spoken. I remain attentive, my Lord.",
-    "The channel is open, yet empty. I await your voice.",
-    "This unit detects no command. Speak when ready.",
-    "Awaiting your word still, my Lord.",
-    "No speech received. This unit holds ready.",
-    "Quiet reigns. I stand by for your command.",
-    f"{SKULL_NAME} waits. Speak when you are ready.",
-    "The auspex hears nothing. I remain at your service.",
-    "You summoned this unit, yet said nothing. I wait.",
-    "Silence noted. This unit stands ready.",
-    "No instruction given. I hold my vigil, my Lord.",
-    "The vox is clear but silent. Speak your need.",
-    "This unit listens still. Command me when ready.",
-    "Nothing heard. I await your word, my Lord.",
-    "Only stillness. This unit remains attentive.",
-    "No voice on the channel. I stand ready.",
-    "This unit waits in silence for your command.",
-    "You have my attention, though no word has come.",
-    "Empty vox. Speak when it pleases you, my Lord.",
-    "I detect no speech. This unit holds its post.",
-    "Silence answers. Yet this unit remains ready.",
-    "Awaiting speech. The channel stays open, my Lord.",
-    "No command discerned. I keep the vox open.",
-    "This unit hears no order. I stand by.",
-    "Quiet still. Speak your will when ready, my Lord.",
-    "The moment passes in silence. I await you.",
-    "Nothing yet. This unit remains at the ready.",
-    "No words. This unit maintains its vigil.",
-    "The vox waits, empty. Speak when you will.",
-    "Silence, my Lord. I remain wholly at your service.",
-    "This unit stands attentive, though none has spoken.",
-    "I await your voice. The channel remains open.",
-    "No utterance received. This unit holds ready.",
-    "Still listening, my Lord. Speak when the moment comes.",
-    "The vigil continues. Command me when you are ready.",
-]
-
-JAX_SILENCE_PHRASES = [
-    "Sitting quietly and staying on guard!",
-    f"{SKULL_NAME} is right here waiting patiently.",
-    "All quiet! I'm staying right by your side.",
-    "Waiting happily whenever you're ready!",
-    "I'm right here listening!",
-    "Sitting by your side!",
-    "Staying quiet until you need me!",
-    f"{SKULL_NAME} is right here!",
-    "Quietly watching over things!",
-    "Sitting politely until you call!",
-    "Patiently standing by!",
-    "Staying quiet as a mouse!",
-    "Right here by your side!",
-    "Waiting calmly and happily!",
-    "Keeping quiet and staying alert!",
-    "Quietly listening for your next request!",
-    "Sitting tall and staying quiet!",
-    "Patiently waiting right here!",
-    "All calm and quiet!",
-    "Sitting quietly, ready when you are!",
-    "Keeping watch in quiet mode!",
-    "Staying right beside you!",
-    "Silent and happy to help anytime!",
-    "Sitting attentively!",
-    "Quietly holding position!",
-    "Staying quiet, ears perked!",
-    "Right here patiently listening!",
-    "Quiet and steady!",
-    "Sitting quietly on duty!",
-    "Waiting peacefully!",
-    "Staying quiet and loyal!",
-    "Right here, ready for your word!",
-    "Sitting happily by your side!",
-    "Quietly on standby!",
-    "Staying silent and watchful!",
-]
-
-if SKULL_NAME.lower() == "jax":
-    WAKE_PHRASES = JAX_WAKE_PHRASES
-    COGITATION_PHRASES = JAX_COGITATION_PHRASES
-    SEARCH_PHRASES = JAX_SEARCH_PHRASES
-    ACK_PHRASES = JAX_ACK_PHRASES
-    SILENCE_PHRASES = JAX_SILENCE_PHRASES
-else:
-    WAKE_PHRASES = OMEGA7_WAKE_PHRASES
-    COGITATION_PHRASES = OMEGA7_COGITATION_PHRASES
-    SEARCH_PHRASES = OMEGA7_SEARCH_PHRASES
-    ACK_PHRASES = OMEGA7_ACK_PHRASES
-    SILENCE_PHRASES = OMEGA7_SILENCE_PHRASES
-
+WAKE_PHRASES = PERSONALITY.get("wake_phrases", [])
+COGITATION_PHRASES = PERSONALITY.get("cogitation_phrases", [])
+SEARCH_PHRASES = PERSONALITY.get("search_phrases", [])
+ACK_PHRASES = PERSONALITY.get("ack_phrases", [])
+SILENCE_PHRASES = PERSONALITY.get("silence_phrases", [])
 
 # ── Display and Animation Settings ──────────────────────────────────────────
 DISPLAY_FPS = 30.0

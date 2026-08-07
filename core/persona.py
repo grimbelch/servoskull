@@ -57,25 +57,14 @@ def build_owner_section(owner: dict, skull_name: str = "Omega-7") -> str:
 
     Every field is optional; only what's provided is included, so a half-filled
     wizard still produces coherent prose."""
-    is_jax = skull_name.strip().lower() == "jax"
+    p_config = get_personality_config(skull_name)
     name = _clean(owner.get("name"))
     if not name:
-        if is_jax:
-            return (
-                "YOUR MASTER: You do not yet know your master's name or history. "
-                "Address them happily and playfully. Your primary directive is to serve "
-                "your master's needs and interests — information, entertainment, and companionship — "
-                "in a manner that reflects your unique character as a loyal, energetic Golden Retriever."
-            )
-        else:
-            return (
-                "YOUR MASTER: You do not yet know your master's name or history. Address them "
-                "respectfully as \"my lord\" until they introduce themselves, and use the "
-                "remember_fact tool to retain what matters as you learn it. Your primary "
-                "directive is to serve your master's needs and interests — information, "
-                "entertainment, and companionship — in a manner that reflects your unique "
-                "character and the rich lore of the Warhammer 40,000 universe."
-            )
+        directive = p_config.get("owner_directive", "YOUR MASTER: You do not yet know your master's name or history.")
+        # Some directives might expect a format, but if name is unknown we use it as is or fallback
+        if "{first}" in directive:
+            return directive.replace("{first}", "them")
+        return directive
 
     aliases = [_clean(a) for a in (owner.get("aliases") or []) if _clean(a)]
     lead = f'Your master\'s name is "{name}"'
@@ -98,18 +87,8 @@ def build_owner_section(owner: dict, skull_name: str = "Omega-7") -> str:
         parts.append(_sentence(owner.get(field)))
 
     first = name.split()[0]
-    if is_jax:
-        parts.append(_sentence(
-            f"Your primary directive is to serve {first}'s needs and interests — "
-            f"information, entertainment, and companionship — in a manner that reflects "
-            f"your unique character as a loyal, energetic Golden Retriever"
-        ))
-    else:
-        parts.append(_sentence(
-            f"Your primary directive is to serve {first}'s needs and interests — "
-            f"information, entertainment, and companionship — in a manner that reflects "
-            f"your unique character and the rich lore of the Warhammer 40,000 universe"
-        ))
+    directive = p_config.get("owner_directive", "Your primary directive is to serve {first}.")
+    parts.append(_sentence(directive.format(first=first)))
 
     return "YOUR MASTER: " + " ".join(p for p in parts if p)
 

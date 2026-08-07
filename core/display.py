@@ -324,7 +324,7 @@ def _make_bezel():
     Omega-7 gets an Adeptus Mechanicus cog wheel with dark central aperture.
     Jax gets a sleek Golden Retriever collar tag display bezel (inspired by Up).
     """
-    if config.SKULL_NAME.lower() == "jax":
+    if config.PERSONALITY.get("eye_animation") == "dog":
         GOLD_RIM = (215, 170, 40)   # warm metallic gold collar tag rim
         BRASS_EDGE = (140, 105, 25) # dark brass bevel
         DARK = (15, 12, 20)        # deep dark aperture face
@@ -373,7 +373,7 @@ def _make_bezel():
 
 def _render_frame(bezel, mask, amp: float, angle: float = 0.0, blink: float = 0.0, look_x: float = 0.0, look_y: float = 0.0):
     img = bezel.rotate(angle, resample=Image.BICUBIC) if angle else bezel.copy()
-    if config.SKULL_NAME.lower() == "jax":
+    if config.PERSONALITY.get("eye_animation") == "dog":
         base = _mood_rgb if _mood_rgb != (255, 32, 32) else (240, 45, 80)
         now = time.monotonic()
         beat_cycle = (now * 2.2) % 1.0
@@ -910,7 +910,7 @@ def _render_omnissiah_frame(bezel, mask, now: float) -> Image.Image:
     
     age = now - _omnissiah_start_time
     
-    if config.SKULL_NAME.lower() == "jax":
+    if config.PERSONALITY.get("eye_animation") == "dog":
         def ease_in_out(t: float) -> float:
             t = max(0.0, min(1.0, t))
             return t * t * (3.0 - 2.0 * t)
@@ -997,7 +997,7 @@ def _render_omnissiah_frame(bezel, mask, now: float) -> Image.Image:
                 font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
             except Exception:
                 font = ImageFont.load_default()
-            label = "JAX"
+            label = config.SKULL_NAME.upper()
             try:
                 bb = font.getbbox(label)
                 tw, th = bb[2] - bb[0], bb[3] - bb[1]
