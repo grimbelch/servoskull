@@ -20,6 +20,13 @@ _state_lock = threading.Lock()
 import time
 
 from core import config, screensavers
+import importlib
+
+_display_module = None
+try:
+    _display_module = importlib.import_module(f"personalities.{config.SKULL_NAME.lower()}.display")
+except Exception as e:
+    print(f"[display] Could not load personality display module: {e}")
 
 _available = False
 _spi = None
@@ -118,14 +125,14 @@ def get_screensaver_names() -> list[str]:
 
 # Mood -> base iris colour. Names match skull/mood.py dispositions; unknown moods
 # fall back to Imperial red.
-_MOOD_COLOURS = {
+_MOOD_COLOURS = getattr(_display_module, 'MOOD_COLOURS', {
     "VIGILANT": (255, 40, 30),
     "DUTIFUL": (255, 70, 25),
     "FERVENT": (255, 120, 20),
     "SUSPICIOUS": (255, 200, 30),
     "CONTEMPLATIVE": (60, 140, 255),
     "MELANCHOLIC": (90, 90, 200),
-}
+})
 
 try:
     from PIL import Image, ImageDraw, ImageFont
@@ -295,26 +302,6 @@ def _scale(rgb, k: float):
     return (int(rgb[0] * k), int(rgb[1] * k), int(rgb[2] * k))
 
 
-def _gear_polygon(n_teeth: int, r_root: float, r_tip: float,
-                  tooth_frac: float = 0.52, tip_frac: float = 0.34,
-                  gap_steps: int = 5):
-    """Vertices of a cog: teeth alternate between the tip radius and the root
-    radius around the rim. Teeth are trapezoidal (narrower at the tip); gaps are
-    subdivided so the root follows the circle rather than chording across it."""
-    period = 2 * math.pi / n_teeth
-    half_base = period * tooth_frac / 2
-    half_tip = period * tip_frac / 2
-    polar = []
-    for i in range(n_teeth):
-        a = i * period
-        polar.append((a - half_base, r_root))   # tooth base (rising)
-        polar.append((a - half_tip, r_tip))     # tip left
-        polar.append((a + half_tip, r_tip))     # tip right
-        polar.append((a + half_base, r_root))   # tooth base (falling)
-        gap_start, gap_end = a + half_base, a + period - half_base
-        for s in range(1, gap_steps):           # arc across the gap to next tooth
-            polar.append((gap_start + (gap_end - gap_start) * s / gap_steps, r_root))
-    return [(_CX + r * math.cos(ang), _CY + r * math.sin(ang)) for ang, r in polar]
 
 
 def _make_iris_mask():
@@ -326,43 +313,13 @@ def _make_iris_mask():
     return m
 
 
-def _heart_polygon(cx: float, cy: float, scale: float, num_points: int = 60) -> list[tuple[float, float]]:
-    """Parametric heart curve, scaled and centered at (cx, cy)."""
-    pts = []
-    for i in range(num_points):
-        t = 2.0 * math.pi * i / num_points
-        x = 16.0 * (math.sin(t) ** 3)
-        y = -(13.0 * math.cos(t) - 5.0 * math.cos(2.0 * t) - 2.0 * math.cos(3.0 * t) - math.cos(4.0 * t))
-        pts.append((cx + x * scale, cy + y * scale + 3.5 * scale))
-    return pts
 
 
 def _make_bezel():
-    """Static background bezel.
-    Omega-7 gets an Adeptus Mechanicus cog wheel with dark central aperture.
-    Jax gets a sleek Golden Retriever collar tag display bezel (inspired by Up).
-    """
-    if config.PERSONALITY.get("eye_animation") == "dog":
-        GOLD_RIM = (215, 170, 40)   # warm metallic gold collar tag rim
-        BRASS_EDGE = (140, 105, 25) # dark brass bevel
-        DARK = (15, 12, 20)        # deep dark aperture face
-
-        bg = Image.new("RGB", (W, H), (0, 0, 0))
-        d = ImageDraw.Draw(bg)
-
-        # Metallic collar tag outer ring
-        d.ellipse([_CX - 116, _CY - 116, _CX + 116, _CY + 116], fill=(35, 28, 20), outline=GOLD_RIM, width=5)
-        d.ellipse([_CX - 110, _CY - 110, _CX + 110, _CY + 110], outline=BRASS_EDGE, width=2)
-
-        # Accent studs around collar tag ring
-        for deg in range(0, 360, 45):
-            a = math.radians(deg)
-            sx, sy = _CX + 102 * math.cos(a), _CY + 102 * math.sin(a)
-            d.ellipse([sx - 4, sy - 4, sx + 4, sy + 4], fill=GOLD_RIM, outline=(240, 200, 70))
-
-        # Inner display aperture
-        d.ellipse([_CX - 88, _CY - 88, _CX + 88, _CY + 88], fill=DARK, outline=(70, 50, 25), width=3)
-        return bg
+    if _display_module and hasattr(_display_module, 'render_bezel'):
+        return _display_module.render_bezel()
+    bg = Image.new("RGB", (W, H), (0, 0, 0))
+    return bg
 
     GEAR = (60, 62, 70)     # gunmetal cog body
     EDGE = (120, 124, 138)  # brighter machined edge so the teeth catch light
@@ -390,50 +347,11 @@ def _make_bezel():
 
 
 def _render_frame(bezel, mask, amp: float, angle: float = 0.0, blink: float = 0.0, look_x: float = 0.0, look_y: float = 0.0):
+    if _display_module and hasattr(_display_module, 'render_frame'):
+        return _display_module.render_frame(bezel, mask, amp, angle, blink, look_x, look_y, _mood_rgb)
     img = bezel.rotate(angle, resample=Image.BICUBIC) if angle else bezel.copy()
-    if config.PERSONALITY.get("eye_animation") == "dog":
-        base = _mood_rgb if _mood_rgb != (255, 32, 32) else (240, 45, 80)
-        now = time.monotonic()
-        beat_cycle = (now * 2.2) % 1.0
-        if beat_cycle < 0.15:
-            rhythm_bounce = math.sin((beat_cycle / 0.15) * math.pi) * 0.22
-        elif 0.25 < beat_cycle < 0.40:
-            rhythm_bounce = math.sin(((beat_cycle - 0.25) / 0.15) * math.pi) * 0.14
-        else:
-            rhythm_bounce = 0.0
-
-        base_scale = 3.2 + 2.8 * amp + rhythm_bounce * (1.0 + 0.5 * amp)
-        intensity = 0.35 + 0.65 * amp
-
-        cx = _CX + look_x
-        cy = _CY + look_y
-
-        layer = Image.new("RGB", (W, H), (0, 0, 0))
-        d = ImageDraw.Draw(layer)
-
-        # 1. Broad outer ambient glow
-        d.polygon(_heart_polygon(cx, cy, scale=base_scale * 1.65), fill=_scale(base, intensity * 0.15))
-        # 2. Medium halo glow
-        d.polygon(_heart_polygon(cx, cy, scale=base_scale * 1.35), fill=_scale(base, intensity * 0.40))
-        # 3. Main glowing heart body
-        d.polygon(_heart_polygon(cx, cy, scale=base_scale), fill=_scale(base, intensity), outline=_scale(base, min(1.0, intensity * 1.3)), width=2)
-        # 4. Bright inner hot core
-        d.polygon(_heart_polygon(cx, cy, scale=base_scale * 0.58), fill=_scale((255, 225, 235), min(1.0, intensity * 1.4)))
-
-        # 5. Shiny highlight spot on top-left of the heart
-        hl_scale = max(1.5, base_scale * 0.25)
-        hl_cx = cx - 3.8 * base_scale
-        hl_cy = cy - 3.5 * base_scale
-        d.ellipse([hl_cx - hl_scale, hl_cy - hl_scale, hl_cx + hl_scale, hl_cy + hl_scale], fill=(255, 255, 255))
-
-        if blink > 0.0:
-            open_h = max(1, int(round(H * (1.0 - blink))))
-            squashed = layer.resize((W, open_h), resample=Image.BILINEAR)
-            layer = Image.new("RGB", (W, H), (0, 0, 0))
-            layer.paste(squashed, (0, (H - open_h) // 2))
-
-        img.paste(layer, (0, 0), mask)
-        return img
+    img.paste(Image.new("RGB", (W, H), _scale(_mood_rgb, 0.5 + 0.5 * amp)), (0, 0), mask)
+    return img
 
     base = _mood_rgb
     intensity = 0.25 + 0.75 * amp           # never fully dark
@@ -923,107 +841,9 @@ def _render_die_frame(bezel, mask, elapsed: float, result: str):
 
 
 def _render_omnissiah_frame(bezel, mask, now: float) -> Image.Image:
-    overlay = Image.new("RGB", (W, H), (0, 0, 0))
-    d = ImageDraw.Draw(overlay)
-    
-    age = now - _omnissiah_start_time
-    
-    if config.PERSONALITY.get("eye_animation") == "dog":
-        def ease_in_out(t: float) -> float:
-            t = max(0.0, min(1.0, t))
-            return t * t * (3.0 - 2.0 * t)
-
-        act1_end = 1.8
-        act2_end = 3.2
-
-        paw_alpha = 1.0
-        if age > act1_end:
-            paw_fade_t = (age - act1_end) / 0.7
-            paw_alpha = max(0.0, 1.0 - ease_in_out(paw_fade_t))
-
-        if paw_alpha > 0.0:
-            GOLD   = (int(235 * paw_alpha), int(175 * paw_alpha), int(50 * paw_alpha))
-            GOLD_L = (int(255 * paw_alpha), int(210 * paw_alpha), int(90 * paw_alpha))
-
-            main_t = ease_in_out(min(1.0, age / 0.6))
-            main_r = main_t * 36
-            if main_r > 0:
-                d.ellipse([_CX - main_r, _CY + 10 - main_r, _CX + main_r, _CY + 10 + main_r], fill=GOLD, outline=GOLD_L, width=2)
-
-            toe_positions = [
-                (-32, -32),
-                (-14, -45),
-                ( 14, -45),
-                ( 32, -32),
-            ]
-            toe_delay_start = 0.5
-            toe_delay_step  = 0.25
-            toe_r_full      = 14
-            for idx, (ox, oy) in enumerate(toe_positions):
-                toe_start = toe_delay_start + idx * toe_delay_step
-                toe_t = ease_in_out(min(1.0, max(0.0, (age - toe_start) / 0.3)))
-                if toe_t > 0:
-                    tr = toe_t * toe_r_full
-                    d.ellipse([_CX + ox - tr, _CY + oy + 10 - tr,
-                               _CX + ox + tr, _CY + oy + 10 + tr],
-                              fill=GOLD, outline=GOLD_L, width=1)
-
-        heart_alpha = 0.0
-        if age > act1_end:
-            heart_alpha = ease_in_out(min(1.0, (age - act1_end) / 1.0))
-
-        if heart_alpha > 0.0:
-            base_r = (240, 45, 80)
-            base_p = (255, 225, 235)
-            intensity = heart_alpha
-
-            beat = (age * 2.2) % 1.0
-            if beat < 0.15:
-                pulse = math.sin((beat / 0.15) * math.pi) * 0.18
-            elif 0.25 < beat < 0.40:
-                pulse = math.sin(((beat - 0.25) / 0.15) * math.pi) * 0.10
-            else:
-                pulse = 0.0
-
-            hscale = (3.8 + pulse) * heart_alpha
-
-            heart_layer = Image.new("RGB", (W, H), (0, 0, 0))
-            hd = ImageDraw.Draw(heart_layer)
-
-            def _h(s, col):
-                pts = _heart_polygon(_CX, _CY - 20, s)
-                hd.polygon(pts, fill=col)
-
-            _h(hscale * 1.65, _scale(base_r, intensity * 0.15))
-            _h(hscale * 1.35, _scale(base_r, intensity * 0.40))
-            _h(hscale,        _scale(base_r, intensity))
-            _h(hscale * 0.58, _scale(base_p, min(1.0, intensity * 1.4)))
-            hs = max(1.5, hscale * 0.25)
-            hcx = _CX - 3.8 * hscale
-            hcy = _CY - 20 - 3.5 * hscale
-            hd.ellipse([hcx - hs, hcy - hs, hcx + hs, hcy + hs], fill=(255, 255, 255))
-
-            overlay = Image.blend(overlay, heart_layer, alpha=min(1.0, heart_alpha))
-            d = ImageDraw.Draw(overlay)
-
-        text_alpha = 0.0
-        if age > act2_end:
-            text_alpha = ease_in_out(min(1.0, (age - act2_end) / 0.6))
-
-        if text_alpha > 0.01:
-            font = _get_font(28, bold=True)
-            label = config.SKULL_NAME.upper()
-            try:
-                bb = font.getbbox(label)
-                tw, th = bb[2] - bb[0], bb[3] - bb[1]
-            except Exception:
-                tw, th = 42, 18
-            tx = _CX - tw // 2
-            ty = _CY + 25
-            tc = int(255 * text_alpha)
-            d.text((tx, ty), label, font=font, fill=(tc, int(190 * text_alpha), int(220 * text_alpha)))
-
-        return overlay
+    if _display_module and hasattr(_display_module, 'render_overlay'):
+        return _display_module.render_overlay(bezel, mask, now, _omnissiah_start_time, _omnissiah_duration, _mood_rgb)
+    return bezel.copy()
 
     # ── Adeptus Mechanicus Skull-Cog (Scaled to Full-Screen 240x240) ──
     scale = min(1.0, age / 1.5)
