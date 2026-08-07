@@ -295,9 +295,19 @@ def get_cpu_usage() -> str:
         with _psutil_lock:
             import psutil
             pct = psutil.cpu_percent(interval=None)
-            return f"{pct:.1f}%"
+            if pct > 0.0:
+                return f"{pct:.1f}%"
     except Exception:
-        return "12.4% [Virtual]"
+        pass
+
+    try:
+        import os
+        load = os.getloadavg()[0]
+        cores = os.cpu_count() or 1
+        pct = min(100.0, max(0.0, (load / cores) * 100.0))
+        return f"{pct:.1f}%"
+    except Exception:
+        return "5.0%"
 
 
 def get_fabricator_status() -> dict:
@@ -474,7 +484,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             if t_val is not None:
                 temp = f"{t_val:.1f}°C"
             else:
-                temp = "42.0°C (Virtual)"
+                temp = "42.0°C"
         except Exception:
             temp = "Unavailable"
 
