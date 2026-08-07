@@ -730,6 +730,7 @@ def main():
     threading.Thread(target=_preload_phrases, daemon=True).start()
 
     sfx.play("skull_boot", config.VOICE_OUTPUT_DEVICE)
+    display.start_omnissiah_glyph(4.0)
 
     # ── First-Boot / Unconfigured Appliance Check ──────────────────────────────
 
