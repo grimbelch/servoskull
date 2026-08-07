@@ -832,8 +832,10 @@ def _build_tools() -> list[dict]:
         }
     },
     ]
-    tools.extend(wfrp.tools.TOOLS)
-    return tools
+    base_tools.extend(wfrp.tools.TOOLS)
+    if _brain_module and hasattr(_brain_module, 'get_tools'):
+        base_tools.extend(_brain_module.get_tools())
+    return base_tools
 
 
 
