@@ -2,15 +2,18 @@
   "personalities": {
     "omega7": {
       "name": "Omega-7",
-      "description": "Imperial Servo Skull"
+      "description": "Imperial Servo Skull",
+      "aliases": ["omega 7", "omega-7", "omega seven"]
     },
     "jax": {
       "name": "Jax",
-      "description": "Golden Retriever AI companion"
+      "description": "Golden Retriever AI companion",
+      "aliases": ["dog", "puppy"]
     },
     "skull": {
       "name": "Omega-7 (Legacy)",
-      "description": "Imperial Servo Skull"
+      "description": "Imperial Servo Skull",
+      "aliases": []
     }
   }
 }
