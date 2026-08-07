@@ -693,6 +693,7 @@ def main():
     candles.setup(config.CANDLE_PIN)
     candles.on()  # ambient — flicker for as long as the skull is powered
     display.setup()
+    display.set_mood(mood.get())
     display.start_omnissiah_glyph(4.0)
     from core import proximity
     proximity.start()
