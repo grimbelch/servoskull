@@ -237,6 +237,31 @@ def switch_personality(target: str) -> str:
     return farewell
 
 
+def _execute_pending_system_command():
+    global _pending_system_command
+    if _pending_system_command:
+        cmd = _pending_system_command
+        _pending_system_command = None
+        import subprocess
+        print(f"[skull] Executing pending system command: {cmd}")
+        try:
+            if cmd == "reboot":
+                subprocess.run(["sudo", "reboot"], check=True)
+            elif cmd == "shutdown":
+                subprocess.run(["sudo", "poweroff"], check=True)
+            elif cmd.startswith("switch_"):
+                target = cmd.split("_")[1]
+                script_path = pathlib.Path(__file__).parent.parent / "switch-personality"
+                subprocess.run([
+                    "sudo", "systemd-run",
+                    "--unit=personality-switcher",
+                    str(script_path.resolve()), target
+                ], check=True)
+        except Exception as e:
+            print(f"[skull] System command error: {e}")
+
+
+
 _speech_activation_active = False
 _speech_active_lock = threading.Lock()
 _pending_bambu_lock = threading.Lock()
@@ -1351,6 +1376,7 @@ def main():
                     _speak_interruptible(speech_wav, on_wake)
                 except Exception:
                     pass
+                _execute_pending_system_command()
                 continue
             elif any(w in _t_norm for w in ("jax", "jex", "jacks", "jack", "jac", "jaxx", "dog", "retriever")):
                 print("[skull] Local personality switch to 'jax' detected.")
@@ -1361,6 +1387,7 @@ def main():
                     _speak_interruptible(speech_wav, on_wake)
                 except Exception:
                     pass
+                _execute_pending_system_command()
                 continue
 
         # ── 3a-5. Detect Voice Cache Refresh and Self-Update ──────────
@@ -1601,27 +1628,7 @@ def main():
                     set_speech_active(False)
 
         # ── 8. Execute pending system commands (reboot/shutdown/switch) ───────────
-        global _pending_system_command
-        if _pending_system_command:
-            cmd = _pending_system_command
-            _pending_system_command = None
-            import subprocess
-            print(f"[skull] Executing pending system command: {cmd}")
-            try:
-                if cmd == "reboot":
-                    subprocess.run(["sudo", "reboot"], check=True)
-                elif cmd == "shutdown":
-                    subprocess.run(["sudo", "poweroff"], check=True)
-                elif cmd.startswith("switch_"):
-                    target = cmd.split("_")[1]
-                    script_path = pathlib.Path(__file__).parent.parent / "switch-personality"
-                    subprocess.run([
-                        "sudo", "systemd-run",
-                        "--unit=personality-switcher",
-                        str(script_path.resolve()), target
-                    ], check=True)
-            except Exception as e:
-                print(f"[skull] System command error: {e}")
+        _execute_pending_system_command()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Omega-7 Servo Skull")
