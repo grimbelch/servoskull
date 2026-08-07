@@ -539,7 +539,7 @@ def _build_tools() -> list[dict]:
             "'remind me to do Y in Z minutes', 'wake me up in X hours', etc. "
             "Convert the requested duration to seconds. "
             f"Phrase the message in {config.SKULL_NAME}'s character voice (e.g. "
-            f"{'(Your 5-minute cogitation cycle is complete.)' if config.SKULL_NAME.lower() != 'jax' else '(Woof! Your 5-minute timer is done!)'})."
+            f"{config.PERSONALITY.get('timer_completion_message', 'Timer complete.')})."
         ),
         "input_schema": {
             "type": "object",
@@ -993,17 +993,16 @@ def _build_tools() -> list[dict]:
         "name": "switch_personality",
         "description": (
             "Switch the active AI personality on this device. Use when the user asks to switch to, "
-            "activate, or talk to the other assistant — either Jax (the Golden Retriever) or Omega-7 "
-            "(the Servo-Skull). The switch persists through reboots. The current assistant will say a "
-            "goodbye and then hand off to the requested personality."
+            "activate, or talk to another personality. The switch persists through reboots. "
+            "The current assistant will say a goodbye and then hand off to the requested personality."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "personality": {
                     "type": "string",
-                    "enum": ["jax", "omega7"],
-                    "description": "Which personality to switch to: 'jax' for the Golden Retriever assistant, 'omega7' for the Servo-Skull."
+                    "enum": list(json.loads((pathlib.Path(__file__).parent.parent / "personalities" / "personalities.json").read_text())["personalities"].keys()),
+                    "description": "Which personality to switch to."
                 }
             },
             "required": ["personality"]
@@ -1478,17 +1477,9 @@ def get_active_tools_for_game(game_name: str) -> list[dict]:
     """Filter the complete _TOOLS list so that game-specific rule and campaign tools
     are ONLY exposed to the LLM when their corresponding game is active.
     This prevents cross-game tool calls (e.g. calling 40k rules while playing WFRP)."""
-    if config.SKULL_NAME.lower() == "jax":
-        # Jax is a Golden Retriever companion — strip out all Grimdark / Warhammer / Tech-Priest specific tools
-        forbidden_jax_tools = {
-            "play_ambient_hymn", "set_candles", "shift_mood", "auspex_scan", "purge_identity",
-            "warhammer40k_rules", "necromunda_rules", "netepic_rules", "netea_rules", "whfrp_rules",
-            "whfrp_lookup_character", "whfrp_lookup_npc", "whfrp_lookup_location", "whfrp_log_timeline_event",
-            "roll_whfrp_dice", "start_campaign", "list_campaigns", "get_campaign_state", "save_campaign_state",
-            "roll_character_stats", "save_character", "roll_random_talent", "get_species_info",
-            "get_class_trappings", "roll_starting_wealth", "roll_physical_details"
-        }
-        return [t for t in _TOOLS if t.get("name") not in forbidden_jax_tools]
+    forbidden_tools = set(config.PERSONALITY.get("forbidden_tools", []))
+    if forbidden_tools:
+        return [t for t in _TOOLS if t.get("name") not in forbidden_tools]
 
     g_lower = (game_name or "").lower()
 
@@ -2887,7 +2878,10 @@ def _tool_shutdown_system(i):
 
 def _tool_switch_personality(i):
     target = str(i.get("personality", "")).strip().lower()
-    if target in ("jack", "jacks", "jax", "jex", "jac", "jaxx", "retriever", "dog", "golden retriever"):
+    # Try mapping fuzzy matches via aliases if we had them, but for now just pass through
+    target = target.lower()
+    # Normalize some known variants
+    if target in ("jack", "jacks", "jex", "jac", "jaxx", "retriever", "dog", "golden retriever"):
         target = "jax"
     elif target in ("omega7", "omega-7", "skull", "servoskull", "servo-skull"):
         target = "omega7"

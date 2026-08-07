@@ -35,7 +35,7 @@ from core import spotify_ctrl, cast_audio, camera, quiet, display, temperature, 
 
 def shutdown(sig=None, frame=None):
     _shutdown_requested = True
-    farewell = "Powering down. The Emperor protects." if config.SKULL_NAME.lower() != "jax" else "Going to sleep. See ya!"
+    farewell = config.PERSONALITY.get("shutdown_message", "Powering down.")
     print(f"\n[skull] {farewell}")
     try:
         _background_executor.shutdown(wait=False)
@@ -431,9 +431,7 @@ def _cogitation_loop(cancel: threading.Event) -> None:
 
 
 def _get_boot_phrase() -> str:
-    if config.SKULL_NAME.lower() == "jax":
-        return f"Woof! {config.SKULL_NAME} is online and ready for action! Tail wagging and ready to go!"
-    return f"{config.SKULL_NAME} online. Neural cortex active. Ready to serve the Omnissiah."
+    return config.PERSONALITY.get("boot_phrase", f"{config.SKULL_NAME} online.")
 
 
 def _load_or_record_boot_wav() -> bytes:
@@ -708,10 +706,7 @@ def main():
     from core import web
 
     web.start()
-    if config.SKULL_NAME.lower() == "jax":
-        print(f"[skull] {config.SKULL_NAME} online. Tail wagging and ready for action!")
-    else:
-        print(f"[skull] {config.SKULL_NAME} online. Awaiting the Emperor's commands.")
+    print(f"[skull] {config.SKULL_NAME} online.")
     try:
         import sounddevice as sd
         devices = sd.query_devices()
@@ -882,7 +877,7 @@ def main():
                     play_ack_sound = False
                 else:
                     is_answering_question = False
-                    if config.SKULL_NAME.lower() == "jax":
+                    if config.PERSONALITY.get("eye_animation") == "dog":
                         ack = random.choice([
                             "Woof?",
                             "Bark!",
@@ -1368,28 +1363,27 @@ def main():
         import re
         _t_norm = _t.lower()
         if "switch" in _t_norm or "change" in _t_norm or "turn into" in _t_norm or "become" in _t_norm:
-            if "omega" in _t_norm or "servo" in _t_norm or "skull" in _t_norm:
-                print("[skull] Local personality switch to 'omega7' detected.")
-                msg = switch_personality("omega7")
-                try:
-                    speech_wav = tts.synthesize(msg)
-                    eyes.on()
-                    _speak_interruptible(speech_wav, on_wake)
-                except Exception:
-                    pass
-                _execute_pending_system_command()
-                continue
-            elif any(w in _t_norm for w in ("jax", "jex", "jacks", "jack", "jac", "jaxx", "dog", "retriever")):
-                print("[skull] Local personality switch to 'jax' detected.")
-                msg = switch_personality("jax")
-                try:
-                    speech_wav = tts.synthesize(msg)
-                    eyes.on()
-                    _speak_interruptible(speech_wav, on_wake)
-                except Exception:
-                    pass
-                _execute_pending_system_command()
-                continue
+            import json, pathlib
+            p_path = pathlib.Path(__file__).parent.parent / "personalities" / "personalities.json"
+            if p_path.exists():
+                valid_p = json.loads(p_path.read_text()).get("personalities", {})
+                switched = False
+                for p_id, p_info in valid_p.items():
+                    p_name = p_info.get("name", p_id).lower()
+                    if p_id in _t_norm or p_name in _t_norm or any(alias in _t_norm for alias in p_info.get("aliases", [])):
+                        print(f"[skull] Local personality switch to '{p_id}' detected.")
+                        msg = switch_personality(p_id)
+                        try:
+                            speech_wav = tts.synthesize(msg)
+                            eyes.on()
+                            _speak_interruptible(speech_wav, on_wake)
+                        except Exception:
+                            pass
+                        _execute_pending_system_command()
+                        switched = True
+                        break
+                if switched:
+                    continue
 
         # ── 3a-5. Detect Voice Cache Refresh and Self-Update ──────────
         _RE_REFRESH = re.compile(r"\b(refresh|reload|clear|update)\s+(your\s+)?voice(\s+cache)?\b")
@@ -1440,7 +1434,7 @@ def main():
             print("[skull] Local voice cache refresh intent detected.")
             refresh_voice_cache()
             try:
-                msg = "Got it! Clearing my voice cache and updating my voice now!" if config.SKULL_NAME.lower() == "jax" else "Understood. I am purging my auditory cache and initiating voice regeneration."
+                msg = config.PERSONALITY.get("refresh_voice_message", "Purging voice cache.")
                 speech_wav = tts.synthesize(msg)
                 eyes.on()
                 _speak_interruptible(speech_wav, on_wake)
@@ -1450,7 +1444,7 @@ def main():
         elif _RE_UPDATE.search(_t):
             print("[skull] Local self-update intent detected.")
             try:
-                msg = "Fetching the latest updates! I'll restart in just a second!" if config.SKULL_NAME.lower() == "jax" else "Initiating system update from the git archives. I will reboot the machine spirit shortly."
+                msg = config.PERSONALITY.get("update_message", "Initiating system update.")
                 speech_wav = tts.synthesize(msg)
                 eyes.on()
                 _speak_interruptible(speech_wav, on_wake)
@@ -1461,7 +1455,7 @@ def main():
         elif _RE_REBOOT.search(_t):
             print("[skull] Local reboot intent detected.")
             try:
-                msg = "Rebooting now! See ya in a second, buddy!" if config.SKULL_NAME.lower() == "jax" else "Initiating system reboot. Power cycles will commence shortly."
+                msg = config.PERSONALITY.get("reboot_message", "Initiating system reboot.")
                 speech_wav = tts.synthesize(msg)
                 eyes.on()
                 _speak_interruptible(speech_wav, on_wake)
@@ -1472,7 +1466,7 @@ def main():
         elif _RE_SHUTDOWN.search(_t):
             print("[skull] Local shutdown intent detected.")
             try:
-                msg = "Going to sleep now. Bye-bye!" if config.SKULL_NAME.lower() == "jax" else "Initiating system shutdown. Powering down all machine spirits."
+                msg = config.PERSONALITY.get("shutdown_message", "Initiating system shutdown.")
                 speech_wav = tts.synthesize(msg)
                 eyes.on()
                 _speak_interruptible(speech_wav, on_wake)
@@ -1648,7 +1642,7 @@ def main():
                 print("[skull] First interaction of the day complete. Offering morning briefing.")
                 try:
                     set_speech_active(True)
-                    if config.SKULL_NAME.lower() == "jax":
+                    if config.PERSONALITY.get("eye_animation") == "dog":
                         offer_text = (
                             "Good morning, buddy! I've been sniffing around and I've got the weather and the latest updates. "
                             "Are you ready for your morning briefing? Woof!"

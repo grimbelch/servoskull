@@ -1,64 +1,79 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# switch-personality  —  toggle between Jax and Omega-7 on this Pi
+# switch-personality  —  toggle between personalities on this Pi
 #
 # Usage:
-#   switch-personality jax       # switch to Jax (golden retriever)
-#   switch-personality omega7    # switch to Omega-7 (servo skull)
+#   switch-personality <target>
 #
 # The script updates SKULL_NAME in .env and restarts the active service.
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
 
-ENV_FILE="/home/sspeer/Servoskull/.env"
+BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="$BASE_DIR/.env"
 
 # Find the active service (omega7 or omega8)
 current_svc=""
-if systemctl is-active --quiet omega8.service; then
+if systemctl is-active --quiet omega8.service >/dev/null 2>&1; then
     current_svc="omega8.service"
-elif systemctl is-active --quiet omega7.service; then
+elif systemctl is-active --quiet omega7.service >/dev/null 2>&1; then
     current_svc="omega7.service"
 else
     # Fallback to the hostname-based service
     current_svc="$(hostname).service"
 fi
 
-switch_to() {
-    local target="$1"         # jax | omega7
-    local label
+target="${1:-}"
 
-    if [[ "$target" == "jax" ]]; then
-        label="Jax (Golden Retriever)"
-    elif [[ "$target" == "omega7" ]]; then
-        label="Omega-7 (Servo Skull)"
-    else
-        echo "ERROR: unknown personality '$target'. Use 'jax' or 'omega7'." >&2
-        exit 1
-    fi
+if [[ -z "$target" || "$target" == "status" ]]; then
+    echo "Usage: switch-personality <target>"
+    echo "Available personalities:"
+    python3 -c '
+import json, sys
+try:
+    with open("'"$BASE_DIR"'/personalities/personalities.json") as f:
+        data = json.load(f)["personalities"]
+    for k, v in data.items():
+        print(f"  {k} - {v.get(\"name\", k)}")
+except:
+    pass
+'
+    exit 1
+fi
 
-    echo "🔄 Switching to $label ..."
+target="${target,,}" # lowercase
 
-    # 1. Update the .env file
-    if grep -q "^SKULL_NAME=" "$ENV_FILE"; then
-        sudo sed -i "s/^SKULL_NAME=.*/SKULL_NAME=$target/" "$ENV_FILE"
-    else
-        echo "SKULL_NAME=$target" | sudo tee -a "$ENV_FILE" >/dev/null
-    fi
-
-    # 2. Restart the active service to load the new config
-    echo "Restarting $current_svc ..."
-    sudo pkill -9 -f 'core.main' 2>/dev/null || true
-    sudo systemctl restart "$current_svc"
-
-    echo "✅ $label is active on $current_svc."
+label=$(python3 -c '
+import json, sys
+try:
+    with open("'"$BASE_DIR"'/personalities/personalities.json") as f:
+        data = json.load(f)["personalities"]
+    target = "'"$target"'"
+    if target in data:
+        print(data[target].get("name", target))
+        sys.exit(0)
+    sys.exit(1)
+except Exception as e:
+    print(f"Error parsing json: {e}", file=sys.stderr)
+    sys.exit(1)
+') || {
+    echo "ERROR: unknown personality '$target'." >&2
+    exit 1
 }
 
-case "${1:-status}" in
-    jax|JAX)         switch_to "jax"   ;;
-    omega7|OMEGA7)   switch_to "omega7" ;;
-    *)
-        echo "Usage: switch-personality [jax|omega7]"
-        exit 1
-        ;;
-esac
+echo "🔄 Switching to $label ($target) ..."
+
+# 1. Update the .env file
+if [[ -f "$ENV_FILE" ]] && grep -q "^SKULL_NAME=" "$ENV_FILE"; then
+    sudo sed -i "s/^SKULL_NAME=.*/SKULL_NAME=$target/" "$ENV_FILE"
+else
+    echo "SKULL_NAME=$target" | sudo tee -a "$ENV_FILE" >/dev/null
+fi
+
+# 2. Restart the active service to load the new config
+echo "Restarting $current_svc ..."
+sudo pkill -9 -f 'core.main' 2>/dev/null || true
+sudo systemctl restart "$current_svc" || true
+
+echo "✅ $label is active on $current_svc."

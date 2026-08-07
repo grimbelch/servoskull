@@ -1,0 +1,16 @@
+{
+  "personalities": {
+    "omega7": {
+      "name": "Omega-7",
+      "description": "Imperial Servo Skull"
+    },
+    "jax": {
+      "name": "Jax",
+      "description": "Golden Retriever AI companion"
+    },
+    "skull": {
+      "name": "Omega-7 (Legacy)",
+      "description": "Imperial Servo Skull"
+    }
+  }
+}
