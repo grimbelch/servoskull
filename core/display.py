@@ -128,10 +128,28 @@ _MOOD_COLOURS = {
 }
 
 try:
-    from PIL import Image, ImageDraw
+    from PIL import Image, ImageDraw, ImageFont
     import numpy as np
 except ImportError:
     pass
+
+def _get_font(size: int, bold: bool = True):
+    font_paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf" if bold else "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+        "/Library/Fonts/Arial Bold.ttf" if bold else "/Library/Fonts/Arial.ttf",
+        "/System/Library/Fonts/Helvetica.ttc",
+    ]
+    for path in font_paths:
+        try:
+            return ImageFont.truetype(path, size)
+        except Exception:
+            continue
+    try:
+        return ImageFont.load_default(size=size)
+    except Exception:
+        return ImageFont.load_default()
 
 try:
     import spidev
@@ -993,10 +1011,7 @@ def _render_omnissiah_frame(bezel, mask, now: float) -> Image.Image:
             text_alpha = ease_in_out(min(1.0, (age - act2_end) / 0.6))
 
         if text_alpha > 0.01:
-            try:
-                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
-            except Exception:
-                font = ImageFont.load_default()
+            font = _get_font(28, bold=True)
             label = config.SKULL_NAME.upper()
             try:
                 bb = font.getbbox(label)
