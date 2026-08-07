@@ -132,7 +132,7 @@ def reset_voice_cache_if_requested() -> None:
     try:
         if _VOICE_CACHE_DIR.exists():
             shutil.rmtree(_VOICE_CACHE_DIR)
-        legacy = pathlib.Path(_BOOT_CACHE)
+        legacy = pathlib.Path("models/boot_phrase.wav")
         if legacy.exists():
             legacy.unlink()
         print("[skull] RESET_VOICE_CACHE set — cleared cached phrase audio; regenerating "
@@ -146,7 +146,7 @@ def refresh_voice_cache() -> str:
     try:
         if _VOICE_CACHE_DIR.exists():
             shutil.rmtree(_VOICE_CACHE_DIR)
-        legacy = pathlib.Path(_BOOT_CACHE)
+        legacy = pathlib.Path("models/boot_phrase.wav")
         if legacy.exists():
             legacy.unlink()
         
