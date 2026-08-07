@@ -5,48 +5,32 @@
 # Usage:
 #   switch-personality jax       # switch to Jax (golden retriever)
 #   switch-personality omega7    # switch to Omega-7 (servo skull)
-#   switch-personality           # show current active personality
 #
-# The script stops the active service, waits for GPIO release, starts the new
-# service, and updates systemd enable state so selection persists on reboot.
+# The script updates SKULL_NAME in .env and restarts the active service.
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
 
-JAX_SVC="retriever"
-OMEGA_SVC="omega7"
+ENV_FILE="/home/sspeer/Servoskull/.env"
 
-current_personality() {
-    if systemctl is-active --quiet "$JAX_SVC"; then
-        echo "jax"
-    elif systemctl is-active --quiet "$OMEGA_SVC"; then
-        echo "omega7"
-    else
-        echo "none"
-    fi
-}
-
-show_status() {
-    local cur
-    cur=$(current_personality)
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "  Active personality : ${cur^^}"
-    echo "  retriever (Jax)    : $(systemctl is-enabled $JAX_SVC 2>/dev/null || echo disabled) / $(systemctl is-active $JAX_SVC 2>/dev/null || echo inactive)"
-    echo "  omega7 (Omega-7)   : $(systemctl is-enabled $OMEGA_SVC 2>/dev/null || echo disabled) / $(systemctl is-active $OMEGA_SVC 2>/dev/null || echo inactive)"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-}
+# Find the active service (omega7 or omega8)
+current_svc=""
+if systemctl is-active --quiet omega8.service; then
+    current_svc="omega8.service"
+elif systemctl is-active --quiet omega7.service; then
+    current_svc="omega7.service"
+else
+    # Fallback to the hostname-based service
+    current_svc="$(hostname).service"
+fi
 
 switch_to() {
     local target="$1"         # jax | omega7
-    local start_svc stop_svc label
+    local label
 
     if [[ "$target" == "jax" ]]; then
-        start_svc="$JAX_SVC"
-        stop_svc="$OMEGA_SVC"
         label="Jax (Golden Retriever)"
     elif [[ "$target" == "omega7" ]]; then
-        start_svc="$OMEGA_SVC"
-        stop_svc="$JAX_SVC"
         label="Omega-7 (Servo Skull)"
     else
         echo "ERROR: unknown personality '$target'. Use 'jax' or 'omega7'." >&2
@@ -55,36 +39,24 @@ switch_to() {
 
     echo "🔄 Switching to $label ..."
 
-    # 1. Update boot enablement so target starts on future reboots
-    sudo systemctl disable "$stop_svc" 2>/dev/null || true
-    sudo systemctl enable "$start_svc" 2>/dev/null || true
-
-    # 2. Stop outgoing service and wait for GPIO/hardware cleanup
-    if systemctl is-active --quiet "$stop_svc"; then
-        echo "Stopping $stop_svc ..."
-        sudo systemctl stop "$stop_svc" 2>/dev/null || true
-        for i in {1..10}; do
-            if ! systemctl is-active --quiet "$stop_svc"; then
-                break
-            fi
-            sleep 0.5
-        done
-        sleep 1.0
+    # 1. Update the .env file
+    if grep -q "^SKULL_NAME=" "$ENV_FILE"; then
+        sudo sed -i "s/^SKULL_NAME=.*/SKULL_NAME=$target/" "$ENV_FILE"
+    else
+        echo "SKULL_NAME=$target" | sudo tee -a "$ENV_FILE" >/dev/null
     fi
 
-    # 3. Start incoming service
-    echo "Starting $start_svc ..."
-    sudo systemctl start "$start_svc"
+    # 2. Restart the active service to load the new config
+    echo "Restarting $current_svc ..."
+    sudo pkill -9 -f 'core.main' 2>/dev/null || true
+    sudo systemctl restart "$current_svc"
 
-    echo "✅ $label is active."
-    show_status
+    echo "✅ $label is active on $current_svc."
 }
 
-# ── main ──────────────────────────────────────────────────────────────────────
 case "${1:-status}" in
     jax|JAX)         switch_to "jax"   ;;
     omega7|OMEGA7)   switch_to "omega7" ;;
-    status|"")       show_status ;;
     *)
         echo "Usage: switch-personality [jax|omega7]"
         exit 1

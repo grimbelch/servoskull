@@ -34,7 +34,9 @@ from core import spotify_ctrl, cast_audio, camera, quiet, display, temperature, 
 
 
 def shutdown(sig=None, frame=None):
-    print("\n[skull] Powering down. The Emperor protects.")
+    _shutdown_requested = True
+    farewell = "Powering down. The Emperor protects." if config.SKULL_NAME.lower() != "jax" else "Going to sleep. See ya!"
+    print(f"\n[skull] {farewell}")
     try:
         _background_executor.shutdown(wait=False)
     except Exception:
@@ -97,7 +99,7 @@ _speech_lock = threading.RLock()
 import hashlib
 import pathlib
 
-_VOICE_CACHE_DIR = pathlib.Path("models/phrase_cache")
+_VOICE_CACHE_DIR = pathlib.Path(f"models/phrase_cache/{config.SKULL_NAME.lower()}")
 
 
 def _voice_cache_path(text: str) -> pathlib.Path:
@@ -854,17 +856,27 @@ def main():
                     play_ack_sound = False
                 else:
                     is_answering_question = False
-                    ack = random.choice([
-                        "Ah, yes?",
-                        "Speak.",
-                        "Yes?",
-                        "Proceed.",
-                        "Command me.",
-                        "Why must you interrupt me?",
-                        f"Again you interrupt {config.SKULL_NAME}?",
-                        "This had better be important.",
-                        "Insufferable. What is it?",
-                    ])
+                    if config.SKULL_NAME.lower() == "jax":
+                        ack = random.choice([
+                            "Woof?",
+                            "Bark!",
+                            "Ready to play!",
+                            "I'm here!",
+                            "What is it, buddy?",
+                            "Did someone say Jax?",
+                        ])
+                    else:
+                        ack = random.choice([
+                            "Ah, yes?",
+                            "Speak.",
+                            "Yes?",
+                            "Proceed.",
+                            "Command me.",
+                            "Why must you interrupt me?",
+                            f"Again you interrupt {config.SKULL_NAME}?",
+                            "This had better be important.",
+                            "Insufferable. What is it?",
+                        ])
                     _barge_wav = None
                     try:
                         _barge_wav = tts.synthesize(ack)
@@ -1566,11 +1578,17 @@ def main():
                 print("[skull] First interaction of the day complete. Offering morning briefing.")
                 try:
                     set_speech_active(True)
-                    offer_text = (
-                        "Master. This unit has compiled your morning cogitations — "
-                        "weather data, hive dispatches, and machine-spirit telemetry. "
-                        "Are you ready to receive your daily briefing?"
-                    )
+                    if config.SKULL_NAME.lower() == "jax":
+                        offer_text = (
+                            "Good morning, buddy! I've been sniffing around and I've got the weather and the latest updates. "
+                            "Are you ready for your morning briefing? Woof!"
+                        )
+                    else:
+                        offer_text = (
+                            "Master. This unit has compiled your morning cogitations — "
+                            "weather data, hive dispatches, and machine-spirit telemetry. "
+                            "Are you ready to receive your daily briefing?"
+                        )
                     brain.record_assistant_turn(offer_text)
                     offer_wav = tts.synthesize(offer_text)
                     eyes.on()

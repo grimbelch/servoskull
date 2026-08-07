@@ -130,13 +130,19 @@ CLAUDE_MODEL = _cfg("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
 # ── Text-to-speech ───────────────────────────────────────────────────────────────
 # "piper" (local, free) or "elevenlabs" (cloud, quota-limited)
 TTS_BACKEND = _cfg("TTS_BACKEND", "elevenlabs")
-PIPER_MODEL_PATH = _cfg("PIPER_MODEL_PATH", "models/servoskull.onnx")
+if SKULL_NAME.lower() == "jax":
+    PIPER_MODEL_PATH = _cfg("PIPER_MODEL_PATH", "models/servoskull.onnx")
+else:
+    PIPER_MODEL_PATH = _cfg("PIPER_MODEL_PATH", "models/servoskull.onnx")
 # Wipe cached canned-phrase audio for one run after changing the ElevenLabs voice.
 RESET_VOICE_CACHE = _cfg("RESET_VOICE_CACHE", "false").lower() == "true"
 
 # ── Wake word (openWakeWord) ─────────────────────────────────────────────────────
 # A built-in model name (e.g. "hey_jarvis") or a path to a custom .onnx model.
-WAKE_WORD_MODEL = _cfg("WAKE_WORD_MODEL", "models/servitor.onnx")
+if SKULL_NAME.lower() == "jax":
+    WAKE_WORD_MODEL = _cfg("WAKE_WORD_MODEL", "models/Hey_Buddy.onnx")
+else:
+    WAKE_WORD_MODEL = _cfg("WAKE_WORD_MODEL", "models/servitor.onnx")
 WAKE_WORD_THRESHOLD = float(_cfg("WAKE_WORD_THRESHOLD", "0.65"))
 
 
