@@ -2639,6 +2639,12 @@ def _tool_acknowledge_reminders(i):
 def _tool_set_quiet_mode(i):
     enabled = bool(i.get("enabled", True))
     _quiet.set_silent(enabled)
+    if config.SKULL_NAME.lower() == "jax":
+        return (
+            "Quiet mode on! I'll stay nice and quiet until you call me."
+            if enabled
+            else "Quiet mode off! I'm back and ready to help!"
+        )
     return (
         "Silent mode engaged. This unit will cease unprompted observations."
         if enabled
@@ -3133,8 +3139,12 @@ def _execute_purge_identity(name: str) -> str:
         print(f"[brain] Error purging memory of {name}: {e}")
         
     if not purged_parts:
+        if config.SKULL_NAME.lower() == "jax":
+            return f"I don't have any records or memories saved for '{name}'!"
         return f"No visage, vox, or memory records found for identity '{name}' in this unit's archives."
         
+    if config.SKULL_NAME.lower() == "jax":
+        return f"Wiped all records for '{name}': {', '.join(purged_parts)}. The slate is clean!"
     return f"Purged the following records for identity '{name}': {', '.join(purged_parts)}. The data has been expunged from the machine spirit's registries."
 
 
@@ -3332,14 +3342,24 @@ def reset() -> None:
         pass
 
 
-_IDLE_PROMPT = f"""\
-You are {config.SKULL_NAME}, an ancient Imperial servo-skull. Your cogitator feeds have just \
-intercepted real-world news dispatches from the sector. Reinterpret ONE news item \
-as if it were a report from the Warhammer 40,000 universe — use real locations \
-real companies, real people, but modifiy it slightly to fit the Warhammer 40k universe.\
-Speak it as a brief status report (1-2 sentences). \
-When you being your response, preface it with some form of "This just in from the news feeds of this unit's cogitator..." or "This unit has intercepted a news dispatch..." \
-Output ONLY the spoken words. No asterisks, no stage directions. No preamble."""
+def _get_idle_prompt() -> str:
+    if config.SKULL_NAME.lower() == "jax":
+        return (
+            f"You are {config.SKULL_NAME}, a friendly, enthusiastic Golden Retriever. "
+            "You just heard some interesting news! Share ONE news item in a cheerful, friendly 1-2 sentence Golden Retriever voice. "
+            "Preface it with something like 'Hey buddy! Check out what I just found out:' or 'Woof! Did you hear about this?'. "
+            "Output ONLY the spoken words. No asterisks, no stage directions."
+        )
+    return (
+        f"You are {config.SKULL_NAME}, an ancient Imperial servo-skull. Your cogitator feeds have just "
+        "intercepted real-world news dispatches from the sector. Reinterpret ONE news item "
+        "as if it were a report from the Warhammer 40,000 universe — use real locations, "
+        "real companies, real people, but modify it slightly to fit the Warhammer 40k universe. "
+        "Speak it as a brief status report (1-2 sentences). "
+        "When you begin your response, preface it with some form of 'This just in from the news feeds of this unit's cogitator...' or 'This unit has intercepted a news dispatch...' "
+        "Output ONLY the spoken words. No asterisks, no stage directions. No preamble."
+    )
+
 
 _IDLE_TOOLS = [
     {
@@ -3396,7 +3416,7 @@ def idle_utterance() -> str:
     if do_news:
         scope = _rand.choice(_IDLE_SCOPES)
         print(f"[brain] Idle news scope: {scope!r}  mood bias: {_mood.get()}")
-        system = _IDLE_PROMPT + _mood.system_addendum()
+        system = _get_idle_prompt() + _mood.system_addendum()
         user_text = (
             f"Search for '{scope}' news and generate your idle utterance based on one story. "
             f"Lean toward this type of delivery: {bias}."

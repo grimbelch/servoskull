@@ -1440,7 +1440,8 @@ def main():
             print("[skull] Local voice cache refresh intent detected.")
             refresh_voice_cache()
             try:
-                speech_wav = tts.synthesize("Understood. I am purging my auditory cache and initiating voice regeneration.")
+                msg = "Got it! Clearing my voice cache and updating my voice now!" if config.SKULL_NAME.lower() == "jax" else "Understood. I am purging my auditory cache and initiating voice regeneration."
+                speech_wav = tts.synthesize(msg)
                 eyes.on()
                 _speak_interruptible(speech_wav, on_wake)
             except Exception:
@@ -1449,7 +1450,8 @@ def main():
         elif _RE_UPDATE.search(_t):
             print("[skull] Local self-update intent detected.")
             try:
-                speech_wav = tts.synthesize("Initiating system update from the git archives. I will reboot the machine spirit shortly.")
+                msg = "Fetching the latest updates! I'll restart in just a second!" if config.SKULL_NAME.lower() == "jax" else "Initiating system update from the git archives. I will reboot the machine spirit shortly."
+                speech_wav = tts.synthesize(msg)
                 eyes.on()
                 _speak_interruptible(speech_wav, on_wake)
             except Exception:
@@ -1459,7 +1461,8 @@ def main():
         elif _RE_REBOOT.search(_t):
             print("[skull] Local reboot intent detected.")
             try:
-                speech_wav = tts.synthesize("Initiating system reboot. Power cycles will commence shortly.")
+                msg = "Rebooting now! See ya in a second, buddy!" if config.SKULL_NAME.lower() == "jax" else "Initiating system reboot. Power cycles will commence shortly."
+                speech_wav = tts.synthesize(msg)
                 eyes.on()
                 _speak_interruptible(speech_wav, on_wake)
             except Exception:
@@ -1469,7 +1472,8 @@ def main():
         elif _RE_SHUTDOWN.search(_t):
             print("[skull] Local shutdown intent detected.")
             try:
-                speech_wav = tts.synthesize("Initiating system shutdown. Powering down all machine spirits.")
+                msg = "Going to sleep now. Bye-bye!" if config.SKULL_NAME.lower() == "jax" else "Initiating system shutdown. Powering down all machine spirits."
+                speech_wav = tts.synthesize(msg)
                 eyes.on()
                 _speak_interruptible(speech_wav, on_wake)
             except Exception:
