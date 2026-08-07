@@ -83,6 +83,9 @@ def detect_face(img) -> tuple[np.ndarray, tuple[int, int, int, int]] | None:
     Returns (upright_img, (x, y, w, h)) of the largest face, or None if no face is found.
     Input img is BGR color image.
     """
+    if _face_cascade is None:
+        return None
+        
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     
     # 1. Try 0 degrees
