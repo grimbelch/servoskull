@@ -1,0 +1,902 @@
+
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=IM+Fell+English:ital@0;1&family=MedievalSharp&family=Share+Tech+Mono&display=swap');
+
+
+        :root {
+            --bg-color: #020803;
+            --card-color: #030f05;
+            --border-color: #14531d;
+            --bright-green: #38ff58;
+            --dim-green: #117823;
+            --glow-color: rgba(56, 255, 88, 0.45);
+            --crt-glow: rgba(56, 255, 88, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--bright-green);
+            font-family: 'Share Tech Mono', 'Courier New', Courier, monospace;
+            overflow-x: hidden;
+            position: relative;
+            min-height: 100vh;
+        }
+
+        /* CRT Screen Filter & Glass Effects */
+        .screen {
+            position: relative;
+            width: 100%;
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .screen::after {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(56, 255, 88, 0.04), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 4px, 6px 100%;
+            z-index: 9999;
+            pointer-events: none;
+            animation: crt-flicker 0.25s infinite;
+        }
+
+        .screen::before {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: radial-gradient(circle, rgba(56, 255, 88, 0.03) 0%, rgba(0, 0, 0, 0.75) 120%);
+            z-index: 10000;
+            pointer-events: none;
+        }
+
+        @keyframes crt-flicker {
+            0% { opacity: 0.985; }
+            50% { opacity: 1; }
+            100% { opacity: 0.978; }
+        }
+
+        /* Page Layout Container */
+        .container {
+            width: 100%;
+            max-width: 1000px;
+            margin: 0 auto;
+            border: 2px solid var(--border-color);
+            background-color: var(--card-color);
+            padding: 24px;
+            position: relative;
+            box-shadow: 0 0 30px rgba(17, 120, 35, 0.15);
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            box-sizing: border-box;
+        }
+
+        /* Diagonal corner cuts for AdMech framing */
+        .container::before, .container::after, .frame-bracket::before, .frame-bracket::after {
+            content: "";
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-color: var(--bright-green);
+            border-style: solid;
+            pointer-events: none;
+        }
+
+        .container::before { top: -2px; left: -2px; border-width: 4px 0 0 4px; }
+        .container::after { top: -2px; right: -2px; border-width: 4px 4px 0 0; }
+        
+        .frame-bracket {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+        }
+        .frame-bracket::before { bottom: -2px; left: -2px; border-width: 0 0 4px 4px; }
+        .frame-bracket::after { bottom: -2px; right: -2px; border-width: 0 4px 4px 0; }
+
+
+        /* Heading & Telemetry Section */
+        .header {
+            grid-column: 1 / -1;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 16px;
+            margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .header-title-row {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .header h1 {
+            color: var(--bright-green);
+            font-size: 26px;
+            letter-spacing: 3px;
+            text-shadow: 0 0 10px var(--glow-color);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .master-header-tag {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            letter-spacing: 2px;
+            color: var(--bright-green);
+            text-shadow: 0 0 8px var(--glow-color);
+        }
+
+        .master-header-tag .master-label {
+            color: var(--dim-green);
+            font-size: 12px;
+            letter-spacing: 1.5px;
+        }
+
+        .master-header-tag .master-value {
+            color: var(--bright-green);
+            font-weight: bold;
+        }
+
+        /* SVG AdMech Logo */
+        .cog-logo {
+            width: 28px;
+            height: 28px;
+            fill: var(--bright-green);
+            filter: drop-shadow(0 0 4px var(--glow-color));
+            animation: slow-spin 20s linear infinite;
+        }
+
+        @keyframes slow-spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .telemetry {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .pie-gauge-row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            width: 100%;
+            border: 2px double var(--border-color);
+            background: rgba(17, 120, 35, 0.03);
+            padding: 12px;
+            box-sizing: border-box;
+            border-radius: 4px;
+        }
+
+        .pie-gauge-item {
+            border: 1px solid var(--border-color);
+            background: rgba(17, 120, 35, 0.05);
+            padding: 10px 4px;
+            border-radius: 2px;
+            box-shadow: inset 0 0 8px rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .gauge-label {
+            color: rgba(56, 255, 88, 0.85);
+            font-size: 10px;
+            letter-spacing: 1.5px;
+            font-weight: bold;
+            text-align: center;
+            text-shadow: 0 0 3px rgba(56, 255, 88, 0.4);
+            white-space: nowrap;
+        }
+
+        .pie-chart-container {
+            position: relative;
+            width: 58px;
+            height: 58px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .pie-chart {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+
+        .pie-bg {
+            fill: rgba(0, 0, 0, 0.6);
+            stroke: rgba(17, 120, 35, 0.3);
+            stroke-width: 3.5;
+        }
+
+        .pie-fill {
+            fill: none;
+            stroke: var(--bright-green);
+            stroke-width: 3.8;
+            stroke-linecap: round;
+            filter: drop-shadow(0 0 3px var(--bright-green));
+            transition: stroke-dasharray 0.4s ease;
+        }
+
+        .gauge-val {
+            position: absolute;
+            font-size: 11px;
+            font-weight: bold;
+            color: var(--bright-green);
+            text-shadow: 0 0 4px var(--glow-color);
+            text-align: center;
+        }
+
+        .status-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            width: 100%;
+        }
+
+        .telemetry-item {
+            border: 1px solid var(--border-color);
+            background: rgba(17, 120, 35, 0.05);
+            padding: 10px 14px;
+            border-radius: 2px;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .telemetry-item.text-only {
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .telemetry-label {
+            color: rgba(56, 255, 88, 0.75);
+            font-size: 11px;
+            letter-spacing: 1.5px;
+            font-weight: bold;
+            text-shadow: 0 0 2px rgba(56, 255, 88, 0.3);
+        }
+
+        .telemetry-value {
+            color: var(--bright-green);
+            font-weight: bold;
+            text-shadow: 0 0 4px var(--glow-color);
+            font-size: 13px;
+        }
+
+        .sensor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sensor-bar-container {
+            width: 100%;
+            height: 6px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-color);
+            border-radius: 1px;
+            overflow: hidden;
+            box-shadow: inset 0 0 4px rgba(0,0,0,0.9);
+        }
+
+        .sensor-bar {
+            height: 100%;
+            background: var(--bright-green);
+            box-shadow: 0 0 8px var(--glow-color);
+            width: 0%;
+            transition: width 0.4s cubic-bezier(0.1, 0.8, 0.3, 1);
+        }
+
+        /* Immersive Top Alert Banner */
+        .alert-banner {
+            grid-column: 1 / -1;
+            border: 2px solid var(--bright-green);
+            background-color: rgba(56, 255, 88, 0.07);
+            box-shadow: 0 0 15px rgba(56, 255, 88, 0.15), inset 0 0 10px rgba(56, 255, 88, 0.08);
+            padding: 18px 20px 14px 20px;
+            text-align: center;
+            border-radius: 2px;
+            position: relative;
+            margin-bottom: 5px;
+        }
+
+        .alert-banner::before {
+            content: "◆ COGITATOR MONITORING ACTIVE ◆";
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--card-color);
+            padding: 0 8px;
+            font-size: 11px;
+            color: var(--bright-green);
+            letter-spacing: 2px;
+            white-space: nowrap;
+            z-index: 5;
+        }
+
+        .alert-title {
+            font-size: 12px;
+            color: var(--bright-green);
+            letter-spacing: 4px;
+            opacity: 0.8;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+
+        .alert-value {
+            font-size: 24px;
+            font-weight: 900;
+            letter-spacing: 6px;
+            color: var(--bright-green);
+            text-shadow: 0 0 10px var(--glow-color);
+            text-transform: uppercase;
+        }
+
+        /* Left Column: Tactical Ocular Display Feed */
+        .ocular-pane {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            background: rgba(0,0,0,0.4);
+            position: relative;
+        }
+
+        .ocular-ring {
+            width: 270px;
+            height: 270px;
+            border: 4px double var(--bright-green);
+            position: relative;
+            background-color: #000200;
+            box-shadow: 0 0 20px rgba(56, 255, 88, 0.1), inset 0 0 25px rgba(0,0,0,0.95);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Right Column: Camera Optic Feed (Placeholder) */
+        .camera-pane {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            background: rgba(0,0,0,0.4);
+            position: relative;
+        }
+
+        .camera-screen {
+            width: 270px;
+            height: 270px;
+            border: 4px double var(--border-color);
+            position: relative;
+            background-color: #000200;
+            box-shadow: 0 0 20px rgba(56, 255, 88, 0.05), inset 0 0 25px rgba(0,0,0,0.95);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .camera-placeholder-text {
+            color: var(--dim-green);
+            font-size: 11px;
+            letter-spacing: 2px;
+            text-align: center;
+            line-height: 1.6;
+            opacity: 0.7;
+        }
+
+        .camera-canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        /* Ocular & Camera Bezel Tech Details */
+        .ocular-bezel-text {
+            position: absolute;
+            font-size: 9px;
+            color: var(--dim-green);
+            z-index: 10;
+        }
+        .bezel-tl { top: 6px; left: 6px; }
+        .bezel-tr { top: 6px; right: 6px; }
+        .bezel-bl { bottom: 6px; left: 6px; }
+        .bezel-br { bottom: 6px; right: 6px; }
+
+        .ocular-canvas {
+            width: 240px;
+            height: 240px;
+            border-radius: 50%;
+            display: block;
+        }
+
+        /* Monochromatic Green night vision filter for custom image uploads */
+        .custom-image-display {
+            position: absolute;
+            width: 240px;
+            height: 240px;
+            border-radius: 50%;
+            object-fit: cover;
+            display: none;
+            filter: sepia(1) hue-rotate(85deg) saturate(2.5) contrast(1.2) brightness(0.95);
+            opacity: 0.95;
+        }
+
+        /* Full Width Section: Vox Control Panel (Under feeds) */
+        .control-pane {
+            grid-column: 1 / -1;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            background: rgba(0,0,0,0.4);
+        }
+
+        .pane-title {
+            font-size: 13px;
+            letter-spacing: 2px;
+            color: var(--bright-green);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 6px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+
+        /* Chat feed / console interface */
+        .chat-container {
+            flex-grow: 1;
+            height: 320px;
+            min-height: 300px;
+            border: 1px solid var(--border-color);
+            background: rgba(0, 0, 0, 0.6);
+            padding: 12px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 13px;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.9);
+        }
+
+        .chat-bubble {
+            max-width: 90%;
+            padding: 8px 12px;
+            border-radius: 2px;
+            line-height: 1.4;
+            border-left: 3px solid;
+            white-space: pre-wrap;
+        }
+
+        .chat-user {
+            align-self: flex-end;
+            background-color: rgba(56, 255, 88, 0.05);
+            border-color: var(--dim-green);
+            color: var(--bright-green);
+        }
+
+        .chat-skull {
+            align-self: flex-start;
+            background-color: rgba(56, 255, 88, 0.1);
+            border-color: var(--bright-green);
+            color: var(--bright-green);
+            text-shadow: 0 0 4px var(--glow-color);
+        }
+
+        .input-bar {
+            display: flex;
+            gap: 8px;
+        }
+
+        .input-bar input {
+            flex-grow: 1;
+            background-color: rgba(0,0,0,0.7);
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            color: var(--bright-green);
+            font-family: inherit;
+            font-size: 14px;
+        }
+
+        .input-bar input:focus {
+            outline: none;
+            border-color: var(--bright-green);
+            box-shadow: 0 0 5px var(--glow-color);
+        }
+
+        /* High-tech chamfered button style */
+        button {
+            background-color: rgba(17, 120, 35, 0.15);
+            border: 1px solid var(--bright-green);
+            color: var(--bright-green);
+            padding: 10px 18px;
+            font-family: inherit;
+            cursor: pointer;
+            font-weight: bold;
+            letter-spacing: 1px;
+            text-shadow: 0 0 4px var(--glow-color);
+            transition: all 0.2s ease;
+            clip-path: polygon(8px 0%, 100% 0%, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0% 100%, 0% 8px);
+        }
+
+        button:hover {
+            background-color: var(--bright-green);
+            color: #000;
+            text-shadow: none;
+            box-shadow: 0 0 10px var(--glow-color);
+        }
+
+        /* Small Icon Buttons for Mic Controls */
+        .icon-btn {
+            width: 38px;
+            height: 38px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .btn-svg {
+            width: 16px;
+            height: 16px;
+            fill: var(--bright-green);
+            transition: fill 0.2s ease;
+        }
+
+        button:hover .btn-svg {
+            fill: #000;
+        }
+
+        button.mic-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 10px 14px;
+            background-color: rgba(56, 255, 88, 0.08);
+            border-color: var(--bright-green);
+            flex-shrink: 0;
+        }
+
+        button.mic-btn.recording {
+            background-color: #ff3838;
+            border-color: #ff3838;
+            color: #ffffff;
+            text-shadow: none;
+            animation: pulse-red 1.5s infinite;
+        }
+
+        button.mic-btn.recording .btn-svg {
+            fill: #ffffff;
+        }
+
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(255, 56, 56, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 56, 56, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 56, 56, 0); }
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(56, 255, 88, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(56, 255, 88, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(56, 255, 88, 0); }
+        }
+
+        /* Console Output Logs Pane */
+        .console-container {
+            grid-column: 1 / -1;
+            border: 1px solid var(--border-color);
+            background: rgba(0,0,0,0.5);
+            padding: 16px;
+        }
+
+        .console-box {
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid var(--border-color);
+            height: 130px;
+            padding: 8px 12px;
+            overflow-y: auto;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 11px;
+            color: var(--bright-green);
+            line-height: 1.5;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.95);
+        }
+
+        .console-line {
+            white-space: pre-wrap;
+            border-bottom: 1px dashed rgba(56, 255, 88, 0.08);
+            padding: 2px 0;
+            opacity: 1.0;
+            text-shadow: 0 0 3px var(--glow-color);
+        }
+
+        .controls-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .controls-row select {
+            flex-grow: 1;
+            background-color: rgba(0,0,0,0.7);
+            border: 1px solid var(--border-color);
+            color: var(--bright-green);
+            padding: 8px;
+            font-family: inherit;
+        }
+        
+        .controls-row select:focus {
+            outline: none;
+            border-color: var(--bright-green);
+        }
+
+        .aux-panel {
+            grid-column: 1 / -1;
+            width: 100%;
+            border: 1px solid var(--border-color);
+            background: rgba(17, 120, 35, 0.04);
+            padding: 12px 16px;
+            box-sizing: border-box;
+            border-radius: 2px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 4px;
+        }
+
+        .aux-title {
+            color: rgba(56, 255, 88, 0.85);
+            font-size: 11px;
+            letter-spacing: 2px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .aux-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .aux-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .aux-label {
+            font-size: 11px;
+            letter-spacing: 1.5px;
+            color: var(--dim-green);
+            white-space: nowrap;
+        }
+
+        .aux-panel select {
+            background-color: rgba(0,0,0,0.7);
+            border: 1px solid var(--border-color);
+            color: var(--bright-green);
+            padding: 6px 10px;
+            font-family: inherit;
+            font-size: 12px;
+        }
+
+        .aux-panel select:focus {
+            outline: none;
+            border-color: var(--bright-green);
+        }
+
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--dim-green);
+            border-radius: 1px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--bright-green);
+        }
+
+        /* Mobile Responsive Overrides (Must stay at bottom of style block) */
+        @media (max-width: 768px) {
+            html, body {
+                overflow-x: hidden !important;
+                overflow-y: auto !important;
+                touch-action: pan-y !important;
+                -webkit-overflow-scrolling: touch !important;
+            }
+            .screen {
+                padding: 4px 2px !important;
+                overflow: visible !important;
+                touch-action: pan-y !important;
+            }
+            .container {
+                grid-template-columns: 1fr !important;
+                padding: 8px 4px !important;
+                gap: 10px !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                overflow: visible !important;
+                touch-action: pan-y !important;
+            }
+            .header {
+                padding-bottom: 8px !important;
+                margin-bottom: 6px !important;
+                gap: 6px !important;
+            }
+            .header h1 {
+                font-size: 13px !important;
+                letter-spacing: 0px !important;
+                flex-wrap: wrap !important;
+                line-height: 1.2 !important;
+                word-break: break-word !important;
+            }
+            .cog-logo {
+                width: 16px !important;
+                height: 16px !important;
+                flex-shrink: 0 !important;
+            }
+            .telemetry {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 8px !important;
+                width: 100% !important;
+                padding: 4px !important;
+            }
+            .pie-gauge-row {
+                grid-template-columns: repeat(5, 1fr) !important;
+                gap: 4px !important;
+                padding: 6px 2px !important;
+            }
+            .pie-chart-container {
+                width: 44px !important;
+                height: 44px !important;
+            }
+            .gauge-label {
+                font-size: 8px !important;
+                letter-spacing: 0px !important;
+            }
+            .gauge-val {
+                font-size: 9px !important;
+            }
+            .status-row {
+                grid-template-columns: 1fr !important;
+                gap: 6px !important;
+            }
+            .telemetry-item, .telemetry-item.text-only {
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: 100% !important;
+                box-sizing: border-box !important;
+                padding: 10px 12px !important;
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 6px !important;
+            }
+            .sensor-header {
+                display: flex !important;
+                flex-direction: row !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                gap: 4px !important;
+            }
+            .telemetry-label {
+                font-size: 11px !important;
+                letter-spacing: 1px !important;
+            }
+            .telemetry-value {
+                font-size: 12px !important;
+                letter-spacing: 0px !important;
+                word-break: break-word !important;
+            }
+            .alert-banner {
+                padding: 12px 4px 8px 4px !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+            .alert-banner::before {
+                font-size: 8px !important;
+                letter-spacing: 0.5px !important;
+                top: -9px !important;
+                content: "◆ MONITORING ACTIVE ◆" !important;
+            }
+            .alert-title {
+                font-size: 9px !important;
+                letter-spacing: 0.5px !important;
+            }
+            .alert-value {
+                font-size: 13px !important;
+                letter-spacing: 0px !important;
+                word-break: break-word !important;
+                white-space: normal !important;
+            }
+            .ocular-pane, .camera-pane, .control-pane, .console-container {
+                padding: 8px 6px !important;
+            }
+            .ocular-ring, .camera-screen {
+                width: 220px !important;
+                height: 220px !important;
+                max-width: 100% !important;
+            }
+            .aux-panel {
+                padding: 6px 6px !important;
+            }
+            .aux-controls {
+                flex-direction: column !important;
+                align-items: stretch !important;
+            }
+            .input-bar {
+                flex-wrap: wrap !important;
+                gap: 6px !important;
+            }
+            .input-bar input {
+                width: 100% !important;
+                flex: 1 1 100% !important;
+                box-sizing: border-box !important;
+            }
+            .send-btn, .mic-btn {
+                flex: 1 1 calc(50% - 4px) !important;
+                text-align: center !important;
+                justify-content: center !important;
+                padding: 10px 6px !important;
+            }
+            .pane-title, .aux-title {
+                font-size: 10px !important;
+                letter-spacing: 0px !important;
+                word-break: break-word !important;
+            }
+        }
+    

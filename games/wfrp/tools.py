@@ -413,6 +413,29 @@ TOOLS = [
             },
             "required": ["race"]
         }
+    },
+    {
+        "name": "whfrp_lookup_module",
+        "description": "Lookup an adventure module's full chapter events, NPCs, and plots so that you can understand the chronological timeline of events for the campaign.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string", "description": "The slug of the module, e.g. rough-nights-and-hard-days"},
+                "chapter_number": {"type": "integer", "description": "The chapter number to lookup. If omitted, returns an overview of the whole module."}
+            },
+            "required": ["slug"]
+        }
+    },
+    {
+        "name": "whfrp_show_module_image",
+        "description": "Broadcast an image from a module to the player's web interface or ocular display. Use this to show players handouts, maps, or NPC portraits.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "image_path": {"type": "string", "description": "The path to the image, returned by whfrp_lookup_module or stored in module data."}
+            },
+            "required": ["image_path"]
+        }
     }
 ]
 
@@ -476,7 +499,7 @@ def _tool_whfrp_log_timeline_event(i):
 def _tool_whfrp_rules(i):
     query = i.get("query", "")
     print(f"[skull] Looking up WFRP 4E rules: {query}")
-    from skull import display
+    from core import display
     display.start_rules_lookup()
     try:
         return _search.whfrp_rules(query)
@@ -526,7 +549,7 @@ def _tool_start_campaign(i):
     if not name:
         return "Error: campaign_name is required."
     try:
-        from skull import brain
+        from core import brain
         brain.set_current_game(name)
     except Exception:
         pass
@@ -876,6 +899,40 @@ def _tool_whfrp_load_scene(i):
     finally:
         conn.close()
 
+def _tool_whfrp_lookup_module(i):
+    slug = i.get("slug")
+    chap_num = i.get("chapter_number")
+    from . import modules_db
+    mod = modules_db.get_module(slug)
+    if not mod:
+        return {"error": f"Module {slug} not found."}
+    
+    if chap_num:
+        for chap in mod.get("chapters", []):
+            if chap["chapter_number"] == chap_num:
+                return {"chapter": chap, "npcs": mod.get("npcs")}
+        return {"error": f"Chapter {chap_num} not found in {slug}."}
+    
+    return {
+        "title": mod.get("title"),
+        "description": mod.get("description"),
+        "chapters": [{"chapter_number": c["chapter_number"], "title": c["title"]} for c in mod.get("chapters", [])],
+        "images": mod.get("images")
+    }
+
+def _tool_whfrp_show_module_image(i):
+    img = i.get("image_path")
+    import sys
+    from pathlib import Path
+    img_path = Path(__file__).resolve().parent.parent.parent / "games" / img.lstrip("/")
+    if not img_path.exists():
+        return {"error": "Image not found"}
+    
+    import core.web
+    skull.web._command_queue.put({"type": "show_image", "url": img})
+    return {"status": "success", "message": f"Image {img} broadcasted to players.", "url": img}
+
+
 
 HANDLERS = {
     "whfrp_load_scene": _tool_whfrp_load_scene,
@@ -898,4 +955,6 @@ HANDLERS = {
     "roll_physical_details": _tool_roll_physical_details,
     "whfrp_lookup_character": _tool_whfrp_lookup_character,
     "whfrp_lookup_equipment": _tool_whfrp_lookup_equipment,
+    "whfrp_lookup_module": _tool_whfrp_lookup_module,
+    "whfrp_show_module_image": _tool_whfrp_show_module_image,
 }

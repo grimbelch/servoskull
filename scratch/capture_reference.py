@@ -5,7 +5,7 @@ import cv2
 # Add parent dir to path
 sys.path.append(str(pathlib.Path(__file__).parent.parent))
 
-from skull import config
+from core import config
 
 def main():
     print("Initializing camera backend...")

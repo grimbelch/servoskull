@@ -4,7 +4,7 @@ import os
 # Add parent directory of scratch to sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from skull import display
+from core import display
 
 def test_render():
     print("Initializing test environment on Pi...")

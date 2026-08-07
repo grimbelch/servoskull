@@ -44,7 +44,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 try:
-    from skull import config
+    from core import config
     API_KEY = config.ELEVENLABS_API_KEY
     VOICE_ID = config.ELEVENLABS_VOICE_ID
 except Exception:

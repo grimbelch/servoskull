@@ -9,7 +9,7 @@ import pathlib
 # Allow import of skull module
 sys.path.append(str(pathlib.Path(__file__).parent.parent))
 
-from skull import display
+from core import display
 
 def main():
     print("Testing Pong screensaver rendering...")

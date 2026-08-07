@@ -8,7 +8,7 @@ set -e
 echo "=== Omega-7 Pi 5 Setup ==="
 
 # Load credentials from .env if present
-ENV_FILE="$HOME/skull/.env"
+ENV_FILE="$HOME/Servoskull/.env"
 if [ -f "$ENV_FILE" ]; then
     set -a
     # shellcheck disable=SC1090
@@ -51,7 +51,7 @@ fi
 
 # ── 2. Python virtual environment ──────────────────────────────────────────
 echo "[2/5] Creating Python virtual environment..."
-cd "$HOME/skull"
+cd "$HOME/Servoskull"
 python3 -m venv .venv
 source .venv/bin/activate
 
@@ -89,7 +89,7 @@ python3 -c "import openwakeword.utils as u; u.download_models()"
 
 # ── 4. Piper voice model ───────────────────────────────────────────────────
 echo "[4/5] Checking Piper voice model..."
-MODEL_DIR="$HOME/skull/models"
+MODEL_DIR="$HOME/Servoskull/models"
 MODEL_FILE="$MODEL_DIR/en_GB-alan-medium.onnx"
 MODEL_JSON="$MODEL_DIR/en_GB-alan-medium.onnx.json"
 
@@ -107,11 +107,11 @@ fi
 
 # ── 5. Install systemd service ────────────────────────────────────────────
 echo "[5/6] Installing systemd service..."
-SERVICE_SRC="$HOME/skull/omega7.service"
+SERVICE_SRC="$HOME/Servoskull/omega7.service"
 SERVICE_NAME="omega7.service"
-if [ -f "$HOME/skull/omega8.service" ] || [ "$(hostname)" = "omega8" ]; then
-    if [ -f "$HOME/skull/omega8.service" ]; then
-        SERVICE_SRC="$HOME/skull/omega8.service"
+if [ -f "$HOME/Servoskull/omega8.service" ] || [ "$(hostname)" = "omega8" ]; then
+    if [ -f "$HOME/Servoskull/omega8.service" ]; then
+        SERVICE_SRC="$HOME/Servoskull/omega8.service"
         SERVICE_NAME="omega8.service"
     fi
 fi
@@ -215,7 +215,7 @@ echo ""
 echo "=== Setup complete ==="
 echo ""
 echo "Next steps:"
-echo "  1. Copy your .env file into ~/skull/ (never commit it to git)"
+echo "  1. Copy your .env file into ~/Servoskull/ (never commit it to git)"
 echo "  2. Plug in the UGREEN USB sound card and note its index above"
 echo "  3. Set MIC_DEVICE_INDEX to the UGREEN input index"
 echo "  4. Set AUDIO_OUTPUT_DEVICE to the UGREEN output index"
@@ -224,4 +224,4 @@ echo "       SPOTIFY_CLIENT_ID=..."
 echo "       SPOTIFY_CLIENT_SECRET=..."
 echo "     Raspotify is already named 'Omega-7' — Omega-7 will play Spotify locally."
 echo "  6. Start the service: sudo systemctl start omega7"
-echo "     Or run manually:   cd ~/skull && source .venv/bin/activate && python -m skull.main"
+echo "     Or run manually:   cd ~/Servoskull && source .venv/bin/activate && python -m core.main"

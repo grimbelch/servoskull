@@ -262,8 +262,38 @@ HAIR_COLOUR_TABLE = {
     20: ("Grey", "Black", "Liquorice", "Black", "Blue-Black"),
 }
 
+STAR_SIGN_TABLE = [
+    (1, 5, "Wymund the Hermit (Sign of Endurance)"),
+    (6, 10, "Big Moebius (Sign of Grasping)"),
+    (11, 15, "The Limner's Line (Sign of Precision)"),
+    (16, 20, "Gnuthus the Ox (Sign of Dutifulness)"),
+    (21, 25, "Dragund the Drake (Sign of Courage)"),
+    (26, 30, "The Glorious Call (Sign of Fall)"),
+    (31, 35, "The Piper (Sign of the Trickster)"),
+    (36, 40, "Vobist the Goat (Sign of Impatience)"),
+    (41, 45, "The Cauldron (Sign of Creation)"),
+    (46, 50, "Caelora the Dove (Sign of Peace)"),
+    (51, 55, "The Two Bullocks (Sign of Fertility)"),
+    (56, 60, "The Dancer (Sign of Passion)"),
+    (61, 65, "The Drummer (Sign of Excess)"),
+    (66, 70, "The Piper's Song (Sign of Music)"),
+    (71, 75, "The Broken Cart (Sign of Pride)"),
+    (76, 80, "The Greed (Sign of Avarice)"),
+    (81, 85, "Rhya's Cauldron (Sign of Mercy)"),
+    (86, 90, "The Bones (Sign of Death)"),
+    (91, 95, "The Witchling Star (Sign of Magic)"),
+    (96, 100, "The Fool (Sign of Folly)"),
+]
+
+def roll_star_sign() -> str:
+    roll = random.randint(1, 100)
+    for min_val, max_val, name in STAR_SIGN_TABLE:
+        if min_val <= roll <= max_val:
+            return name
+    return "The Two Bullocks (Sign of Fertility)"
+
 def roll_physical_details(race_input: str) -> dict:
-    """Calculate Age, Height, Eye Colour, and Hair Colour based on WFRP 4E Rulebook p.39-40 tables."""
+    """Calculate Age, Height, Eye Colour, Hair Colour, and Star Sign based on WFRP 4E Rulebook p.39-42 tables."""
     race_key = resolve_race(race_input) or "human"
     idx_map = {"human": 0, "dwarf": 1, "halfling": 2, "high_elf": 3, "wood_elf": 4}
     spec_idx = idx_map.get(race_key, 0)
@@ -308,13 +338,18 @@ def roll_physical_details(race_input: str) -> dict:
     hair_roll = random.randint(1, 10) + random.randint(1, 10)
     hair_color = HAIR_COLOUR_TABLE.get(hair_roll, HAIR_COLOUR_TABLE[10])[spec_idx]
 
+    # 5. Star Sign
+    star_sign = roll_star_sign()
+
     return {
         "race_key": race_key,
         "age": age,
         "height": height_str,
         "eye_color": eye_color,
         "hair_color": hair_color,
-        "summary": f"Age: {age} years | Height: {height_str} | Eyes: {eye_color} | Hair: {hair_color}"
+        "star_sign": star_sign,
+        "starsign": star_sign,
+        "summary": f"Age: {age} years | Height: {height_str} | Eyes: {eye_color} | Hair: {hair_color} | Star Sign: {star_sign}"
     }
 
 

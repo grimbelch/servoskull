@@ -7,7 +7,7 @@ import cv2
 # Ensure skull packages can be imported
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from skull import camera, face_rec, config
+from core import camera, face_rec, config
 
 def main():
     print("Initializing camera backend...")

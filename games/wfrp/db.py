@@ -301,6 +301,74 @@ def init_db() -> None:
                 flags TEXT DEFAULT '{}',
                 FOREIGN KEY (campaign_id) REFERENCES campaigns (id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS module_catalog (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                slug TEXT UNIQUE NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                cover_image_path TEXT DEFAULT ''
+            );
+
+            CREATE TABLE IF NOT EXISTS module_chapters (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                module_id INTEGER NOT NULL,
+                chapter_number INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                location_name TEXT DEFAULT '',
+                location_description TEXT DEFAULT '',
+                map_image_path TEXT DEFAULT '',
+                FOREIGN KEY (module_id) REFERENCES module_catalog (id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS module_plots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chapter_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                FOREIGN KEY (chapter_id) REFERENCES module_chapters (id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS module_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chapter_id INTEGER NOT NULL,
+                time_label TEXT NOT NULL,
+                time_sort_key INTEGER DEFAULT 0,
+                description TEXT DEFAULT '',
+                related_plot_ids_json TEXT DEFAULT '[]',
+                FOREIGN KEY (chapter_id) REFERENCES module_chapters (id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS module_npcs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                module_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                stats_json TEXT DEFAULT '{}',
+                image_path TEXT DEFAULT '',
+                FOREIGN KEY (module_id) REFERENCES module_catalog (id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS module_images (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                module_id INTEGER NOT NULL,
+                chapter_id INTEGER,
+                image_path TEXT NOT NULL,
+                caption TEXT DEFAULT '',
+                FOREIGN KEY (module_id) REFERENCES module_catalog (id) ON DELETE CASCADE,
+                FOREIGN KEY (chapter_id) REFERENCES module_chapters (id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS campaign_module_state (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                campaign_id INTEGER NOT NULL,
+                entity_type TEXT NOT NULL,
+                entity_id INTEGER NOT NULL,
+                status TEXT DEFAULT 'Not Started',
+                gm_notes TEXT DEFAULT '',
+                UNIQUE(campaign_id, entity_type, entity_id),
+                FOREIGN KEY (campaign_id) REFERENCES campaigns (id) ON DELETE CASCADE
+            );
         """)
         for col, default in [("price", "''"), ("availability", "'Common'"), ("penalty", "'-'")]:
             try:
@@ -311,7 +379,19 @@ def init_db() -> None:
             conn.execute("ALTER TABLE trappings_catalog ADD COLUMN is_worn INTEGER DEFAULT 0;")
         except Exception:
             pass
+        try:
+            conn.execute("ALTER TABLE npcs ADD COLUMN module_npc_id INTEGER REFERENCES module_npcs (id) ON DELETE SET NULL;")
+        except Exception:
+            pass
     conn.close()
+
+    try:
+        seed_armour_catalog()
+        seed_weapons_catalog()
+        seed_trappings_catalog()
+        seed_hirelings_catalog()
+    except Exception as e:
+        print(f"[db] Failed to seed catalogs: {e}")
 
 
 def _slug(text: str) -> str:
@@ -477,9 +557,7 @@ def migrate_json_files() -> None:
     conn.close()
 
 
-# Initialize and run migration on module import
-init_db()
-migrate_json_files()
+
 
 
 # ── REPOSITORY METHODS ────────────────────────────────────────────────────────
@@ -1791,3 +1869,8 @@ def seed_hirelings_catalog() -> None:
                 "INSERT OR REPLACE INTO hirelings_catalog (name, quick_job_cost, daily_cost, weekly_cost, notes) VALUES (?, ?, ?, ?, ?);",
                 (name, quick, daily, weekly, notes)
             )
+
+
+# Initialize and run migration on module import
+init_db()
+migrate_json_files()

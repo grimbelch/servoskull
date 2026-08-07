@@ -202,7 +202,7 @@ def _ask_claude(
     raw = ""
     try:
         import anthropic
-        from skull import config
+        from core import config
 
         # Build context-enriched system prompt
         x, y   = (walk.x, walk.y) if walk else (0, 0)

@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Adventure Module Compendium - WFRP 4E</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=IM+Fell+English:ital,wght@0,400;0,700;1,400&family=MedievalSharp&family=Share+Tech+Mono&display=swap');
+
+        :root {
+            --font-title: 'Cinzel', serif;
+            --font-body: 'IM Fell English', serif;
+            --font-heading: 'MedievalSharp', cursive;
+            --bg-dark: #160e08;
+            --parchment-bg: #f6eee0;
+            --parchment-card: #e9e0d0;
+            --parchment-input: #fffbf4;
+            --crimson: #7a1717;
+            --crimson-border: #4a0e0e;
+            --text-dark: #1c130b;
+            --text-muted: #5c4732;
+            --border-gold: #8b7961;
+            --border-dark: #3d2f23;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: var(--bg-dark);
+            color: var(--text-dark);
+            font-family: var(--font-body);
+            min-height: 100vh;
+            padding: 30px 15px;
+        }
+
+        .spread-container {
+            max-width: 1300px;
+            margin: 0 auto;
+            background: var(--parchment-bg);
+            border: 2px solid var(--border-dark);
+            border-radius: 4px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.9);
+            position: relative;
+            background-image: radial-gradient(circle at 50% 50%, #f9f2e6 0%, #f1e6d4 100%);
+        }
+
+        /* Top Badge */
+        .tab-badge {
+            position: absolute;
+            top: -1px;
+            left: 30px;
+            background: var(--crimson);
+            color: #f7efe2;
+            font-family: var(--font-title);
+            font-size: 13px;
+            font-weight: bold;
+            padding: 6px 16px;
+            border-bottom-left-radius: 4px;
+            border-bottom-right-radius: 4px;
+            border: 1px solid var(--crimson-border);
+            border-top: none;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        /* Running Header */
+        .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #2c1e14;
+            padding-bottom: 8px;
+            margin-bottom: 28px;
+            margin-left: 200px;
+            font-family: var(--font-title);
+            font-size: 11px;
+            font-weight: bold;
+            color: #2c1e14;
+            letter-spacing: 2.5px;
+        }
+
+        .nav-btn {
+            background: #3d2f23;
+            color: #f7efe2;
+            border: 1.5px solid #231911;
+            padding: 4px 12px;
+            font-family: var(--font-title);
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 3px;
+            text-decoration: none;
+        }
+        .nav-btn:hover {
+            background: var(--crimson);
+        }
+
+        /* Main Grid */
+        .viewer-grid {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 24px;
+            align-items: start;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: var(--parchment-card);
+            border: 2px solid var(--border-dark);
+            border-radius: 4px;
+            padding: 16px;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
+        }
+
+        .sidebar-header {
+            font-family: var(--font-title);
+            font-size: 13px;
+            font-weight: bold;
+            color: var(--crimson);
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            border-bottom: 1.5px solid var(--border-gold);
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+
+        .nav-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .nav-item {
+            background: #3d2f23;
+            color: #f7efe2;
+            border: 1.5px solid #231911;
+            padding: 8px 12px;
+            font-family: var(--font-title);
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 3px;
+            transition: all 0.2s;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: var(--crimson);
+            border-color: var(--crimson-border);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        /* Main Content Panel */
+        .main-panel {
+            background: var(--parchment-input);
+            border: 2px solid var(--border-gold);
+            border-radius: 4px;
+            padding: 24px;
+            min-height: 600px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .module-title {
+            font-family: var(--font-title);
+            font-size: 26px;
+            font-weight: bold;
+            color: var(--crimson);
+            border-bottom: 2px solid var(--crimson);
+            padding-bottom: 8px;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-family: var(--font-title);
+            font-size: 20px;
+            font-weight: bold;
+            color: var(--crimson);
+            margin: 24px 0 12px 0;
+            border-bottom: 1.5px solid var(--border-gold);
+            padding-bottom: 4px;
+        }
+
+        .entity-card {
+            background: var(--parchment-card);
+            border: 1.5px solid var(--border-gold);
+            border-radius: 4px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .entity-header {
+            font-family: var(--font-title);
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--crimson);
+            margin-bottom: 8px;
+        }
+
+        .entity-text {
+            font-size: 15px;
+            line-height: 1.6;
+            color: var(--text-dark);
+            white-space: pre-wrap;
+            margin-bottom: 14px;
+        }
+
+        /* Interactive In-Text NPC Links */
+        .npc-inline-link {
+            color: var(--crimson);
+            font-weight: bold;
+            text-decoration: underline;
+            text-decoration-style: dotted;
+            cursor: pointer;
+            background: rgba(122, 23, 23, 0.08);
+            padding: 1px 4px;
+            border-radius: 3px;
+            transition: all 0.2s;
+        }
+
+        .npc-inline-link:hover {
+            background: var(--crimson);
+            color: #f7efe2;
+        }
+
+        /* Chapter NPC Badges Container */
+        .chapter-npc-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 16px 0 24px 0;
+            padding: 12px;
+            background: #e3d8c6;
+            border: 1.5px solid var(--border-dark);
+            border-radius: 4px;
+        }
+
+        .npc-badge {
+            background: #3d2f23;
+            color: #f7efe2;
+            border: 1px solid #231911;
+            padding: 6px 12px;
+            border-radius: 3px;
+            font-family: var(--font-title);
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s;
+        }
+
+        .npc-badge:hover {
+            background: var(--crimson);
+        }
+
+        /* GM Notes Box */
+        .gm-box {
+            background: #e3d8c6;
+            border: 1.5px solid var(--border-dark);
+            border-radius: 3px;
+            padding: 12px;
+            margin-top: 12px;
+        }
+
+        .gm-box-title {
+            font-family: var(--font-title);
+            font-size: 11px;
+            font-weight: bold;
+            color: var(--crimson);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .status-select {
+            background: var(--parchment-input);
+            border: 1.5px solid var(--border-gold);
+            padding: 4px 10px;
+            font-family: var(--font-body);
+            font-size: 13px;
+            font-weight: bold;
+            color: var(--text-dark);
+            border-radius: 3px;
+            margin-bottom: 8px;
+        }
+
+        .notes-input {
+            width: 100%;
+            border: 1.5px solid var(--border-gold);
+            background: var(--parchment-input);
+            padding: 8px 12px;
+            font-family: var(--font-body);
+            font-size: 14px;
+            color: var(--text-dark);
+            border-radius: 3px;
+            box-sizing: border-box;
+            min-height: 60px;
+            resize: vertical;
+        }
+
+        .save-btn {
+            background: var(--crimson);
+            color: #f7efe2;
+            border: 1.5px solid var(--crimson-border);
+            padding: 6px 14px;
+            font-family: var(--font-title);
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 3px;
+            margin-top: 8px;
+        }
+        .save-btn:hover {
+            background: #5c0f0f;
+        }
+
+        .module-img {
+            max-width: 100%;
+            height: auto;
+            border: 2px solid var(--border-gold);
+            border-radius: 4px;
+            margin: 16px 0;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+
+        /* Stats Table */
+        .stats-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0;
+            font-family: var(--font-body);
+        }
+
+        .stats-table th, .stats-table td {
+            border: 1px solid var(--border-gold);
+            padding: 6px;
+            text-align: center;
+        }
+
+        .stats-table th {
+            background: #3d2f23;
+            color: #f7efe2;
+            font-family: var(--font-title);
+            font-size: 11px;
+        }
+
+        /* Authentic Parchment Modal */
+        .modal-backdrop {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(16, 10, 5, 0.85);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            padding: 20px;
+        }
+
+        .modal-card {
+            background: var(--parchment-bg);
+            border: 3px solid var(--border-dark);
+            border-radius: 6px;
+            max-width: 680px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 28px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            position: relative;
+            background-image: radial-gradient(circle at 50% 50%, #f9f2e6 0%, #f1e6d4 100%);
+        }
+
+        .modal-close-btn {
+            position: absolute;
+            top: 16px; right: 16px;
+            background: var(--crimson);
+            color: #f7efe2;
+            border: 1px solid var(--crimson-border);
+            padding: 4px 10px;
+            font-family: var(--font-title);
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--crimson);
+            color: #f7efe2;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-family: var(--font-title);
+            font-weight: bold;
+            display: none;
+            z-index: 10000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="spread-container">
+        <div id="badge-title" class="tab-badge">ROUGH NIGHTS & HARD DAYS</div>
+        
+        <div class="header-bar">
+            <div>WARHAMMER FANTASY ROLEPLAY</div>
+            <div style="color: var(--crimson); letter-spacing: 1.5px;">ADVENTURE MODULE COMPENDIUM</div>
+            <div>
+                <button class="nav-btn" onclick="window.location.href='/campaign'">⬅ CAMPAIGN DASHBOARD</button>
+            </div>
+        </div>
+
+        <div class="viewer-grid">
+            <div class="sidebar">
+                <div class="sidebar-header">Contents & Chapters</div>
+                <ul class="nav-list" id="nav-list">
+                    <!-- Nav items injected here -->
+                </ul>
+            </div>
+
+            <div class="main-panel" id="content-area">
+                <div class="module-title">Loading Module...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- NPC Details Modal -->
+    <div id="npc-modal" class="modal-backdrop" onclick="closeNpcModal(event)">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <button class="modal-close-btn" onclick="closeNpcModal()">✖ CLOSE</button>
+            <div id="modal-content"></div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">Saved.</div>
+
+    <script>
+        const slug = window.location.pathname.split("/").pop();
+        let moduleData = null;
+
+        function getImgUrl(imgPath) {
+            if (!imgPath) return "";
+            if (imgPath.startsWith("/")) return imgPath;
+            return `/images/modules/${moduleData.slug}/${imgPath.split('/').pop()}`;
+        }
+
+        async function init() {
+            try {
+                const res = await fetch(`/api/campaign/module/${slug}`);
+                const data = await res.json();
+                if (data.ok && data.module) {
+                    moduleData = data.module;
+                    document.getElementById("badge-title").innerText = moduleData.title.toUpperCase();
+                    renderSidebar();
+                    renderOverview();
+                } else {
+                    document.getElementById("content-area").innerHTML = `<div class="module-title">Error Loading Module</div><p style="color:var(--crimson);">${data.error || "Unknown error"}</p>`;
+                }
+            } catch (e) {
+                console.error(e);
+                document.getElementById("content-area").innerHTML = `<div class="module-title">Connection Error</div><p>Unable to fetch module data from server.</p>`;
+            }
+        }
+
+        function renderSidebar() {
+            const nav = document.getElementById("nav-list");
+            nav.innerHTML = "";
+            
+            nav.innerHTML += `<li class="nav-item active" onclick="renderOverview()">Overview</li>`;
+            
+            if (moduleData.npcs && moduleData.npcs.length > 0) {
+                nav.innerHTML += `<li class="nav-item" onclick="renderNpcs()">Dramatis Personae</li>`;
+            }
+            
+            if (moduleData.chapters && moduleData.chapters.length > 0) {
+                moduleData.chapters.forEach(chap => {
+                    nav.innerHTML += `<li class="nav-item" onclick="renderChapter(${chap.id})">Cap. ${chap.chapter_number}: ${chap.title}</li>`;
+                });
+            }
+        }
+
+        function updateNavState(activeText) {
+            document.querySelectorAll(".nav-item").forEach(el => {
+                el.classList.remove("active");
+                if (el.innerText.includes(activeText)) el.classList.add("active");
+            });
+        }
+
+        function linkifyNpcs(text) {
+            if (!text || !moduleData.npcs) return text;
+            let formatted = text;
+            moduleData.npcs.forEach(npc => {
+                // Escaped regex pattern for NPC name
+                const escaped = npc.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(`\\b(${escaped})\\b`, 'gi');
+                formatted = formatted.replace(regex, `<span class="npc-inline-link" onclick="openNpcModalByName('$1')">👤 $1</span>`);
+            });
+            return formatted;
+        }
+
+        function renderOverview() {
+            updateNavState("Overview");
+            const area = document.getElementById("content-area");
+            let html = `<div class="module-title">${moduleData.title}</div>`;
+            if (moduleData.cover_image_path) {
+                html += `<img src="${getImgUrl(moduleData.cover_image_path)}" class="module-img">`;
+            }
+            html += `<div class="entity-text">${linkifyNpcs(moduleData.description)}</div>`;
+            area.innerHTML = html;
+        }
+
+        function renderNpcs() {
+            updateNavState("Dramatis Personae");
+            const area = document.getElementById("content-area");
+            let html = `<div class="module-title">Dramatis Personae</div>`;
+            
+            moduleData.npcs.forEach(npc => {
+                let statsHtml = "";
+                try {
+                    const st = JSON.parse(npc.stats_json || "{}");
+                    if (Object.keys(st).length > 0) {
+                        statsHtml = `
+                        <table class="stats-table">
+                            <tr><th>M</th><th>WS</th><th>BS</th><th>S</th><th>T</th><th>I</th><th>Ag</th><th>Dex</th><th>Int</th><th>WP</th><th>Fel</th><th>W</th></tr>
+                            <tr>
+                                <td>${st.M||"-"}</td><td>${st.WS||"-"}</td><td>${st.BS||"-"}</td><td>${st.S||"-"}</td>
+                                <td>${st.T||"-"}</td><td>${st.I||"-"}</td><td>${st.Ag||"-"}</td><td>${st.Dex||"-"}</td>
+                                <td>${st.Int||"-"}</td><td>${st.WP||"-"}</td><td>${st.Fel||"-"}</td><td>${st.W||"-"}</td>
+                            </tr>
+                        </table>`;
+                    }
+                } catch (e) {}
+                
+                let campaignHtml = "";
+                if (npc.campaign_override) {
+                    campaignHtml = `<div style="color:var(--crimson); font-weight:bold; font-size:13px; margin-bottom:8px;">► Imported to campaign as: ${npc.campaign_override.name} (${npc.campaign_override.role_career || 'NPC'})</div>`;
+                }
+                
+                let imgHtml = "";
+                if (npc.image_path) {
+                    imgHtml = `<img src="${getImgUrl(npc.image_path)}" style="max-width:180px; float:right; margin-left:15px; border:1.5px solid var(--border-gold); border-radius:3px;">`;
+                }
+                
+                html += `
+                <div class="entity-card">
+                    ${imgHtml}
+                    <div class="entity-header">${npc.name}</div>
+                    ${campaignHtml}
+                    ${statsHtml}
+                    <div class="entity-text">${npc.description}</div>
+                    <button class="nav-btn" onclick="openNpcModal(${npc.id})">🔍 VIEW FULL STATS & MODAL</button>
+                    <div style="clear:both;"></div>
+                </div>`;
+            });
+            
+            area.innerHTML = html;
+        }
+
+        function renderChapter(chapterId) {
+            const chap = moduleData.chapters.find(c => c.id === chapterId);
+            if (!chap) return;
+            updateNavState(`Cap. ${chap.chapter_number}`);
+            
+            const area = document.getElementById("content-area");
+            let html = `<div class="module-title">Chapter ${chap.chapter_number}: ${chap.title}</div>`;
+            
+            if (chap.location_name) {
+                html += `<div style="color:var(--text-muted); font-weight:bold; font-size:15px; margin-bottom:8px;">📍 LOCATION: ${chap.location_name.toUpperCase()}</div>`;
+                if (chap.location_description) {
+                    html += `<div class="entity-text">${linkifyNpcs(chap.location_description)}</div>`;
+                }
+            }
+
+            // Featured NPCs for this chapter
+            if (moduleData.npcs && moduleData.npcs.length > 0) {
+                html += `<div style="font-family:var(--font-title); font-size:12px; font-weight:bold; color:var(--crimson); text-transform:uppercase; letter-spacing:1px; margin-top:14px;">👥 KEY NPCS IN THIS SCENARIO</div>`;
+                html += `<div class="chapter-npc-bar">`;
+                moduleData.npcs.forEach(npc => {
+                    html += `<div class="npc-badge" onclick="openNpcModal(${npc.id})">👤 ${npc.name}</div>`;
+                });
+                html += `</div>`;
+            }
+            
+            if (chap.map_image_path) {
+                html += `<img src="${getImgUrl(chap.map_image_path)}" class="module-img">`;
+            }
+            
+            html += generateStateControls("chapter", chap.id, chap.campaign_state);
+            
+            if (chap.plots && chap.plots.length > 0) {
+                html += `<div class="section-title">Plots</div>`;
+                chap.plots.forEach(plot => {
+                    html += `
+                    <div class="entity-card">
+                        <div class="entity-header">${plot.title}</div>
+                        <div class="entity-text">${linkifyNpcs(plot.description)}</div>
+                        ${generateStateControls("plot", plot.id, plot.campaign_state)}
+                    </div>`;
+                });
+            }
+            
+            if (chap.events && chap.events.length > 0) {
+                html += `<div class="section-title">Events & Timeline</div>`;
+                chap.events.forEach(event => {
+                    html += `
+                    <div class="entity-card">
+                        <div class="entity-header">⏳ ${event.time_label}</div>
+                        <div class="entity-text">${linkifyNpcs(event.description)}</div>
+                        ${generateStateControls("event", event.id, event.campaign_state)}
+                    </div>`;
+                });
+            }
+            
+            area.innerHTML = html;
+        }
+
+        function openNpcModalByName(name) {
+            const npc = moduleData.npcs.find(n => n.name.toLowerCase().includes(name.toLowerCase()));
+            if (npc) openNpcModal(npc.id);
+        }
+
+        function openNpcModal(npcId) {
+            const npc = moduleData.npcs.find(n => n.id === npcId);
+            if (!npc) return;
+
+            let statsHtml = "";
+            try {
+                const st = JSON.parse(npc.stats_json || "{}");
+                if (Object.keys(st).length > 0) {
+                    statsHtml = `
+                    <table class="stats-table">
+                        <tr><th>M</th><th>WS</th><th>BS</th><th>S</th><th>T</th><th>I</th><th>Ag</th><th>Dex</th><th>Int</th><th>WP</th><th>Fel</th><th>W</th></tr>
+                        <tr>
+                            <td>${st.M||"-"}</td><td>${st.WS||"-"}</td><td>${st.BS||"-"}</td><td>${st.S||"-"}</td>
+                            <td>${st.T||"-"}</td><td>${st.I||"-"}</td><td>${st.Ag||"-"}</td><td>${st.Dex||"-"}</td>
+                            <td>${st.Int||"-"}</td><td>${st.WP||"-"}</td><td>${st.Fel||"-"}</td><td>${st.W||"-"}</td>
+                        </tr>
+                    </table>`;
+                }
+            } catch (e) {}
+
+            let imgHtml = "";
+            if (npc.image_path) {
+                imgHtml = `<img src="${getImgUrl(npc.image_path)}" style="max-width:200px; float:right; margin-left:15px; border:2px solid var(--border-gold); border-radius:4px;">`;
+            }
+
+            let campaignHtml = "";
+            if (npc.campaign_override) {
+                campaignHtml = `<div style="color:var(--crimson); font-weight:bold; font-size:14px; margin-bottom:12px; border-bottom:1px solid var(--border-gold); padding-bottom:6px;">► Active Campaign Record: ${npc.campaign_override.name} (${npc.campaign_override.role_career || 'NPC'})</div>`;
+            }
+
+            const html = `
+                ${imgHtml}
+                <div class="entity-header" style="font-size:24px; border-bottom:2px solid var(--crimson); padding-bottom:6px; margin-bottom:12px;">${npc.name}</div>
+                ${campaignHtml}
+                ${statsHtml}
+                <div class="entity-text" style="font-size:16px; margin-top:12px;">${npc.description}</div>
+                <div style="clear:both;"></div>
+            `;
+
+            document.getElementById("modal-content").innerHTML = html;
+            document.getElementById("npc-modal").style.display = "flex";
+        }
+
+        function closeNpcModal() {
+            document.getElementById("npc-modal").style.display = "none";
+        }
+        
+        function generateStateControls(type, id, stateObj) {
+            const st = stateObj || {status: "Not Started", gm_notes: ""};
+            return `
+            <div class="gm-box">
+                <div class="gm-box-title">📜 GM Campaign Progress & Notes</div>
+                <div style="margin-bottom:8px;">
+                    <label style="font-family:var(--font-title); font-size:12px; font-weight:bold; color:var(--crimson);">Status: </label>
+                    <select class="status-select" id="status_${type}_${id}">
+                        <option value="Not Started" ${st.status === 'Not Started' ? 'selected' : ''}>Not Started</option>
+                        <option value="In Progress" ${st.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                        <option value="Completed" ${st.status === 'Completed' ? 'selected' : ''}>Completed</option>
+                    </select>
+                </div>
+                <div>
+                    <textarea class="notes-input" id="notes_${type}_${id}" placeholder="Record custom GM adjustments or outcomes for this campaign...">${st.gm_notes || ''}</textarea>
+                </div>
+                <button class="save-btn" onclick="saveState('${type}', ${id})">💾 SAVE STATE</button>
+            </div>
+            `;
+        }
+        
+        async function saveState(type, id) {
+            const status = document.getElementById(`status_${type}_${id}`).value;
+            const notes = document.getElementById(`notes_${type}_${id}`).value;
+            
+            try {
+                const res = await fetch("/api/campaign/module/state", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({entity_type: type, entity_id: id, status: status, gm_notes: notes})
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    showToast("Progress Saved!");
+                    const st = {status, gm_notes: notes};
+                    if (type === "chapter") {
+                        const c = moduleData.chapters.find(x => x.id === id);
+                        if (c) c.campaign_state = st;
+                    } else if (type === "plot") {
+                        moduleData.chapters.forEach(c => {
+                            const p = (c.plots || []).find(x => x.id === id);
+                            if (p) p.campaign_state = st;
+                        });
+                    } else if (type === "event") {
+                        moduleData.chapters.forEach(c => {
+                            const e = (c.events || []).find(x => x.id === id);
+                            if (e) e.campaign_state = st;
+                        });
+                    }
+                } else {
+                    alert("Error saving: " + data.error);
+                }
+            } catch (e) {
+                alert("Connection error");
+            }
+        }
+        
+        function showToast(msg) {
+            const t = document.getElementById("toast");
+            t.innerText = msg;
+            t.style.display = "block";
+            setTimeout(() => t.style.display="none", 2000);
+        }
+
+        document.addEventListener("DOMContentLoaded", init);
+    </script>
+</body>
+</html>

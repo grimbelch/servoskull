@@ -9,7 +9,7 @@ import pathlib
 # Ensure skull packages can be imported
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from skull import speaker_id, config
+from core import speaker_id, config
 
 def generate_synthetic_voice(filename, fundamental_freq, duration=2.0, sr=16000):
     """Generate a synthetic harmonic voice wave and save as WAV."""

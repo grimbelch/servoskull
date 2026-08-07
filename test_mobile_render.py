@@ -5,7 +5,7 @@ import time
 import subprocess
 import threading
 from http.server import HTTPServer
-from skull import web
+from core import web
 
 def render_mobile_screenshots():
     # 1. Start web server locally on port 8888
