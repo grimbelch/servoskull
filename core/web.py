@@ -2035,7 +2035,6 @@ HTML_CLIENT = """<!DOCTYPE html>
                             <span class="master-label">MASTER:</span>
                             <span id="master-val" class="master-value">UNKNOWN</span>
                         </div>
-                        <a href="/campaign" onclick="event.preventDefault(); navigateToView('/campaign');" style="background: rgba(212,175,55,0.2); border: 1px solid var(--bright-green); color: var(--bright-green); padding: 4px 10px; font-size: 11px; font-weight: bold; cursor: pointer; letter-spacing: 1px; text-decoration: none; border-radius: 3px; display: inline-flex; align-items: center; gap: 4px;" title="Open Roleplaying Campaign Roster & Character Sheet Page">🎲 CAMPAIGN DASHBOARD</a>
                         <button onclick="document.getElementById('wizard-modal').style.display='block'; nextWizardStep(1);" style="background: rgba(56,255,88,0.15); border: 1px solid var(--border-color); color: var(--bright-green); padding: 4px 10px; font-size: 11px; font-weight: bold; cursor: pointer; letter-spacing: 1px;">⚙ WIZARD</button>
                     </div>
                 </div>
