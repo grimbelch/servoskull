@@ -1614,10 +1614,11 @@ def main():
                     subprocess.run(["sudo", "poweroff"], check=True)
                 elif cmd.startswith("switch_"):
                     target = cmd.split("_")[1]
+                    script_path = pathlib.Path(__file__).parent.parent / "switch-personality"
                     subprocess.run([
                         "sudo", "systemd-run",
                         "--unit=personality-switcher",
-                        "/usr/local/bin/switch-personality", target
+                        str(script_path.resolve()), target
                     ], check=True)
             except Exception as e:
                 print(f"[skull] System command error: {e}")
