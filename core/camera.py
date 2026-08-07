@@ -183,10 +183,10 @@ def _open_backend():
     try:
         picam2 = Picamera2()
         picam2.configure(
-            picam2.create_preview_configuration(main={"size": (640, 480), "format": "BGR888"})
+            picam2.create_preview_configuration(main={"size": (640, 480), "format": "RGB888"})
         )
         picam2.start()
-        print("[camera] Frame source: picamera2 / IMX708 (BGR888)")
+        print("[camera] Frame source: picamera2 / IMX708 (RGB888)")
     except Exception as e:
         print(f"[camera] picamera2 initialization failed: {e} — falling back to cv2")
         return _open_cv2_backend()
