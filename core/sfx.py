@@ -9,8 +9,9 @@ functional even without the sound library present.
 from __future__ import annotations
 import pathlib
 import threading
+from core import config
 
-SOUNDS_DIR = pathlib.Path(__file__).parent.parent / "sounds" / "SystemSounds"
+_FALLBACK_SOUNDS_DIR = pathlib.Path(__file__).parent.parent / "sounds" / "SystemSounds"
 
 
 # Lazy cache: loaded on first play, not at import time, to keep startup fast.
@@ -20,7 +21,11 @@ _cache: dict[str, bytes] = {}
 def _load(name: str) -> bytes | None:
     if name in _cache:
         return _cache[name]
-    path = SOUNDS_DIR / f"{name}.wav"
+    
+    # Check personality-specific sounds first
+    persona_path = pathlib.Path(__file__).parent.parent / "personalities" / config.SKULL_NAME.lower() / "sounds" / f"{name}.wav"
+    path = persona_path if persona_path.exists() else _FALLBACK_SOUNDS_DIR / f"{name}.wav"
+    
     if not path.exists():
         return None
     try:
