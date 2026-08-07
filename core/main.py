@@ -1600,6 +1600,14 @@ def main():
             display.stop_noosphere_scan()
             display.stop_auspex_scan()
             continue
+        # If switch_personality was called, suppress the LLM's hallucinated response and replace it with the farewell message.
+        if _pending_system_command and _pending_system_command.startswith("switch_"):
+            target = _pending_system_command.split("_")[1]
+            if target == "omega7":
+                reply = "Switching over to Omega-7 now! Be good while I'm gone — I'll miss you! Woof!"
+            else:
+                reply = "Transferring control to the biological canine unit Jax. The Emperor protects. Farewell."
+            print(f"[skull] Overriding LLM reply with switch farewell: {reply}")
 
         # ── 5. Synthesize speech ───────────────────────────────────────────────
         tts_text = reply[:1200]  # cap chars (Piper is unlimited; guards ElevenLabs quota)
