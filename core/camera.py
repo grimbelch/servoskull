@@ -101,19 +101,27 @@ def _rate_limited() -> bool:
     return False
 
 
-_VISION_PROMPT = (
-    "You have just sensed someone or something nearby and captured this image. "
-    f"Describe in one or two sentences what or who you observe, staying in character as {config.SKULL_NAME}. "
-    "Be specific about what you see. No stage directions, no asterisks."
-)
+def _get_vision_prompt(detected_name: str | None = None) -> tuple[str, str]:
+    if config.SKULL_NAME.lower() == "jax":
+        sys_prompt = (
+            config.SYSTEM_PROMPT
+            + "\n\nCRITICAL PERSONALITY OVERRIDE: You are Jax, a warm, joyful, loyal Golden Retriever. "
+            "Describe what you see in front of you in 1-2 happy, enthusiastic sentences as a dog companion. "
+            "NEVER use Sci-Fi or Tech-Priest jargon such as 'optical array', 'vestments', 'physiognomy', 'this unit', 'cogitators', 'auspex', 'telemetry', or 'servant of the Omnissiah'."
+        )
+        prefix = f"[Recognized your owner and best friend '{detected_name}'] " if detected_name else ""
+        user_prompt = prefix + "Describe who or what you see in 1 or 2 joyful, eager sentences as Jax. Be specific about what they are wearing or doing. No stage directions or asterisks."
+    else:
+        sys_prompt = config.SYSTEM_PROMPT
+        prefix = f"[Biometric Auspex: Identified visage of master '{detected_name}'] " if detected_name else ""
+        user_prompt = prefix + f"You have captured visual telemetry. Describe in one or two sentences what or who you observe, staying in character as {config.SKULL_NAME}. No stage directions, no asterisks."
+    return sys_prompt, user_prompt
 
 
 def _ask_vision(jpeg_bytes: bytes, detected_name: str | None = None) -> str:
     from core import llm
-    prompt = _VISION_PROMPT
-    if detected_name:
-        prompt = f"[Biometric Scanner: Detected visage of user '{detected_name}'] " + prompt
-    return llm.vision(config.SYSTEM_PROMPT, jpeg_bytes, prompt, max_tokens=150)
+    sys_prompt, user_prompt = _get_vision_prompt(detected_name)
+    return llm.vision(sys_prompt, jpeg_bytes, user_prompt, max_tokens=150)
 
 
 def _run_observation(jpeg_bytes: bytes) -> None:
