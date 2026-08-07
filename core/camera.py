@@ -156,23 +156,38 @@ def _open_backend():
     Prefers picamera2 (Pi Camera Module 3 / IMX708); falls back to
     cv2.VideoCapture on non-Pi dev hosts. Returns None if no camera can be opened.
     """
+    import sys, os
+    sys_dist = "/usr/lib/python3/dist-packages"
+    if os.path.exists(sys_dist) and sys_dist not in sys.path:
+        sys.path.append(sys_dist)
+
     try:
         from picamera2 import Picamera2
     except ImportError:
         return _open_cv2_backend()
 
     import cv2
-    picam2 = Picamera2()
-    picam2.configure(
-        picam2.create_preview_configuration(main={"size": (640, 480), "format": "RGB888"})
-    )
-    picam2.start()
-    print("[camera] Frame source: picamera2 / IMX708")
+    try:
+        picam2 = Picamera2()
+        picam2.configure(
+            picam2.create_preview_configuration(main={"size": (640, 480), "format": "RGB888"})
+        )
+        picam2.start()
+        print("[camera] Frame source: picamera2 / IMX708")
+    except Exception as e:
+        print(f"[camera] picamera2 initialization failed: {e} — falling back to cv2")
+        return _open_cv2_backend()
 
     def read():
-        return _apply_rotation(picam2.capture_array())
-
-
+        try:
+            arr = picam2.capture_array()
+            if arr is None:
+                return None
+            bgr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
+            return _apply_rotation(bgr)
+        except Exception as e:
+            print(f"[camera] Read error: {e}")
+            return None
 
     def close():
         try:
