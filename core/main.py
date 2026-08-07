@@ -1585,10 +1585,7 @@ def main():
                                     "not-found": "The requested composition could not be found in the Spotify archives.",
                                 }
                                 err_text = _error_phrases.get(result, "The Spotify cogitator has reported a malfunction.")
-                            try:
-                                audio.play_wav_bytes(tts.synthesize(err_text), output_device=config.VOICE_OUTPUT_DEVICE)
-                            except Exception:
-                                pass
+                            reply = err_text
                     elif cmd[0] == "pause":
                         spotify_ctrl.pause()
                     elif cmd[0] == "resume":
