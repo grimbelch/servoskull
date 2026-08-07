@@ -1010,6 +1010,25 @@ def _build_tools() -> list[dict]:
         }
     },
     {
+        "name": "rotate_display",
+        "description": "Adjust or set the fine rotation offset of the eye display screen in degrees.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "degrees": {
+                    "type": "number",
+                    "description": "Degrees to rotate. Positive numbers rotate clockwise / right, negative numbers rotate counter-clockwise / left."
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": ["relative", "absolute"],
+                    "description": "Whether to rotate relative to current position (default: relative) or set an absolute angle (absolute)."
+                }
+            },
+            "required": ["degrees"]
+        }
+    },
+    {
         "name": "cancel_printer_alerts",
         "description": "Cancel and stop any repeating verbal alerts/notifications about the 3D printer status (such as completion alerts or health errors).",
         "input_schema": {
@@ -2842,6 +2861,12 @@ def _tool_switch_personality(i):
         return _SWITCH_PERSONALITY_CB(target)
     return "Personality switch callback not registered."
 
+def _tool_rotate_display(i):
+    deg = float(i.get("degrees", 0.0))
+    mode = str(i.get("mode", "relative")).lower()
+    is_rel = (mode != "absolute")
+    return config.set_display_rotation(deg, relative=is_rel)
+
 def _tool_cancel_printer_alerts(i):
     from core import bambu_ctrl
     monitor = bambu_ctrl.get_monitor()
@@ -2947,6 +2972,7 @@ _TOOL_REGISTRY = {
     "reboot_system": _tool_reboot_system,
     "shutdown_system": _tool_shutdown_system,
     "switch_personality": _tool_switch_personality,
+    "rotate_display": _tool_rotate_display,
     "cancel_printer_alerts": _tool_cancel_printer_alerts,
     "display_art": _tool_display_art,
     "capture_and_describe_surroundings": _tool_capture_and_describe_surroundings,

@@ -284,8 +284,36 @@ DISPLAY_DC_PIN = int(os.getenv("DISPLAY_DC_PIN", "25"))
 DISPLAY_RST_PIN = int(os.getenv("DISPLAY_RST_PIN", "24"))
 DISPLAY_BL_PIN = int(os.getenv("DISPLAY_BL_PIN", "12"))        # GPIO 12 (pin 32) -1 if BLK tied to 3V3
 DISPLAY_ROTATION = int(os.getenv("DISPLAY_ROTATION", "0"))     # 0/90/180/270
-DISPLAY_FINE_ROTATION = float(os.getenv("DISPLAY_FINE_ROTATION", "0.0"))  # software rotation offset (degrees, positive = clockwise)
-DISPLAY_IDLE_TIMEOUT = float(os.getenv("DISPLAY_IDLE_TIMEOUT", "300.0"))  # seconds before showing idle animations (default: 5 minutes)
+DISPLAY_FINE_ROTATION = float(_cfg("DISPLAY_FINE_ROTATION", "18.0"))  # software rotation offset (degrees, positive = clockwise)
+DISPLAY_IDLE_TIMEOUT = float(_cfg("DISPLAY_IDLE_TIMEOUT", "300.0"))  # seconds before showing idle animations (default: 5 minutes)
+
+
+def set_display_rotation(degrees: float, relative: bool = False) -> str:
+    """Adjust or set the fine rotation offset of the eye display in degrees (positive = clockwise)."""
+    global DISPLAY_FINE_ROTATION
+    if relative:
+        new_val = (DISPLAY_FINE_ROTATION + degrees) % 360
+        if new_val > 180:
+            new_val -= 360
+    else:
+        new_val = degrees
+    
+    DISPLAY_FINE_ROTATION = round(new_val, 1)
+    
+    env_path = pathlib.Path(__file__).parent.parent / ".env"
+    if env_path.exists():
+        try:
+            content = env_path.read_text()
+            if "DISPLAY_FINE_ROTATION=" in content:
+                import re
+                content = re.sub(r"^DISPLAY_FINE_ROTATION=.*$", f"DISPLAY_FINE_ROTATION={DISPLAY_FINE_ROTATION}", content, flags=re.M)
+            else:
+                content += f"\nDISPLAY_FINE_ROTATION={DISPLAY_FINE_ROTATION}\n"
+            env_path.write_text(content)
+        except Exception as e:
+            print(f"[config] Failed to update .env with DISPLAY_FINE_ROTATION: {e}")
+            
+    return f"Display rotation set to {DISPLAY_FINE_ROTATION} degrees."
 
 
 # ── Internal temperature monitoring (Raspberry Pi only) ──────────────────────────
