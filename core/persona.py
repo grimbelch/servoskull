@@ -114,14 +114,34 @@ def build_owner_section(owner: dict, skull_name: str = "Omega-7") -> str:
     return "YOUR MASTER: " + " ".join(p for p in parts if p)
 
 
+def get_personality_config(skull_name: str = "Omega-7") -> dict:
+    name = (skull_name or "Omega-7").strip().lower()
+    base_dir = pathlib.Path(__file__).parent.parent / "personalities"
+    
+    p_dir = base_dir / name
+    if not p_dir.exists():
+        p_dir = base_dir / "omega7" if (base_dir / "omega7").exists() else base_dir / "skull"
+        
+    cfg_path = p_dir / "config.json"
+    if cfg_path.exists():
+        try:
+            return json.loads(cfg_path.read_text())
+        except Exception:
+            pass
+    return {}
+
+
 def build_system_prompt(owner: dict, skull_name: str = "Omega-7") -> str:
     """Load the shipped character template and inject the skull's name + owner section."""
     name = (skull_name or "Omega-7").strip()
     base_dir = pathlib.Path(__file__).parent.parent / "personalities"
     
-    if name.lower() == "jax":
-        t_path = base_dir / "jax" / "persona.txt"
-    else:
+    p_dir = base_dir / name.lower()
+    if not p_dir.exists():
+        p_dir = base_dir / "omega7" if (base_dir / "omega7").exists() else base_dir / "skull"
+        
+    t_path = p_dir / "persona.txt"
+    if not t_path.exists():
         t_path = base_dir / "skull" / "persona.txt"
         
     template = t_path.read_text()
