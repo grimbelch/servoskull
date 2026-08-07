@@ -345,6 +345,28 @@ RECORD_SECONDS = 10
 SILENCE_THRESHOLD = int(_cfg("SILENCE_THRESHOLD", "350"))
 SILENCE_DURATION = float(_cfg("SILENCE_DURATION", "3.0"))
 
+
+def set_silence_duration(seconds: float) -> str:
+    """Set the silence wait duration after speaking (in seconds) and persist to .env."""
+    global SILENCE_DURATION
+    val = max(0.5, min(10.0, float(seconds)))
+    SILENCE_DURATION = round(val, 1)
+    
+    env_path = pathlib.Path(__file__).parent.parent / ".env"
+    if env_path.exists():
+        try:
+            content = env_path.read_text()
+            if "SILENCE_DURATION=" in content:
+                import re
+                content = re.sub(r"^SILENCE_DURATION=.*$", f"SILENCE_DURATION={SILENCE_DURATION}", content, flags=re.M)
+            else:
+                content += f"\nSILENCE_DURATION={SILENCE_DURATION}\n"
+            env_path.write_text(content)
+        except Exception as e:
+            print(f"[config] Failed to update .env with SILENCE_DURATION: {e}")
+            
+    return f"Voice wait duration set to {SILENCE_DURATION} seconds."
+
 # Speaker identification GMM score threshold to reject untrained/unknown voices.
 # Since training samples average -52.0 to -53.0 on 13-dim MFCCs, a default of -60.0
 # provides a secure margin for clean matches while successfully rejecting noise/strangers.

@@ -1419,6 +1419,21 @@ def main():
                 except Exception:
                     pass
                 continue
+
+        # ── 3a-8. Detect Voice Wait Duration commands ──────────────
+        if ("voice wait" in _t_norm or "silence wait" in _t_norm or "silence duration" in _t_norm or "voice duration" in _t_norm or "wait period" in _t_norm or "wait duration" in _t_norm) and ("set" in _t_norm or "change" in _t_norm or "adjust" in _t_norm or "make" in _t_norm):
+            m = re.search(r"([+-]?\d+(?:\.\d+)?)", _t_norm)
+            if m:
+                sec_val = float(m.group(1))
+                res_msg = config.set_silence_duration(sec_val)
+                print(f"[skull] Local voice wait duration intent: {res_msg}")
+                try:
+                    speech_wav = tts.synthesize(res_msg)
+                    eyes.on()
+                    _speak_interruptible(speech_wav, on_wake)
+                except Exception:
+                    pass
+                continue
         
         maintenance_handled = False
         if _RE_REFRESH.search(_t):
