@@ -175,10 +175,10 @@ def _open_backend():
     try:
         picam2 = Picamera2()
         picam2.configure(
-            picam2.create_preview_configuration(main={"size": (640, 480), "format": "RGB888"})
+            picam2.create_preview_configuration(main={"size": (640, 480), "format": "BGR888"})
         )
         picam2.start()
-        print("[camera] Frame source: picamera2 / IMX708")
+        print("[camera] Frame source: picamera2 / IMX708 (BGR888)")
     except Exception as e:
         print(f"[camera] picamera2 initialization failed: {e} — falling back to cv2")
         return _open_cv2_backend()
@@ -188,8 +188,7 @@ def _open_backend():
             arr = picam2.capture_array()
             if arr is None:
                 return None
-            bgr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
-            return _apply_rotation(bgr)
+            return _apply_rotation(arr)
         except Exception as e:
             print(f"[camera] Read error: {e}")
             return None
