@@ -2844,7 +2844,7 @@ def _tool_rebuild_sounds(i):
     if _RELOAD_VOICE_CACHE_CB:
         res_msg = _RELOAD_VOICE_CACHE_CB()
     else:
-        cache_dir = pathlib.Path("models/phrase_cache")
+        cache_dir = pathlib.Path(f"models/phrase_cache/{config.SKULL_NAME.lower()}")
         if cache_dir.exists():
             try:
                 shutil.rmtree(cache_dir)
@@ -2853,6 +2853,8 @@ def _tool_rebuild_sounds(i):
         res_msg = "Spoken voice phrase cache cleared and reset for regeneration."
 
     print(f"[brain] Rebuilt speech phrases: {res_msg}")
+    if config.SKULL_NAME.lower() == "jax":
+        return "Voice library and phrase cache cleared! Regenerating all phrases with my Golden Retriever voice now!"
     return f"Spoken voice phrases rebuilt successfully: {res_msg}"
 
 def _tool_self_update(i):
