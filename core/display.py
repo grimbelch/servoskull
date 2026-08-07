@@ -910,7 +910,107 @@ def _render_omnissiah_frame(bezel, mask, now: float) -> Image.Image:
     
     age = now - _omnissiah_start_time
     
-    # ── 2. Adeptus Mechanicus Skull-Cog (Scaled to Full-Screen 240x240) ──
+    if config.SKULL_NAME.lower() == "jax":
+        def ease_in_out(t: float) -> float:
+            t = max(0.0, min(1.0, t))
+            return t * t * (3.0 - 2.0 * t)
+
+        act1_end = 1.8
+        act2_end = 3.2
+
+        paw_alpha = 1.0
+        if age > act1_end:
+            paw_fade_t = (age - act1_end) / 0.7
+            paw_alpha = max(0.0, 1.0 - ease_in_out(paw_fade_t))
+
+        if paw_alpha > 0.0:
+            GOLD   = (int(235 * paw_alpha), int(175 * paw_alpha), int(50 * paw_alpha))
+            GOLD_L = (int(255 * paw_alpha), int(210 * paw_alpha), int(90 * paw_alpha))
+
+            main_t = ease_in_out(min(1.0, age / 0.6))
+            main_r = main_t * 36
+            if main_r > 0:
+                d.ellipse([_CX - main_r, _CY + 10 - main_r, _CX + main_r, _CY + 10 + main_r], fill=GOLD, outline=GOLD_L, width=2)
+
+            toe_positions = [
+                (-32, -32),
+                (-14, -45),
+                ( 14, -45),
+                ( 32, -32),
+            ]
+            toe_delay_start = 0.5
+            toe_delay_step  = 0.25
+            toe_r_full      = 14
+            for idx, (ox, oy) in enumerate(toe_positions):
+                toe_start = toe_delay_start + idx * toe_delay_step
+                toe_t = ease_in_out(min(1.0, max(0.0, (age - toe_start) / 0.3)))
+                if toe_t > 0:
+                    tr = toe_t * toe_r_full
+                    d.ellipse([_CX + ox - tr, _CY + oy + 10 - tr,
+                               _CX + ox + tr, _CY + oy + 10 + tr],
+                              fill=GOLD, outline=GOLD_L, width=1)
+
+        heart_alpha = 0.0
+        if age > act1_end:
+            heart_alpha = ease_in_out(min(1.0, (age - act1_end) / 1.0))
+
+        if heart_alpha > 0.0:
+            base_r = (240, 45, 80)
+            base_p = (255, 225, 235)
+            intensity = heart_alpha
+
+            beat = (age * 2.2) % 1.0
+            if beat < 0.15:
+                pulse = math.sin((beat / 0.15) * math.pi) * 0.18
+            elif 0.25 < beat < 0.40:
+                pulse = math.sin(((beat - 0.25) / 0.15) * math.pi) * 0.10
+            else:
+                pulse = 0.0
+
+            hscale = (3.8 + pulse) * heart_alpha
+
+            heart_layer = Image.new("RGB", (W, H), (0, 0, 0))
+            hd = ImageDraw.Draw(heart_layer)
+
+            def _h(s, col):
+                pts = _heart_polygon(_CX, _CY - 20, s)
+                hd.polygon(pts, fill=col)
+
+            _h(hscale * 1.65, _scale(base_r, intensity * 0.15))
+            _h(hscale * 1.35, _scale(base_r, intensity * 0.40))
+            _h(hscale,        _scale(base_r, intensity))
+            _h(hscale * 0.58, _scale(base_p, min(1.0, intensity * 1.4)))
+            hs = max(1.5, hscale * 0.25)
+            hcx = _CX - 3.8 * hscale
+            hcy = _CY - 20 - 3.5 * hscale
+            hd.ellipse([hcx - hs, hcy - hs, hcx + hs, hcy + hs], fill=(255, 255, 255))
+
+            overlay = Image.blend(overlay, heart_layer, alpha=min(1.0, heart_alpha))
+            d = ImageDraw.Draw(overlay)
+
+        text_alpha = 0.0
+        if age > act2_end:
+            text_alpha = ease_in_out(min(1.0, (age - act2_end) / 0.6))
+
+        if text_alpha > 0.01:
+            try:
+                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
+            except Exception:
+                font = ImageFont.load_default()
+            label = "JAX"
+            try:
+                bb = font.getbbox(label)
+                tw, th = bb[2] - bb[0], bb[3] - bb[1]
+            except Exception:
+                tw, th = 42, 18
+            tx = _CX - tw // 2
+            ty = _CY + 25
+            tc = int(255 * text_alpha)
+            d.text((tx, ty), label, font=font, fill=(tc, int(190 * text_alpha), int(220 * text_alpha)))
+
+        return overlay
+
+    # ── Adeptus Mechanicus Skull-Cog (Scaled to Full-Screen 240x240) ──
     scale = min(1.0, age / 1.5)
     scale = scale * scale * (3.0 - 2.0 * scale)
     
