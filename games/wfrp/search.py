@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import pathlib
-from skull.search import _search_rules_library, _rules_dir
+from core.search import _search_rules_library, _rules_dir
 
 _WHFRP_DIR = (pathlib.Path(__file__).resolve().parent / "rules") if (pathlib.Path(__file__).resolve().parent / "rules").exists() else (_rules_dir() / "whfrp")
 

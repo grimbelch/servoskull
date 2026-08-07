@@ -4,8 +4,8 @@ from pathlib import Path
 # Add project root to path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from skull import brain
-from skull import display
+from core import brain
+from core import display
 
 def test_display_art(query):
     print(f"Testing display_art with query: '{query}'")

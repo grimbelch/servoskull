@@ -175,7 +175,7 @@ def main() -> None:
         return
 
     try:
-        from skull import config
+        from core import config
         api_key = config.ELEVENLABS_API_KEY
     except Exception:
         api_key = os.environ.get("ELEVENLABS_API_KEY", "").strip()

@@ -1,0 +1,465 @@
+/* WARNING: Script requires that SQLITE_DBCONFIG_DEFENSIVE be disabled */
+PRAGMA foreign_keys=OFF;
+BEGIN TRANSACTION;
+CREATE TABLE module_catalog (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                slug TEXT UNIQUE NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                cover_image_path TEXT DEFAULT ''
+            );
+INSERT INTO module_catalog VALUES(1,'rough-nights-and-hard-days','Rough Nights and Hard Days','Five grim and perilous scenarios by Graeme Davis.','/images/modules/rough-nights-and-hard-days/page_0_img_1.jpeg');
+CREATE TABLE module_chapters (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                module_id INTEGER NOT NULL,
+                chapter_number INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                location_name TEXT DEFAULT '',
+                location_description TEXT DEFAULT '',
+                map_image_path TEXT DEFAULT '',
+                FOREIGN KEY (module_id) REFERENCES module_catalog (id) ON DELETE CASCADE
+            );
+INSERT INTO module_chapters VALUES(1,1,1,'A Rough Night at the Three Feathers','The Three Feathers','','');
+INSERT INTO module_chapters VALUES(2,1,2,'A Day at the Trials','Kemperbad Courthouse','','');
+INSERT INTO module_chapters VALUES(3,1,3,'A Night at the Opera','Staatsoper Theatre, Nuln','','');
+INSERT INTO module_chapters VALUES(4,1,4,'Nastassia''s Wedding','Schloss Grauenberg','','');
+INSERT INTO module_chapters VALUES(5,1,5,'Lord of Ubersreik','Niederstadt Haus, Ubersreik','','');
+CREATE TABLE module_plots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chapter_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                FOREIGN KEY (chapter_id) REFERENCES module_chapters (id) ON DELETE CASCADE
+            );
+CREATE TABLE module_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chapter_id INTEGER NOT NULL,
+                time_label TEXT NOT NULL,
+                time_sort_key INTEGER DEFAULT 0,
+                description TEXT DEFAULT '',
+                related_plot_ids_json TEXT DEFAULT '[]',
+                FOREIGN KEY (chapter_id) REFERENCES module_chapters (id) ON DELETE CASCADE
+            );
+CREATE TABLE module_npcs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                module_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                stats_json TEXT DEFAULT '{}',
+                image_path TEXT DEFAULT '',
+                FOREIGN KEY (module_id) REFERENCES module_catalog (id) ON DELETE CASCADE
+            );
+CREATE TABLE module_images (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                module_id INTEGER NOT NULL,
+                chapter_id INTEGER,
+                image_path TEXT NOT NULL,
+                caption TEXT DEFAULT '',
+                FOREIGN KEY (module_id) REFERENCES module_catalog (id) ON DELETE CASCADE,
+                FOREIGN KEY (chapter_id) REFERENCES module_chapters (id) ON DELETE CASCADE
+            );
+INSERT INTO module_images VALUES(1,1,NULL,'/images/modules/rough-nights-and-hard-days/page_0_img_1.jpeg','');
+INSERT INTO module_images VALUES(2,1,NULL,'/images/modules/rough-nights-and-hard-days/page_0_img_2.jpeg','');
+INSERT INTO module_images VALUES(3,1,NULL,'/images/modules/rough-nights-and-hard-days/page_0_img_3.jpeg','');
+INSERT INTO module_images VALUES(4,1,NULL,'/images/modules/rough-nights-and-hard-days/page_0_img_5.jpeg','');
+INSERT INTO module_images VALUES(5,1,NULL,'/images/modules/rough-nights-and-hard-days/page_0_img_7.jpeg','');
+INSERT INTO module_images VALUES(6,1,NULL,'/images/modules/rough-nights-and-hard-days/page_0_img_8.jpeg','');
+INSERT INTO module_images VALUES(7,1,NULL,'/images/modules/rough-nights-and-hard-days/page_0_img_9.jpeg','');
+INSERT INTO module_images VALUES(8,1,NULL,'/images/modules/rough-nights-and-hard-days/page_0_img_10.jpeg','');
+INSERT INTO module_images VALUES(9,1,NULL,'/images/modules/rough-nights-and-hard-days/page_0_img_11.jpeg','');
+INSERT INTO module_images VALUES(10,1,NULL,'/images/modules/rough-nights-and-hard-days/page_0_img_12.png','');
+INSERT INTO module_images VALUES(11,1,NULL,'/images/modules/rough-nights-and-hard-days/page_0_img_13.jpeg','');
+INSERT INTO module_images VALUES(12,1,NULL,'/images/modules/rough-nights-and-hard-days/page_1_img_0.jpeg','');
+INSERT INTO module_images VALUES(13,1,NULL,'/images/modules/rough-nights-and-hard-days/page_1_img_1.jpeg','');
+INSERT INTO module_images VALUES(14,1,NULL,'/images/modules/rough-nights-and-hard-days/page_1_img_2.jpeg','');
+INSERT INTO module_images VALUES(15,1,NULL,'/images/modules/rough-nights-and-hard-days/page_1_img_3.jpeg','');
+INSERT INTO module_images VALUES(16,1,NULL,'/images/modules/rough-nights-and-hard-days/page_1_img_4.jpeg','');
+INSERT INTO module_images VALUES(17,1,NULL,'/images/modules/rough-nights-and-hard-days/page_2_img_1.jpeg','');
+INSERT INTO module_images VALUES(18,1,NULL,'/images/modules/rough-nights-and-hard-days/page_2_img_2.jpeg','');
+INSERT INTO module_images VALUES(19,1,NULL,'/images/modules/rough-nights-and-hard-days/page_2_img_3.jpeg','');
+INSERT INTO module_images VALUES(20,1,NULL,'/images/modules/rough-nights-and-hard-days/page_3_img_0.jpeg','');
+INSERT INTO module_images VALUES(21,1,NULL,'/images/modules/rough-nights-and-hard-days/page_3_img_5.jpeg','');
+INSERT INTO module_images VALUES(22,1,NULL,'/images/modules/rough-nights-and-hard-days/page_4_img_0.jpeg','');
+INSERT INTO module_images VALUES(23,1,NULL,'/images/modules/rough-nights-and-hard-days/page_4_img_1.jpeg','');
+INSERT INTO module_images VALUES(24,1,NULL,'/images/modules/rough-nights-and-hard-days/page_4_img_2.jpeg','');
+INSERT INTO module_images VALUES(25,1,NULL,'/images/modules/rough-nights-and-hard-days/page_4_img_3.jpeg','');
+INSERT INTO module_images VALUES(26,1,NULL,'/images/modules/rough-nights-and-hard-days/page_4_img_4.jpeg','');
+INSERT INTO module_images VALUES(27,1,NULL,'/images/modules/rough-nights-and-hard-days/page_5_img_0.jpeg','');
+INSERT INTO module_images VALUES(28,1,NULL,'/images/modules/rough-nights-and-hard-days/page_5_img_1.jpeg','');
+INSERT INTO module_images VALUES(29,1,NULL,'/images/modules/rough-nights-and-hard-days/page_5_img_2.jpeg','');
+INSERT INTO module_images VALUES(30,1,NULL,'/images/modules/rough-nights-and-hard-days/page_5_img_3.jpeg','');
+INSERT INTO module_images VALUES(31,1,NULL,'/images/modules/rough-nights-and-hard-days/page_6_img_0.jpeg','');
+INSERT INTO module_images VALUES(32,1,NULL,'/images/modules/rough-nights-and-hard-days/page_6_img_1.png','');
+INSERT INTO module_images VALUES(33,1,NULL,'/images/modules/rough-nights-and-hard-days/page_6_img_2.jpeg','');
+INSERT INTO module_images VALUES(34,1,NULL,'/images/modules/rough-nights-and-hard-days/page_6_img_3.jpeg','');
+INSERT INTO module_images VALUES(35,1,NULL,'/images/modules/rough-nights-and-hard-days/page_6_img_4.jpeg','');
+INSERT INTO module_images VALUES(36,1,NULL,'/images/modules/rough-nights-and-hard-days/page_7_img_0.jpeg','');
+INSERT INTO module_images VALUES(37,1,NULL,'/images/modules/rough-nights-and-hard-days/page_7_img_1.jpeg','');
+INSERT INTO module_images VALUES(38,1,NULL,'/images/modules/rough-nights-and-hard-days/page_7_img_2.jpeg','');
+INSERT INTO module_images VALUES(39,1,NULL,'/images/modules/rough-nights-and-hard-days/page_7_img_3.jpeg','');
+INSERT INTO module_images VALUES(40,1,NULL,'/images/modules/rough-nights-and-hard-days/page_8_img_0.jpeg','');
+INSERT INTO module_images VALUES(41,1,NULL,'/images/modules/rough-nights-and-hard-days/page_8_img_1.jpeg','');
+INSERT INTO module_images VALUES(42,1,NULL,'/images/modules/rough-nights-and-hard-days/page_8_img_2.jpeg','');
+INSERT INTO module_images VALUES(43,1,NULL,'/images/modules/rough-nights-and-hard-days/page_9_img_0.jpeg','');
+INSERT INTO module_images VALUES(44,1,NULL,'/images/modules/rough-nights-and-hard-days/page_9_img_1.jpeg','');
+INSERT INTO module_images VALUES(45,1,NULL,'/images/modules/rough-nights-and-hard-days/page_10_img_0.jpeg','');
+INSERT INTO module_images VALUES(46,1,NULL,'/images/modules/rough-nights-and-hard-days/page_10_img_1.jpeg','');
+INSERT INTO module_images VALUES(47,1,NULL,'/images/modules/rough-nights-and-hard-days/page_10_img_2.jpeg','');
+INSERT INTO module_images VALUES(48,1,NULL,'/images/modules/rough-nights-and-hard-days/page_11_img_0.jpeg','');
+INSERT INTO module_images VALUES(49,1,NULL,'/images/modules/rough-nights-and-hard-days/page_11_img_1.jpeg','');
+INSERT INTO module_images VALUES(50,1,NULL,'/images/modules/rough-nights-and-hard-days/page_11_img_2.jpeg','');
+INSERT INTO module_images VALUES(51,1,NULL,'/images/modules/rough-nights-and-hard-days/page_11_img_8.jpeg','');
+INSERT INTO module_images VALUES(52,1,NULL,'/images/modules/rough-nights-and-hard-days/page_12_img_0.jpeg','');
+INSERT INTO module_images VALUES(53,1,NULL,'/images/modules/rough-nights-and-hard-days/page_12_img_1.jpeg','');
+INSERT INTO module_images VALUES(54,1,NULL,'/images/modules/rough-nights-and-hard-days/page_12_img_2.jpeg','');
+INSERT INTO module_images VALUES(55,1,NULL,'/images/modules/rough-nights-and-hard-days/page_13_img_0.jpeg','');
+INSERT INTO module_images VALUES(56,1,NULL,'/images/modules/rough-nights-and-hard-days/page_14_img_0.jpeg','');
+INSERT INTO module_images VALUES(57,1,NULL,'/images/modules/rough-nights-and-hard-days/page_14_img_1.jpeg','');
+INSERT INTO module_images VALUES(58,1,NULL,'/images/modules/rough-nights-and-hard-days/page_15_img_0.jpeg','');
+INSERT INTO module_images VALUES(59,1,NULL,'/images/modules/rough-nights-and-hard-days/page_15_img_1.jpeg','');
+INSERT INTO module_images VALUES(60,1,NULL,'/images/modules/rough-nights-and-hard-days/page_16_img_0.jpeg','');
+INSERT INTO module_images VALUES(61,1,NULL,'/images/modules/rough-nights-and-hard-days/page_16_img_1.jpeg','');
+INSERT INTO module_images VALUES(62,1,NULL,'/images/modules/rough-nights-and-hard-days/page_16_img_2.jpeg','');
+INSERT INTO module_images VALUES(63,1,NULL,'/images/modules/rough-nights-and-hard-days/page_17_img_0.png','');
+INSERT INTO module_images VALUES(64,1,NULL,'/images/modules/rough-nights-and-hard-days/page_17_img_1.jpeg','');
+INSERT INTO module_images VALUES(65,1,NULL,'/images/modules/rough-nights-and-hard-days/page_17_img_2.png','');
+INSERT INTO module_images VALUES(66,1,NULL,'/images/modules/rough-nights-and-hard-days/page_17_img_3.jpeg','');
+INSERT INTO module_images VALUES(67,1,NULL,'/images/modules/rough-nights-and-hard-days/page_17_img_5.jpeg','');
+INSERT INTO module_images VALUES(68,1,NULL,'/images/modules/rough-nights-and-hard-days/page_17_img_6.jpeg','');
+INSERT INTO module_images VALUES(69,1,NULL,'/images/modules/rough-nights-and-hard-days/page_17_img_12.jpeg','');
+INSERT INTO module_images VALUES(70,1,NULL,'/images/modules/rough-nights-and-hard-days/page_18_img_0.jpeg','');
+INSERT INTO module_images VALUES(71,1,NULL,'/images/modules/rough-nights-and-hard-days/page_18_img_1.png','');
+INSERT INTO module_images VALUES(72,1,NULL,'/images/modules/rough-nights-and-hard-days/page_18_img_2.jpeg','');
+INSERT INTO module_images VALUES(73,1,NULL,'/images/modules/rough-nights-and-hard-days/page_18_img_3.jpeg','');
+INSERT INTO module_images VALUES(74,1,NULL,'/images/modules/rough-nights-and-hard-days/page_18_img_4.jpeg','');
+INSERT INTO module_images VALUES(75,1,NULL,'/images/modules/rough-nights-and-hard-days/page_18_img_5.png','');
+INSERT INTO module_images VALUES(76,1,NULL,'/images/modules/rough-nights-and-hard-days/page_18_img_6.jpeg','');
+INSERT INTO module_images VALUES(77,1,NULL,'/images/modules/rough-nights-and-hard-days/page_18_img_7.jpeg','');
+INSERT INTO module_images VALUES(78,1,NULL,'/images/modules/rough-nights-and-hard-days/page_19_img_0.png','');
+INSERT INTO module_images VALUES(79,1,NULL,'/images/modules/rough-nights-and-hard-days/page_19_img_1.jpeg','');
+INSERT INTO module_images VALUES(80,1,NULL,'/images/modules/rough-nights-and-hard-days/page_19_img_2.jpeg','');
+INSERT INTO module_images VALUES(81,1,NULL,'/images/modules/rough-nights-and-hard-days/page_19_img_3.png','');
+INSERT INTO module_images VALUES(82,1,NULL,'/images/modules/rough-nights-and-hard-days/page_19_img_4.jpeg','');
+INSERT INTO module_images VALUES(83,1,NULL,'/images/modules/rough-nights-and-hard-days/page_19_img_10.jpeg','');
+INSERT INTO module_images VALUES(84,1,NULL,'/images/modules/rough-nights-and-hard-days/page_20_img_0.jpeg','');
+INSERT INTO module_images VALUES(85,1,NULL,'/images/modules/rough-nights-and-hard-days/page_20_img_1.jpeg','');
+INSERT INTO module_images VALUES(86,1,NULL,'/images/modules/rough-nights-and-hard-days/page_20_img_2.png','');
+INSERT INTO module_images VALUES(87,1,NULL,'/images/modules/rough-nights-and-hard-days/page_20_img_3.png','');
+INSERT INTO module_images VALUES(88,1,NULL,'/images/modules/rough-nights-and-hard-days/page_20_img_4.png','');
+INSERT INTO module_images VALUES(89,1,NULL,'/images/modules/rough-nights-and-hard-days/page_20_img_5.jpeg','');
+INSERT INTO module_images VALUES(90,1,NULL,'/images/modules/rough-nights-and-hard-days/page_20_img_6.jpeg','');
+INSERT INTO module_images VALUES(91,1,NULL,'/images/modules/rough-nights-and-hard-days/page_20_img_7.jpeg','');
+INSERT INTO module_images VALUES(92,1,NULL,'/images/modules/rough-nights-and-hard-days/page_20_img_8.jpeg','');
+INSERT INTO module_images VALUES(93,1,NULL,'/images/modules/rough-nights-and-hard-days/page_21_img_0.png','');
+INSERT INTO module_images VALUES(94,1,NULL,'/images/modules/rough-nights-and-hard-days/page_21_img_1.png','');
+INSERT INTO module_images VALUES(95,1,NULL,'/images/modules/rough-nights-and-hard-days/page_21_img_2.jpeg','');
+INSERT INTO module_images VALUES(96,1,NULL,'/images/modules/rough-nights-and-hard-days/page_21_img_3.jpeg','');
+INSERT INTO module_images VALUES(97,1,NULL,'/images/modules/rough-nights-and-hard-days/page_21_img_4.jpeg','');
+INSERT INTO module_images VALUES(98,1,NULL,'/images/modules/rough-nights-and-hard-days/page_21_img_5.jpeg','');
+INSERT INTO module_images VALUES(99,1,NULL,'/images/modules/rough-nights-and-hard-days/page_21_img_6.jpeg','');
+INSERT INTO module_images VALUES(100,1,NULL,'/images/modules/rough-nights-and-hard-days/page_22_img_0.jpeg','');
+INSERT INTO module_images VALUES(101,1,NULL,'/images/modules/rough-nights-and-hard-days/page_22_img_1.jpeg','');
+INSERT INTO module_images VALUES(102,1,NULL,'/images/modules/rough-nights-and-hard-days/page_22_img_2.jpeg','');
+INSERT INTO module_images VALUES(103,1,NULL,'/images/modules/rough-nights-and-hard-days/page_22_img_3.jpeg','');
+INSERT INTO module_images VALUES(104,1,NULL,'/images/modules/rough-nights-and-hard-days/page_22_img_4.jpeg','');
+INSERT INTO module_images VALUES(105,1,NULL,'/images/modules/rough-nights-and-hard-days/page_22_img_5.png','');
+INSERT INTO module_images VALUES(106,1,NULL,'/images/modules/rough-nights-and-hard-days/page_22_img_6.jpeg','');
+INSERT INTO module_images VALUES(107,1,NULL,'/images/modules/rough-nights-and-hard-days/page_22_img_7.jpeg','');
+INSERT INTO module_images VALUES(108,1,NULL,'/images/modules/rough-nights-and-hard-days/page_22_img_8.jpeg','');
+INSERT INTO module_images VALUES(109,1,NULL,'/images/modules/rough-nights-and-hard-days/page_23_img_0.jpeg','');
+INSERT INTO module_images VALUES(110,1,NULL,'/images/modules/rough-nights-and-hard-days/page_23_img_1.jpeg','');
+INSERT INTO module_images VALUES(111,1,NULL,'/images/modules/rough-nights-and-hard-days/page_23_img_2.jpeg','');
+INSERT INTO module_images VALUES(112,1,NULL,'/images/modules/rough-nights-and-hard-days/page_23_img_3.jpeg','');
+INSERT INTO module_images VALUES(113,1,NULL,'/images/modules/rough-nights-and-hard-days/page_24_img_0.jpeg','');
+INSERT INTO module_images VALUES(114,1,NULL,'/images/modules/rough-nights-and-hard-days/page_24_img_1.jpeg','');
+INSERT INTO module_images VALUES(115,1,NULL,'/images/modules/rough-nights-and-hard-days/page_24_img_2.jpeg','');
+INSERT INTO module_images VALUES(116,1,NULL,'/images/modules/rough-nights-and-hard-days/page_24_img_3.jpeg','');
+INSERT INTO module_images VALUES(117,1,NULL,'/images/modules/rough-nights-and-hard-days/page_24_img_9.jpeg','');
+INSERT INTO module_images VALUES(118,1,NULL,'/images/modules/rough-nights-and-hard-days/page_25_img_0.jpeg','');
+INSERT INTO module_images VALUES(119,1,NULL,'/images/modules/rough-nights-and-hard-days/page_26_img_0.jpeg','');
+INSERT INTO module_images VALUES(120,1,NULL,'/images/modules/rough-nights-and-hard-days/page_26_img_1.png','');
+INSERT INTO module_images VALUES(121,1,NULL,'/images/modules/rough-nights-and-hard-days/page_26_img_2.jpeg','');
+INSERT INTO module_images VALUES(122,1,NULL,'/images/modules/rough-nights-and-hard-days/page_26_img_3.jpeg','');
+INSERT INTO module_images VALUES(123,1,NULL,'/images/modules/rough-nights-and-hard-days/page_26_img_9.jpeg','');
+INSERT INTO module_images VALUES(124,1,NULL,'/images/modules/rough-nights-and-hard-days/page_27_img_0.jpeg','');
+INSERT INTO module_images VALUES(125,1,NULL,'/images/modules/rough-nights-and-hard-days/page_28_img_0.jpeg','');
+INSERT INTO module_images VALUES(126,1,NULL,'/images/modules/rough-nights-and-hard-days/page_28_img_1.jpeg','');
+INSERT INTO module_images VALUES(127,1,NULL,'/images/modules/rough-nights-and-hard-days/page_29_img_0.jpeg','');
+INSERT INTO module_images VALUES(128,1,NULL,'/images/modules/rough-nights-and-hard-days/page_29_img_1.jpeg','');
+INSERT INTO module_images VALUES(129,1,NULL,'/images/modules/rough-nights-and-hard-days/page_29_img_7.jpeg','');
+INSERT INTO module_images VALUES(130,1,NULL,'/images/modules/rough-nights-and-hard-days/page_30_img_1.jpeg','');
+INSERT INTO module_images VALUES(131,1,NULL,'/images/modules/rough-nights-and-hard-days/page_30_img_2.jpeg','');
+INSERT INTO module_images VALUES(132,1,NULL,'/images/modules/rough-nights-and-hard-days/page_30_img_3.jpeg','');
+INSERT INTO module_images VALUES(133,1,NULL,'/images/modules/rough-nights-and-hard-days/page_31_img_0.jpeg','');
+INSERT INTO module_images VALUES(134,1,NULL,'/images/modules/rough-nights-and-hard-days/page_31_img_1.jpeg','');
+INSERT INTO module_images VALUES(135,1,NULL,'/images/modules/rough-nights-and-hard-days/page_31_img_2.jpeg','');
+INSERT INTO module_images VALUES(136,1,NULL,'/images/modules/rough-nights-and-hard-days/page_32_img_0.jpeg','');
+INSERT INTO module_images VALUES(137,1,NULL,'/images/modules/rough-nights-and-hard-days/page_32_img_1.jpeg','');
+INSERT INTO module_images VALUES(138,1,NULL,'/images/modules/rough-nights-and-hard-days/page_32_img_2.jpeg','');
+INSERT INTO module_images VALUES(139,1,NULL,'/images/modules/rough-nights-and-hard-days/page_33_img_0.jpeg','');
+INSERT INTO module_images VALUES(140,1,NULL,'/images/modules/rough-nights-and-hard-days/page_33_img_1.jpeg','');
+INSERT INTO module_images VALUES(141,1,NULL,'/images/modules/rough-nights-and-hard-days/page_33_img_2.jpeg','');
+INSERT INTO module_images VALUES(142,1,NULL,'/images/modules/rough-nights-and-hard-days/page_33_img_3.jpeg','');
+INSERT INTO module_images VALUES(143,1,NULL,'/images/modules/rough-nights-and-hard-days/page_33_img_4.jpeg','');
+INSERT INTO module_images VALUES(144,1,NULL,'/images/modules/rough-nights-and-hard-days/page_33_img_6.jpeg','');
+INSERT INTO module_images VALUES(145,1,NULL,'/images/modules/rough-nights-and-hard-days/page_34_img_0.jpeg','');
+INSERT INTO module_images VALUES(146,1,NULL,'/images/modules/rough-nights-and-hard-days/page_34_img_1.jpeg','');
+INSERT INTO module_images VALUES(147,1,NULL,'/images/modules/rough-nights-and-hard-days/page_34_img_2.jpeg','');
+INSERT INTO module_images VALUES(148,1,NULL,'/images/modules/rough-nights-and-hard-days/page_34_img_3.jpeg','');
+INSERT INTO module_images VALUES(149,1,NULL,'/images/modules/rough-nights-and-hard-days/page_34_img_4.jpeg','');
+INSERT INTO module_images VALUES(150,1,NULL,'/images/modules/rough-nights-and-hard-days/page_34_img_5.jpeg','');
+INSERT INTO module_images VALUES(151,1,NULL,'/images/modules/rough-nights-and-hard-days/page_35_img_0.jpeg','');
+INSERT INTO module_images VALUES(152,1,NULL,'/images/modules/rough-nights-and-hard-days/page_35_img_1.jpeg','');
+INSERT INTO module_images VALUES(153,1,NULL,'/images/modules/rough-nights-and-hard-days/page_35_img_2.jpeg','');
+INSERT INTO module_images VALUES(154,1,NULL,'/images/modules/rough-nights-and-hard-days/page_35_img_3.jpeg','');
+INSERT INTO module_images VALUES(155,1,NULL,'/images/modules/rough-nights-and-hard-days/page_35_img_4.png','');
+INSERT INTO module_images VALUES(156,1,NULL,'/images/modules/rough-nights-and-hard-days/page_35_img_5.jpeg','');
+INSERT INTO module_images VALUES(157,1,NULL,'/images/modules/rough-nights-and-hard-days/page_35_img_11.png','');
+INSERT INTO module_images VALUES(158,1,NULL,'/images/modules/rough-nights-and-hard-days/page_35_img_12.png','');
+INSERT INTO module_images VALUES(159,1,NULL,'/images/modules/rough-nights-and-hard-days/page_36_img_0.jpeg','');
+INSERT INTO module_images VALUES(160,1,NULL,'/images/modules/rough-nights-and-hard-days/page_36_img_1.jpeg','');
+INSERT INTO module_images VALUES(161,1,NULL,'/images/modules/rough-nights-and-hard-days/page_36_img_2.jpeg','');
+INSERT INTO module_images VALUES(162,1,NULL,'/images/modules/rough-nights-and-hard-days/page_36_img_3.jpeg','');
+INSERT INTO module_images VALUES(163,1,NULL,'/images/modules/rough-nights-and-hard-days/page_37_img_0.jpeg','');
+INSERT INTO module_images VALUES(164,1,NULL,'/images/modules/rough-nights-and-hard-days/page_37_img_1.jpeg','');
+INSERT INTO module_images VALUES(165,1,NULL,'/images/modules/rough-nights-and-hard-days/page_38_img_0.jpeg','');
+INSERT INTO module_images VALUES(166,1,NULL,'/images/modules/rough-nights-and-hard-days/page_38_img_1.jpeg','');
+INSERT INTO module_images VALUES(167,1,NULL,'/images/modules/rough-nights-and-hard-days/page_38_img_2.jpeg','');
+INSERT INTO module_images VALUES(168,1,NULL,'/images/modules/rough-nights-and-hard-days/page_38_img_3.jpeg','');
+INSERT INTO module_images VALUES(169,1,NULL,'/images/modules/rough-nights-and-hard-days/page_38_img_9.jpeg','');
+INSERT INTO module_images VALUES(170,1,NULL,'/images/modules/rough-nights-and-hard-days/page_39_img_0.jpeg','');
+INSERT INTO module_images VALUES(171,1,NULL,'/images/modules/rough-nights-and-hard-days/page_39_img_1.png','');
+INSERT INTO module_images VALUES(172,1,NULL,'/images/modules/rough-nights-and-hard-days/page_39_img_2.jpeg','');
+INSERT INTO module_images VALUES(173,1,NULL,'/images/modules/rough-nights-and-hard-days/page_39_img_8.jpeg','');
+INSERT INTO module_images VALUES(174,1,NULL,'/images/modules/rough-nights-and-hard-days/page_40_img_0.jpeg','');
+INSERT INTO module_images VALUES(175,1,NULL,'/images/modules/rough-nights-and-hard-days/page_40_img_1.jpeg','');
+INSERT INTO module_images VALUES(176,1,NULL,'/images/modules/rough-nights-and-hard-days/page_40_img_7.jpeg','');
+INSERT INTO module_images VALUES(177,1,NULL,'/images/modules/rough-nights-and-hard-days/page_41_img_0.jpeg','');
+INSERT INTO module_images VALUES(178,1,NULL,'/images/modules/rough-nights-and-hard-days/page_42_img_0.jpeg','');
+INSERT INTO module_images VALUES(179,1,NULL,'/images/modules/rough-nights-and-hard-days/page_42_img_1.jpeg','');
+INSERT INTO module_images VALUES(180,1,NULL,'/images/modules/rough-nights-and-hard-days/page_42_img_7.jpeg','');
+INSERT INTO module_images VALUES(181,1,NULL,'/images/modules/rough-nights-and-hard-days/page_43_img_0.jpeg','');
+INSERT INTO module_images VALUES(182,1,NULL,'/images/modules/rough-nights-and-hard-days/page_43_img_1.jpeg','');
+INSERT INTO module_images VALUES(183,1,NULL,'/images/modules/rough-nights-and-hard-days/page_44_img_0.jpeg','');
+INSERT INTO module_images VALUES(184,1,NULL,'/images/modules/rough-nights-and-hard-days/page_44_img_1.jpeg','');
+INSERT INTO module_images VALUES(185,1,NULL,'/images/modules/rough-nights-and-hard-days/page_44_img_2.jpeg','');
+INSERT INTO module_images VALUES(186,1,NULL,'/images/modules/rough-nights-and-hard-days/page_45_img_0.jpeg','');
+INSERT INTO module_images VALUES(187,1,NULL,'/images/modules/rough-nights-and-hard-days/page_46_img_0.jpeg','');
+INSERT INTO module_images VALUES(188,1,NULL,'/images/modules/rough-nights-and-hard-days/page_46_img_1.jpeg','');
+INSERT INTO module_images VALUES(189,1,NULL,'/images/modules/rough-nights-and-hard-days/page_46_img_2.jpeg','');
+INSERT INTO module_images VALUES(190,1,NULL,'/images/modules/rough-nights-and-hard-days/page_47_img_0.jpeg','');
+INSERT INTO module_images VALUES(191,1,NULL,'/images/modules/rough-nights-and-hard-days/page_47_img_1.jpeg','');
+INSERT INTO module_images VALUES(192,1,NULL,'/images/modules/rough-nights-and-hard-days/page_48_img_0.jpeg','');
+INSERT INTO module_images VALUES(193,1,NULL,'/images/modules/rough-nights-and-hard-days/page_48_img_1.png','');
+INSERT INTO module_images VALUES(194,1,NULL,'/images/modules/rough-nights-and-hard-days/page_48_img_2.jpeg','');
+INSERT INTO module_images VALUES(195,1,NULL,'/images/modules/rough-nights-and-hard-days/page_48_img_3.jpeg','');
+INSERT INTO module_images VALUES(196,1,NULL,'/images/modules/rough-nights-and-hard-days/page_48_img_4.png','');
+INSERT INTO module_images VALUES(197,1,NULL,'/images/modules/rough-nights-and-hard-days/page_48_img_5.jpeg','');
+INSERT INTO module_images VALUES(198,1,NULL,'/images/modules/rough-nights-and-hard-days/page_48_img_6.jpeg','');
+INSERT INTO module_images VALUES(199,1,NULL,'/images/modules/rough-nights-and-hard-days/page_49_img_0.jpeg','');
+INSERT INTO module_images VALUES(200,1,NULL,'/images/modules/rough-nights-and-hard-days/page_49_img_1.jpeg','');
+INSERT INTO module_images VALUES(201,1,NULL,'/images/modules/rough-nights-and-hard-days/page_49_img_2.jpeg','');
+INSERT INTO module_images VALUES(202,1,NULL,'/images/modules/rough-nights-and-hard-days/page_49_img_3.jpeg','');
+INSERT INTO module_images VALUES(203,1,NULL,'/images/modules/rough-nights-and-hard-days/page_49_img_4.jpeg','');
+INSERT INTO module_images VALUES(204,1,NULL,'/images/modules/rough-nights-and-hard-days/page_49_img_5.jpeg','');
+INSERT INTO module_images VALUES(205,1,NULL,'/images/modules/rough-nights-and-hard-days/page_49_img_6.jpeg','');
+INSERT INTO module_images VALUES(206,1,NULL,'/images/modules/rough-nights-and-hard-days/page_49_img_7.jpeg','');
+INSERT INTO module_images VALUES(207,1,NULL,'/images/modules/rough-nights-and-hard-days/page_49_img_8.jpeg','');
+INSERT INTO module_images VALUES(208,1,NULL,'/images/modules/rough-nights-and-hard-days/page_50_img_0.jpeg','');
+INSERT INTO module_images VALUES(209,1,NULL,'/images/modules/rough-nights-and-hard-days/page_50_img_1.jpeg','');
+INSERT INTO module_images VALUES(210,1,NULL,'/images/modules/rough-nights-and-hard-days/page_50_img_2.jpeg','');
+INSERT INTO module_images VALUES(211,1,NULL,'/images/modules/rough-nights-and-hard-days/page_50_img_3.jpeg','');
+INSERT INTO module_images VALUES(212,1,NULL,'/images/modules/rough-nights-and-hard-days/page_50_img_4.jpeg','');
+INSERT INTO module_images VALUES(213,1,NULL,'/images/modules/rough-nights-and-hard-days/page_50_img_5.jpeg','');
+INSERT INTO module_images VALUES(214,1,NULL,'/images/modules/rough-nights-and-hard-days/page_50_img_6.jpeg','');
+INSERT INTO module_images VALUES(215,1,NULL,'/images/modules/rough-nights-and-hard-days/page_50_img_7.jpeg','');
+INSERT INTO module_images VALUES(216,1,NULL,'/images/modules/rough-nights-and-hard-days/page_51_img_0.jpeg','');
+INSERT INTO module_images VALUES(217,1,NULL,'/images/modules/rough-nights-and-hard-days/page_51_img_1.jpeg','');
+INSERT INTO module_images VALUES(218,1,NULL,'/images/modules/rough-nights-and-hard-days/page_51_img_2.jpeg','');
+INSERT INTO module_images VALUES(219,1,NULL,'/images/modules/rough-nights-and-hard-days/page_51_img_3.jpeg','');
+INSERT INTO module_images VALUES(220,1,NULL,'/images/modules/rough-nights-and-hard-days/page_51_img_4.jpeg','');
+INSERT INTO module_images VALUES(221,1,NULL,'/images/modules/rough-nights-and-hard-days/page_52_img_0.jpeg','');
+INSERT INTO module_images VALUES(222,1,NULL,'/images/modules/rough-nights-and-hard-days/page_52_img_1.jpeg','');
+INSERT INTO module_images VALUES(223,1,NULL,'/images/modules/rough-nights-and-hard-days/page_52_img_2.jpeg','');
+INSERT INTO module_images VALUES(224,1,NULL,'/images/modules/rough-nights-and-hard-days/page_52_img_3.jpeg','');
+INSERT INTO module_images VALUES(225,1,NULL,'/images/modules/rough-nights-and-hard-days/page_52_img_4.png','');
+INSERT INTO module_images VALUES(226,1,NULL,'/images/modules/rough-nights-and-hard-days/page_52_img_5.jpeg','');
+INSERT INTO module_images VALUES(227,1,NULL,'/images/modules/rough-nights-and-hard-days/page_52_img_6.jpeg','');
+INSERT INTO module_images VALUES(228,1,NULL,'/images/modules/rough-nights-and-hard-days/page_53_img_0.jpeg','');
+INSERT INTO module_images VALUES(229,1,NULL,'/images/modules/rough-nights-and-hard-days/page_53_img_1.jpeg','');
+INSERT INTO module_images VALUES(230,1,NULL,'/images/modules/rough-nights-and-hard-days/page_53_img_2.jpeg','');
+INSERT INTO module_images VALUES(231,1,NULL,'/images/modules/rough-nights-and-hard-days/page_53_img_3.jpeg','');
+INSERT INTO module_images VALUES(232,1,NULL,'/images/modules/rough-nights-and-hard-days/page_53_img_4.jpeg','');
+INSERT INTO module_images VALUES(233,1,NULL,'/images/modules/rough-nights-and-hard-days/page_53_img_5.jpeg','');
+INSERT INTO module_images VALUES(234,1,NULL,'/images/modules/rough-nights-and-hard-days/page_53_img_6.jpeg','');
+INSERT INTO module_images VALUES(235,1,NULL,'/images/modules/rough-nights-and-hard-days/page_54_img_0.jpeg','');
+INSERT INTO module_images VALUES(236,1,NULL,'/images/modules/rough-nights-and-hard-days/page_54_img_1.jpeg','');
+INSERT INTO module_images VALUES(237,1,NULL,'/images/modules/rough-nights-and-hard-days/page_54_img_2.jpeg','');
+INSERT INTO module_images VALUES(238,1,NULL,'/images/modules/rough-nights-and-hard-days/page_54_img_3.jpeg','');
+INSERT INTO module_images VALUES(239,1,NULL,'/images/modules/rough-nights-and-hard-days/page_55_img_0.jpeg','');
+INSERT INTO module_images VALUES(240,1,NULL,'/images/modules/rough-nights-and-hard-days/page_55_img_1.jpeg','');
+INSERT INTO module_images VALUES(241,1,NULL,'/images/modules/rough-nights-and-hard-days/page_56_img_0.jpeg','');
+INSERT INTO module_images VALUES(242,1,NULL,'/images/modules/rough-nights-and-hard-days/page_56_img_1.jpeg','');
+INSERT INTO module_images VALUES(243,1,NULL,'/images/modules/rough-nights-and-hard-days/page_56_img_2.jpeg','');
+INSERT INTO module_images VALUES(244,1,NULL,'/images/modules/rough-nights-and-hard-days/page_56_img_3.jpeg','');
+INSERT INTO module_images VALUES(245,1,NULL,'/images/modules/rough-nights-and-hard-days/page_56_img_9.jpeg','');
+INSERT INTO module_images VALUES(246,1,NULL,'/images/modules/rough-nights-and-hard-days/page_57_img_0.jpeg','');
+INSERT INTO module_images VALUES(247,1,NULL,'/images/modules/rough-nights-and-hard-days/page_58_img_0.jpeg','');
+INSERT INTO module_images VALUES(248,1,NULL,'/images/modules/rough-nights-and-hard-days/page_58_img_1.jpeg','');
+INSERT INTO module_images VALUES(249,1,NULL,'/images/modules/rough-nights-and-hard-days/page_58_img_7.jpeg','');
+INSERT INTO module_images VALUES(250,1,NULL,'/images/modules/rough-nights-and-hard-days/page_59_img_0.jpeg','');
+INSERT INTO module_images VALUES(251,1,NULL,'/images/modules/rough-nights-and-hard-days/page_59_img_1.jpeg','');
+INSERT INTO module_images VALUES(252,1,NULL,'/images/modules/rough-nights-and-hard-days/page_60_img_2.jpeg','');
+INSERT INTO module_images VALUES(253,1,NULL,'/images/modules/rough-nights-and-hard-days/page_60_img_3.jpeg','');
+INSERT INTO module_images VALUES(254,1,NULL,'/images/modules/rough-nights-and-hard-days/page_61_img_0.jpeg','');
+INSERT INTO module_images VALUES(255,1,NULL,'/images/modules/rough-nights-and-hard-days/page_61_img_1.jpeg','');
+INSERT INTO module_images VALUES(256,1,NULL,'/images/modules/rough-nights-and-hard-days/page_61_img_2.jpeg','');
+INSERT INTO module_images VALUES(257,1,NULL,'/images/modules/rough-nights-and-hard-days/page_62_img_0.jpeg','');
+INSERT INTO module_images VALUES(258,1,NULL,'/images/modules/rough-nights-and-hard-days/page_62_img_1.jpeg','');
+INSERT INTO module_images VALUES(259,1,NULL,'/images/modules/rough-nights-and-hard-days/page_63_img_0.jpeg','');
+INSERT INTO module_images VALUES(260,1,NULL,'/images/modules/rough-nights-and-hard-days/page_64_img_0.jpeg','');
+INSERT INTO module_images VALUES(261,1,NULL,'/images/modules/rough-nights-and-hard-days/page_64_img_1.jpeg','');
+INSERT INTO module_images VALUES(262,1,NULL,'/images/modules/rough-nights-and-hard-days/page_64_img_2.jpeg','');
+INSERT INTO module_images VALUES(263,1,NULL,'/images/modules/rough-nights-and-hard-days/page_64_img_3.jpeg','');
+INSERT INTO module_images VALUES(264,1,NULL,'/images/modules/rough-nights-and-hard-days/page_65_img_0.jpeg','');
+INSERT INTO module_images VALUES(265,1,NULL,'/images/modules/rough-nights-and-hard-days/page_65_img_1.jpeg','');
+INSERT INTO module_images VALUES(266,1,NULL,'/images/modules/rough-nights-and-hard-days/page_65_img_2.jpeg','');
+INSERT INTO module_images VALUES(267,1,NULL,'/images/modules/rough-nights-and-hard-days/page_65_img_3.jpeg','');
+INSERT INTO module_images VALUES(268,1,NULL,'/images/modules/rough-nights-and-hard-days/page_65_img_4.jpeg','');
+INSERT INTO module_images VALUES(269,1,NULL,'/images/modules/rough-nights-and-hard-days/page_65_img_5.jpeg','');
+INSERT INTO module_images VALUES(270,1,NULL,'/images/modules/rough-nights-and-hard-days/page_65_img_11.jpeg','');
+INSERT INTO module_images VALUES(271,1,NULL,'/images/modules/rough-nights-and-hard-days/page_66_img_0.jpeg','');
+INSERT INTO module_images VALUES(272,1,NULL,'/images/modules/rough-nights-and-hard-days/page_66_img_1.jpeg','');
+INSERT INTO module_images VALUES(273,1,NULL,'/images/modules/rough-nights-and-hard-days/page_66_img_2.jpeg','');
+INSERT INTO module_images VALUES(274,1,NULL,'/images/modules/rough-nights-and-hard-days/page_66_img_3.jpeg','');
+INSERT INTO module_images VALUES(275,1,NULL,'/images/modules/rough-nights-and-hard-days/page_66_img_4.jpeg','');
+INSERT INTO module_images VALUES(276,1,NULL,'/images/modules/rough-nights-and-hard-days/page_66_img_5.jpeg','');
+INSERT INTO module_images VALUES(277,1,NULL,'/images/modules/rough-nights-and-hard-days/page_66_img_6.jpeg','');
+INSERT INTO module_images VALUES(278,1,NULL,'/images/modules/rough-nights-and-hard-days/page_67_img_0.jpeg','');
+INSERT INTO module_images VALUES(279,1,NULL,'/images/modules/rough-nights-and-hard-days/page_67_img_1.jpeg','');
+INSERT INTO module_images VALUES(280,1,NULL,'/images/modules/rough-nights-and-hard-days/page_67_img_2.jpeg','');
+INSERT INTO module_images VALUES(281,1,NULL,'/images/modules/rough-nights-and-hard-days/page_67_img_3.jpeg','');
+INSERT INTO module_images VALUES(282,1,NULL,'/images/modules/rough-nights-and-hard-days/page_67_img_4.jpeg','');
+INSERT INTO module_images VALUES(283,1,NULL,'/images/modules/rough-nights-and-hard-days/page_67_img_5.jpeg','');
+INSERT INTO module_images VALUES(284,1,NULL,'/images/modules/rough-nights-and-hard-days/page_67_img_6.jpeg','');
+INSERT INTO module_images VALUES(285,1,NULL,'/images/modules/rough-nights-and-hard-days/page_68_img_0.jpeg','');
+INSERT INTO module_images VALUES(286,1,NULL,'/images/modules/rough-nights-and-hard-days/page_68_img_1.jpeg','');
+INSERT INTO module_images VALUES(287,1,NULL,'/images/modules/rough-nights-and-hard-days/page_68_img_2.jpeg','');
+INSERT INTO module_images VALUES(288,1,NULL,'/images/modules/rough-nights-and-hard-days/page_68_img_3.jpeg','');
+INSERT INTO module_images VALUES(289,1,NULL,'/images/modules/rough-nights-and-hard-days/page_69_img_0.jpeg','');
+INSERT INTO module_images VALUES(290,1,NULL,'/images/modules/rough-nights-and-hard-days/page_69_img_1.jpeg','');
+INSERT INTO module_images VALUES(291,1,NULL,'/images/modules/rough-nights-and-hard-days/page_69_img_2.jpeg','');
+INSERT INTO module_images VALUES(292,1,NULL,'/images/modules/rough-nights-and-hard-days/page_70_img_0.jpeg','');
+INSERT INTO module_images VALUES(293,1,NULL,'/images/modules/rough-nights-and-hard-days/page_70_img_1.jpeg','');
+INSERT INTO module_images VALUES(294,1,NULL,'/images/modules/rough-nights-and-hard-days/page_70_img_8.jpeg','');
+INSERT INTO module_images VALUES(295,1,NULL,'/images/modules/rough-nights-and-hard-days/page_71_img_0.jpeg','');
+INSERT INTO module_images VALUES(296,1,NULL,'/images/modules/rough-nights-and-hard-days/page_71_img_1.png','');
+INSERT INTO module_images VALUES(297,1,NULL,'/images/modules/rough-nights-and-hard-days/page_71_img_2.jpeg','');
+INSERT INTO module_images VALUES(298,1,NULL,'/images/modules/rough-nights-and-hard-days/page_71_img_8.jpeg','');
+INSERT INTO module_images VALUES(299,1,NULL,'/images/modules/rough-nights-and-hard-days/page_72_img_0.jpeg','');
+INSERT INTO module_images VALUES(300,1,NULL,'/images/modules/rough-nights-and-hard-days/page_72_img_1.jpeg','');
+INSERT INTO module_images VALUES(301,1,NULL,'/images/modules/rough-nights-and-hard-days/page_73_img_0.jpeg','');
+INSERT INTO module_images VALUES(302,1,NULL,'/images/modules/rough-nights-and-hard-days/page_74_img_0.jpeg','');
+INSERT INTO module_images VALUES(303,1,NULL,'/images/modules/rough-nights-and-hard-days/page_74_img_1.jpeg','');
+INSERT INTO module_images VALUES(304,1,NULL,'/images/modules/rough-nights-and-hard-days/page_75_img_0.jpeg','');
+INSERT INTO module_images VALUES(305,1,NULL,'/images/modules/rough-nights-and-hard-days/page_75_img_1.jpeg','');
+INSERT INTO module_images VALUES(306,1,NULL,'/images/modules/rough-nights-and-hard-days/page_75_img_7.jpeg','');
+INSERT INTO module_images VALUES(307,1,NULL,'/images/modules/rough-nights-and-hard-days/page_76_img_0.jpeg','');
+INSERT INTO module_images VALUES(308,1,NULL,'/images/modules/rough-nights-and-hard-days/page_76_img_1.jpeg','');
+INSERT INTO module_images VALUES(309,1,NULL,'/images/modules/rough-nights-and-hard-days/page_76_img_2.jpeg','');
+INSERT INTO module_images VALUES(310,1,NULL,'/images/modules/rough-nights-and-hard-days/page_77_img_0.jpeg','');
+INSERT INTO module_images VALUES(311,1,NULL,'/images/modules/rough-nights-and-hard-days/page_77_img_1.jpeg','');
+INSERT INTO module_images VALUES(312,1,NULL,'/images/modules/rough-nights-and-hard-days/page_78_img_0.jpeg','');
+INSERT INTO module_images VALUES(313,1,NULL,'/images/modules/rough-nights-and-hard-days/page_78_img_1.jpeg','');
+INSERT INTO module_images VALUES(314,1,NULL,'/images/modules/rough-nights-and-hard-days/page_78_img_2.jpeg','');
+INSERT INTO module_images VALUES(315,1,NULL,'/images/modules/rough-nights-and-hard-days/page_79_img_0.jpeg','');
+INSERT INTO module_images VALUES(316,1,NULL,'/images/modules/rough-nights-and-hard-days/page_79_img_1.jpeg','');
+INSERT INTO module_images VALUES(317,1,NULL,'/images/modules/rough-nights-and-hard-days/page_79_img_2.jpeg','');
+INSERT INTO module_images VALUES(318,1,NULL,'/images/modules/rough-nights-and-hard-days/page_80_img_0.jpeg','');
+INSERT INTO module_images VALUES(319,1,NULL,'/images/modules/rough-nights-and-hard-days/page_80_img_1.jpeg','');
+INSERT INTO module_images VALUES(320,1,NULL,'/images/modules/rough-nights-and-hard-days/page_80_img_2.png','');
+INSERT INTO module_images VALUES(321,1,NULL,'/images/modules/rough-nights-and-hard-days/page_80_img_3.png','');
+INSERT INTO module_images VALUES(322,1,NULL,'/images/modules/rough-nights-and-hard-days/page_80_img_4.jpeg','');
+INSERT INTO module_images VALUES(323,1,NULL,'/images/modules/rough-nights-and-hard-days/page_80_img_5.jpeg','');
+INSERT INTO module_images VALUES(324,1,NULL,'/images/modules/rough-nights-and-hard-days/page_81_img_0.jpeg','');
+INSERT INTO module_images VALUES(325,1,NULL,'/images/modules/rough-nights-and-hard-days/page_81_img_1.jpeg','');
+INSERT INTO module_images VALUES(326,1,NULL,'/images/modules/rough-nights-and-hard-days/page_81_img_2.jpeg','');
+INSERT INTO module_images VALUES(327,1,NULL,'/images/modules/rough-nights-and-hard-days/page_81_img_3.jpeg','');
+INSERT INTO module_images VALUES(328,1,NULL,'/images/modules/rough-nights-and-hard-days/page_81_img_5.png','');
+INSERT INTO module_images VALUES(329,1,NULL,'/images/modules/rough-nights-and-hard-days/page_81_img_6.png','');
+INSERT INTO module_images VALUES(330,1,NULL,'/images/modules/rough-nights-and-hard-days/page_81_img_7.jpeg','');
+INSERT INTO module_images VALUES(331,1,NULL,'/images/modules/rough-nights-and-hard-days/page_82_img_0.jpeg','');
+INSERT INTO module_images VALUES(332,1,NULL,'/images/modules/rough-nights-and-hard-days/page_82_img_1.jpeg','');
+INSERT INTO module_images VALUES(333,1,NULL,'/images/modules/rough-nights-and-hard-days/page_82_img_2.jpeg','');
+INSERT INTO module_images VALUES(334,1,NULL,'/images/modules/rough-nights-and-hard-days/page_82_img_3.png','');
+INSERT INTO module_images VALUES(335,1,NULL,'/images/modules/rough-nights-and-hard-days/page_82_img_4.png','');
+INSERT INTO module_images VALUES(336,1,NULL,'/images/modules/rough-nights-and-hard-days/page_82_img_5.jpeg','');
+INSERT INTO module_images VALUES(337,1,NULL,'/images/modules/rough-nights-and-hard-days/page_82_img_6.jpeg','');
+INSERT INTO module_images VALUES(338,1,NULL,'/images/modules/rough-nights-and-hard-days/page_82_img_12.png','');
+INSERT INTO module_images VALUES(339,1,NULL,'/images/modules/rough-nights-and-hard-days/page_83_img_0.png','');
+INSERT INTO module_images VALUES(340,1,NULL,'/images/modules/rough-nights-and-hard-days/page_83_img_1.jpeg','');
+INSERT INTO module_images VALUES(341,1,NULL,'/images/modules/rough-nights-and-hard-days/page_83_img_2.jpeg','');
+INSERT INTO module_images VALUES(342,1,NULL,'/images/modules/rough-nights-and-hard-days/page_83_img_3.jpeg','');
+INSERT INTO module_images VALUES(343,1,NULL,'/images/modules/rough-nights-and-hard-days/page_83_img_4.png','');
+INSERT INTO module_images VALUES(344,1,NULL,'/images/modules/rough-nights-and-hard-days/page_83_img_5.png','');
+INSERT INTO module_images VALUES(345,1,NULL,'/images/modules/rough-nights-and-hard-days/page_83_img_6.jpeg','');
+INSERT INTO module_images VALUES(346,1,NULL,'/images/modules/rough-nights-and-hard-days/page_84_img_0.png','');
+INSERT INTO module_images VALUES(347,1,NULL,'/images/modules/rough-nights-and-hard-days/page_84_img_1.jpeg','');
+INSERT INTO module_images VALUES(348,1,NULL,'/images/modules/rough-nights-and-hard-days/page_84_img_2.jpeg','');
+INSERT INTO module_images VALUES(349,1,NULL,'/images/modules/rough-nights-and-hard-days/page_84_img_3.jpeg','');
+INSERT INTO module_images VALUES(350,1,NULL,'/images/modules/rough-nights-and-hard-days/page_84_img_4.png','');
+INSERT INTO module_images VALUES(351,1,NULL,'/images/modules/rough-nights-and-hard-days/page_84_img_5.jpeg','');
+INSERT INTO module_images VALUES(352,1,NULL,'/images/modules/rough-nights-and-hard-days/page_84_img_6.jpeg','');
+INSERT INTO module_images VALUES(353,1,NULL,'/images/modules/rough-nights-and-hard-days/page_84_img_12.png','');
+INSERT INTO module_images VALUES(354,1,NULL,'/images/modules/rough-nights-and-hard-days/page_85_img_0.png','');
+INSERT INTO module_images VALUES(355,1,NULL,'/images/modules/rough-nights-and-hard-days/page_85_img_1.png','');
+INSERT INTO module_images VALUES(356,1,NULL,'/images/modules/rough-nights-and-hard-days/page_85_img_2.jpeg','');
+INSERT INTO module_images VALUES(357,1,NULL,'/images/modules/rough-nights-and-hard-days/page_85_img_3.jpeg','');
+INSERT INTO module_images VALUES(358,1,NULL,'/images/modules/rough-nights-and-hard-days/page_85_img_4.jpeg','');
+INSERT INTO module_images VALUES(359,1,NULL,'/images/modules/rough-nights-and-hard-days/page_85_img_5.jpeg','');
+INSERT INTO module_images VALUES(360,1,NULL,'/images/modules/rough-nights-and-hard-days/page_85_img_6.jpeg','');
+INSERT INTO module_images VALUES(361,1,NULL,'/images/modules/rough-nights-and-hard-days/page_86_img_0.jpeg','');
+INSERT INTO module_images VALUES(362,1,NULL,'/images/modules/rough-nights-and-hard-days/page_86_img_1.jpeg','');
+INSERT INTO module_images VALUES(363,1,NULL,'/images/modules/rough-nights-and-hard-days/page_86_img_2.jpeg','');
+INSERT INTO module_images VALUES(364,1,NULL,'/images/modules/rough-nights-and-hard-days/page_86_img_3.jpeg','');
+INSERT INTO module_images VALUES(365,1,NULL,'/images/modules/rough-nights-and-hard-days/page_87_img_0.jpeg','');
+INSERT INTO module_images VALUES(366,1,NULL,'/images/modules/rough-nights-and-hard-days/page_87_img_1.jpeg','');
+INSERT INTO module_images VALUES(367,1,NULL,'/images/modules/rough-nights-and-hard-days/page_87_img_8.jpeg','');
+INSERT INTO module_images VALUES(368,1,NULL,'/images/modules/rough-nights-and-hard-days/page_88_img_0.jpeg','');
+INSERT INTO module_images VALUES(369,1,NULL,'/images/modules/rough-nights-and-hard-days/page_88_img_1.jpeg','');
+INSERT INTO module_images VALUES(370,1,NULL,'/images/modules/rough-nights-and-hard-days/page_88_img_2.jpeg','');
+INSERT INTO module_images VALUES(371,1,NULL,'/images/modules/rough-nights-and-hard-days/page_88_img_3.jpeg','');
+INSERT INTO module_images VALUES(372,1,NULL,'/images/modules/rough-nights-and-hard-days/page_88_img_4.jpeg','');
+INSERT INTO module_images VALUES(373,1,NULL,'/images/modules/rough-nights-and-hard-days/page_88_img_5.jpeg','');
+INSERT INTO module_images VALUES(374,1,NULL,'/images/modules/rough-nights-and-hard-days/page_89_img_0.jpeg','');
+INSERT INTO module_images VALUES(375,1,NULL,'/images/modules/rough-nights-and-hard-days/page_89_img_1.jpeg','');
+INSERT INTO module_images VALUES(376,1,NULL,'/images/modules/rough-nights-and-hard-days/page_89_img_2.jpeg','');
+INSERT INTO module_images VALUES(377,1,NULL,'/images/modules/rough-nights-and-hard-days/page_89_img_3.jpeg','');
+INSERT INTO module_images VALUES(378,1,NULL,'/images/modules/rough-nights-and-hard-days/page_89_img_4.jpeg','');
+INSERT INTO module_images VALUES(379,1,NULL,'/images/modules/rough-nights-and-hard-days/page_90_img_0.jpeg','');
+INSERT INTO module_images VALUES(380,1,NULL,'/images/modules/rough-nights-and-hard-days/page_90_img_1.jpeg','');
+INSERT INTO module_images VALUES(381,1,NULL,'/images/modules/rough-nights-and-hard-days/page_90_img_2.jpeg','');
+INSERT INTO module_images VALUES(382,1,NULL,'/images/modules/rough-nights-and-hard-days/page_90_img_3.jpeg','');
+INSERT INTO module_images VALUES(383,1,NULL,'/images/modules/rough-nights-and-hard-days/page_90_img_4.jpeg','');
+INSERT INTO module_images VALUES(384,1,NULL,'/images/modules/rough-nights-and-hard-days/page_90_img_5.jpeg','');
+INSERT INTO module_images VALUES(385,1,NULL,'/images/modules/rough-nights-and-hard-days/page_90_img_6.jpeg','');
+INSERT INTO module_images VALUES(386,1,NULL,'/images/modules/rough-nights-and-hard-days/page_91_img_0.jpeg','');
+INSERT INTO module_images VALUES(387,1,NULL,'/images/modules/rough-nights-and-hard-days/page_91_img_1.jpeg','');
+INSERT INTO module_images VALUES(388,1,NULL,'/images/modules/rough-nights-and-hard-days/page_91_img_2.jpeg','');
+INSERT INTO module_images VALUES(389,1,NULL,'/images/modules/rough-nights-and-hard-days/page_91_img_3.jpeg','');
+INSERT INTO module_images VALUES(390,1,NULL,'/images/modules/rough-nights-and-hard-days/page_92_img_0.jpeg','');
+INSERT INTO module_images VALUES(391,1,NULL,'/images/modules/rough-nights-and-hard-days/page_92_img_1.jpeg','');
+INSERT INTO module_images VALUES(392,1,NULL,'/images/modules/rough-nights-and-hard-days/page_92_img_2.jpeg','');
+INSERT INTO module_images VALUES(393,1,NULL,'/images/modules/rough-nights-and-hard-days/page_92_img_3.jpeg','');
+INSERT INTO module_images VALUES(394,1,NULL,'/images/modules/rough-nights-and-hard-days/page_93_img_0.jpeg','');
+INSERT INTO module_images VALUES(395,1,NULL,'/images/modules/rough-nights-and-hard-days/page_93_img_1.jpeg','');
+INSERT INTO module_images VALUES(396,1,NULL,'/images/modules/rough-nights-and-hard-days/page_93_img_2.jpeg','');
+INSERT INTO module_images VALUES(397,1,NULL,'/images/modules/rough-nights-and-hard-days/page_94_img_0.jpeg','');
+INSERT INTO module_images VALUES(398,1,NULL,'/images/modules/rough-nights-and-hard-days/page_94_img_1.jpeg','');
+INSERT INTO module_images VALUES(399,1,NULL,'/images/modules/rough-nights-and-hard-days/page_94_img_11.jpeg','');
+INSERT INTO module_images VALUES(400,1,NULL,'/images/modules/rough-nights-and-hard-days/page_95_img_0.jpeg','');
+INSERT INTO module_images VALUES(401,1,NULL,'/images/modules/rough-nights-and-hard-days/page_95_img_1.jpeg','');
+INSERT INTO module_images VALUES(402,1,NULL,'/images/modules/rough-nights-and-hard-days/page_96_img_1.jpeg','');
+INSERT INTO module_images VALUES(403,1,NULL,'/images/modules/rough-nights-and-hard-days/page_96_img_2.jpeg','');
+INSERT INTO module_images VALUES(404,1,NULL,'/images/modules/rough-nights-and-hard-days/page_96_img_3.jpeg','');
+COMMIT;

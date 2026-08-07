@@ -6,11 +6,11 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=__USER__
-WorkingDirectory=__HOME__/skull
-EnvironmentFile=-__HOME__/skull/.env
+WorkingDirectory=__HOME__/Servoskull
+EnvironmentFile=-__HOME__/Servoskull/.env
 Environment="HOME=__HOME__"
 Environment="XDG_RUNTIME_DIR=/run/user/__UID__"
-ExecStart=__HOME__/skull/.venv/bin/python -m skull.main
+ExecStart=__HOME__/Servoskull/.venv/bin/python -m core.main
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=5s

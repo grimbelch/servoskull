@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import sys
 
-from skull import config
+from core import config
 
 # Per-unit state written at runtime or setup. Everything here is safe to delete;
 # the app recreates whatever it needs on next start.

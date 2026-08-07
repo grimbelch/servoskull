@@ -1,0 +1,201 @@
+HTML_CLIENT = """<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Omega-7 Cogitator Terminal</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=IM+Fell+English:ital@0;1&family=MedievalSharp&family=Share+Tech+Mono&display=swap');
+
+
+        :root {
+            --bg-color: #020803;
+            --card-color: #030f05;
+            --border-color: #14531d;
+            --bright-green: #38ff58;
+            --dim-green: #117823;
+            --glow-color: rgba(56, 255, 88, 0.45);
+            --crt-glow: rgba(56, 255, 88, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--bright-green);
+            font-family: 'Share Tech Mono', 'Courier New', Courier, monospace;
+            overflow-x: hidden;
+            position: relative;
+            min-height: 100vh;
+        }
+
+        /* CRT Screen Filter & Glass Effects */
+        .screen {
+            position: relative;
+            width: 100%;
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .screen::after {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(56, 255, 88, 0.04), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 4px, 6px 100%;
+            z-index: 9999;
+            pointer-events: none;
+            animation: crt-flicker 0.25s infinite;
+        }
+
+        .screen::before {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: radial-gradient(circle, rgba(56, 255, 88, 0.03) 0%, rgba(0, 0, 0, 0.75) 120%);
+            z-index: 10000;
+            pointer-events: none;
+        }
+
+        @keyframes crt-flicker {
+            0% { opacity: 0.985; }
+            50% { opacity: 1; }
+            100% { opacity: 0.978; }
+        }
+
+        /* Page Layout Container */
+        .container {
+            width: 100%;
+            max-width: 1000px;
+            margin: 0 auto;
+            border: 2px solid var(--border-color);
+            background-color: var(--card-color);
+            padding: 24px;
+            position: relative;
+            box-shadow: 0 0 30px rgba(17, 120, 35, 0.15);
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            box-sizing: border-box;
+        }
+
+        /* Diagonal corner cuts for AdMech framing */
+        .container::before, .container::after, .frame-bracket::before, .frame-bracket::after {
+            content: "";
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-color: var(--bright-green);
+            border-style: solid;
+            pointer-events: none;
+        }
+
+        .container::before { top: -2px; left: -2px; border-width: 4px 0 0 4px; }
+        .container::after { top: -2px; right: -2px; border-width: 4px 4px 0 0; }
+        
+        .frame-bracket {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+        }
+        .frame-bracket::before { bottom: -2px; left: -2px; border-width: 0 0 4px 4px; }
+        .frame-bracket::after { bottom: -2px; right: -2px; border-width: 0 4px 4px 0; }
+
+
+        /* Heading & Telemetry Section */
+        .header {
+            grid-column: 1 / -1;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 16px;
+            margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .header-title-row {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .header h1 {
+            color: var(--bright-green);
+            font-size: 26px;
+            letter-spacing: 3px;
+            text-shadow: 0 0 10px var(--glow-color);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .master-header-tag {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            letter-spacing: 2px;
+            color: var(--bright-green);
+            text-shadow: 0 0 8px var(--glow-color);
+        }
+
+        .master-header-tag .master-label {
+            color: var(--dim-green);
+            font-size: 12px;
+            letter-spacing: 1.5px;
+        }
+
+        .master-header-tag .master-value {
+            color: var(--bright-green);
+            font-weight: bold;
+        }
+
+        /* SVG AdMech Logo */
+        .cog-logo {
+            width: 28px;
+            height: 28px;
+            fill: var(--bright-green);
+            filter: drop-shadow(0 0 4px var(--glow-color));
+            animation: slow-spin 20s linear infinite;
+        }
+
+        @keyframes slow-spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .telemetry {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .pie-gauge-row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            width: 100%;
+            border: 2px double var(--border-color);
+            background: rgba(17, 120, 35, 0.03);
+            padding: 12px;
+            box-sizing: border-box;
+            border-radius: 4px;
+        }
+
+        .pie-gauge-item {
+            border: 1px solid var(--border-color);

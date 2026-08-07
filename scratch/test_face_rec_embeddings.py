@@ -9,7 +9,7 @@ import pathlib
 # Ensure skull packages can be imported
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from skull import face_rec, config
+from core import face_rec, config
 
 def create_dummy_face_image(filename, text_label="Face"):
     # Create a 112x112 color image representing a dummy face
