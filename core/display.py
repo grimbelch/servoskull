@@ -19,8 +19,14 @@ import threading
 _state_lock = threading.Lock()
 import time
 
-from core import config, screensavers
+from core import config
 import importlib
+
+_screensavers = None
+try:
+    _screensavers = importlib.import_module(f"personalities.{config.SKULL_NAME.lower()}.screensavers")
+except Exception as e:
+    print(f"[display] Could not load personality screensavers module: {e}")
 
 _display_module = None
 try:
@@ -91,7 +97,7 @@ _custom_idle_expiry = 0.0
 _requested_idle_anim = None
 
 # Screensaver pool delegated to screensavers module
-_screensaver_anims = screensavers.SCREENSAVER_ANIMS
+_screensaver_anims = _screensavers.SCREENSAVER_ANIMS if _screensavers else []
 
 
 
@@ -120,7 +126,7 @@ _MADCTL_BY_ROT = {0: 0x08, 90: 0x68, 180: 0xC8, 270: 0xA8}
 
 def get_screensaver_names() -> list[str]:
     """Return the authoritative list of available screensaver animation names."""
-    return screensavers.get_screensaver_names()
+    return _screensavers.get_screensaver_names() if _screensavers else []
 
 
 # Mood -> base iris colour. Names match skull/mood.py dispositions; unknown moods
@@ -989,12 +995,16 @@ def _loop():
                     if _requested_idle_anim is not None:
                         _active_idle_anim = _requested_idle_anim
                     else:
-                        choices = [a for a in screensavers.SCREENSAVER_ANIMS if a != last_picked_anim]
-                        _active_idle_anim = random.choice(choices) if choices else random.choice(screensavers.SCREENSAVER_ANIMS)
+                        if _screensavers and _screensavers.SCREENSAVER_ANIMS:
+                            choices = [a for a in _screensavers.SCREENSAVER_ANIMS if a != last_picked_anim]
+                            _active_idle_anim = random.choice(choices) if choices else random.choice(_screensavers.SCREENSAVER_ANIMS)
+                        else:
+                            _active_idle_anim = None
                     last_picked_anim = _active_idle_anim
 
                 try:
-                    _blit(screensavers.render_screensaver_frame(_active_idle_anim, bezel, mask, now))
+                    if _active_idle_anim and _screensavers:
+                        _blit(_screensavers.render_screensaver_frame(_active_idle_anim, bezel, mask, now))
                 except Exception as e:
                     print(f"[display] screensaver render error ({_active_idle_anim}): {e}")
                 time.sleep(1 / config.DISPLAY_FPS)
@@ -1239,7 +1249,7 @@ def trigger_idle_animation(duration: float = 60.0, animation_name: str | None = 
     _custom_idle_expiry = time.monotonic() + duration
     _active_idle_anim = None
     _last_activity_time = 0.0  # Force idle screensaver mode immediately
-    if animation_name and animation_name in screensavers.SCREENSAVER_ANIMS:
+    if animation_name and _screensavers and animation_name in _screensavers.SCREENSAVER_ANIMS:
         _requested_idle_anim = animation_name
     else:
         _requested_idle_anim = None
