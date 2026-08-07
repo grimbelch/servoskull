@@ -163,10 +163,10 @@ TOOLS = [
     {
         "name": "whfrp_lookup_equipment",
         "description": "Look up official WFRP 4E equipment statistics from the SQLite Consumer's Guide database (Armour, Weapons, Containers, Tools, Clothing, Provisions, Books, Animals, Drugs, Trade Goods).",
-        "parameters": {
-            "type": "OBJECT",
+        "input_schema": {
+            "type": "object",
             "properties": {
-                "query": {"type": "STRING", "description": "The name of the item or equipment category to look up (e.g. 'Leather Jack', 'Crossbow', 'Backpack', 'Antitoxin Kit', 'Bugman's Ale')."}
+                "query": {"type": "string", "description": "The name of the item or equipment category to look up (e.g. 'Leather Jack', 'Crossbow', 'Backpack', 'Antitoxin Kit', 'Bugman's Ale')."}
             },
             "required": ["query"]
         }
