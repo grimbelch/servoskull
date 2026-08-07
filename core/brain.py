@@ -1029,6 +1029,20 @@ def _build_tools() -> list[dict]:
         }
     },
     {
+        "name": "set_voice_wait_duration",
+        "description": "Change the silence wait duration (in seconds) after speaking before the assistant finishes listening or processing.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "seconds": {
+                    "type": "number",
+                    "description": "Wait period in seconds (e.g. 2.0, 3.0)."
+                }
+            },
+            "required": ["seconds"]
+        }
+    },
+    {
         "name": "cancel_printer_alerts",
         "description": "Cancel and stop any repeating verbal alerts/notifications about the 3D printer status (such as completion alerts or health errors).",
         "input_schema": {
@@ -2867,6 +2881,10 @@ def _tool_rotate_display(i):
     is_rel = (mode != "absolute")
     return config.set_display_rotation(deg, relative=is_rel)
 
+def _tool_set_voice_wait_duration(i):
+    sec = float(i.get("seconds", 3.0))
+    return config.set_silence_duration(sec)
+
 def _tool_cancel_printer_alerts(i):
     from core import bambu_ctrl
     monitor = bambu_ctrl.get_monitor()
@@ -2973,6 +2991,7 @@ _TOOL_REGISTRY = {
     "shutdown_system": _tool_shutdown_system,
     "switch_personality": _tool_switch_personality,
     "rotate_display": _tool_rotate_display,
+    "set_voice_wait_duration": _tool_set_voice_wait_duration,
     "cancel_printer_alerts": _tool_cancel_printer_alerts,
     "display_art": _tool_display_art,
     "capture_and_describe_surroundings": _tool_capture_and_describe_surroundings,
