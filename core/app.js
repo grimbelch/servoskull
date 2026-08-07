@@ -245,7 +245,10 @@
                 // Update screensaver options if not already filled
                 const scSelect = document.getElementById('screensaver-select');
                 if (scSelect && data.screensavers && data.screensavers.length > 0) {
-                    if (scSelect.options.length <= 1) {
+                    const currentStr = Array.from(scSelect.options).map(o => o.value).filter(v => v !== "").join(",");
+                    const newStr = data.screensavers.join(",");
+                    if (currentStr !== newStr) {
+                        const selectedValue = scSelect.value;
                         scSelect.innerHTML = '<option value="">-- SELECT SCREENSAVER --</option>';
                         data.screensavers.forEach(s => {
                             const opt = document.createElement('option');
@@ -253,6 +256,7 @@
                             opt.innerText = String(s).replace(/_/g, ' ').toUpperCase();
                             scSelect.appendChild(opt);
                         });
+                        scSelect.value = data.screensavers.includes(selectedValue) ? selectedValue : "";
                     }
                 }
 
