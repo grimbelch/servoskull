@@ -35,11 +35,16 @@ _camera_active_until: float = 0.0
 _camera_active_lock = threading.Lock()
 
 
-def publish_camera_frame(jpeg_bytes: bytes, active_sec: float = 5.0) -> None:
+def publish_camera_frame(jpeg_bytes: bytes, active_sec: float = 15.0) -> None:
     global _latest_camera_jpeg, _camera_active_until
     with _camera_active_lock:
         _latest_camera_jpeg = jpeg_bytes
         _camera_active_until = max(_camera_active_until, time.time() + active_sec)
+    try:
+        f_path = config.data_path("latest_frame.jpg")
+        f_path.write_bytes(jpeg_bytes)
+    except Exception:
+        pass
 
 
 def is_camera_active() -> bool:
@@ -48,7 +53,7 @@ def is_camera_active() -> bool:
             return True
     try:
         f_path = config.data_path("latest_frame.jpg")
-        if f_path.exists() and (time.time() - f_path.stat().st_mtime) < 30.0:
+        if f_path.exists() and (time.time() - f_path.stat().st_mtime) < 60.0:
             return True
     except Exception:
         pass
@@ -57,7 +62,7 @@ def is_camera_active() -> bool:
 
 def get_camera_frame_bytes() -> bytes | None:
     with _camera_active_lock:
-        if time.time() < _camera_active_until and _latest_camera_jpeg:
+        if _latest_camera_jpeg is not None:
             return _latest_camera_jpeg
     try:
         f_path = config.data_path("latest_frame.jpg")

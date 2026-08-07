@@ -511,7 +511,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             "screensavers": display.get_screensaver_names() if hasattr(display, "get_screensaver_names") else [],
             "logs": get_logs(),
             "vox_logs": get_vox_logs(),
-            "camera_active": (lambda: getattr(sys.modules.get("skull.camera"), "is_camera_active", lambda: False)())() if "skull.camera" in sys.modules else (config.data_path("latest_frame.jpg").exists() and (time.time() - config.data_path("latest_frame.jpg").stat().st_mtime) < 30.0),
+            "camera_active": (lambda: getattr(sys.modules.get("core.camera"), "is_camera_active", lambda: False)())() if "core.camera" in sys.modules else (config.data_path("latest_frame.jpg").exists() and (time.time() - config.data_path("latest_frame.jpg").stat().st_mtime) < 60.0),
             "audio_id": get_latest_web_audio()[1],
             "proximity": (lambda: (
                 (lambda d: {
@@ -527,7 +527,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                     "summary": proximity.get_distance_summary_short(),
                 }
             ))(),
-            "wifi": (lambda: getattr(sys.modules.get("skull.wifi_provisioner"), "get_status", lambda: {})())() if "skull.wifi_provisioner" in sys.modules else {},
+            "wifi": (lambda: getattr(sys.modules.get("core.wifi_provisioner"), "get_status", lambda: {})())() if "core.wifi_provisioner" in sys.modules else {},
             "is_configured": config.is_configured(),
         }
         self._send_json(state_data)
