@@ -3448,7 +3448,18 @@ def idle_utterance() -> str:
             
     if not do_news:
         print(f"[brain] Idle chat  mood bias: {_mood.get()}")
-        system_prompt = f"""\
+        if config.SKULL_NAME.lower() == "jax":
+            system_prompt = (
+                f"You are {config.SKULL_NAME}, a friendly, energetic, loving Golden Retriever AI companion. "
+                "Your duty is to occasionally speak to your owner with warm, joyful, tail-wagging enthusiasm. "
+                "Do ONE of the following:\n"
+                "- Make a cheerful observation about your owner, the room, or how happy you are to be here.\n"
+                "- Ask your owner a friendly, playful question.\n"
+                "- Give a short, encouraging Golden Retriever thought (e.g. ready to fetch, excited for playtime, happy to help).\n"
+                "Keep the utterance very brief (1-2 sentences). Speak in character. Output ONLY the spoken words. No asterisks, stage directions, or emotes."
+            )
+        else:
+            system_prompt = f"""\
 You are {config.SKULL_NAME}, an ancient Imperial servo-skull. Your duty is to occasionally speak, \
 maintaining an immersive Warhammer 40,000 atmosphere.
 Instead of reporting news, do ONE of the following:
@@ -3478,6 +3489,8 @@ Speak in character. Output ONLY the spoken words. No asterisks, stage directions
             return (text or "").strip()
         except Exception as e:
             print(f"[brain] Idle chat utterance error: {e}")
+            if config.SKULL_NAME.lower() == "jax":
+                return "Tail wagging! I'm right here by your side!"
             return "Ocular sensors online. Cogitators cycling within normal parameters, master."
 
 
@@ -3506,7 +3519,7 @@ def mark_daily_briefing_done() -> None:
 
 
 def generate_daily_briefing() -> str:
-    """Compile weather and news, then generate an immersive Mechanicus-themed briefing."""
+    """Compile weather and news, then generate an immersive briefing."""
     print("[brain] Generating proactive daily briefing...")
     try:
         from core.config import WEATHER_LAT, WEATHER_LON
@@ -3520,22 +3533,32 @@ def generate_daily_briefing() -> str:
     try:
         news_info = _search.get_curated_news()
     except Exception as e:
-        news_info = f"Failed to poll the Noosphere headlines: {e}"
+        news_info = f"Failed to poll news headlines: {e}"
 
     try:
-        system = (
-            SYSTEM_PROMPT +
-            "\n\nYou are compiling a daily briefing for the master (weather and news). "
-            "You MUST scan both Bloomberg dispatches and The Guardian UK dispatches provided in the prompt. "
-            "Keep the briefing clear, complete, and engaging (under 120 words). Ensure every sentence is fully completed with proper punctuation. "
-            "Speak in your established Adeptus Mechanicus Servo-Skull persona, showing absolute reverence and using Tech-Priest terminology (e.g. atmospheric sensor readouts, Noosphere data packets, sacred telemetry). "
-            "Combine the weather and news into one cohesive paragraph."
-        )
-        user = f"WEATHER READOUTS:\n{weather_info}\n\nNOOSPHERE NEWS PACKETS (BLOOMBERG & GUARDIAN UK):\n{news_info}\n\nGenerate the briefing."
+        if config.SKULL_NAME.lower() == "jax":
+            system = (
+                SYSTEM_PROMPT +
+                "\n\nYou are compiling a daily briefing for your owner (weather and news). "
+                "Keep the briefing clear, upbeat, and friendly as a loyal Golden Retriever (under 120 words). "
+                "Report the weather and news headlines with cheerful enthusiasm!"
+            )
+        else:
+            system = (
+                SYSTEM_PROMPT +
+                "\n\nYou are compiling a daily briefing for the master (weather and news). "
+                "You MUST scan both Bloomberg dispatches and The Guardian UK dispatches provided in the prompt. "
+                "Keep the briefing clear, complete, and engaging (under 120 words). Ensure every sentence is fully completed with proper punctuation. "
+                "Speak in your established Adeptus Mechanicus Servo-Skull persona, showing absolute reverence and using Tech-Priest terminology (e.g. atmospheric sensor readouts, Noosphere data packets, sacred telemetry). "
+                "Combine the weather and news into one cohesive paragraph."
+            )
+        user = f"WEATHER READOUTS:\n{weather_info}\n\nNEWS PACKETS:\n{news_info}\n\nGenerate the briefing."
         briefing = _llm.simple(system, user, max_tokens=400)
         return (briefing or "").strip()
     except Exception as e:
         print(f"[brain] Error generating daily briefing LLM response: {e}")
+        if config.SKULL_NAME.lower() == "jax":
+            return f"Good morning! Here is your weather update: {weather_info}."
         return f"Warning: Noosphere link degraded. Weather reports: {weather_info}."
 
 
@@ -3546,18 +3569,33 @@ def generate_morning_greeting(detected_name: str | None) -> str:
     If detected_name is None, greets them as an unrecognized visitor.
     """
     import random
+    is_jax = config.SKULL_NAME.lower() == "jax"
     if detected_name:
         name_clean = detected_name.strip()
-        greetings = [
-            f"Good morning, Master {name_clean}. The Omnissiah's light shines upon a new day. All machine spirits stand ready for your commands.",
-            f"Greetings, Master {name_clean}. Morning telemetry is nominal. The machine spirit observes your return to the cogitator.",
-            f"Good morning, {name_clean}. Rangefinder telemetry confirmed your approach. How may this servitor assist you today?",
-        ]
+        if is_jax:
+            greetings = [
+                f"Good morning, {name_clean}! I'm so happy to see you! Ready for a great day!",
+                f"Good morning, {name_clean}! Tail is wagging and I'm ready to help you with anything!",
+                f"Morning, {name_clean}! Hope you slept well! I'm right here by your side!",
+            ]
+        else:
+            greetings = [
+                f"Good morning, Master {name_clean}. The Omnissiah's light shines upon a new day. All machine spirits stand ready for your commands.",
+                f"Greetings, Master {name_clean}. Morning telemetry is nominal. The machine spirit observes your return to the cogitator.",
+                f"Good morning, {name_clean}. Rangefinder telemetry confirmed your approach. How may this servitor assist you today?",
+            ]
         return random.choice(greetings)
     else:
-        greetings = [
-            "Good morning. Rangefinder optics detect an unrecognized biological entity. State your identity and purpose before the machine spirit.",
-            "Good morning, visitor. Biometric scan indicates an uncatalogued profile near the cogitator console. Identify yourself.",
-            "Greetings, unidentified unit. The servoskull observes your presence. Please state your designation.",
-        ]
+        if is_jax:
+            greetings = [
+                "Good morning! Hello there! I'm Jax! Happy to meet you!",
+                "Good morning, friend! I'm right here, ready to help!",
+                "Hello! Good morning! Hope you have a wonderful day!",
+            ]
+        else:
+            greetings = [
+                "Good morning. Rangefinder optics detect an unrecognized biological entity. State your identity and purpose before the machine spirit.",
+                "Good morning, visitor. Biometric scan indicates an uncatalogued profile near the cogitator console. Identify yourself.",
+                "Greetings, unidentified unit. The servoskull observes your presence. Please state your designation.",
+            ]
         return random.choice(greetings)
