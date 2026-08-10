@@ -29,6 +29,8 @@ def run_background_task(func, *args, **kwargs):
 
 
 from core import config
+from core import db
+db.init_db()
 from core import audio, wake_word, transcribe, brain, tts, eyes, sfx, reminders, mood
 from core import spotify_ctrl, cast_audio, camera, quiet, display, temperature, candles, bambu_ctrl
 
@@ -675,9 +677,6 @@ def _start_setup_announcement_repeater(interval_sec: float = 120.0) -> None:
 
 
 def main():
-    from core import db
-    db.init_db()
-
     brain.register_reload_cb(refresh_voice_cache)
     brain.register_update_cb(self_update)
     brain.register_reboot_cb(reboot_system)
