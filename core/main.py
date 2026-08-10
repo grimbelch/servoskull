@@ -675,6 +675,8 @@ def _start_setup_announcement_repeater(interval_sec: float = 120.0) -> None:
 
 
 def main():
+    from core import db
+    db.init_db()
 
     brain.register_reload_cb(refresh_voice_cache)
     brain.register_update_cb(self_update)
@@ -1592,6 +1594,10 @@ def main():
                         spotify_ctrl.resume()
                     elif cmd[0] == "skip":
                         spotify_ctrl.skip()
+                    elif cmd[0] == "transfer":
+                        device_name = cmd[1]
+                        result = spotify_ctrl.transfer(device_name)
+                        print(f"[spotify] Transfer result: {result}")
                 else:
                     print("[skull] Spotify command ignored — SPOTIFY_CLIENT_ID/SECRET not set in .env")
             except Exception as e:
