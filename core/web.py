@@ -804,6 +804,16 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         except Exception as e:
             self._send_json({"ok": False, "error": str(e)}, 500)
 
+    def _read_json(self) -> dict:
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            if content_length > 0:
+                raw_body = self.rfile.read(content_length).decode("utf-8")
+                return json.loads(raw_body) if raw_body.strip() else {}
+        except Exception:
+            pass
+        return {}
+
     def _handle_memory_get(self) -> None:
         try:
             from core import memory
