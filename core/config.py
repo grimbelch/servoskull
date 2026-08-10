@@ -257,7 +257,13 @@ PROXIMITY_POLL_INTERVAL = float(os.getenv("PROXIMITY_POLL_INTERVAL", "0.2"))
 PROXIMITY_XSHUT_PIN = int(os.getenv("PROXIMITY_XSHUT_PIN", "4"))
 
 
-# ── Eye LEDs (Raspberry Pi GPIO, BCM numbering) — baked to this build ─────────────
+# ── Eye LEDs (Individually Addressable WS2812B RGB LEDs) ──────────────────────────
+# 2 WS2812B LEDs (Left Eye, Right Eye; 3rd lens housing is mounted with the Camera).
+# Data line uses GPIO 18 (Pin 12 / PWM0) stepped up from 3.3V to 5V via level shifter.
+EYE_LED_PIN = int(os.getenv("EYE_LED_PIN", "18"))
+EYE_LED_COUNT = int(os.getenv("EYE_LED_COUNT", "2"))
+
+# Legacy GPIO PWM pins (kept for fallback compatibility)
 LED_PIN_LEFT = int(os.getenv("LED_PIN_LEFT", "22"))
 LED_PIN_CENTER = int(os.getenv("LED_PIN_CENTER", "23"))
 LED_PIN_RIGHT = int(os.getenv("LED_PIN_RIGHT", "27"))

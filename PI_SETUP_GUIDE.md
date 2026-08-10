@@ -119,27 +119,24 @@ There are **no pin conflicts**:
 - **Eye LEDs**: Pins 13, 15, 16 (GPIO27, 22, 23) + Pin 14 GND.
 - **Round Face Display (SPI0)**: Pins 17 to 26 (contiguous 2x5 dual-row 10-pin header block!).
 
-### 4.2 Eye LEDs (3× red, GPIO PWM) — `eyes.py`
+### 4.2 Eye LEDs (2× Addressable WS2812B RGB LEDs + Level Shifter) — `eyes.py`
 
-Each LED: **GPIO pin → 220 Ω resistor → LED long leg (anode +) → LED short leg (cathode −) → GND.**
-The resistors in the EDGELEC pack are sized for 6–12 V — **don't use them.** Use your separate
-220 Ω resistors (≈7 mA per LED at 3.3 V, well within the Pi's per-pin limit).
+The 3rd lens housing is mounted with the camera, so **2 individually addressable WS2812B RGB LEDs** (Left Eye = Index 0, Right Eye = Index 1) are used for the face. A 3.3V-to-5.0V inline level shifter steps up the Raspberry Pi GPIO data signal to 5V logic.
 
-| LED | GPIO (BCM) | Physical pin | Config var |
+| Component | Connection | Physical Pin / Destination | Config Var |
 |---|---|---|---|
-| Left | GPIO22 | 15 | `LED_PIN_LEFT` |
-| Center | GPIO23 | 16 | `LED_PIN_CENTER` |
-| Right | GPIO27 | 13 | `LED_PIN_RIGHT` |
+| **5V Power** | Pin 2 or 4 | 5V VCC Rail (Level Shifter VCC & LEDs) | N/A |
+| **Ground** | Pin 6 / 9 / 14 | GND Rail (Common Ground) | N/A |
+| **Data Signal** | GPIO18 | Physical Pin 12 (PWM0) ➔ Level Shifter ➔ 330 Ω Resistor ➔ Eye 1 DIN | `EYE_LED_PIN` |
 
-```
- GPIO22 (pin15) ──[220Ω]──▶|── ┐
- GPIO23 (pin16) ──[220Ω]──▶|── ┤  (▶| = LED, flat/short leg = cathode)
- GPIO27 (pin13) ──[220Ω]──▶|── ┤
-                               └──── common ──► GND (pin 14)
+```text
+ Raspberry Pi Header          Dead-Bug Shifter          330Ω           WS2812B Chain
+ [Pin 2  (5V)] ───────────────► VCC (5V) ──────────────────────────────┬─► Eye 1 (+5V) ─► Eye 2 (+5V)
+ [Pin 12 (GPIO18)] ───────────► Data IN (LV1)                          │
+ [Pin 14 (GND)] ──────────────► GND ───────────────────────────────────┼─► Eye 1 (GND)  ─► Eye 2 (GND)
+                                Data OUT (HV1) ───[ 330Ω ]─────────────┴─► Eye 1 (DIN) ──► Eye 1 (DOUT) ──► Eye 2 (DIN)
 ```
 
-Build this on the mini breadboard/perfboard. Tie all three cathodes to one GND rail, run a
-single wire from that rail to **pin 14 (GND)**.
 
 ### 4.3 Round face display — GC9A01 1.28" (4-wire SPI) — `display.py`
 
