@@ -804,6 +804,62 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         except Exception as e:
             self._send_json({"ok": False, "error": str(e)}, 500)
 
+    def _handle_memory_get(self) -> None:
+        try:
+            from core import memory
+            longterm = memory.load_longterm()
+            shortterm = memory.load()
+            self._send_json({"ok": True, "longterm": longterm, "shortterm": shortterm})
+        except Exception as e:
+            self._send_json({"ok": False, "error": str(e)}, 500)
+
+    def _handle_memory_add(self) -> None:
+        try:
+            data = self._read_json() or {}
+            fact = data.get("fact", "").strip()
+            longterm = data.get("longterm", True)
+            if not fact:
+                self._send_json({"ok": False, "error": "Fact is empty"}, 400)
+                return
+            from core import db, memory
+            if longterm:
+                msg = memory.remember(fact)
+            else:
+                db.add_memory_fact(fact, longterm=False)
+                msg = f"Added auto-extracted fact: {fact}"
+            self._send_json({"ok": True, "message": msg, "longterm": memory.load_longterm(), "shortterm": memory.load()})
+        except Exception as e:
+            self._send_json({"ok": False, "error": str(e)}, 500)
+
+    def _handle_memory_update(self) -> None:
+        try:
+            data = self._read_json() or {}
+            old_fact = data.get("old_fact", "").strip()
+            new_fact = data.get("new_fact", "").strip()
+            longterm = data.get("longterm", True)
+            if not old_fact or not new_fact:
+                self._send_json({"ok": False, "error": "Missing old_fact or new_fact"}, 400)
+                return
+            from core import db, memory
+            db.update_memory_fact(old_fact, new_fact, longterm=bool(longterm))
+            self._send_json({"ok": True, "longterm": memory.load_longterm(), "shortterm": memory.load()})
+        except Exception as e:
+            self._send_json({"ok": False, "error": str(e)}, 500)
+
+    def _handle_memory_delete(self) -> None:
+        try:
+            data = self._read_json() or {}
+            fact = data.get("fact", "").strip()
+            longterm = data.get("longterm", True)
+            if not fact:
+                self._send_json({"ok": False, "error": "Missing fact"}, 400)
+                return
+            from core import db, memory
+            db.remove_memory_fact(fact, longterm=bool(longterm))
+            self._send_json({"ok": True, "longterm": memory.load_longterm(), "shortterm": memory.load()})
+        except Exception as e:
+            self._send_json({"ok": False, "error": str(e)}, 500)
+
     def do_GET(self) -> None:
         global _web_client_connected
         _web_client_connected = True
@@ -826,7 +882,9 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         get_routes = {
             "/": self._handle_root,
             "/campaign": self._handle_root,
+            "/memory": self._handle_root,
             "/api/campaign": self._handle_campaign_get,
+            "/api/memory": self._handle_memory_get,
             "/api/app.js": self._handle_app_js,
             "/api/state": self._handle_api_state,
             "/api/wifi/status": self._handle_wifi_status,
@@ -1051,6 +1109,9 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             "/api/campaign/roll_char": self._handle_campaign_roll_char,
             "/api/campaign/npc/add": self._handle_campaign_npc_add,
             "/api/campaign/timeline/add": self._handle_campaign_timeline_add,
+            "/api/memory/add": self._handle_memory_add,
+            "/api/memory/update": self._handle_memory_update,
+            "/api/memory/delete": self._handle_memory_delete,
         }
 
         handler = post_routes.get(path_clean)
@@ -2204,8 +2265,8 @@ HTML_CLIENT = """<!DOCTYPE html>
                 <div class="aux-title">[ AUXILIARY COGITATOR CONTROLS ]</div>
                 <div class="aux-controls">
                     <div class="aux-item">
-                        <span class="aux-label">ROLEPLAYING CAMPAIGN:</span>
-                        <a href="/campaign" onclick="event.preventDefault(); navigateToView('/campaign');" style="background: var(--bright-green); color: #000; font-size: 11px; font-weight: bold; padding: 4px 10px; text-decoration: none; border-radius: 3px; display: inline-block;">🎲 OPEN CAMPAIGN PAGE</a>
+                        <span class="aux-label">LONG-TERM MEMORY:</span>
+                        <a href="/memory" onclick="event.preventDefault(); navigateToView('/memory');" style="background: var(--bright-green); color: #000; font-size: 11px; font-weight: bold; padding: 4px 10px; text-decoration: none; border-radius: 3px; display: inline-block;">🧠 MEMORY BANK</a>
                     </div>
                     <div class="aux-item">
                         <span class="aux-label">VISUAL EMULATION:</span>
@@ -3423,6 +3484,66 @@ HTML_CLIENT = """<!DOCTYPE html>
 
     </div>
 </div>
+
+
+    <!-- LONG-TERM MEMORY BANK VIEW -->
+    <div id="view-memory" style="display: none; min-height: 100vh; background: var(--bg-color, #020803); color: var(--text-color, #00ff66); font-family: var(--font-body, monospace); padding: 30px 15px; box-sizing: border-box;">
+        <div style="max-width: 1240px; margin: 0 auto; background: rgba(5, 18, 8, 0.95); border: 2px solid var(--border-color, #00441b); border-radius: 4px; padding: 30px; box-shadow: 0 0 30px rgba(0,255,102,0.1); position: relative;">
+            
+            <!-- Header Bar -->
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-color, #00441b); padding-bottom: 12px; margin-bottom: 24px;">
+                <div style="font-family: var(--font-title, monospace); font-size: 16px; font-weight: bold; color: var(--bright-green, #00ff66); letter-spacing: 2px;">
+                    [ COGITATOR LONG-TERM MEMORY BANK ]
+                </div>
+                <div>
+                    <button onclick="navigateToView('/')" style="background: #002b11; color: var(--bright-green, #00ff66); border: 1.5px solid var(--border-color, #00441b); padding: 6px 16px; font-family: var(--font-title, monospace); font-size: 12px; font-weight: bold; cursor: pointer; border-radius: 3px;">⬅ TERMINAL</button>
+                </div>
+            </div>
+
+            <!-- Add New Memory Bar -->
+            <div style="background: rgba(0, 43, 17, 0.5); border: 1px solid var(--border-color, #00441b); border-radius: 4px; padding: 16px; margin-bottom: 28px;">
+                <div style="font-size: 12px; font-weight: bold; color: var(--bright-green, #00ff66); margin-bottom: 8px; letter-spacing: 1px;">
+                    ➕ COMMIT NEW EXPLICIT MEMORY
+                </div>
+                <div style="display: flex; gap: 12px;">
+                    <input type="text" id="new-memory-input" placeholder="e.g. Master Sean prefers black coffee..." style="flex: 1; background: #001206; border: 1px solid var(--border-color, #00441b); color: var(--text-color, #00ff66); padding: 8px 12px; font-family: monospace; font-size: 13px; border-radius: 3px;" onkeydown="if(event.key==='Enter') addMemoryFact()">
+                    <button onclick="addMemoryFact()" style="background: var(--bright-green, #00ff66); color: #000; border: none; padding: 8px 18px; font-weight: bold; cursor: pointer; border-radius: 3px; font-size: 12px;">COMMIT FACT</button>
+                </div>
+            </div>
+
+            <!-- Two-Column Memory Layout -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                
+                <!-- Explicit Long-Term Memories -->
+                <div style="background: rgba(0, 20, 8, 0.8); border: 1px solid var(--border-color, #00441b); border-radius: 4px; padding: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color, #00441b); padding-bottom: 10px; margin-bottom: 14px;">
+                        <span style="font-family: var(--font-title, monospace); font-size: 13px; font-weight: bold; color: var(--bright-green, #00ff66); letter-spacing: 1px;">
+                            🧠 EXPLICIT LONG-TERM MEMORIES
+                        </span>
+                        <span id="longterm-count" style="font-size: 11px; opacity: 0.8;">[ 0 ]</span>
+                    </div>
+                    <div id="longterm-memory-list" style="display: flex; flex-direction: column; gap: 10px; max-height: 500px; overflow-y: auto;">
+                        <!-- Rendered dynamically -->
+                    </div>
+                </div>
+
+                <!-- Auto-Extracted World Facts -->
+                <div style="background: rgba(0, 20, 8, 0.8); border: 1px solid var(--border-color, #00441b); border-radius: 4px; padding: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color, #00441b); padding-bottom: 10px; margin-bottom: 14px;">
+                        <span style="font-family: var(--font-title, monospace); font-size: 13px; font-weight: bold; color: #00ccff; letter-spacing: 1px;">
+                            🔍 AUTO-EXTRACTED WORLD FACTS
+                        </span>
+                        <span id="shortterm-count" style="font-size: 11px; opacity: 0.8;">[ 0 ]</span>
+                    </div>
+                    <div id="shortterm-memory-list" style="display: flex; flex-direction: column; gap: 10px; max-height: 500px; overflow-y: auto;">
+                        <!-- Rendered dynamically -->
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
 
 
 <datalist id="trappings-list"></datalist>

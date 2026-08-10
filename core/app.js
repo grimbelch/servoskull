@@ -1357,15 +1357,24 @@ function handleRouting() {
     const p = window.location.pathname;
     const termView = document.getElementById('view-terminal');
     const campView = document.getElementById('view-campaign');
+    const memView = document.getElementById('view-memory');
 
     if (p === '/campaign' || window.location.hash === '#campaign') {
         if (termView) termView.style.display = 'none';
+        if (memView) memView.style.display = 'none';
         if (campView) campView.style.display = 'block';
         document.body.style.background = '#160e08';
         fetchCampaign();
+    } else if (p === '/memory' || window.location.hash === '#memory') {
+        if (termView) termView.style.display = 'none';
+        if (campView) campView.style.display = 'none';
+        if (memView) memView.style.display = 'block';
+        document.body.style.background = 'var(--bg-color, #020803)';
+        fetchMemories();
     } else {
         if (termView) termView.style.display = 'block';
         if (campView) campView.style.display = 'none';
+        if (memView) memView.style.display = 'none';
         document.body.style.background = 'var(--bg-color, #020803)';
     }
 }
@@ -3677,5 +3686,160 @@ async function executeWithSaveFeedback(btnOrId, asyncActionFn, originalText = '�
             btn.disabled = false;
         }
         return false;
+    }
+}
+
+
+// ── COGITATOR MEMORY MANAGER CONTROLLER ───────────────────────────────────────
+let _memoryData = { longterm: [], shortterm: [] };
+
+async function fetchMemories() {
+    try {
+        const res = await fetch('/api/memory');
+        const data = await res.json();
+        if (data.ok) {
+            _memoryData = data;
+            renderMemories();
+        } else {
+            console.error("fetchMemories error:", data.error);
+        }
+    } catch(e) {
+        console.error("fetchMemories exception:", e);
+    }
+}
+
+function renderMemories() {
+    const ltList = document.getElementById('longterm-memory-list');
+    const stList = document.getElementById('shortterm-memory-list');
+    const ltCount = document.getElementById('longterm-count');
+    const stCount = document.getElementById('shortterm-count');
+
+    if (ltCount) ltCount.textContent = `[ ${_memoryData.longterm.length} ]`;
+    if (stCount) stCount.textContent = `[ ${_memoryData.shortterm.length} ]`;
+
+    if (ltList) {
+        if (_memoryData.longterm.length === 0) {
+            ltList.innerHTML = `<div style="font-size: 12px; opacity: 0.6; padding: 8px;">No explicit long-term facts stored.</div>`;
+        } else {
+            ltList.innerHTML = _memoryData.longterm.map((fact, idx) => `
+                <div style="background: rgba(0, 43, 17, 0.4); border: 1px solid var(--border-color, #00441b); border-radius: 3px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                    <span id="lt-text-${idx}" style="font-size: 12px; flex: 1; word-break: break-word;">${escapeHtml(fact)}</span>
+                    <div id="lt-actions-${idx}" style="display: flex; gap: 6px;">
+                        <button onclick="editMemoryItem(${idx}, true)" style="background: #003314; color: var(--bright-green, #00ff66); border: 1px solid var(--border-color, #00441b); padding: 3px 8px; font-size: 11px; cursor: pointer; border-radius: 3px;">✏️ EDIT</button>
+                        <button onclick="deleteMemoryFact('${escapeJsString(fact)}', true)" style="background: #330000; color: #ff6666; border: 1px solid #660000; padding: 3px 8px; font-size: 11px; cursor: pointer; border-radius: 3px;">🗑️ DELETE</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+    }
+
+    if (stList) {
+        if (_memoryData.shortterm.length === 0) {
+            stList.innerHTML = `<div style="font-size: 12px; opacity: 0.6; padding: 8px;">No auto-extracted world facts stored.</div>`;
+        } else {
+            stList.innerHTML = _memoryData.shortterm.map((fact, idx) => `
+                <div style="background: rgba(0, 30, 45, 0.4); border: 1px solid #005577; border-radius: 3px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                    <span id="st-text-${idx}" style="font-size: 12px; flex: 1; word-break: break-word; color: #b3ecff;">${escapeHtml(fact)}</span>
+                    <div id="st-actions-${idx}" style="display: flex; gap: 6px;">
+                        <button onclick="editMemoryItem(${idx}, false)" style="background: #002233; color: #00ccff; border: 1px solid #005577; padding: 3px 8px; font-size: 11px; cursor: pointer; border-radius: 3px;">✏️ EDIT</button>
+                        <button onclick="deleteMemoryFact('${escapeJsString(fact)}', false)" style="background: #330000; color: #ff6666; border: 1px solid #660000; padding: 3px 8px; font-size: 11px; cursor: pointer; border-radius: 3px;">🗑️ DELETE</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+    }
+}
+
+function escapeHtml(str) {
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function escapeJsString(str) {
+    return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+async function addMemoryFact() {
+    const input = document.getElementById('new-memory-input');
+    if (!input) return;
+    const fact = input.value.trim();
+    if (!fact) return;
+    try {
+        const res = await fetch('/api/memory/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fact, longterm: true })
+        });
+        const data = await res.json();
+        if (data.ok) {
+            input.value = '';
+            _memoryData = data;
+            renderMemories();
+        } else {
+            alert('Failed to add memory: ' + data.error);
+        }
+    } catch(e) {
+        console.error("addMemoryFact exception:", e);
+    }
+}
+
+function editMemoryItem(idx, isLongterm) {
+    const prefix = isLongterm ? 'lt' : 'st';
+    const textEl = document.getElementById(`${prefix}-text-${idx}`);
+    const actionsEl = document.getElementById(`${prefix}-actions-${idx}`);
+    if (!textEl || !actionsEl) return;
+
+    const currentFact = isLongterm ? _memoryData.longterm[idx] : _memoryData.shortterm[idx];
+    textEl.innerHTML = `<input type="text" id="${prefix}-edit-input-${idx}" value="${escapeHtml(currentFact)}" style="width: 100%; background: #001206; border: 1px solid var(--border-color, #00441b); color: #fff; padding: 4px 8px; font-family: monospace; font-size: 12px; border-radius: 3px;" onkeydown="if(event.key==='Enter') saveMemoryItemEdit(${idx}, ${isLongterm})">`;
+    actionsEl.innerHTML = `
+        <button onclick="saveMemoryItemEdit(${idx}, ${isLongterm})" style="background: var(--bright-green, #00ff66); color: #000; border: none; padding: 3px 8px; font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 3px;">💾 SAVE</button>
+        <button onclick="renderMemories()" style="background: #333; color: #ccc; border: none; padding: 3px 8px; font-size: 11px; cursor: pointer; border-radius: 3px;">CANCEL</button>
+    `;
+}
+
+async function saveMemoryItemEdit(idx, isLongterm) {
+    const prefix = isLongterm ? 'lt' : 'st';
+    const inputEl = document.getElementById(`${prefix}-edit-input-${idx}`);
+    if (!inputEl) return;
+    const newFact = inputEl.value.trim();
+    const oldFact = isLongterm ? _memoryData.longterm[idx] : _memoryData.shortterm[idx];
+    if (!newFact || newFact === oldFact) {
+        renderMemories();
+        return;
+    }
+    try {
+        const res = await fetch('/api/memory/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ old_fact: oldFact, new_fact: newFact, longterm: isLongterm })
+        });
+        const data = await res.json();
+        if (data.ok) {
+            _memoryData = data;
+            renderMemories();
+        } else {
+            alert('Failed to update memory: ' + data.error);
+        }
+    } catch(e) {
+        console.error("saveMemoryItemEdit exception:", e);
+    }
+}
+
+async function deleteMemoryFact(fact, isLongterm) {
+    if (!confirm(`Are you sure you want to erase this fact?\n\n"${fact}"`)) return;
+    try {
+        const res = await fetch('/api/memory/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fact, longterm: isLongterm })
+        });
+        const data = await res.json();
+        if (data.ok) {
+            _memoryData = data;
+            renderMemories();
+        } else {
+            alert('Failed to delete memory: ' + data.error);
+        }
+    } catch(e) {
+        console.error("deleteMemoryFact exception:", e);
     }
 }
