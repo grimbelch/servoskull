@@ -1,19 +1,14 @@
 """
 Omega-7 personality state. Drifts over time and influences tone, idle utterances,
-and system prompt context. Persists across restarts via mood.json.
+and system prompt context. Persists across restarts via SQLite.
 """
 
 from __future__ import annotations
-import json
-import pathlib
 import random
-import threading
 import time
 
 from core import config
-
-_FILE = config.data_path("mood.json")
-_lock = threading.Lock()
+from core import db
 
 # ── Mood definitions ───────────────────────────────────────────────────────────
 
@@ -99,42 +94,22 @@ MOODS: dict[str, dict] = {
 _MOOD_NAMES = list(MOODS.keys())
 _DEFAULT = "DUTIFUL"
 
-_state: dict = {"mood": _DEFAULT, "set_at": 0.0}
+def _get_state() -> dict:
+    return db.kv_get("mood_state", {"mood": _DEFAULT, "set_at": 0.0})
 
-
-# ── Persistence ────────────────────────────────────────────────────────────────
-
-def _load() -> None:
-    global _state
-    try:
-        if _FILE.exists():
-            with _FILE.open() as f:
-                _state = json.load(f)
-            print(f"[mood] Restored: {_state['mood']}")
-    except Exception:
-        pass
-
-
-def _save() -> None:
-    try:
-        with _FILE.open("w") as f:
-            json.dump(_state, f)
-    except Exception as e:
-        print(f"[mood] Save error: {e}")
-
-
-_load()
-
+def _save_state(state: dict) -> None:
+    db.kv_set("mood_state", state)
 
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 def get() -> str:
-    with _lock:
-        m = _state.get("mood", _DEFAULT)
-        if m not in MOODS:
-            m = _DEFAULT
-            _state["mood"] = m
-        return m
+    state = _get_state()
+    m = state.get("mood", _DEFAULT)
+    if m not in MOODS:
+        m = _DEFAULT
+        state["mood"] = m
+        _save_state(state)
+    return m
 
 
 def label() -> str:
@@ -146,11 +121,13 @@ def set_mood(mood: str) -> str:
     mood = mood.upper()
     if mood not in MOODS:
         mood = _DEFAULT
-    with _lock:
-        prev = _state["mood"]
-        _state["mood"] = mood
-        _state["set_at"] = time.monotonic()
-        _save()
+        
+    state = _get_state()
+    prev = state.get("mood", _DEFAULT)
+    state["mood"] = mood
+    state["set_at"] = time.monotonic()
+    _save_state(state)
+    
     if mood != prev:
         print(f"[mood] {prev} → {mood}")
     return mood
@@ -163,9 +140,9 @@ def drift() -> str | None:
     mood, capping at 50% after ~25 minutes — so moods shift every 20–60 minutes
     on average under normal idle cycling.
     """
-    with _lock:
-        current = _state["mood"]
-        elapsed_minutes = (time.monotonic() - _state.get("set_at", 0.0)) / 60.0
+    state = _get_state()
+    current = state.get("mood", _DEFAULT)
+    elapsed_minutes = (time.monotonic() - state.get("set_at", 0.0)) / 60.0
 
     prob = min(0.50, 0.25 + elapsed_minutes * 0.01)
     if random.random() > prob:

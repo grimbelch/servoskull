@@ -54,21 +54,22 @@ def _continuous_poll_loop() -> None:
         try:
             cm = _raw_read_cm()
             with _poll_lock:
-                _last_poll_time = time.time()
+                now_time = time.time()
                 if cm is not None and cm > 0:
                     _last_cm = cm
+                    _last_poll_time = now_time
                     _readings_buffer.append(cm)
-                elif _last_poll_time - _last_poll_time > 2.0:
+                elif now_time - _last_poll_time > 2.0:
                     _last_cm = None
+                    _readings_buffer.clear()
             try:
-                p_file = config.data_path("telemetry_proximity.json")
-                p_file.parent.mkdir(parents=True, exist_ok=True)
-                p_file.write_text(json.dumps({
+                from core import db
+                db.kv_set("telemetry_proximity", {
                     "enabled": config.PROXIMITY_ENABLED,
                     "available": _available,
                     "distance_cm": round(_last_cm, 1) if _last_cm is not None else None,
                     "timestamp": time.time()
-                }))
+                })
             except Exception:
                 pass
         except Exception as e:

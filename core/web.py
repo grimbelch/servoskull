@@ -59,9 +59,8 @@ def log_vox(speaker: str, text: str, timestamp: str | None = None) -> None:
             return
         _vox_buffer.append(entry)
     try:
-        v_file = config.data_path("telemetry_vox.json")
-        v_file.parent.mkdir(parents=True, exist_ok=True)
-        v_file.write_text(json.dumps(list(_vox_buffer)))
+        from core import db
+        db.kv_set("telemetry_vox", list(_vox_buffer))
     except Exception:
         pass
 
@@ -113,11 +112,10 @@ def get_vox_logs() -> list[dict]:
             load_vox_history_from_brain()
         if not _vox_buffer:
             try:
-                v_file = config.data_path("telemetry_vox.json")
-                if v_file.exists():
-                    items = json.loads(v_file.read_text())
-                    if isinstance(items, list):
-                        return items
+                from core import db
+                items = db.kv_get("telemetry_vox", [])
+                if isinstance(items, list) and items:
+                    return items
             except Exception:
                 pass
         return list(_vox_buffer)
@@ -175,11 +173,10 @@ def get_logs() -> list[str]:
         res = list(_log_buffer)
         if not res:
             try:
-                l_file = config.data_path("telemetry_logs.json")
-                if l_file.exists():
-                    items = json.loads(l_file.read_text())
-                    if isinstance(items, list):
-                        return items
+                from core import db
+                items = db.kv_get("telemetry_logs", [])
+                if isinstance(items, list) and items:
+                    return items
             except Exception:
                 pass
         return res
@@ -494,6 +491,26 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         if not active_game:
             active_game = "None"
 
+        def get_proximity():
+            try:
+                from core import db
+                data = db.kv_get("telemetry_proximity")
+                if isinstance(data, dict):
+                    return {
+                        "enabled": config.PROXIMITY_ENABLED,
+                        "available": data.get("available", True),
+                        "distance_cm": data.get("distance_cm"),
+                        "summary": f"{data.get('distance_cm')} cm" if data.get("distance_cm") is not None else "Out of Range"
+                    }
+            except Exception:
+                pass
+            return {
+                "enabled": config.PROXIMITY_ENABLED,
+                "available": proximity.available(),
+                "distance_cm": round(proximity.get_latest_distance_cm(), 1) if proximity.get_latest_distance_cm() is not None else None,
+                "summary": proximity.get_distance_summary_short(),
+            }
+
         state_data = {
             "skull_name": config.SKULL_NAME,
             "display": disp_state if isinstance(disp_state, dict) else {},
@@ -513,20 +530,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             "vox_logs": get_vox_logs(),
             "camera_active": (lambda: getattr(sys.modules.get("core.camera"), "is_camera_active", lambda: False)())() if "core.camera" in sys.modules else (config.data_path("latest_frame.jpg").exists() and (time.time() - config.data_path("latest_frame.jpg").stat().st_mtime) < 60.0),
             "audio_id": get_latest_web_audio()[1],
-            "proximity": (lambda: (
-                (lambda d: {
-                    "enabled": config.PROXIMITY_ENABLED,
-                    "available": d.get("available", True),
-                    "distance_cm": d.get("distance_cm"),
-                    "summary": f"{d.get('distance_cm')} cm" if d.get("distance_cm") is not None else "Out of Range"
-                })(json.loads(config.data_path("telemetry_proximity.json").read_text()))
-                if config.data_path("telemetry_proximity.json").exists() else {
-                    "enabled": config.PROXIMITY_ENABLED,
-                    "available": proximity.available(),
-                    "distance_cm": round(proximity.get_latest_distance_cm(), 1) if proximity.get_latest_distance_cm() is not None else None,
-                    "summary": proximity.get_distance_summary_short(),
-                }
-            ))(),
+            "proximity": get_proximity(),
             "wifi": (lambda: getattr(sys.modules.get("core.wifi_provisioner"), "get_status", lambda: {})())() if "core.wifi_provisioner" in sys.modules else {},
             "is_configured": config.is_configured(),
         }
