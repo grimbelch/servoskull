@@ -91,6 +91,10 @@ _custom_image_expiry = 0.0
 # Autonomous game display — set while a games.bardstale agent is running
 _showing_game = False
 
+_showing_update_progress = False
+_update_progress_percent = 0.0
+_update_stage_text = ""
+
 _last_activity_time = 0.0
 _active_idle_anim = None
 _custom_idle_expiry = 0.0
@@ -928,6 +932,47 @@ def _render_omnissiah_frame(bezel, mask, now: float) -> Image.Image:
 
 
 
+def _render_update_progress_frame(bezel, mask, now: float) -> 'Image.Image':
+    try:
+        from PIL import Image, ImageDraw
+    except ImportError:
+        return bezel.copy()
+        
+    frame = bezel.copy()
+    draw = ImageDraw.Draw(frame)
+    
+    # Outer arc
+    cx, cy = 120, 120
+    r = 100
+    bbox = [cx - r, cy - r, cx + r, cy + r]
+    
+    start_angle = -90
+    end_angle = start_angle + int(360 * (_update_progress_percent / 100.0))
+    
+    # Draw background track
+    draw.arc(bbox, 0, 360, fill=(30, 30, 30), width=10)
+    
+    # Draw progress arc
+    if end_angle > start_angle:
+        draw.arc(bbox, start_angle, end_angle, fill=_mood_rgb, width=10)
+        
+    # Draw percentage text
+    f_large = _get_font(40, bold=True)
+    pct_text = f"{int(_update_progress_percent)}%"
+    # textbox center
+    left, top, right, bottom = draw.textbbox((0, 0), pct_text, font=f_large)
+    tw, th = right - left, bottom - top
+    draw.text((cx - tw//2, cy - th//2 - 10), pct_text, font=f_large, fill=_mood_rgb)
+    
+    # Draw stage text
+    f_small = _get_font(18, bold=True)
+    st_text = _update_stage_text.upper()
+    left, top, right, bottom = draw.textbbox((0, 0), st_text, font=f_small)
+    stw = right - left
+    draw.text((cx - stw//2, cy + 30), st_text, font=f_small, fill=(200, 200, 200))
+    
+    return Image.composite(frame, Image.new('RGB', frame.size, (0, 0, 0)), mask)
+
 def _loop():
     global _rolling_die, _showing_omnissiah_glyph, _showing_custom_image, _custom_image, _custom_image_expiry
     global _showing_alignment, _alignment_until
@@ -963,6 +1008,7 @@ def _loop():
         # Update last activity time if active
         is_active = (
             _showing_omnissiah_glyph
+            or _showing_update_progress
             or _rolling_die
             or _scanning_auspex
             or _scanning_noosphere
@@ -1009,6 +1055,14 @@ def _loop():
                     print(f"[display] screensaver render error ({_active_idle_anim}): {e}")
                 time.sleep(1 / config.DISPLAY_FPS)
                 continue
+        if _showing_update_progress:
+            try:
+                _blit(_render_update_progress_frame(bezel, mask, now))
+            except Exception as e:
+                print(f"[display] update progress render error: {e}")
+            time.sleep(1 / config.DISPLAY_FPS)
+            continue
+
         if _showing_omnissiah_glyph:
             glyph_elapsed = now - _omnissiah_start_time
             if glyph_elapsed >= _omnissiah_duration:
@@ -1193,6 +1247,21 @@ def start_die_roll(result: int | str) -> None:
     _die_result = str(result)
     _die_start_time = time.monotonic()
     _rolling_die = True
+
+
+def start_update_progress() -> None:
+    global _showing_update_progress, _update_progress_percent, _update_stage_text
+    if not _available:
+        return
+    _update_progress_percent = 0.0
+    _update_stage_text = "INITIATING..."
+    _showing_update_progress = True
+
+def set_update_progress(percent: float, text: str) -> None:
+    global _update_progress_percent, _update_stage_text, _showing_update_progress
+    _update_progress_percent = max(0.0, min(100.0, percent))
+    _update_stage_text = text
+    _showing_update_progress = True
 
 
 def start_omnissiah_glyph(duration: float = 4.0) -> None:

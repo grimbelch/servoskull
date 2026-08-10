@@ -165,17 +165,23 @@ def self_update() -> str:
     import sys
     try:
         print("[skull] Initiating system self-update...")
+        display.start_update_progress()
+        display.set_update_progress(0.0, "INITIATING...")
+        time.sleep(1)  # Brief pause to let display show the initiation
+
+        display.set_update_progress(25.0, "GIT PULL")
         pull_res = subprocess.run(["git", "pull"], capture_output=True, text=True, check=True)
         print(f"[update] Git Pull Output: {pull_res.stdout}")
         
+        display.set_update_progress(50.0, "INSTALLING...")
         venv_pip = pathlib.Path(sys.prefix) / "bin" / "pip"
         if venv_pip.exists():
             req_file = pathlib.Path(__file__).resolve().parent.parent / "requirements.txt"
             if req_file.exists():
                 subprocess.run([str(venv_pip), "install", "-r", str(req_file)], check=True)
         
-        display.start_omnissiah_glyph(6.0)
-        run_background_task(lambda: (time.sleep(7), subprocess.run(["sudo", "systemctl", "restart", "omega7"], check=True)))
+        display.set_update_progress(100.0, "RESTARTING...")
+        run_background_task(lambda: (time.sleep(3), subprocess.run(["sudo", "systemctl", "restart", "omega7"], check=True)))
         return "System update downloaded successfully. Restarting the machine spirit now."
     except subprocess.CalledProcessError as ce:
         print(f"[skull] Update failed: {ce.stderr or ce}")
