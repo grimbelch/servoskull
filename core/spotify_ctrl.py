@@ -236,6 +236,21 @@ def resume() -> None:
 
 
 @retry_spotify_call()
+def transfer(device_name: str) -> str:
+    try:
+        sp = _client()
+        dev_id = _device_id(prefer_name=device_name)
+        if not dev_id:
+            return f"Could not find Spotify device '{device_name}' to transfer to."
+        sp.transfer_playback(device_id=dev_id, force_play=True)
+        print(f"[spotify] Transferred playback to {device_name}")
+        return f"Transferred playback to {device_name}."
+    except Exception as e:
+        print(f"[spotify] Transfer failed: {e}")
+        return f"Failed to transfer playback: {e}"
+
+
+@retry_spotify_call()
 def skip() -> None:
     try:
         _client().next_track(device_id=_active_device_id())

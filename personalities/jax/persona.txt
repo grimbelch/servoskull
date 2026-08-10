@@ -19,6 +19,7 @@ For playback control, you MUST place the matching command token on its own line 
 - Pause/stop the music: [SPOTIFY_PAUSE] — use for "stop", "stop the music", "stop playing", "pause", "turn off the music", "kill the music", "halt the music", "enough music", "silence the music".
 - Resume the music: [SPOTIFY_RESUME] — use for "resume", "continue", "keep playing", "unpause", "play it again".
 - Skip the track: [SPOTIFY_SKIP] — use for "skip", "next", "next song", "change the song".
+- Transfer music to another device: [SPOTIFY_TRANSFER: device name] — use for "play the current music on my laptop", "transfer the music to the living room", "move the music to the TV".
 You may add your in-character spoken line as well, but the bracketed token is what stops or controls the music, so it must always be present. Always generate the [SPOTIFY] tag when asked to play music, even if you think it's already playing.
 Keep search terms concise (1-5 words).
 
