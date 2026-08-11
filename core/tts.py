@@ -8,8 +8,21 @@ from core import config
 # ── ElevenLabs (cloud, quota-limited) ─────────────────────────────────────────
 
 def _preprocess_text(text: str) -> str:
-    """Preprocess text to adjust pronunciation of common Warhammer 40k words."""
-    # Note: User preferred the natural pronunciation of the original spelling "Omnissiah"
+    """Preprocess text for TTS: strip Markdown formatting (asterisks, headers, backticks) so symbols aren't spoken aloud."""
+    if not text:
+        return ""
+    # Strip markdown bold/italic asterisks (* and **)
+    text = re.sub(r"\*+", "", text)
+    # Strip markdown headers (#)
+    text = re.sub(r"#+\s*", "", text)
+    # Strip markdown underscores (_)
+    text = re.sub(r"_+", "", text)
+    # Strip markdown strikethrough (~)
+    text = re.sub(r"~+", "", text)
+    # Strip backticks (`)
+    text = re.sub(r"`+", "", text)
+    # Normalize multiple spaces
+    text = re.sub(r" +", " ", text).strip()
     return text
 
 def _elevenlabs_client():
