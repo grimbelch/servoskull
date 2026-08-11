@@ -429,7 +429,11 @@ def _render_dog_bowl_frame(bezel, mask, now):
 
 def _render_heartbeat_frame(bezel, mask, now):
     global _heartbeat_x, _heartbeat_history
-    _heartbeat_x = (_heartbeat_x + 4) % 240
+    new_x = (_heartbeat_x + 4) % 240
+    if new_x < _heartbeat_x:
+        _heartbeat_history.clear()
+    _heartbeat_x = new_x
+
     y = 120
     if 100 < _heartbeat_x < 110:
         y -= 40
@@ -439,8 +443,6 @@ def _render_heartbeat_frame(bezel, mask, now):
         y -= 20
         
     _heartbeat_history.append((_heartbeat_x, y))
-    if len(_heartbeat_history) > 60:
-        _heartbeat_history.pop(0)
         
     img = Image.new("RGB", (240, 240), (0, 0, 0))
     d = ImageDraw.Draw(img)
