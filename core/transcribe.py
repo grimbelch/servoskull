@@ -61,7 +61,7 @@ def transcribe(wav_bytes: bytes) -> str:
     result = _get_client().audio.transcriptions.create(
         model="whisper-1",
         file=audio_file,
-        prompt=f"{SKULL_NAME}, Golden Retriever, dog, fetch, woof" if SKULL_NAME.lower() == "jax" else f"{SKULL_NAME}, Omnissiah, Adeptus Mechanicus, Necromunda, Warhammer",
+        prompt=f"Jax, {SKULL_NAME}, Golden Retriever, dog, fetch, woof" if SKULL_NAME.lower() == "jax" else f"{SKULL_NAME}, Omnissiah, Adeptus Mechanicus, Necromunda, Warhammer",
     )
     text = result.text.strip()
     print(f"[skull] Whisper raw: {text!r}")
@@ -70,4 +70,9 @@ def transcribe(wav_bytes: bytes) -> str:
         print(f"[skull] Whisper hallucination suppressed: {text!r}")
         return ""
 
+    # Normalize common Whisper mishearings of assistant names (e.g. "Jez" -> "Jax")
+    if SKULL_NAME.lower() == "jax":
+        text = re.sub(r"\b(jez|jacks|jags|chax)\b", "Jax", text, flags=re.IGNORECASE)
+
     return text
+
