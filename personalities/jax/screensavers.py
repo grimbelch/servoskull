@@ -7,25 +7,20 @@ from PIL import Image, ImageDraw, ImageFont
 
 SCREENSAVER_ANIMS = [
     "bouncing_ball",
-    "wagging_tail",
     "dog_bone",
     "paw_prints",
     "sniffing_nose",
-    "catch_frisbee",
-    "sleeping_dog",
     "digging",
     "chasing_squirrel",
     "fire_hydrant",
     "dog_tag",
-    "treat_rain",
     "bark_ripples",
     "collar_rings",
     "dog_house",
     "rolling_grass",
     "dog_bowl",
     "heartbeat",
-    "panting_tongue",
-    "fetch"
+    "panting_tongue"
 ]
 
 def get_screensaver_names() -> list[str]:
