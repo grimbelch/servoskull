@@ -198,6 +198,8 @@ _raw_voice_out = int(_cfg("VOICE_OUTPUT_DEVICE", str(_raw_out)))
 VOICE_OUTPUT_DEVICE = _raw_voice_out if _raw_voice_out >= 0 else None
 # Set to true to print per-chunk RMS values during recording
 AUDIO_DEBUG = os.getenv("AUDIO_DEBUG", "false").lower() == "true"
+# Auto-listen for follow-up recording only when the spoken response ends with a question
+AUTO_LISTEN_ON_QUESTION = _cfg("AUTO_LISTEN_ON_QUESTION", "true").lower() == "true"
 
 # ── Weather (get_weather tool; Open-Meteo, no key required) ──────────────────────
 WEATHER_LAT = float(_cfg("WEATHER_LAT", "0.0"))

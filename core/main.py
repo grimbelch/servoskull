@@ -1645,10 +1645,13 @@ def main():
         # ── 6. Play audio with barge-in (same path as idle observations) ─────────
         try:
             interrupted = _speak_interruptible(speech_wav, on_wake)
-            if interrupted or "?" in reply:
+            clean_reply = re.sub(r"\[.*?\]", "", reply).strip()
+            ends_with_question = clean_reply.endswith("?")
+            has_question = config.AUTO_LISTEN_ON_QUESTION and ends_with_question
+            if interrupted or has_question:
                 # Wake word already heard or question asked; go straight to recording next iteration.
                 skip_wake_word = True
-                if not interrupted and "?" in reply:
+                if not interrupted and has_question:
                     print("[skull] Question detected in reply — auto-listening enabled.")
                     skip_ack = True
         finally:
@@ -1659,7 +1662,7 @@ def main():
         # Only fires when the first turn of the day completes cleanly at idle
         # (not mid-question, not mid-barge-in, and not during active auto-listen).
         if brain.is_daily_briefing_due() and not _briefing_offered:
-            if not skip_wake_word and not interrupted and "?" not in reply:
+            if not skip_wake_word and not interrupted and not has_question:
                 _briefing_offered = True
                 _briefing_awaiting_response = True
                 print("[skull] First interaction of the day complete. Offering morning briefing.")
