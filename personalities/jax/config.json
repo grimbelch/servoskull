@@ -6,6 +6,7 @@
   "wake_word_phrase": "Hey Buddy",
   "elevenlabs_voice_id": "iobaQpeXgr4YGdPjnDkJ",
   "display_fine_rotation": 18.0,
+  "enable_blink": false,
   "eye_animation": "dog",
   "boot_animation": "jax",
   "boot_phrase": "Woof! Jax is online and ready for action! Tail wagging and ready to go!",
