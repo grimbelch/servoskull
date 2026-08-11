@@ -68,12 +68,7 @@ def render_frame(bezel: Image.Image, mask: Image.Image, amp: float, angle: float
     hl_cy = cy - 3.5 * base_scale
     d.ellipse([hl_cx - hl_scale, hl_cy - hl_scale, hl_cx + hl_scale, hl_cy + hl_scale], fill=(255, 255, 255))
 
-    if blink > 0.0:
-        open_h = max(1, int(round(H * (1.0 - blink))))
-        squashed = layer.resize((W, open_h), resample=Image.BILINEAR)
-        layer = Image.new("RGB", (W, H), (0, 0, 0))
-        layer.paste(squashed, (0, (H - open_h) // 2))
-
+    # Jax's beating heart display does not blink
     img.paste(layer, (0, 0), mask)
     return img
 

@@ -1221,11 +1221,12 @@ def _loop():
         look_x += (target_look_x - look_x) * 0.65
         look_y += (target_look_y - look_y) * 0.65
 
-        # Blink every few seconds: a quick close-and-open easing 0->1->0.
-        if blink_t0 is None and now >= next_blink:
+        # Blink every few seconds: a quick close-and-open easing 0->1->0 (if enabled for personality).
+        enable_blink = config.PERSONALITY.get("enable_blink", True)
+        if enable_blink and blink_t0 is None and now >= next_blink:
             blink_t0 = now
         blink = 0.0
-        if blink_t0 is not None:
+        if enable_blink and blink_t0 is not None:
             p = (now - blink_t0) / _BLINK_DUR
             if p >= 1.0:
                 blink_t0 = None
