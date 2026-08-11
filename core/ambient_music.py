@@ -113,6 +113,10 @@ def play_random_snippet(specific_name: str | None = None, duration_sec: float = 
     global _is_playing_snippet
     from core import quiet, audio, spotify_ctrl
 
+    if not force and "play_ambient_hymn" in config.PERSONALITY.get("forbidden_tools", []):
+        print("[ambient_music] Sacred hymns are disabled for this personality.")
+        return None
+
     if not force and quiet.is_silent():
         print("[ambient_music] Silent mode / Quiet hours active — skipping ambient music snippet.")
         return None
@@ -174,6 +178,10 @@ def play_random_snippet(specific_name: str | None = None, duration_sec: float = 
 
 def _ambient_music_loop() -> None:
     """Background daemon loop playing an ambient music snippet every 15 to 30 minutes while idle."""
+    if "play_ambient_hymn" in config.PERSONALITY.get("forbidden_tools", []):
+        print("[ambient_music] Sacred hymns loop disabled for this personality.")
+        return
+
     _IDLE_MIN, _IDLE_MAX = 15 * 60, 30 * 60  # seconds (15 to 30 mins)
     print(f"[ambient_music] Background ambient sacred music loop active (interval: {_IDLE_MIN/60:.0f}–{_IDLE_MAX/60:.0f}m)")
 
@@ -195,9 +203,11 @@ def _ambient_music_loop() -> None:
         play_random_snippet(duration_sec=30.0)
 
 
-
 def start() -> None:
     """Start the ambient music background thread."""
+    if "play_ambient_hymn" in config.PERSONALITY.get("forbidden_tools", []):
+        print("[ambient_music] Ambient music disabled for this personality.")
+        return
     global _loop_thread
     if _loop_thread is None or not _loop_thread.is_alive():
         _stop_event.clear()
