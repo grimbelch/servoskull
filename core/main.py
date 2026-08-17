@@ -1475,8 +1475,8 @@ def main():
                     continue
 
         # ── 3a-5. Detect Voice Cache Refresh and Self-Update ──────────
-        _RE_REFRESH = re.compile(r"\b(refresh|reload|clear|update|rebuild|regenerate)\s+(your\s+)?(voice|sound|phrase|response|canned|precanned)?\s*(cache|library|responses|phrases|sounds)?\b", re.I)
-        _RE_UPDATE = re.compile(r"\b(self\s+update|system\s+update|update\s+(your\s+software|yourself|your\s+system)|run\s+self\s+update|pull\s+updates)\b")
+        _RE_REFRESH = re.compile(r"\b(refresh|reload|clear|rebuild|regenerate)\s+(your\s+)?(voice|sound|phrase|response|canned|precanned|audio|speech)?\s*(cache|library|responses|phrases|sounds)?\b|\b(update)\s+(your\s+)?(voice|sound|phrase|response|canned|precanned|audio|speech)\s*(cache|library|responses|phrases|sounds)?\b", re.I)
+        _RE_UPDATE = re.compile(r"\b(self\s+update|system\s+update|update\s+(your\s+software|yourself|your\s+system)|run\s+self\s+update|pull\s+updates)\b", re.I)
         _RE_REBOOT = re.compile(r"\b(reboot(\s+system|\s+yourself|\s+the\s+system)?|restart\s+(system|yourself|the\s+system)?)\b", re.I)
         _RE_SHUTDOWN = re.compile(r"\b(shut\s*down(\s+system|\s+yourself)?|power\s+(down|off)|turn\s+off)\b", re.I)
         
@@ -1519,18 +1519,7 @@ def main():
                 continue
         
         maintenance_handled = False
-        if _RE_REFRESH.search(_t):
-            print("[skull] Local voice cache refresh intent detected.")
-            refresh_voice_cache()
-            try:
-                msg = config.PERSONALITY.get("refresh_voice_message", "Purging voice cache.")
-                speech_wav = tts.synthesize(msg)
-                eyes.on()
-                _speak_interruptible(speech_wav, on_wake)
-            except Exception:
-                pass
-            maintenance_handled = True
-        elif _RE_UPDATE.search(_t):
+        if _RE_UPDATE.search(_t):
             print("[skull] Local self-update intent detected.")
             try:
                 msg = config.PERSONALITY.get("update_message", "Initiating system update.")
@@ -1540,6 +1529,17 @@ def main():
             except Exception:
                 pass
             self_update()
+            maintenance_handled = True
+        elif _RE_REFRESH.search(_t):
+            print("[skull] Local voice cache refresh intent detected.")
+            refresh_voice_cache()
+            try:
+                msg = config.PERSONALITY.get("refresh_voice_message", "Purging voice cache.")
+                speech_wav = tts.synthesize(msg)
+                eyes.on()
+                _speak_interruptible(speech_wav, on_wake)
+            except Exception:
+                pass
             maintenance_handled = True
         elif _RE_REBOOT.search(_t):
             print("[skull] Local reboot intent detected.")
