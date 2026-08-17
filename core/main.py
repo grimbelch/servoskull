@@ -807,6 +807,7 @@ def main():
         boot_wav = _load_or_record_boot_wav()
         eyes.on()
         display.on()
+        display.start_omnissiah_glyph(6.0)
         audio.play_wav_bytes(boot_wav, output_device=config.VOICE_OUTPUT_DEVICE)
     except Exception as e:
         print(f"[skull] Boot phrase error: {e}")

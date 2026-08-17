@@ -851,11 +851,16 @@ def _render_die_frame(bezel, mask, elapsed: float, result: str):
 
 
 def _render_omnissiah_frame(bezel, mask, now: float) -> Image.Image:
+    age = max(0.0, now - _omnissiah_start_time)
     if _display_module and hasattr(_display_module, 'render_overlay'):
-        return _display_module.render_overlay(bezel, mask, now, _omnissiah_start_time, _omnissiah_duration, _mood_rgb)
-    return bezel.copy()
+        try:
+            return _display_module.render_overlay(bezel, mask, now, _omnissiah_start_time, _omnissiah_duration, _mood_rgb)
+        except Exception:
+            pass
 
-    # ── Adeptus Mechanicus Skull-Cog (Scaled to Full-Screen 240x240) ──
+    overlay = bezel.copy()
+    d = ImageDraw.Draw(overlay)
+
     scale = min(1.0, age / 1.5)
     scale = scale * scale * (3.0 - 2.0 * scale)
     
