@@ -1605,6 +1605,10 @@ def _tool_rebuild_sounds(i):
         return "Voice library and phrase cache cleared! Regenerating all phrases with my Golden Retriever voice now!"
     return f"Spoken voice phrases rebuilt successfully: {res_msg}"
 
+def _tool_set_honorific(i):
+    honorific = str(i.get("honorific", "")).strip()
+    return config.set_honorific(honorific)
+
 def _tool_self_update(i):
     if _SELF_UPDATE_CB:
         return _SELF_UPDATE_CB()
@@ -1733,6 +1737,7 @@ _TOOL_REGISTRY = {
     "refresh_voice_cache": _tool_refresh_voice_cache,
     "rebuild_sounds": _tool_rebuild_sounds,
     "self_update": _tool_self_update,
+    "set_honorific": _tool_set_honorific,
     "reboot_system": _tool_reboot_system,
     "shutdown_system": _tool_shutdown_system,
     "switch_personality": _tool_switch_personality,

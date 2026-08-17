@@ -619,6 +619,20 @@ def build_tools() -> list[dict]:
         }
     },
     {
+        "name": "set_honorific",
+        "description": "Set or change the user's preferred honorific or title (e.g. 'Master', 'Mistress', 'Lord', 'Captain', 'Doctor', 'Magos'). Use when the user says 'change my honorific to...', 'set my title to...', 'call me...', 'address me as...', etc.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "honorific": {
+                    "type": "string",
+                    "description": "The new preferred honorific or title (e.g. 'Master', 'Mistress', 'Lord', 'Captain', 'Doctor', 'Magos')."
+                }
+            },
+            "required": ["honorific"]
+        }
+    },
+    {
         "name": "reboot_system",
         "description": "Reboot and restart the physical Host operating system (the Raspberry Pi hardware). Call when the user says 'reboot', 'restart', 'reboot system', etc.",
         "input_schema": {

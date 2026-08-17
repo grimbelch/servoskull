@@ -1516,8 +1516,22 @@ def main():
                     _speak_interruptible(speech_wav, on_wake)
                 except Exception:
                     pass
-                continue
-        
+        # ── 3a-9. Detect Honorific / Title commands ──────────────
+        if ("honorific" in _t_norm or "title" in _t_norm or "call me" in _t_norm or "address me" in _t_norm) and ("set" in _t_norm or "change" in _t_norm or "make" in _t_norm or "update" in _t_norm or "call" in _t_norm or "address" in _t_norm):
+            m = re.search(r"(?:set|change|update|make)\s+(?:my\s+)?(?:honorific|title)\s+(?:to\s+)?([a-z0-9\s_-]+)|(?:call\s+me|address\s+me\s+as)\s+([a-z0-9\s_-]+)(?:\s+from\s+now\s+on)?", _t, re.I)
+            if m:
+                new_h = (m.group(1) or m.group(2) or "").strip()
+                if new_h:
+                    res_msg = config.set_honorific(new_h)
+                    print(f"[skull] Local honorific intent: {res_msg}")
+                    try:
+                        speech_wav = tts.synthesize(res_msg)
+                        eyes.on()
+                        _speak_interruptible(speech_wav, on_wake)
+                    except Exception:
+                        pass
+                    continue
+
         maintenance_handled = False
         if _RE_UPDATE.search(_t):
             print("[skull] Local self-update intent detected.")
