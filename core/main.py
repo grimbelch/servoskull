@@ -152,9 +152,9 @@ def refresh_voice_cache() -> str:
         if legacy.exists():
             legacy.unlink()
         
-        run_background_task(_preload_phrases)
-        print("[skull] Voice cache refresh triggered.")
-        return "Voice cache cleared and background synthesis initiated successfully."
+        run_background_task(lambda: _preload_phrases(show_progress=True))
+        print("[skull] Voice cache refresh triggered with display progress indicator.")
+        return "Voice cache cleared and background phrase synthesis initiated. Displaying rebuild progress now."
     except Exception as e:
         print(f"[skull] Voice cache refresh error: {e}")
         return f"Failed to refresh voice cache: {e}"
@@ -383,7 +383,7 @@ def _flush_pending_bambu_notifications() -> None:
         _deliver_bambu_notification(event_type, text)
 
 
-def _preload_phrases() -> None:
+def _preload_phrases(show_progress: bool = False) -> None:
     global _wake_wavs, _cogitation_wavs, _search_wavs, _ack_wavs, _silence_wavs
     key = (getattr(config, "ELEVENLABS_API_KEY", "") or "").strip()
     if not key:
@@ -399,26 +399,46 @@ def _preload_phrases() -> None:
         (config.SILENCE_PHRASES, silence),
     ]
 
-    for phrases, target_list in lists_and_targets:
-        for phrase in phrases:
-            try:
-                target_list.append(_eleven_cached(phrase))
-            except Exception as e:
-                print(f"[skull] ElevenLabs phrase preloading halted ({e}) — using local Piper TTS.")
-                _wake_wavs = wake
-                _cogitation_wavs = cog
-                _search_wavs = search
-                _ack_wavs = ack
-                _silence_wavs = silence
-                return
+    total_phrases = sum(len(phrases) for phrases, _ in lists_and_targets)
+    done_count = 0
 
-    # Replace atomically so the main thread always sees a complete list
-    _wake_wavs = wake
-    _cogitation_wavs = cog
-    _search_wavs = search
-    _ack_wavs = ack
-    _silence_wavs = silence
-    print("[skull] Phrases preloaded (elevenlabs voice, cached)")
+    if show_progress:
+        display.start_update_progress()
+        display.set_update_progress(0.0, "REBUILDING 0%")
+
+    try:
+        for phrases, target_list in lists_and_targets:
+            for phrase in phrases:
+                try:
+                    target_list.append(_eleven_cached(phrase))
+                except Exception as e:
+                    print(f"[skull] ElevenLabs phrase preloading halted ({e}) — using local Piper TTS.")
+                    _wake_wavs = wake
+                    _cogitation_wavs = cog
+                    _search_wavs = search
+                    _ack_wavs = ack
+                    _silence_wavs = silence
+                    if show_progress:
+                        display.stop_update_progress()
+                    return
+                done_count += 1
+                if show_progress and total_phrases > 0:
+                    pct = (done_count / total_phrases) * 100.0
+                    display.set_update_progress(pct, f"REBUILDING {int(pct)}%")
+
+        # Replace atomically so the main thread always sees a complete list
+        _wake_wavs = wake
+        _cogitation_wavs = cog
+        _search_wavs = search
+        _ack_wavs = ack
+        _silence_wavs = silence
+        print(f"[skull] Phrases preloaded ({done_count}/{total_phrases} elevenlabs voice, cached)")
+        if show_progress:
+            display.set_update_progress(100.0, "REBUILT")
+            time.sleep(1.5)
+    finally:
+        if show_progress:
+            display.stop_update_progress()
 
 
 def _announce_search(tool_names) -> None:
@@ -1455,7 +1475,7 @@ def main():
                     continue
 
         # ── 3a-5. Detect Voice Cache Refresh and Self-Update ──────────
-        _RE_REFRESH = re.compile(r"\b(refresh|reload|clear|update)\s+(your\s+)?voice(\s+cache)?\b")
+        _RE_REFRESH = re.compile(r"\b(refresh|reload|clear|update|rebuild|regenerate)\s+(your\s+)?(voice|sound|phrase|response|canned|precanned)?\s*(cache|library|responses|phrases|sounds)?\b", re.I)
         _RE_UPDATE = re.compile(r"\b(self\s+update|system\s+update|update\s+(your\s+software|yourself|your\s+system)|run\s+self\s+update|pull\s+updates)\b")
         _RE_REBOOT = re.compile(r"\b(reboot(\s+system|\s+yourself|\s+the\s+system)?|restart\s+(system|yourself|the\s+system)?)\b", re.I)
         _RE_SHUTDOWN = re.compile(r"\b(shut\s*down(\s+system|\s+yourself)?|power\s+(down|off)|turn\s+off)\b", re.I)
