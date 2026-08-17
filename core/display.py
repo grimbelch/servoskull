@@ -858,7 +858,7 @@ def _render_omnissiah_frame(bezel, mask, now: float) -> Image.Image:
         except Exception:
             pass
 
-    overlay = bezel.copy()
+    overlay = Image.new("RGB", (W, H), (0, 0, 0))
     d = ImageDraw.Draw(overlay)
 
     scale = min(1.0, age / 1.5)
