@@ -80,7 +80,7 @@ def render_frame(bezel: Image.Image, mask: Image.Image, amp: float, angle: float
 
 def render_overlay(bezel: Image.Image, mask: Image.Image, now: float, start_time: float, duration: float, mood_rgb: tuple) -> Image.Image:
     age = max(0.0, now - start_time)
-    overlay = bezel.copy()
+    overlay = Image.new("RGB", (W, H), (0, 0, 0))
     d = ImageDraw.Draw(overlay)
 
     # ── Adeptus Mechanicus Skull-Cog (Scaled to Full-Screen 240x240) ──
