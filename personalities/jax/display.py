@@ -125,10 +125,6 @@ def render_overlay(bezel: Image.Image, mask: Image.Image, now: float, start_time
         hd.polygon(_heart_polygon(_CX, _CY - 20, hscale), fill=_scale(base_r, heart_alpha))
         hd.polygon(_heart_polygon(_CX, _CY - 20, hscale * 0.58), fill=_scale(base_p, min(1.0, heart_alpha * 1.4)))
         
-        d.bitmap((0, 0), hd_layer)
-        # Using PIL paste would be better: 
-        # Actually, since both are RGB and overlay is black where empty, we can't just overlay. 
-        # We need an ImageChops.add.
         from PIL import ImageChops
         overlay = ImageChops.add(overlay, hd_layer)
 

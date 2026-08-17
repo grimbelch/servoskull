@@ -160,35 +160,89 @@ def refresh_voice_cache() -> str:
         return f"Failed to refresh voice cache: {e}"
 
 
-def self_update() -> str:
+def _get_active_service() -> str:
+    import subprocess
+    for svc in ["omega7", "omega8"]:
+        try:
+            res = subprocess.run(["systemctl", "is-active", "--quiet", f"{svc}.service"], capture_output=True)
+            if res.returncode == 0:
+                return svc
+        except Exception:
+            pass
+    return "omega7"
+
+
+def _do_update_async():
     import subprocess
     import sys
+    import os
+    import tempfile
     try:
-        print("[skull] Initiating system self-update...")
+        print("[skull] Starting background update task...")
         display.start_update_progress()
         display.set_update_progress(0.0, "INITIATING...")
-        time.sleep(1)  # Brief pause to let display show the initiation
+        time.sleep(2)  # Give time for verbal confirmation audio to play
 
         display.set_update_progress(25.0, "GIT PULL")
-        pull_res = subprocess.run(["git", "pull"], capture_output=True, text=True, check=True)
-        print(f"[update] Git Pull Output: {pull_res.stdout}")
+        git_env = os.environ.copy()
+        git_env["GIT_TERMINAL_PROMPT"] = "0"
+        git_env["GIT_MERGE_AUTOEDIT"] = "no"
         
+        pull_res = subprocess.run(
+            ["git", "pull", "--no-edit", "--autostash"],
+            capture_output=True, text=True, check=True, timeout=120, env=git_env
+        )
+        print(f"[update] Git Pull Output: {pull_res.stdout}")
+
         display.set_update_progress(50.0, "INSTALLING...")
         venv_pip = pathlib.Path(sys.prefix) / "bin" / "pip"
         if venv_pip.exists():
             req_file = pathlib.Path(__file__).resolve().parent.parent / "requirements.txt"
             if req_file.exists():
-                subprocess.run([str(venv_pip), "install", "-r", str(req_file)], check=True)
-        
+                req_lines = req_file.read_text().splitlines()
+                filtered = [line for line in req_lines if not line.strip().startswith("openwakeword")]
+                
+                with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as tf:
+                    tf.write("\n".join(filtered) + "\n")
+                    temp_req_path = tf.name
+
+                try:
+                    res_pip = subprocess.run(
+                        [str(venv_pip), "install", "--prefer-binary", "-r", temp_req_path],
+                        capture_output=True, text=True, check=True, timeout=300
+                    )
+                    print(f"[update] Pip Install Output: {res_pip.stdout}")
+
+                    subprocess.run(
+                        [str(venv_pip), "install", "--no-deps", "openwakeword"],
+                        capture_output=True, text=True, check=False, timeout=60
+                    )
+                finally:
+                    try:
+                        os.remove(temp_req_path)
+                    except Exception:
+                        pass
+
         display.set_update_progress(100.0, "RESTARTING...")
-        run_background_task(lambda: (time.sleep(3), subprocess.run(["sudo", "systemctl", "restart", "omega7"], check=True)))
-        return "System update downloaded successfully. Restarting the machine spirit now."
+        time.sleep(2)
+        active_svc = _get_active_service()
+        print(f"[skull] Update complete. Restarting service '{active_svc}'...")
+        subprocess.run(["sudo", "systemctl", "restart", active_svc], check=True)
     except subprocess.CalledProcessError as ce:
-        print(f"[skull] Update failed: {ce.stderr or ce}")
-        return f"System update failed during command execution: {ce.stderr or ce}"
+        display.stop_update_progress()
+        err_msg = ce.stderr or ce.stdout or str(ce)
+        print(f"[skull] Update failed during background execution: {err_msg}")
     except Exception as e:
-        print(f"[skull] Update error: {e}")
-        return f"System update encountered an error: {e}"
+        display.stop_update_progress()
+        print(f"[skull] Update error during background execution: {e}")
+
+
+def self_update() -> str:
+    print("[skull] Self-update requested. Spawning background update worker...")
+    run_background_task(_do_update_async)
+    return "Initiating system self-update now. Pulling latest code from GitHub and updating dependencies. I will restart the machine spirit shortly."
+
+
 
 
 def _game_narrate(text: str) -> None:
@@ -254,9 +308,9 @@ def _execute_pending_system_command():
         print(f"[skull] Executing pending system command: {cmd}")
         try:
             if cmd == "reboot":
-                subprocess.run(["sudo", "reboot"], check=True)
+                subprocess.run(["sudo", "systemctl", "reboot"], check=True)
             elif cmd == "shutdown":
-                subprocess.run(["sudo", "poweroff"], check=True)
+                subprocess.run(["sudo", "systemctl", "poweroff"], check=True)
             elif cmd.startswith("switch_"):
                 target = cmd.split("_")[1]
                 script_path = pathlib.Path(__file__).parent.parent / "switch-personality"
@@ -1402,8 +1456,8 @@ def main():
         # ── 3a-5. Detect Voice Cache Refresh and Self-Update ──────────
         _RE_REFRESH = re.compile(r"\b(refresh|reload|clear|update)\s+(your\s+)?voice(\s+cache)?\b")
         _RE_UPDATE = re.compile(r"\b(self\s+update|system\s+update|update\s+(your\s+software|yourself|your\s+system)|run\s+self\s+update|pull\s+updates)\b")
-        _RE_REBOOT = re.compile(r"\b(reboot(\s+system|\s+yourself|\s+the\s+system)?|restart\s+(system|yourself))\b")
-        _RE_SHUTDOWN = re.compile(r"\b(shutdown(\s+system|\s+yourself)?|power\s+(down|off)|turn\s+off)\b")
+        _RE_REBOOT = re.compile(r"\b(reboot(\s+system|\s+yourself|\s+the\s+system)?|restart\s+(system|yourself|the\s+system)?)\b", re.I)
+        _RE_SHUTDOWN = re.compile(r"\b(shut\s*down(\s+system|\s+yourself)?|power\s+(down|off)|turn\s+off)\b", re.I)
         
         # ── 3a-7. Detect Display Rotation commands ──────────────
         if ("rotate" in _t_norm or "turn" in _t_norm or "adjust" in _t_norm or "tilt" in _t_norm) and ("display" in _t_norm or "screen" in _t_norm or "eye" in _t_norm):
@@ -1490,6 +1544,7 @@ def main():
             maintenance_handled = True
             
         if maintenance_handled:
+            _execute_pending_system_command()
             continue
 
         # ── 3b. Detect explicit voice-switch requests ──────────────────────────

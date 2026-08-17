@@ -140,6 +140,7 @@ The 3rd lens housing is mounted with the camera, so **2 individually addressable
 
 ### 4.3 Round face display — GC9A01 1.28" (4-wire SPI) — `display.py`
 
+#### Option A: 8-Pin Header Module (`VCC, RES, SDA, GND, DC, SCL, CS, BLK`)
 Wiring is optimized into a single contiguous **2x5 (10-pin) header block** (Pins 17–26):
 
 | Panel pin | Connects to | GPIO (BCM) | Physical pin | Notes |
@@ -147,25 +148,30 @@ Wiring is optimized into a single contiguous **2x5 (10-pin) header block** (Pins
 | VCC | 3.3 V Power | — | 17 | Header Pin 17 |
 | RES | Reset | GPIO24 | 18 | Header Pin 18 |
 | SDA (MOSI) | SPI Data | GPIO10 | 19 | Header Pin 19 |
-| GND | Ground | — | 20 | Header Pin 20 *(Display GND wire)* |
+| GND | Ground | — | 20 | Header Pin 20 |
 | DC | Data/Command | GPIO25 | 22 | Header Pin 22 |
 | SCL (SCK) | SPI Clock | GPIO11 | 23 | Header Pin 23 |
 | CS | SPI Chip Select | GPIO8 | 24 | Header Pin 24 (CE0) |
 | BLK | Backlight | GPIO12 | 32 | Header Pin 32 (`DISPLAY_BL_PIN=12`) |
 
-> [!NOTE]
-> **Single Ground Wire**: The GC9A01 display has only **one `GND` wire**. Connect it to **Pin 20**.
-> **Backlight Control Pin**: `BLK` is connected to **GPIO 12 (Pin 32)** (or tied to 3.3 V with `DISPLAY_BL_PIN=-1`). Pin 7 cannot be used for BLK on Pi 5 because GPIO 7 is reserved by the Linux kernel as SPI0 CE1.
+#### Option B: 7-Pin Header Module (`VCC, GND, SCL, SDA, DC, CS, RST`)
+> [!IMPORTANT]
+> **No BLK Pin**: On 7-pin modules, backlight is hardwired internally to `VCC`. Set `DISPLAY_BL_PIN=-1` in `.env`.
+> The pin ordering on 7-pin modules is **completely different** from 8-pin modules — use individual female-to-female jumper wires to connect each pin to its designated Pi header pin:
 
-```
- GC9A01 Display          Raspberry Pi 5 Header (Pins 17-24 Block + Pin 32 BLK)
- ──────────────          ─────────────────────────────────────────────────────
-  VCC  ───────────────►  3V3   (pin 17)     RES  ───────────────► GPIO24      (pin 18)
-  SDA  ───────────────►  GPIO10(pin 19)     GND  ───────────────► GND         (pin 20)
-  (NC) ───────────────►  GPIO9 (pin 21)     DC   ───────────────► GPIO25      (pin 22)
-  SCL  ───────────────►  GPIO11(pin 23)     CS   ───────────────► GPIO8  CE0  (pin 24)
-  BLK  ───────────────►  GPIO12(pin 32)
-```
+| 7-Pin Panel Pin | Signal Name | Raspberry Pi 40-Pin Header Pin | BCM GPIO | Notes |
+|---|---|---|---|---|
+| **VCC** | 3.3 V Power | **Pin 17** (or Pin 1) | — | 3.3V Power Rail |
+| **GND** | Ground | **Pin 20** (or Pin 6 / 9 / 14) | — | Common Ground |
+| **SCL** | SPI Clock (SCK) | **Pin 23** | GPIO11 | SPI0 SCK |
+| **SDA** | SPI Data (MOSI) | **Pin 19** | GPIO10 | SPI0 MOSI |
+| **DC** | Data / Command | **Pin 22** | GPIO25 | Data/Command control |
+| **CS** | SPI Chip Select | **Pin 24** | GPIO8 | SPI0 CE0 |
+| **RST** | Display Reset | **Pin 18** | GPIO24 | Hardware reset pin |
+
+> [!NOTE]
+> **Backlight Control Pin**: `BLK` is connected to **GPIO 12 (Pin 32)** on 8-pin boards (or set `DISPLAY_BL_PIN=-1` for 7-pin boards). Pin 7 cannot be used for BLK on Pi 5 because GPIO 7 is reserved by the Linux kernel as SPI0 CE1.
+
 
 ### 4.4 Camera — Arducam IMX708 (CSI ribbon)
 

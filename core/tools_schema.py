@@ -76,15 +76,17 @@ def build_tools() -> list[dict]:
     {
         "name": "set_volume",
         "description": (
-            "Adjust the speaker volume. Pass '+15' to raise by 15%, '-15' to lower by 15%, "
-            "or '80' to set an absolute level. Call when user says louder, quieter, volume up/down, etc."
+            "Adjust the physical speaker volume level (0-100% or relative shift). "
+            "ALWAYS call this tool whenever the user asks to change, set, raise, or lower the volume "
+            "(e.g. 'set volume to 70', 'volume 65', 'louder', 'softer', 'set volume to 80%'). "
+            "Pass '+15' to raise volume, '-15' to lower it, or an absolute string number like '65' or '70' to set it directly."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "level": {
                     "type": "string",
-                    "description": "'+15' raise 15%, '-15' lower 15%, or '80' for absolute 80%",
+                    "description": "'+15' raise 15%, '-15' lower 15%, or '70' for absolute 70%",
                 }
             },
             "required": ["level"],
@@ -625,8 +627,16 @@ def build_tools() -> list[dict]:
         }
     },
     {
+        "name": "reboot_system",
+        "description": "Reboot and restart the physical Host operating system (the Raspberry Pi hardware). Call when the user says 'reboot', 'restart', 'reboot system', etc.",
+        "input_schema": {
+            "type": "object",
+            "properties": {}
+        }
+    },
+    {
         "name": "shutdown_system",
-        "description": "Shutdown and power off the physical Host operating system (the Raspberry Pi hardware).",
+        "description": "Shutdown and power off the physical Host operating system (the Raspberry Pi hardware). Call when the user says 'shutdown', 'shut down', 'power off', 'turn off', etc.",
         "input_schema": {
             "type": "object",
             "properties": {}
@@ -672,13 +682,18 @@ def build_tools() -> list[dict]:
     },
     {
         "name": "set_voice_wait_duration",
-        "description": "Change the silence wait duration (in seconds) after speaking before the assistant finishes listening or processing.",
+        "description": (
+            "Adjust the listening silence delay or voice wait duration (in seconds) that the system waits "
+            "during recording after the user stops speaking before it finishes recording. "
+            "Use when the user asks to 'change listening silence delay', 'set silence delay to 4 seconds', "
+            "'wait longer when I pause speaking', 'give me 5 seconds of silence', 'increase voice wait duration', etc."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "seconds": {
                     "type": "number",
-                    "description": "Wait period in seconds (e.g. 2.0, 3.0)."
+                    "description": "Number of seconds of silence to wait before ending recording (e.g. 1.5, 2.0, 3.5, 5.0)",
                 }
             },
             "required": ["seconds"]

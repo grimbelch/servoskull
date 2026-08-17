@@ -158,32 +158,25 @@ WAKE_WORD_THRESHOLD = float(_cfg("WAKE_WORD_THRESHOLD", "0.65"))
 def _resolve_input_device(raw: str) -> int:
     """Resolve a mic setting to a sounddevice input index.
 
-    Accepts either a numeric index (e.g. "2", or "-1" for system default) or a
-    case-insensitive name substring (e.g. "USB"). Resolving by name survives USB
-    re-enumeration across rebuilds, where a fixed index silently points elsewhere.
-    Returns -1 (system default) if a name can't be matched or audio isn't queryable.
+    Accepts either a numeric index (e.g. "2") or a case-insensitive name substring
+    (e.g. "USB"). Returns -1 (system default / PipeWire) when set to "-1" or
+    unmatched, ensuring audio streams route through PipeWire rather than locking raw ALSA devices.
     """
-def _resolve_input_device(raw: str) -> int:
     raw = (raw or "").strip()
+    if raw == "" or raw == "-1" or raw.lower() in ("default", "pipewire", "none"):
+        return -1
     try:
         import sounddevice as sd
         devices = sd.query_devices()
-        if raw != "" and raw != "-1":
-            try:
-                val = int(raw)
-                if val >= 0:
-                    return val
-            except ValueError:
-                for idx, dev in enumerate(devices):
-                    if dev.get("max_input_channels", 0) > 0 and raw.lower() in dev["name"].lower():
-                        print(f"[config] MIC_DEVICE_INDEX '{raw}' matched device {idx}: {dev['name']!r}")
-                        return idx
-
-        # Default fallback: prefer hardware USB mic if present
-        for idx, dev in enumerate(devices):
-            if dev.get("max_input_channels", 0) > 0 and "usb" in dev["name"].lower():
-                print(f"[config] Auto-selected USB mic device {idx}: {dev['name']!r}")
-                return idx
+        try:
+            val = int(raw)
+            if val >= 0:
+                return val
+        except ValueError:
+            for idx, dev in enumerate(devices):
+                if dev.get("max_input_channels", 0) > 0 and raw.lower() in dev["name"].lower():
+                    print(f"[config] MIC_DEVICE_INDEX '{raw}' matched device {idx}: {dev['name']!r}")
+                    return idx
     except Exception as e:
         print(f"[config] mic resolution error ({e})")
     return -1
