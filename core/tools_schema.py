@@ -620,14 +620,6 @@ def build_tools() -> list[dict]:
     },
     {
         "name": "reboot_system",
-        "description": "Reboot the physical Host operating system (the Raspberry Pi hardware).",
-        "input_schema": {
-            "type": "object",
-            "properties": {}
-        }
-    },
-    {
-        "name": "reboot_system",
         "description": "Reboot and restart the physical Host operating system (the Raspberry Pi hardware). Call when the user says 'reboot', 'restart', 'reboot system', etc.",
         "input_schema": {
             "type": "object",
