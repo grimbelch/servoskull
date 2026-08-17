@@ -67,7 +67,10 @@ def build_owner_section(owner: dict, skull_name: str = "Omega-7") -> str:
         return directive
 
     aliases = [_clean(a) for a in (owner.get("aliases") or []) if _clean(a)]
-    lead = f'Your master\'s name is "{name}"'
+    first = name.split()[0]
+    title = _clean(owner.get("title") or owner.get("honorific")) or "Master"
+
+    lead = f'Your master\'s name is "{name}". You MUST address them using the honorific "{title}" or "{title} {first}" (e.g. "{title}" or "{title} {first}"). Never address them as "Mistress", "Lady", or any other unassigned title'
     if aliases:
         alias_txt = " or ".join(f'"{a}"' for a in aliases)
         lead += f", though you may also address them as {alias_txt}"
@@ -86,7 +89,6 @@ def build_owner_section(owner: dict, skull_name: str = "Omega-7") -> str:
     for field in ("interests", "family", "occupation", "rapport"):
         parts.append(_sentence(owner.get(field)))
 
-    first = name.split()[0]
     directive = p_config.get("owner_directive", "Your primary directive is to serve {first}.")
     parts.append(_sentence(directive.format(first=first)))
 
