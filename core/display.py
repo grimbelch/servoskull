@@ -946,6 +946,10 @@ def _render_update_progress_frame(bezel, mask, now: float) -> 'Image.Image':
     frame = Image.new('RGB', (W, H), (0, 0, 0))
     draw = ImageDraw.Draw(frame)
     
+    GREEN_PRIMARY = (0, 230, 80)
+    GREEN_TRACK = (15, 45, 20)
+    GREEN_SUBTEXT = (0, 180, 60)
+
     # Outer arc
     cx, cy = 120, 120
     r = 100
@@ -955,11 +959,11 @@ def _render_update_progress_frame(bezel, mask, now: float) -> 'Image.Image':
     end_angle = start_angle + int(360 * (_update_progress_percent / 100.0))
     
     # Draw background track
-    draw.arc(bbox, 0, 360, fill=(30, 30, 30), width=10)
+    draw.arc(bbox, 0, 360, fill=GREEN_TRACK, width=10)
     
     # Draw progress arc
     if end_angle > start_angle:
-        draw.arc(bbox, start_angle, end_angle, fill=_mood_rgb, width=10)
+        draw.arc(bbox, start_angle, end_angle, fill=GREEN_PRIMARY, width=10)
         
     # Draw percentage text
     f_large = _get_font(40, bold=True)
@@ -967,14 +971,14 @@ def _render_update_progress_frame(bezel, mask, now: float) -> 'Image.Image':
     # textbox center
     left, top, right, bottom = draw.textbbox((0, 0), pct_text, font=f_large)
     tw, th = right - left, bottom - top
-    draw.text((cx - tw//2, cy - th//2 - 10), pct_text, font=f_large, fill=_mood_rgb)
+    draw.text((cx - tw//2, cy - th//2 - 10), pct_text, font=f_large, fill=GREEN_PRIMARY)
     
     # Draw stage text
     f_small = _get_font(16, bold=True)
     st_text = _update_stage_text.upper()
     left, top, right, bottom = draw.textbbox((0, 0), st_text, font=f_small)
     stw = right - left
-    draw.text((cx - stw//2, cy + 30), st_text, font=f_small, fill=(200, 200, 200))
+    draw.text((cx - stw//2, cy + 30), st_text, font=f_small, fill=GREEN_SUBTEXT)
     
     return frame
 
