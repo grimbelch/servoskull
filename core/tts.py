@@ -8,9 +8,11 @@ from core import config
 # ── ElevenLabs (cloud, quota-limited) ─────────────────────────────────────────
 
 def _preprocess_text(text: str) -> str:
-    """Preprocess text for TTS: strip Markdown formatting (asterisks, headers, backticks) so symbols aren't spoken aloud."""
+    """Preprocess text for TTS: strip Markdown formatting (asterisks, headers, backticks, category prefixes) so symbols and labels aren't spoken aloud."""
     if not text:
         return ""
+    # Strip leading markdown category prefixes like "**WEATHER:**" or "**SUMMARY:**"
+    text = re.sub(r"^\s*\*{0,2}[A-Z\s]{2,15}:\*{0,2}\s*", "", text)
     # Strip markdown bold/italic asterisks (* and **)
     text = re.sub(r"\*+", "", text)
     # Strip markdown headers (#)
@@ -21,6 +23,8 @@ def _preprocess_text(text: str) -> str:
     text = re.sub(r"~+", "", text)
     # Strip backticks (`)
     text = re.sub(r"`+", "", text)
+    # Strip markdown link formatting [text](url) -> text
+    text = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", text)
     # Normalize multiple spaces
     text = re.sub(r" +", " ", text).strip()
     return text

@@ -1265,6 +1265,12 @@ def set_update_progress(percent: float, text: str) -> None:
     _showing_update_progress = True
 
 
+def stop_update_progress() -> None:
+    global _showing_update_progress
+    _showing_update_progress = False
+
+
+
 def start_omnissiah_glyph(duration: float = 4.0) -> None:
     global _showing_omnissiah_glyph, _omnissiah_start_time, _omnissiah_duration
     if not _available:
