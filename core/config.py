@@ -95,6 +95,19 @@ def save_owner_profile(data: dict) -> None:
     _OWNER_PROFILE = data
 
 
+def set_honorific(new_honorific: str) -> str:
+    """Update preferred honorific/title in owner.json."""
+    global _OWNER_PROFILE
+    new_h = (new_honorific or "").strip()
+    if not new_h:
+        return "Please specify a valid honorific."
+    profile = dict(_OWNER_PROFILE or {})
+    profile["honorific"] = new_h
+    profile["title"] = new_h
+    save_owner_profile(profile)
+    return f"Honorific updated to '{new_h}'. I will address you as {new_h} from now on."
+
+
 def _cfg(key: str, default: str = "") -> str:
     """Value for a user-facing setting: env -> settings.json -> default."""
     v_env = os.getenv(key)

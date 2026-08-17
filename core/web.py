@@ -1001,8 +1001,10 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
 
             try:
                 from core import tts
-                owner_name = data.get("owner", {}).get("name", "Master")
-                announcement = f"Initialization complete, Master {owner_name}. Machine spirit online."
+                owner_title = data.get("owner", {}).get("honorific") or data.get("owner", {}).get("title") or "Master"
+                owner_name = data.get("owner", {}).get("name", "")
+                name_str = f"{owner_title} {owner_name}".strip() if owner_name else owner_title
+                announcement = f"Initialization complete, {name_str}. Machine spirit online."
                 wav = tts.synthesize_piper(announcement)
             except Exception as e:
                 print(f"[web] Post-setup speech error: {e}")
@@ -3358,8 +3360,12 @@ HTML_CLIENT = """<!DOCTYPE html>
             <div class="wizard-step" id="w-step-3" style="display: none;">
                 <p style="margin-bottom: 16px; font-size: 13px; color: rgba(56,255,88,0.9);">Tell the skull who it serves so it can address you by name and provide localized information.</p>
                 <div style="margin-bottom: 14px;">
-                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">YOUR NAME (MASTER):</label>
+                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">YOUR NAME:</label>
                     <input type="text" id="w-master-name" placeholder="e.g. Sean, Sarah" style="width: 100%; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
+                </div>
+                <div style="margin-bottom: 14px;">
+                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">PREFERRED HONORIFIC / TITLE:</label>
+                    <input type="text" id="w-master-honorific" placeholder="e.g. Master, Mistress, Lord, Captain, Magos" style="width: 100%; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
                 </div>
                 <div style="margin-bottom: 14px;">
                     <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">CITY / LOCATION (FOR WEATHER):</label>

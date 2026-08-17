@@ -760,6 +760,7 @@
                 personality: document.getElementById('w-personality').value,
                 owner: {
                     name: document.getElementById('w-master-name').value.trim() || 'Master',
+                    honorific: (document.getElementById('w-master-honorific') ? document.getElementById('w-master-honorific').value.trim() : '') || 'Master',
                     city: document.getElementById('w-master-city').value.trim() || 'Local',
                     interests: document.getElementById('w-master-interests').value.trim() || ''
                 },
