@@ -943,7 +943,7 @@ def _render_update_progress_frame(bezel, mask, now: float) -> 'Image.Image':
     except ImportError:
         return bezel.copy()
         
-    frame = bezel.copy()
+    frame = Image.new('RGB', (W, H), (0, 0, 0))
     draw = ImageDraw.Draw(frame)
     
     # Outer arc
@@ -970,13 +970,13 @@ def _render_update_progress_frame(bezel, mask, now: float) -> 'Image.Image':
     draw.text((cx - tw//2, cy - th//2 - 10), pct_text, font=f_large, fill=_mood_rgb)
     
     # Draw stage text
-    f_small = _get_font(18, bold=True)
+    f_small = _get_font(16, bold=True)
     st_text = _update_stage_text.upper()
     left, top, right, bottom = draw.textbbox((0, 0), st_text, font=f_small)
     stw = right - left
     draw.text((cx - stw//2, cy + 30), st_text, font=f_small, fill=(200, 200, 200))
     
-    return Image.composite(frame, Image.new('RGB', frame.size, (0, 0, 0)), mask)
+    return frame
 
 def _loop():
     global _rolling_die, _showing_omnissiah_glyph, _showing_custom_image, _custom_image, _custom_image_expiry
