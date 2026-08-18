@@ -1413,46 +1413,60 @@ def _render_trench_run_frame(bezel, mask, now):
             if c1 and c2 and c3 and c4:
                 d.polygon([c1, c2, c3, c4], outline=(0, 140, 45), width=1)
 
-    # 3. Process & Draw Catwalk Barriers
+    # 3. Process & Draw Solid 3D Trench Wall Blocks
     for b in _tr_barriers:
         b["z"] -= speed * 1.5
         if b["z"] <= 8.0:
             b["z"] = 400.0
             b["type"] = random.choice(["top", "bottom", "left", "right", "center_cross"])
 
+    def draw_3d_wall_block(x_min, x_max, y_min, y_max, z_front, z_back, col_outline=(220, 140, 20)):
+        f1 = proj(x_min, y_min, z_front)
+        f2 = proj(x_max, y_min, z_front)
+        f3 = proj(x_max, y_max, z_front)
+        f4 = proj(x_min, y_max, z_front)
+        
+        b1 = proj(x_min, y_min, z_back)
+        b2 = proj(x_max, y_min, z_back)
+        b3 = proj(x_max, y_max, z_back)
+        b4 = proj(x_min, y_max, z_back)
+        
+        col_fill_front = (4, 30, 14)
+        col_fill_side = (2, 20, 9)
+        col_fill_back = (0, 14, 5)
+        col_outline_back = (max(0, col_outline[0]//2), max(0, col_outline[1]//2), max(0, col_outline[2]//2))
+        
+        if b1 and b2 and b3 and b4:
+            d.polygon([b1, b2, b3, b4], fill=col_fill_back, outline=col_outline_back)
+        
+        if f1 and f2 and b2 and b1: d.polygon([f1, f2, b2, b1], fill=col_fill_side, outline=col_outline)
+        if f4 and f3 and b3 and b4: d.polygon([f4, f3, b3, b4], fill=col_fill_side, outline=col_outline)
+        if f1 and f4 and b4 and b1: d.polygon([f1, f4, b4, b1], fill=col_fill_side, outline=col_outline)
+        if f2 and f3 and b3 and b2: d.polygon([f2, f3, b3, b2], fill=col_fill_side, outline=col_outline)
+        
+        if f1 and f2 and f3 and f4:
+            d.polygon([f1, f2, f3, f4], fill=col_fill_front, outline=col_outline)
+
+    # Sort from far to near so distant blocks are rendered before nearer ones (painter's algorithm)
+    for b in sorted(_tr_barriers, key=lambda item: item["z"], reverse=True):
         bz = b["z"]
         if bz > 8.0:
-            c1 = proj(wall_x_left, floor_y, bz)
-            c2 = proj(wall_x_right, floor_y, bz)
-            c3 = proj(wall_x_right, top_y, bz)
-            c4 = proj(wall_x_left, top_y, bz)
-
-            if c1 and c2 and c3 and c4:
-                b_type = b["type"]
-                col = (220, 140, 20)
-                if b_type == "top":
-                    cm1 = proj(wall_x_left, 0.0, bz)
-                    cm2 = proj(wall_x_right, 0.0, bz)
-                    if cm1 and cm2:
-                        d.polygon([cm1, cm2, c3, c4], outline=col, width=1)
-                elif b_type == "bottom":
-                    cm1 = proj(wall_x_left, 0.0, bz)
-                    cm2 = proj(wall_x_right, 0.0, bz)
-                    if cm1 and cm2:
-                        d.polygon([c1, c2, cm2, cm1], outline=col, width=1)
-                elif b_type == "left":
-                    cm1 = proj(0.0, floor_y, bz)
-                    cm2 = proj(0.0, top_y, bz)
-                    if cm1 and cm2:
-                        d.polygon([c1, cm1, cm2, c4], outline=col, width=1)
-                elif b_type == "right":
-                    cm1 = proj(0.0, floor_y, bz)
-                    cm2 = proj(0.0, top_y, bz)
-                    if cm1 and cm2:
-                        d.polygon([cm1, c2, c3, cm2], outline=col, width=1)
-                else:
-                    d.line([c1, c3], fill=col, width=1)
-                    d.line([c2, c4], fill=col, width=1)
+            block_depth = 25.0
+            z_front = bz
+            z_back = bz + block_depth
+            b_type = b["type"]
+            col = (220, 140, 20)
+            
+            if b_type == "top":
+                draw_3d_wall_block(wall_x_left, wall_x_right, 0.0, top_y, z_front, z_back, col)
+            elif b_type == "bottom":
+                draw_3d_wall_block(wall_x_left, wall_x_right, floor_y, 0.0, z_front, z_back, col)
+            elif b_type == "left":
+                draw_3d_wall_block(wall_x_left, 0.0, floor_y, top_y, z_front, z_back, col)
+            elif b_type == "right":
+                draw_3d_wall_block(0.0, wall_x_right, floor_y, top_y, z_front, z_back, col)
+            else:
+                draw_3d_wall_block(-25.0, 25.0, -20.0, 20.0, z_front, z_back, col)
 
     # 4. Process & Draw Wall Turrets
     for tur in _tr_turrets:
