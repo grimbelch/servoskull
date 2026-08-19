@@ -202,12 +202,12 @@ def play_wav_bytes(
     stop_event: threading.Event = None,
     output_device: int = None,
 ) -> None:
-    """Play WAV audio.
+    """Play WAV audio with automatic sample rate resampling and system fallback.
 
     amplitude_cb: called once with a callable that returns the current RMS amplitude.
     stop_event: if set mid-playback, audio stops immediately (barge-in interruption).
     """
-    import time
+    import time, shutil, sys, tempfile
     with _audio_play_lock:
         try:
             from core import web
@@ -224,38 +224,7 @@ def play_wav_bytes(
     if data.ndim > 1:
         data = data.mean(axis=1)
 
-    chunk_size = rate // 20  # 50ms chunks
-    pos = 0
-    _current_amp = [0.0]
-    _lock = threading.Lock()
-
-    def amp_fn():
-        with _lock:
-            return _current_amp[0]
-
-    if amplitude_cb is not None:
-        amplitude_cb(amp_fn)
-
-    def callback(outdata, frames, time_info, status):
-        nonlocal pos
-        if stop_event and stop_event.is_set():
-            outdata.fill(0)
-            raise sd.CallbackStop()
-        chunk = data[pos : pos + frames]
-        if len(chunk) == 0:
-            outdata.fill(0)
-            raise sd.CallbackStop()
-        if len(chunk) < frames:
-            outdata[: len(chunk), 0] = chunk
-            outdata[len(chunk) :] = 0
-            raise sd.CallbackStop()
-        outdata[:, 0] = chunk
-        pos += frames
-        rms = float(np.sqrt(np.mean(chunk ** 2)))
-        with _lock:
-            _current_amp[0] = rms
-
-    sd_kwargs = {"samplerate": rate, "channels": 1, "callback": callback, "blocksize": chunk_size}
+    sd_kwargs = {"channels": 1}
     if output_device is not None:
         if isinstance(output_device, str):
             os.environ["PULSE_SINK"] = output_device
@@ -265,29 +234,107 @@ def play_wav_bytes(
     else:
         os.environ.pop("PULSE_SINK", None)
 
-    duration = len(data) / rate + 5.0  # audio duration + 5s safety margin
-    deadline = time.monotonic() + duration
-    
-    stream = None
-    for attempt in range(3):
+    def _get_target_rate():
         try:
-            stream = sd.OutputStream(**sd_kwargs)
-            stream.start()
-            break
-        except Exception as e:
-            if attempt == 2:
-                raise
-            time.sleep(0.5)
-            
-    if stream:
-        with stream:
-            while time.monotonic() < deadline:
-                try:
+            dev = sd_kwargs.get("device")
+            if dev is not None:
+                info = sd.query_devices(dev, "output")
+            else:
+                info = sd.query_devices(kind="output")
+            return int(info.get("default_samplerate", 44100))
+        except Exception:
+            return 44100
+
+    target_hw_rate = _get_target_rate()
+
+    for attempt in range(3):
+        curr_rate = rate
+        curr_data = data
+        if attempt > 0 and (curr_rate != target_hw_rate or attempt == 2):
+            # Resample to hardware default rate if initial rate failed or on retry
+            try:
+                num_samples = int(len(curr_data) * target_hw_rate / curr_rate)
+                curr_data = np.interp(
+                    np.linspace(0, len(curr_data), num_samples, endpoint=False),
+                    np.arange(len(curr_data)),
+                    curr_data
+                ).astype(np.float32)
+                curr_rate = target_hw_rate
+            except Exception:
+                pass
+
+        chunk_size = max(1, curr_rate // 20)  # 50ms chunks
+        pos = 0
+        _current_amp = [0.0]
+        _lock = threading.Lock()
+
+        def amp_fn():
+            with _lock:
+                return _current_amp[0]
+
+        if amplitude_cb is not None and attempt == 0:
+            amplitude_cb(amp_fn)
+
+        def callback(outdata, frames, time_info, status):
+            nonlocal pos
+            if stop_event and stop_event.is_set():
+                outdata.fill(0)
+                raise sd.CallbackStop()
+            chunk = curr_data[pos : pos + frames]
+            if len(chunk) == 0:
+                outdata.fill(0)
+                raise sd.CallbackStop()
+            if len(chunk) < frames:
+                outdata[: len(chunk), 0] = chunk
+                outdata[len(chunk) :] = 0
+                raise sd.CallbackStop()
+            outdata[:, 0] = chunk
+            pos += frames
+            rms = float(np.sqrt(np.mean(chunk ** 2)))
+            with _lock:
+                _current_amp[0] = rms
+
+        try:
+            stream_kwargs = dict(sd_kwargs)
+            stream_kwargs["samplerate"] = curr_rate
+            stream_kwargs["callback"] = callback
+            stream_kwargs["blocksize"] = chunk_size
+
+            duration = len(curr_data) / curr_rate + 5.0
+            deadline = time.monotonic() + duration
+
+            with sd.OutputStream(**stream_kwargs) as stream:
+                while time.monotonic() < deadline:
                     if not stream.active:
                         break
-                except Exception:
-                    break
-                time.sleep(0.05)
+                    time.sleep(0.05)
+            return
+        except Exception as e:
+            if attempt == 2:
+                print(f"[audio] sd.OutputStream final attempt failed ({e}) — trying system player fallback")
+            else:
+                print(f"[audio] sd.OutputStream attempt {attempt+1} failed ({e}) — retrying with resampled audio...")
+                time.sleep(0.2)
+
+    # Fallback to system player if sounddevice OutputStream completely fails
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
+            tf.write(wav_bytes)
+            tmp_path = tf.name
+        try:
+            if sys.platform == "darwin":
+                subprocess.run(["afplay", tmp_path], check=False)
+            elif shutil.which("paplay"):
+                subprocess.run(["paplay", tmp_path], check=False)
+            elif shutil.which("aplay"):
+                subprocess.run(["aplay", "-q", tmp_path], check=False)
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+    except Exception as fb_err:
+        print(f"[audio] System playback fallback error: {fb_err}")
 
 
 def get_pulseaudio_sinks() -> dict[str, str]:
