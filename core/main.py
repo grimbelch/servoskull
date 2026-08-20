@@ -1248,18 +1248,21 @@ def main():
                 print(f"[skull] Bard's Tale stop speech error: {_ge}")
             continue
 
-        # ── 3a-1. Intercept morning-briefing / briefing requests ───────────────
-        if _briefing_awaiting_response or "briefing" in _t:
+        # ── 3a-1. Intercept morning-briefing / briefing / update requests ───────────────
+        _BRIEFING_KEYS = ("briefing", "morning update", "daily update", "morning report",
+                          "daily report", "morning telemetry", "daily telemetry", "morning dispatch", "daily dispatch")
+        if _briefing_awaiting_response or any(bk in _t for bk in _BRIEFING_KEYS):
             _YES = ("yes", "sure", "yeah", "yep", "yup", "ready", "affirmative",
                     "proceed", "deliver", "go ahead", "please", "of course",
                     "absolutely", "aye", "correct", "indeed", "do it", "ok", "okay",
-                    "briefing", "daily briefing", "morning briefing", "give it to me", "tell me")
+                    "briefing", "daily briefing", "morning briefing", "morning update", "daily update",
+                    "give it to me", "tell me", "update")
             _NO  = ("no", "not now", "later", "skip", "negative", "cancel",
                     "nevermind", "never mind", "pass", "maybe later", "not yet",
                     "nope", "nah")
-            if any(p in _t for p in _YES) or "briefing" in _t:
+            if any(p in _t for p in _YES) or any(bk in _t for bk in _BRIEFING_KEYS):
                 _briefing_awaiting_response = False
-                print("[skull] User confirmed/requested morning briefing. Generating...")
+                print("[skull] User confirmed/requested morning briefing/update. Generating...")
                 try:
                     briefing_text = brain.generate_daily_briefing()
                     brain.mark_daily_briefing_done()
