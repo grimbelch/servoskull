@@ -127,6 +127,7 @@ class _ClaudeProvider:
         messages = [{"role": h["role"], "content": h["content"]} for h in history]
         messages.append({"role": "user", "content": user_text})
 
+        last_tool_text_result = ""
         while True:
             _move_cache_breakpoint(messages)
             response = self._client.messages.create(
@@ -135,7 +136,10 @@ class _ClaudeProvider:
             )
             _log_cache(response, "run_conversation")
             if response.stop_reason != "tool_use":
-                return next((b.text for b in response.content if hasattr(b, "text")), "")
+                text = next((b.text for b in response.content if hasattr(b, "text") and b.text), "")
+                if not text and last_tool_text_result:
+                    return last_tool_text_result
+                return text
 
             slow = [b.name for b in response.content
                     if getattr(b, "type", None) == "tool_use" and b.name in slow_tools]
@@ -150,6 +154,8 @@ class _ClaudeProvider:
                 if getattr(block, "type", None) != "tool_use":
                     continue
                 result = execute_tool(block.name, dict(block.input))
+                if isinstance(result, str) and result.strip():
+                    last_tool_text_result = result.strip()
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
