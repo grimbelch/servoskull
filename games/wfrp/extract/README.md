@@ -57,6 +57,32 @@ does not disturb a game in progress.
 The module directory is needed as well as the JSON because the artwork is
 copied out of it into `games/wfrp/rules/modules/<slug>/images/`.
 
+## The core rulebook
+
+The Core Rulebook ships in Foundry too, as the `wfrp4e-core` module, and it is
+a far better source than the PDF: 1,500+ actor documents with real
+characteristic numbers, careers with parsed skill/talent/trapping lists, and
+roll tables with machine-readable ranges and system keys. The same
+`foundry_export.cjs` export feeds a dedicated ingester that fills the `rule_*`
+tables of `rules_schema.py` — the rules engine cannot tell which extractor
+built them:
+
+```bash
+node foundry_export.cjs \
+  --module /path/to/Data/modules/wfrp4e-core \
+  --out wfrp4e-core.foundry-export.json
+
+python -m games.wfrp.extract.rulebook.foundry wfrp4e-core.foundry-export.json \
+  --slug wfrp-4e-core
+```
+
+Condition rules text is not compendium content — the wfrp4e system renders it
+from the module's language file — so the exporter bundles `lang/en.json` into
+the export and the ingester reads `WFRP4E.Conditions.*` from there.
+
+The PDF path (`rulebook/ingest.py`) remains for books that have no Foundry
+module.
+
 ## What is not in Foundry
 
 `map_keys.py` holds the numbered callouts printed on the floorplans — "21 Hall",

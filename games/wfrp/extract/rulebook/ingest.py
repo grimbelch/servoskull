@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from ... import rules_schema
-from ..ingest import file_sha256
+from ..foundry_module import file_sha256
 from ..layout import RULEBOOK_STYLESHEET, ModuleDocument
 from ..sections import Section, extract_sections
 from .careers import extract_careers

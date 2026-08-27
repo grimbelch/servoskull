@@ -167,12 +167,30 @@ function buildTables(pack) {
     name: table.name,
     description: table.description || '',
     formula: table.formula || '',
+    // The wfrp4e system stamps tables with a lookup key and species column
+    // ("career"/"human"); the rules engine selects tables by these.
+    flags: (table.flags && table.flags.wfrp4e) || {},
     results: (results[table._id] || []).map((r) => ({
       range: r.range || [],
+      // Rulebook tables carry their result as an @UUID link in `description`,
+      // adventure tables as plain `text`; keep whichever is present.
       text: r.text || r.name || '',
+      description: r.description || '',
+      documentUuid: r.documentUuid || '',
       type: r.type,
     })),
   }));
+}
+
+/** The module's English strings; rules text like condition effects lives here. */
+function readLang(moduleDir) {
+  const candidates = [path.join(moduleDir, 'lang', 'en.json')];
+  for (const file of candidates) {
+    if (fs.existsSync(file)) {
+      try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* fall through */ }
+    }
+  }
+  return {};
 }
 
 function buildScenes(pack) {
@@ -258,6 +276,7 @@ async function main() {
     tables: [],
     scenes: [],
     assets: listAssets(moduleDir),
+    lang: readLang(moduleDir),
   };
 
   try {
