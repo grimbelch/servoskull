@@ -351,3 +351,59 @@ mark { background: color-mix(in srgb, var(--accent) 26%, transparent); color: in
   .masthead { flex-wrap: wrap; }
   .masthead input[type="search"] { width: 100%; }
 }
+
+/* ── cast lines ──────────────────────────────────────────────────────────────
+ * Who a scene calls for. Built from the cross-references in the module's own
+ * text, so it is dense: these sit inline with the prose and must stay quiet
+ * enough to read past. */
+
+.cast {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.4rem;
+  margin: 0.9rem 0 1.1rem;
+  padding: 0.55rem 0.7rem;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.cast-label {
+  margin-right: 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.cast-chip {
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 2px;
+  background: transparent;
+  padding: 0.12rem 0.45rem;
+  font: inherit;
+  font-size: 0.82rem;
+  color: inherit;
+  cursor: pointer;
+}
+
+.cast-chip:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #f6f1e6;
+}
+
+/* On a stat block the relationship runs the other way: the scenes this NPC
+ * turns up in, rather than the cast of one scene. */
+.appears-in {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem 0.4rem;
+  margin-top: 0.8rem;
+  padding-top: 0.6rem;
+  border-top: 1px dotted color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.appears-in .cast-chip { font-size: 0.76rem; }
