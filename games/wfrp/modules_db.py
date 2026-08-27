@@ -1,8 +1,9 @@
 """Read access to extracted module content, optionally overlaid with campaign state.
 
 This is the query layer the web app and the GM tools sit on. It reads the
-``module_*`` content tables produced by :mod:`games.wfrp.extract.ingest` and, when
-given a campaign, merges in that campaign's progress from ``campaign_*_state``.
+``module_*`` content tables produced by :mod:`games.wfrp.extract.foundry_module`
+and, when given a campaign, merges in that campaign's progress from
+``campaign_*_state``.
 """
 from __future__ import annotations
 
@@ -145,6 +146,21 @@ def get_module(slug: str) -> Optional[dict]:
             by_npc.setdefault(profile["npc_id"], []).append(profile)
         for npc in npcs:
             npc["profiles"] = by_npc.get(npc["id"], [])
+
+        # Which scenes each NPC turns up in. The module extractor reads this
+        # from the book's own cross-references, so it is dense enough to drive
+        # a cast list on every scene rather than just a note on the NPC.
+        appearances_by_npc: dict[int, list[dict]] = {}
+        for row in _rows(
+            conn,
+            "SELECT a.* FROM module_npc_appearances a"
+            "  JOIN module_npcs n ON n.id = a.npc_id"
+            " WHERE n.module_id = ? ORDER BY a.section_id",
+            module_id,
+        ):
+            appearances_by_npc.setdefault(row["npc_id"], []).append(row)
+        for npc in npcs:
+            npc["appearances"] = appearances_by_npc.get(npc["id"], [])
 
         chapter_of_section = {
             row["id"]: row["chapter_id"]
