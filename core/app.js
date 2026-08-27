@@ -138,10 +138,11 @@
                 const elGame = document.getElementById('game-val');
                 if (elGame) {
                     const gameName = data.active_game ? String(data.active_game).toUpperCase() : 'WFRP 4E CAMPAIGN';
-                    if (gameName !== 'NONE' && gameName !== 'INACTIVE') {
+                    
+                    if (gameName.includes('WFRP') || gameName.includes('WARHAMMER FANTASY')) {
                         elGame.innerHTML = `<a href="/campaign" style="color: var(--bright-green); font-weight: bold; text-decoration: underline; cursor: pointer;" title="Open Roleplaying Campaign Page">${gameName} 🎲</a>`;
                     } else {
-                        elGame.innerHTML = `<a href="/campaign" style="color: var(--bright-green); font-weight: bold; text-decoration: underline; cursor: pointer;" title="Open Roleplaying Campaign Page">OPEN CAMPAIGN 🎲</a>`;
+                        elGame.innerHTML = `<span style="color: var(--bright-green); font-weight: bold;">${gameName}</span>`;
                     }
                 }
 
@@ -397,7 +398,7 @@
         fetchState();
         document.addEventListener('DOMContentLoaded', fetchState);
         window.addEventListener('load', fetchState);
-        setInterval(fetchState, 500);
+        setInterval(fetchState, 2500);
 
 
         // Control API Calls

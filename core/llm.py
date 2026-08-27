@@ -130,7 +130,7 @@ class _ClaudeProvider:
         last_tool_text_result = ""
         while True:
             _move_cache_breakpoint(messages)
-            response = self._client.messages.create(
+            response = self._call_with_retry(
                 model=self._model, max_tokens=max_tokens, system=system_blocks,
                 tools=tools, messages=messages,
             )
@@ -164,8 +164,20 @@ class _ClaudeProvider:
             messages.append({"role": "assistant", "content": response.content})
             messages.append({"role": "user", "content": tool_results})
 
+    def _call_with_retry(self, **kwargs):
+        import time
+        import anthropic
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                return self._client.messages.create(**kwargs)
+            except (anthropic.InternalServerError, anthropic.RateLimitError, anthropic.APIConnectionError) as e:
+                if attempt == max_retries - 1:
+                    raise
+                time.sleep(2 ** attempt)
+
     def simple(self, system, user, max_tokens):
-        r = self._client.messages.create(
+        r = self._call_with_retry(
             model=self._model, max_tokens=max_tokens, system=_system_blocks(system, None),
             messages=[{"role": "user", "content": user}],
         )
@@ -175,7 +187,7 @@ class _ClaudeProvider:
     def vision(self, system, jpeg_bytes, prompt, max_tokens):
         import base64
         b64 = base64.standard_b64encode(jpeg_bytes).decode()
-        r = self._client.messages.create(
+        r = self._call_with_retry(
             model=self._model, max_tokens=max_tokens, system=_system_blocks(system, None),
             messages=[{"role": "user", "content": [
                 {"type": "image", "source": {"type": "base64",

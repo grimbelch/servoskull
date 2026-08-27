@@ -16,10 +16,10 @@ SCREENSAVER_ANIMS = [
     "pong", "canticle_rain", "starfield", "oscilloscope", "game_of_life", "radar",
     "warp_core", "circuit_maze", "double_helix", "spinning_rings", "wireframe_cube",
     "bouncing_cog", "fractal_tree", "hud_status", "orbitals", "spectrum_bars",
-    "plasma", "lissajous", "voronoi", "data_stream", "mandala",
-    "rune_wheel", "glitch", "dna_helix", "neural_net", "gravity_well",
-    "void_shield", "hex_grid", "kaleidoscope", "particle_burst", "asteroids", "battlezone", "trench_run"
-]
+    "plasma", "data_stream", "glitch", "neural_net", "void_shield", "hex_grid", "asteroids", "battlezone", "cogitator_terminal", "astronomican_pulse", "exterminatus_targeting", "astropathic_choir", "bio_magos_sequencer", "golden_throne_ekg"
+,
+    "noosphere_tether", "titan_manifold", "stc_recompilation", "servitor_lobotomy", "fabricator_matrix", "linguis_technis", "lexmechanic_ledger",
+    "nurgle_scrapcode", "archeotech_vault", "electro_priest_meter", "magos_biologis", "machine_spirit_ritual"]
 
 
 def get_screensaver_names() -> list[str]:
@@ -102,6 +102,170 @@ _ast_bullets = []
 _ast_sparks = []
 _ast_score = 0
 _ast_last_shot = 0.0
+
+
+
+# Cogitator Terminal
+_ct_lines = []
+
+# Exterminatus Targeting
+_ext_countdown = 60.0
+
+# Servo-Skull Pict
+_ss_scanline = 0.0
+_ss_box_x = 120.0
+_ss_box_y = 120.0
+
+# Bio-Magos Sequencer
+_bio_growths = []
+
+# Golden Throne EKG
+_ekg_history = [120.0] * 240
+_ekg_souls = []
+
+
+
+# 1. Noosphere Tether
+_noosphere_nodes = []
+
+def _init_noosphere_tether():
+    global _noosphere_nodes
+    _noosphere_nodes = [{"x": random.randint(20, 220), "y": random.randint(20, 220), "z": random.uniform(1.0, 5.0)} for _ in range(8)]
+
+# 2. Titan Manifold
+_titan_layers = []
+
+def _init_titan_manifold():
+    global _titan_layers
+    _titan_layers = [0.0, 0.0, 0.0]
+
+# 3. STC Recompilation
+_stc_nodes = []
+
+def _init_stc_recompilation():
+    global _stc_nodes
+    _stc_nodes = [{"x": random.uniform(-50, 50), "y": random.uniform(-50, 50), "z": random.uniform(-50, 50)} for _ in range(12)]
+
+# 4. Omnissian Cog Loom
+_cog_loom_angles = [0.0, 0.0, 0.0]
+
+def _init_omnissian_cog_loom():
+    global _cog_loom_angles
+    _cog_loom_angles = [0.0, 0.0, 0.0]
+
+# 5. Servitor Lobotomy
+_lobotomy_paths = []
+
+def _init_servitor_lobotomy():
+    global _lobotomy_paths
+    _lobotomy_paths = [{"progress": 0.0, "x": 120, "y": 120, "angle": random.uniform(0, 6.28)} for _ in range(5)]
+
+# 6. Gellar Field
+_gellar_sparks = []
+
+def _init_gellar_field():
+    global _gellar_sparks
+    _gellar_sparks = []
+
+# 7. Fabricator Matrix
+_fab_sectors = []
+
+def _init_fabricator_matrix():
+    global _fab_sectors
+    _fab_sectors = [{"x": random.randint(40, 200), "y": random.randint(40, 200), "prod": random.random()} for _ in range(10)]
+
+# 8. Plasma Reactor
+_plasma_flares = []
+
+def _init_plasma_reactor():
+    global _plasma_flares
+    _plasma_flares = []
+
+# 9. Linguis Technis
+_linguis_drops = []
+
+def _init_linguis_technis():
+    global _linguis_drops
+    _linguis_drops = [{"x": random.randint(20, 220), "y": random.randint(-100, 0), "speed": random.uniform(2, 5)} for _ in range(15)]
+
+# 10. Lexmechanic Ledger
+_lex_scroll = 0.0
+
+def _init_lexmechanic_ledger():
+    global _lex_scroll
+    _lex_scroll = 0.0
+
+
+
+# 11. Cyber Mastiff Vision
+_mastiff_scan_y = 0.0
+
+def _init_cyber_mastiff_vision():
+    global _mastiff_scan_y
+    _mastiff_scan_y = 0.0
+
+# 12. Void Ship Augur
+_augur_angle = 0.0
+
+def _init_void_ship_augur():
+    global _augur_angle
+    _augur_angle = 0.0
+
+# 13. Skitarii Overlay
+_skitarii_dots = []
+
+def _init_skitarii_overlay():
+    global _skitarii_dots
+    _skitarii_dots = [{"x": random.randint(50, 190), "y": random.randint(50, 190)} for _ in range(5)]
+
+# 14. Mechadendrite Calibration
+_mecha_arms = []
+
+def _init_mechadendrite_calibration():
+    global _mecha_arms
+    _mecha_arms = [0.0, 0.0, 0.0, 0.0]
+
+# 15. Nurgle Scrapcode
+_nurgle_spots = []
+
+def _init_nurgle_scrapcode():
+    global _nurgle_spots
+    _nurgle_spots = []
+
+# 16. Archeotech Vault
+_vault_rings = []
+
+def _init_archeotech_vault():
+    global _vault_rings
+    _vault_rings = [0.0, 0.0, 0.0, 0.0]
+
+# 17. Electro Priest Meter
+_electro_arcs = []
+
+def _init_electro_priest_meter():
+    global _electro_arcs
+    _electro_arcs = []
+
+# 18. Magos Biologis
+_dna_strands = []
+
+def _init_magos_biologis():
+    global _dna_strands
+    _dna_strands = []
+
+# 19. Macrocannon Loader
+_macro_loader_y = 240.0
+
+def _init_macrocannon_loader():
+    global _macro_loader_y
+    _macro_loader_y = 240.0
+
+# 20. Machine Spirit Ritual
+_ritual_drops = []
+
+def _init_machine_spirit_ritual():
+    global _ritual_drops
+    _ritual_drops = []
 
 
 # ── Initializers ─────────────────────────────────────────────────────────────
@@ -190,8 +354,8 @@ def _init_voronoi():
         (0, random.randint(140, 220), random.randint(30, 80)),
         (0, random.randint(80, 150), random.randint(20, 50)),
         (random.randint(120, 180), random.randint(60, 100), 0),
-        (0, random.randint(100, 160), random.randint(100, 160)),
-    ]
+        (0, random.randint(100, 160), random.randint(100, 160))
+]
     _voronoi_sites = [{"x": random.uniform(20, 220), "y": random.uniform(20, 220),
                        "dx": random.uniform(-0.8, 0.8), "dy": random.uniform(-0.8, 0.8),
                        "c": random.choice(palette_options)}
@@ -268,6 +432,33 @@ def _init_asteroids():
     _ast_sparks = []
     _ast_score = 0
     _ast_last_shot = 0.0
+
+
+
+def _init_cogitator_terminal():
+    global _ct_lines
+    _ct_lines = []
+    for _ in range(24):
+        _ct_lines.append("".join(random.choices("01", k=30)))
+
+def _init_exterminatus_targeting():
+    global _ext_countdown
+    _ext_countdown = 60.0
+
+def _init_servo_skull_pict():
+    global _ss_scanline, _ss_box_x, _ss_box_y
+    _ss_scanline = 0.0
+    _ss_box_x = 120.0
+    _ss_box_y = 120.0
+
+def _init_bio_magos_sequencer():
+    global _bio_growths
+    _bio_growths = []
+
+def _init_golden_throne_ekg():
+    global _ekg_history, _ekg_souls
+    _ekg_history = [120.0] * 240
+    _ekg_souls = []
 
 
 # ── Renderers ────────────────────────────────────────────────────────────────
@@ -1789,7 +1980,673 @@ def _render_battlezone_frame(bezel, mask, now):
 
 # ── Dispatcher Registry ──────────────────────────────────────────────────────
 
+
+def _render_cogitator_terminal_frame(bezel, mask, now):
+    global _ct_lines
+    if not _ct_lines:
+        _init_cogitator_terminal()
+        
+    img = Image.new("RGB", (240, 240), (0, 15, 0))
+    d = ImageDraw.Draw(img)
+    
+    if random.random() < 0.2:
+        _ct_lines.pop(0)
+        new_line = ""
+        if random.random() < 0.1:
+            new_line = random.choice(["PURGE THE UNCLEAN", "PRAISE THE OMNISSIAH", "SYSTEM NOMINAL", "THOUGHT FOR THE DAY: HOPE IS THE FIRST STEP ON THE ROAD TO DISAPPOINTMENT"])
+        else:
+            new_line = "".join(random.choices("0123456789ABCDEF!@#$%^&*()", k=40))
+        _ct_lines.append(new_line)
+        
+    try:
+        font = ImageFont.load_default()
+    except Exception:
+        font = None
+        
+    for i, line in enumerate(_ct_lines):
+        if font:
+            d.text((10, i * 10), line[:36], fill=(0, 200, 50), font=font)
+            
+    return img
+
+def _render_astronomican_pulse_frame(bezel, mask, now):
+    img = Image.new("RGB", (240, 240), (0, 10, 5))
+    d = ImageDraw.Draw(img)
+    
+    pulse = 0.5 + 0.5 * math.sin(now * 3.0)
+    core_radius = 40 + int(20 * pulse)
+    
+    for r in range(240, 0, -10):
+        intensity = max(0, min(255, int(255 * (core_radius / (r + 1)))))
+        d.ellipse([120 - r, 120 - r, 120 + r, 120 + r], fill=(int(intensity * 0.2), intensity, int(intensity * 0.4)))
+        
+    # Draw some "warp shadows"
+    for i in range(5):
+        a = now * (1.0 + i * 0.2)
+        dist = 80 + 30 * math.sin(now * 0.5 + i)
+        sx = 120 + dist * math.cos(a)
+        sy = 120 + dist * math.sin(a)
+        shadow_r = 15 + 10 * math.sin(now + i)
+        d.ellipse([sx - shadow_r, sy - shadow_r, sx + shadow_r, sy + shadow_r], fill=(0, 10, 5))
+        
+    d.ellipse([120 - core_radius/2, 120 - core_radius/2, 120 + core_radius/2, 120 + core_radius/2], fill=(200, 255, 200))
+    return img
+
+def _render_inquisitorial_assessment_frame(bezel, mask, now):
+    img = Image.new("RGB", (240, 240), (10, 0, 0))
+    d = ImageDraw.Draw(img)
+    
+    # 3D Rotating I
+    ax = now * 1.5
+    ay = now * 2.0
+    az = now * 0.5
+    
+    # Simple I shape nodes
+    nodes = [
+        (-10, -40, 0), (10, -40, 0), (10, -30, 0), (5, -30, 0),
+        (5, 30, 0), (10, 30, 0), (10, 40, 0), (-10, 40, 0),
+        (-10, 30, 0), (-5, 30, 0), (-5, -30, 0), (-10, -30, 0)
+    ]
+    edges = [(i, (i+1)%len(nodes)) for i in range(len(nodes))]
+    
+    proj = []
+    for x, y, z in nodes:
+        x, y, z = x * 1.5, y * 1.5, z * 1.5
+        y1 = y * math.cos(ax) - z * math.sin(ax)
+        z1 = y * math.sin(ax) + z * math.cos(ax)
+        x2 = x * math.cos(ay) + z1 * math.sin(ay)
+        z2 = -x * math.sin(ay) + z1 * math.cos(ay)
+        x3 = x2 * math.cos(az) - y1 * math.sin(az)
+        y3 = x2 * math.sin(az) + y1 * math.cos(az)
+        
+        f = 180.0 / (180.0 + z2)
+        px = 120 + x3 * f
+        py = 120 + y3 * f
+        proj.append((px, py))
+        
+    for i, j in edges:
+        d.line([proj[i], proj[j]], fill=(220, 0, 0), width=3)
+        
+    if int(now * 4) % 2 == 0:
+        d.line([(20, 20), (220, 20)], fill=(255, 0, 0), width=2)
+        d.line([(20, 220), (220, 220)], fill=(255, 0, 0), width=2)
+        
+    try:
+        font = ImageFont.load_default()
+    except Exception:
+        font = None
+    if font and int(now * 2) % 3 != 0:
+        d.text((80, 200), "PURGE", fill=(255, 0, 0), font=font)
+        
+    return img
+
+def _render_exterminatus_targeting_frame(bezel, mask, now):
+    global _ext_countdown
+    if _ext_countdown <= 0:
+        _init_exterminatus_targeting()
+        
+    _ext_countdown = max(0.0, _ext_countdown - 0.05)
+    
+    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    d = ImageDraw.Draw(img)
+    
+    # Planet wireframe
+    r_planet = 70
+    d.ellipse([120 - r_planet, 120 - r_planet, 120 + r_planet, 120 + r_planet], outline=(0, 100, 0), width=1)
+    
+    a_off = now * 0.5
+    for i in range(4):
+        w = r_planet * math.cos(a_off + i * (math.pi / 4.0))
+        if w > 0:
+            d.ellipse([120 - w, 120 - r_planet, 120 + w, 120 + r_planet], outline=(0, 80, 0), width=1)
+    for i in range(3):
+        h = r_planet * 0.5 * math.sin(a_off + i * (math.pi / 3.0))
+        d.ellipse([120 - r_planet, 120 - abs(h), 120 + r_planet, 120 + abs(h)], outline=(0, 80, 0), width=1)
+        
+    # Targeting reticle
+    ret_r = 90 + 10 * math.sin(now * 4)
+    d.arc([120 - ret_r, 120 - ret_r, 120 + ret_r, 120 + ret_r], 0, 45, fill=(200, 0, 0), width=2)
+    d.arc([120 - ret_r, 120 - ret_r, 120 + ret_r, 120 + ret_r], 90, 135, fill=(200, 0, 0), width=2)
+    d.arc([120 - ret_r, 120 - ret_r, 120 + ret_r, 120 + ret_r], 180, 225, fill=(200, 0, 0), width=2)
+    d.arc([120 - ret_r, 120 - ret_r, 120 + ret_r, 120 + ret_r], 270, 315, fill=(200, 0, 0), width=2)
+    
+    d.line([(120, 20), (120, 220)], fill=(150, 0, 0), width=1)
+    d.line([(20, 120), (220, 120)], fill=(150, 0, 0), width=1)
+    
+    try:
+        font = ImageFont.load_default()
+        d.text((90, 200), f"T-{_ext_countdown:.2f}", fill=(255, 50, 50), font=font)
+    except Exception:
+        pass
+        
+    # Dramatic flash at end
+    if _ext_countdown < 1.0:
+        intensity = int(255 * (1.0 - _ext_countdown))
+        d.ellipse([120 - r_planet, 120 - r_planet, 120 + r_planet, 120 + r_planet], fill=(intensity, intensity//2, 0))
+        
+    return img
+
+def _render_servo_skull_pict_frame(bezel, mask, now):
+    global _ss_scanline, _ss_box_x, _ss_box_y
+    if _ss_scanline == 0.0:
+        _init_servo_skull_pict()
+        
+    _ss_scanline = (_ss_scanline + 3.0) % 240
+    _ss_box_x += random.uniform(-5.0, 5.0)
+    _ss_box_y += random.uniform(-5.0, 5.0)
+    _ss_box_x = max(40, min(200, _ss_box_x))
+    _ss_box_y = max(40, min(200, _ss_box_y))
+    
+    img = Image.new("RGB", (240, 240), (0, 10, 0))
+    d = ImageDraw.Draw(img)
+    
+    # "Architecture" outlines
+    d.polygon([(40, 240), (40, 140), (100, 80), (140, 80), (200, 140), (200, 240)], outline=(0, 40, 0), width=2)
+    
+    # Floating box
+    d.rectangle([_ss_box_x - 15, _ss_box_y - 15, _ss_box_x + 15, _ss_box_y + 15], outline=(0, 200, 0), width=1)
+    d.line([(_ss_box_x, _ss_box_y - 5), (_ss_box_x, _ss_box_y + 5)], fill=(0, 200, 0), width=1)
+    d.line([(_ss_box_x - 5, _ss_box_y), (_ss_box_x + 5, _ss_box_y)], fill=(0, 200, 0), width=1)
+    
+    # Scanline
+    d.line([(0, _ss_scanline), (240, _ss_scanline)], fill=(0, 255, 50), width=2)
+    d.line([(0, _ss_scanline - 10), (240, _ss_scanline - 10)], fill=(0, 100, 20), width=4)
+    
+    # Static noise (simulated cheaply)
+    for _ in range(300):
+        rx, ry = random.randint(0, 239), random.randint(0, 239)
+        d.point((rx, ry), fill=(0, random.randint(50, 150), 0))
+        
+    return img
+
+def _render_astropathic_choir_frame(bezel, mask, now):
+    img = Image.new("RGB", (240, 240), (0, 10, 5))
+    d = ImageDraw.Draw(img)
+    
+    for i in range(12):
+        freq_x = 2.0 + i * 0.5
+        freq_y = 3.0 + i * 0.3
+        phase = now * (1.5 + i * 0.2)
+        
+        pts = []
+        for t in range(0, 100):
+            a = t * (math.pi * 2 / 100)
+            x = 120 + (80 + 20 * math.sin(phase + a)) * math.sin(freq_x * a + now)
+            y = 120 + (80 + 20 * math.cos(phase + a)) * math.cos(freq_y * a - now)
+            pts.append((x, y))
+            
+        g_val = int(150 + 100 * math.sin(now + i))
+        b_val = int(50 + 25 * math.cos(now * 1.3 + i))
+        d.polygon(pts, outline=(0, g_val, b_val), width=1)
+        
+    return img
+
+def _render_bio_magos_sequencer_frame(bezel, mask, now):
+    global _bio_growths
+    img = Image.new("RGB", (240, 240), (0, 15, 20))
+    d = ImageDraw.Draw(img)
+    
+    # Clean grid
+    for x in range(20, 240, 20):
+        d.line([(x, 0), (x, 240)], fill=(0, 100, 150), width=1)
+        d.line([(0, x), (240, x)], fill=(0, 100, 150), width=1)
+        
+    if random.random() < 0.05:
+        _bio_growths.append({"x": random.randint(20, 220), "y": random.randint(20, 220), "r": 0.0})
+        
+    total_area = 0
+    for g in _bio_growths:
+        g["r"] += 0.5
+        r = int(g["r"])
+        total_area += r * r
+        d.ellipse([g["x"] - r, g["y"] - r, g["x"] + r, g["y"] + r], fill=(50, 150, 20), outline=(20, 80, 0))
+        
+    if total_area > 8000:
+        d.rectangle([0, 0, 240, 240], fill=(255, 100, 0))
+        try:
+            font = ImageFont.load_default()
+            d.text((40, 110), "PURGE PROTOCOL INITIATED", fill=(255, 255, 255), font=font)
+        except Exception:
+            pass
+        _bio_growths = []
+        
+    return img
+
+def _render_golden_throne_ekg_frame(bezel, mask, now):
+    global _ekg_history, _ekg_souls
+    if not _ekg_history:
+        _init_golden_throne_ekg()
+        
+    img = Image.new("RGB", (240, 240), (5, 5, 5))
+    d = ImageDraw.Draw(img)
+    
+    _ekg_history.pop(0)
+    
+    # Golden Throne heartbeat (erratic)
+    t = now * 2.0
+    pulse = 120.0
+    if int(t) % 3 == 0 and (t - int(t)) < 0.2:
+        pulse = 120.0 - 60.0 * math.sin((t - int(t)) * 5.0 * math.pi)
+    elif int(t) % 5 == 0 and (t - int(t)) < 0.3:
+        pulse = 120.0 + 40.0 * math.sin((t - int(t)) * 10.0 * math.pi)
+    
+    # Add noise
+    pulse += random.uniform(-3.0, 3.0)
+    _ekg_history.append(pulse)
+    
+    pts = [(x, _ekg_history[x]) for x in range(240)]
+    d.line(pts, fill=(0, 255, 50), width=2)
+    
+    # Grid
+    for x in range(20, 240, 40):
+        d.line([(x, 0), (x, 240)], fill=(50, 40, 0), width=1)
+        d.line([(0, x), (240, x)], fill=(50, 40, 0), width=1)
+        
+    # Souls
+    if random.random() < 0.3:
+        angle = random.uniform(0, math.pi * 2)
+        dist = 120.0
+        _ekg_souls.append({"x": 120 + dist * math.cos(angle), "y": 120 + dist * math.sin(angle), "life": 1.0})
+        
+    for s in _ekg_souls:
+        dx = 120 - s["x"]
+        dy = 120 - s["y"]
+        length = math.sqrt(dx*dx + dy*dy)
+        if length > 0:
+            s["x"] += (dx/length) * 2.0
+            s["y"] += (dy/length) * 2.0
+        s["life"] -= 0.02
+        if s["life"] > 0:
+            intensity = int(255 * s["life"])
+            d.ellipse([s["x"]-2, s["y"]-2, s["x"]+2, s["y"]+2], fill=(0, intensity, int(intensity*0.3)))
+            
+    _ekg_souls = [s for s in _ekg_souls if s["life"] > 0 and (s["x"]-120)**2 + (s["y"]-120)**2 > 100]
+    
+    return img
+
+
+
+def _render_noosphere_tether_frame(bezel, mask, now):
+    global _noosphere_nodes
+    if not _noosphere_nodes: _init_noosphere_tether()
+    img = Image.new("RGB", (240, 240), (0, 10, 5))
+    d = ImageDraw.Draw(img)
+    for i, n1 in enumerate(_noosphere_nodes):
+        n1["z"] += 0.05 * math.sin(now + i)
+        px1, py1 = n1["x"], n1["y"] + 10 * math.cos(n1["z"])
+        d.ellipse([px1-4, py1-4, px1+4, py1+4], fill=(0, 255, 150))
+        for j, n2 in enumerate(_noosphere_nodes[i+1:]):
+            px2, py2 = n2["x"], n2["y"] + 10 * math.cos(n2["z"])
+            dist = math.hypot(px1-px2, py1-py2)
+            if dist < 100:
+                alpha = int(255 * (1.0 - dist/100.0))
+                d.line([(px1, py1), (px2, py2)], fill=(0, alpha, int(alpha*0.6)), width=1)
+                if random.random() < 0.05:
+                    d.ellipse([(px1+px2)/2-2, (py1+py2)/2-2, (px1+px2)/2+2, (py1+py2)/2+2], fill=(255, 255, 255))
+    return img
+
+def _render_titan_manifold_frame(bezel, mask, now):
+    img = Image.new("RGB", (240, 240), (10, 5, 0))
+    d = ImageDraw.Draw(img)
+    # Heat map layers
+    for r in range(120, 20, -15):
+        c = int(100 + 50 * math.sin(now * 2.0 + r))
+        d.ellipse([120-r, 120-r, 120+r, 120+r], outline=(c, 0, 0), width=2)
+    # Grid overlay
+    d.line([(120, 0), (120, 240)], fill=(200, 50, 0), width=1)
+    d.line([(0, 120), (240, 120)], fill=(200, 50, 0), width=1)
+    # Target locks
+    for i in range(3):
+        a = now * (1.0 + i*0.5)
+        tx, ty = 120 + 60 * math.cos(a), 120 + 40 * math.sin(a*1.3)
+        d.rectangle([tx-10, ty-10, tx+10, ty+10], outline=(255, 100, 0), width=1)
+        if int(now*5)%2 == 0: d.point((tx, ty), fill=(255, 255, 0))
+    try:
+        font = ImageFont.load_default()
+        d.text((40, 40), "VOID SHIELD: 42%", fill=(255, 50, 0), font=font)
+        d.text((40, 190), "REACTOR: CRITICAL", fill=(255, 0, 0), font=font)
+    except: pass
+    return img
+
+def _render_stc_recompilation_frame(bezel, mask, now):
+    global _stc_nodes
+    if not _stc_nodes: _init_stc_recompilation()
+    img = Image.new("RGB", (240, 240), (0, 0, 15))
+    d = ImageDraw.Draw(img)
+    ax, ay = now * 1.5, now * 2.0
+    proj = []
+    for n in _stc_nodes:
+        x, y, z = n["x"], n["y"], n["z"]
+        # rotate
+        y1 = y*math.cos(ax) - z*math.sin(ax)
+        z1 = y*math.sin(ax) + z*math.cos(ax)
+        x2 = x*math.cos(ay) + z1*math.sin(ay)
+        z2 = -x*math.sin(ay) + z1*math.cos(ay)
+        f = 150.0 / (150.0 + z2)
+        px, py = 120 + x2*f, 120 + y1*f
+        proj.append((px, py))
+    # Draw connections randomly (glitching)
+    for i in range(len(proj)-1):
+        if random.random() < 0.7:
+            d.line([proj[i], proj[i+1]], fill=(0, 150, 255), width=1)
+    # Glitch effect
+    if random.random() < 0.1:
+        _init_stc_recompilation() # Reset STC
+        d.rectangle([0,0,240,240], fill=(255,255,255))
+    try:
+        font = ImageFont.load_default()
+        d.text((10, 110), "STC FRAGMENT CORRUPT", fill=(0, 200, 255), font=font)
+    except: pass
+    return img
+
+def _render_omnissian_cog_loom_frame(bezel, mask, now):
+    img = Image.new("RGB", (240, 240), (20, 10, 5))
+    d = ImageDraw.Draw(img)
+    # Draw 3 cogs
+    cogs = [(120, 120, 40, now*40), (160, 80, 25, -now*60), (80, 160, 30, -now*50)]
+    for cx, cy, r, a in cogs:
+        d.ellipse([cx-r, cy-r, cx+r, cy+r], outline=(150, 100, 50), width=4)
+        d.ellipse([cx-r/2, cy-r/2, cx+r/2, cy+r/2], outline=(100, 50, 20), width=2)
+        for i in range(8):
+            rad = math.radians(a + i*45)
+            d.line([(cx, cy), (cx + r*math.cos(rad), cy + r*math.sin(rad))], fill=(150, 100, 50), width=3)
+    # Incense trails
+    for i in range(10):
+        tx, ty = 120 + 80*math.sin(now+i), 120 + 80*math.cos(now*0.7+i)
+        d.ellipse([tx-2, ty-2, tx+2, ty+2], fill=(200, 200, 200))
+    return img
+
+def _render_servitor_lobotomy_frame(bezel, mask, now):
+    global _lobotomy_paths
+    if not _lobotomy_paths: _init_servitor_lobotomy()
+    img = Image.new("RGB", (240, 240), (0, 0, 0))
+    d = ImageDraw.Draw(img)
+    # Brain outline
+    d.ellipse([60, 60, 180, 180], outline=(100, 0, 0), width=2)
+    # Nodes overriding
+    for p in _lobotomy_paths:
+        p["progress"] = min(1.0, p["progress"] + 0.01)
+        length = p["progress"] * 60
+        ex = 120 + length * math.cos(p["angle"])
+        ey = 120 + length * math.sin(p["angle"])
+        d.line([(120, 120), (ex, ey)], fill=(0, 255, 100), width=3)
+        d.ellipse([ex-4, ey-4, ex+4, ey+4], fill=(255, 255, 255))
+        if p["progress"] >= 1.0:
+            if random.random() < 0.02:
+                p["progress"] = 0.0
+                p["angle"] = random.uniform(0, 6.28)
+    try:
+        font = ImageFont.load_default()
+        d.text((50, 200), "CORTEX OVERRIDE", fill=(0, 255, 0), font=font)
+    except: pass
+    return img
+
+def _render_gellar_field_frame(bezel, mask, now):
+    img = Image.new("RGB", (240, 240), (20, 0, 30))
+    d = ImageDraw.Draw(img)
+    # Warp chaos outside
+    for _ in range(50):
+        wx, wy = random.randint(0, 240), random.randint(0, 240)
+        dist = math.hypot(wx-120, wy-120)
+        if dist > 80:
+            d.point((wx, wy), fill=(random.randint(100, 255), 0, random.randint(100, 255)))
+    # Gellar containment sphere
+    d.ellipse([40, 40, 200, 200], outline=(0, 150, 255), width=2)
+    for i in range(0, 360, 30):
+        rad = math.radians(i + now*20)
+        d.line([(120, 120), (120+80*math.cos(rad), 120+80*math.sin(rad))], fill=(0, 100, 200), width=1)
+    return img
+
+def _render_fabricator_matrix_frame(bezel, mask, now):
+    global _fab_sectors
+    if not _fab_sectors: _init_fabricator_matrix()
+    img = Image.new("RGB", (240, 240), (5, 0, 0))
+    d = ImageDraw.Draw(img)
+    for s in _fab_sectors:
+        s["prod"] = (s["prod"] + 0.05) % 1.0
+        r = 10 + 10 * s["prod"]
+        d.rectangle([s["x"]-r, s["y"]-r, s["x"]+r, s["y"]+r], outline=(200, 50, 0), width=1)
+        d.ellipse([s["x"]-2, s["y"]-2, s["x"]+2, s["y"]+2], fill=(255, 100, 0))
+        # Connection lines
+        d.line([(120, 120), (s["x"], s["y"])], fill=(100, 0, 0), width=1)
+    try:
+        font = ImageFont.load_default()
+        d.text((40, 110), f"QUOTA: {int((now*10)%100)}%", fill=(255, 0, 0), font=font)
+    except: pass
+    return img
+
+def _render_plasma_reactor_frame(bezel, mask, now):
+    img = Image.new("RGB", (240, 240), (0, 5, 20))
+    d = ImageDraw.Draw(img)
+    core = 50 + 10 * math.sin(now*10)
+    d.ellipse([120-core, 120-core, 120+core, 120+core], fill=(100, 200, 255))
+    d.ellipse([120-core/2, 120-core/2, 120+core/2, 120+core/2], fill=(255, 255, 255))
+    # Magnetic bottle
+    d.ellipse([20, 20, 220, 220], outline=(0, 100, 200), width=4)
+    # Sparks
+    for _ in range(10):
+        sx = 120 + random.uniform(-core, core)
+        sy = 120 + random.uniform(-core, core)
+        d.line([(120, 120), (sx, sy)], fill=(200, 255, 255), width=2)
+    return img
+
+def _render_linguis_technis_frame(bezel, mask, now):
+    global _linguis_drops
+    if not _linguis_drops: _init_linguis_technis()
+    img = Image.new("RGB", (240, 240), (0, 10, 0))
+    d = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.load_default()
+    except: font = None
+    for drop in _linguis_drops:
+        drop["y"] += drop["speed"]
+        if drop["y"] > 240:
+            drop["y"] = random.randint(-50, 0)
+            drop["x"] = random.randint(20, 220)
+        char = random.choice(["&", "%", "#", "!", "A", "0", "1"])
+        if drop["y"] > 120: char = random.choice(["0", "1"]) # Decoded
+        if font:
+            col = (0, 255, 50) if drop["y"] > 120 else (0, 100, 50)
+            d.text((drop["x"], drop["y"]), char, fill=col, font=font)
+    d.ellipse([100, 100, 140, 140], outline=(0, 255, 100), width=2)
+    return img
+
+def _render_lexmechanic_ledger_frame(bezel, mask, now):
+    global _lex_scroll
+    _lex_scroll += 2.0
+    img = Image.new("RGB", (240, 240), (5, 5, 5))
+    d = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.load_default()
+    except: font = None
+    for i in range(10):
+        y = (i * 25 + _lex_scroll) % 240
+        d.line([(0, y), (240, y)], fill=(0, 100, 0), width=1)
+        if font:
+            t = f"QTY: {random.randint(1000,9999)} | REF: {random.randint(10,99)}A"
+            d.text((20, y+2), t, fill=(0, 200, 50), font=font)
+    return img
+
+
+def _render_cyber_mastiff_vision_frame(bezel, mask, now):
+    global _mastiff_scan_y
+    _mastiff_scan_y = (_mastiff_scan_y + 4.0) % 240
+    img = Image.new("RGB", (240, 240), (20, 0, 0))
+    d = ImageDraw.Draw(img)
+    for _ in range(300):
+        rx, ry = random.randint(0, 239), random.randint(0, 239)
+        d.point((rx, ry), fill=(100, 0, 0))
+    d.line([(0, _mastiff_scan_y), (240, _mastiff_scan_y)], fill=(255, 50, 0), width=2)
+    tx, ty = 120 + 40*math.sin(now), 120 + 30*math.cos(now*1.2)
+    d.rectangle([tx-15, ty-15, tx+15, ty+15], outline=(255, 0, 0), width=2)
+    d.line([(120, 120), (tx, ty)], fill=(100, 0, 0), width=1)
+    return img
+
+def _render_void_ship_augur_frame(bezel, mask, now):
+    global _augur_angle
+    _augur_angle = (_augur_angle + 2.0) % 360
+    img = Image.new("RGB", (240, 240), (0, 0, 10))
+    d = ImageDraw.Draw(img)
+    d.ellipse([20, 20, 220, 220], outline=(0, 50, 150), width=1)
+    d.ellipse([60, 60, 180, 180], outline=(0, 50, 150), width=1)
+    rad = math.radians(_augur_angle)
+    d.pieslice([20, 20, 220, 220], _augur_angle, _augur_angle+30, fill=(0, 100, 255))
+    if random.random() < 0.1:
+        d.ellipse([100, 100, 110, 110], fill=(255, 255, 255))
+    try:
+        font = ImageFont.load_default()
+        d.text((100, 120), "SCANNING", fill=(0, 200, 255), font=font)
+    except: pass
+    return img
+
+def _render_skitarii_overlay_frame(bezel, mask, now):
+    global _skitarii_dots
+    if not _skitarii_dots: _init_skitarii_overlay()
+    img = Image.new("RGB", (240, 240), (5, 10, 5))
+    d = ImageDraw.Draw(img)
+    # Topo map
+    for r in range(40, 120, 20):
+        d.ellipse([120-r, 120-r*0.8, 120+r, 120+r*0.8], outline=(0, 50, 20), width=1)
+    for dot in _skitarii_dots:
+        dot["x"] += random.uniform(-1, 1)
+        dot["y"] += random.uniform(-1, 1)
+        d.ellipse([dot["x"]-3, dot["y"]-3, dot["x"]+3, dot["y"]+3], fill=(0, 255, 100))
+        d.line([(dot["x"], dot["y"]), (dot["x"]+10, dot["y"]-10)], fill=(0, 150, 50), width=1)
+    return img
+
+def _render_mechadendrite_calibration_frame(bezel, mask, now):
+    img = Image.new("RGB", (240, 240), (10, 10, 10))
+    d = ImageDraw.Draw(img)
+    d.rectangle([80, 80, 160, 160], outline=(0, 200, 100), width=2)
+    # 4 arms
+    for i in range(4):
+        a = now * (1.0 + i*0.2)
+        dist = 80 + 30 * math.sin(now + i)
+        px = 120 + dist * math.cos(i*math.pi/2)
+        py = 120 + dist * math.sin(i*math.pi/2)
+        tx = 120 + 20 * math.cos(a)
+        ty = 120 + 20 * math.sin(a)
+        d.line([(px, py), (tx, ty)], fill=(150, 150, 150), width=4)
+        d.ellipse([tx-5, ty-5, tx+5, ty+5], fill=(255, 100, 0)) # Torch
+        if random.random() < 0.2:
+            d.line([(tx, ty), (tx+random.randint(-10,10), ty+random.randint(-10,10))], fill=(200, 255, 255), width=1)
+    return img
+
+def _render_nurgle_scrapcode_frame(bezel, mask, now):
+    global _nurgle_spots
+    img = Image.new("RGB", (240, 240), (0, 20, 0))
+    d = ImageDraw.Draw(img)
+    for x in range(0, 240, 20): d.line([(x,0), (x,240)], fill=(0, 100, 0))
+    if random.random() < 0.1:
+        _nurgle_spots.append({"x": random.randint(20,220), "y": random.randint(20,220), "r": 0})
+    for s in _nurgle_spots:
+        s["r"] += 1
+        d.ellipse([s["x"]-s["r"], s["y"]-s["r"], s["x"]+s["r"], s["y"]+s["r"]], fill=(50, 50, 0), outline=(100, 100, 0))
+    if len(_nurgle_spots) > 15:
+        d.rectangle([0,0,240,240], fill=(255, 100, 0)) # Purge
+        _nurgle_spots = []
+    return img
+
+def _render_archeotech_vault_frame(bezel, mask, now):
+    img = Image.new("RGB", (240, 240), (10, 5, 0))
+    d = ImageDraw.Draw(img)
+    for i in range(4):
+        r = 100 - i*20
+        a = (now * (10 + i*15)) % 360
+        d.arc([120-r, 120-r, 120+r, 120+r], a, a+270, fill=(200, 150, 50), width=4)
+        for j in range(12):
+            rad = math.radians(a + j*30)
+            tx = 120 + r * math.cos(rad)
+            ty = 120 + r * math.sin(rad)
+            d.ellipse([tx-2, ty-2, tx+2, ty+2], fill=(255, 200, 100))
+    d.ellipse([110, 110, 130, 130], fill=(255, 100, 0))
+    return img
+
+def _render_electro_priest_meter_frame(bezel, mask, now):
+    img = Image.new("RGB", (240, 240), (0, 0, 10))
+    d = ImageDraw.Draw(img)
+    d.ellipse([20, 20, 220, 220], outline=(50, 50, 100), width=2)
+    for i in range(8):
+        rad = math.radians(i*45 + now*10)
+        px = 120 + 100 * math.cos(rad)
+        py = 120 + 100 * math.sin(rad)
+        d.ellipse([px-6, py-6, px+6, py+6], fill=(0, 100, 255))
+        d.line([(120, 120), (px + random.randint(-10,10), py + random.randint(-10,10))], fill=(150, 200, 255), width=2)
+    d.ellipse([110, 110, 130, 130], fill=(255, 255, 255))
+    return img
+
+def _render_magos_biologis_frame(bezel, mask, now):
+    img = Image.new("RGB", (240, 240), (0, 15, 5))
+    d = ImageDraw.Draw(img)
+    y = int((now * 50) % 240)
+    d.line([(0, y), (240, y)], fill=(255, 0, 0), width=2) # laser
+    for i in range(10):
+        ty = 20 + i*20
+        tx1 = 120 + 30 * math.sin(ty*0.05 + now)
+        tx2 = 120 + 30 * math.sin(ty*0.05 + now + math.pi)
+        d.line([(tx1, ty), (tx2, ty)], fill=(0, 200, 100), width=2)
+        d.ellipse([tx1-3, ty-3, tx1+3, ty+3], fill=(0, 255, 150))
+        d.ellipse([tx2-3, ty-3, tx2+3, ty+3], fill=(0, 255, 150))
+    try:
+        font = ImageFont.load_default()
+        d.text((10, 10), "XENOS DNA MATCH", fill=(255, 0, 0), font=font)
+    except: pass
+    return img
+
+def _render_macrocannon_loader_frame(bezel, mask, now):
+    global _macro_loader_y
+    img = Image.new("RGB", (240, 240), (10, 10, 10))
+    d = ImageDraw.Draw(img)
+    _macro_loader_y -= 2.0
+    if _macro_loader_y < -50: _macro_loader_y = 240.0
+    # Shell
+    d.rectangle([100, _macro_loader_y, 140, _macro_loader_y+80], fill=(100, 80, 50))
+    d.polygon([(100, _macro_loader_y), (140, _macro_loader_y), (120, _macro_loader_y-30)], fill=(100, 80, 50))
+    # Rails
+    d.line([(90, 0), (90, 240)], fill=(50, 50, 50), width=4)
+    d.line([(150, 0), (150, 240)], fill=(50, 50, 50), width=4)
+    # Lights
+    col = (0, 255, 0) if _macro_loader_y > 100 else (255, 0, 0)
+    d.ellipse([20, 20, 40, 40], fill=col)
+    return img
+
+def _render_machine_spirit_ritual_frame(bezel, mask, now):
+    img = Image.new("RGB", (240, 240), (20, 10, 0))
+    d = ImageDraw.Draw(img)
+    # Cog
+    for i in range(8):
+        rad = math.radians(i*45 + now*20)
+        d.line([(120, 120), (120+60*math.cos(rad), 120+60*math.sin(rad))], fill=(150, 100, 0), width=4)
+    d.ellipse([60, 60, 180, 180], outline=(150, 100, 0), width=6)
+    d.ellipse([100, 100, 140, 140], fill=(255, 200, 100))
+    # Holy oil drops
+    for _ in range(5):
+        dx, dy = 120 + random.randint(-80, 80), random.randint(0, 240)
+        d.line([(dx, dy), (dx, dy+10)], fill=(255, 200, 50), width=2)
+    return img
+
 _RENDERERS = {
+    "nurgle_scrapcode": _render_nurgle_scrapcode_frame,
+    "archeotech_vault": _render_archeotech_vault_frame,
+    "electro_priest_meter": _render_electro_priest_meter_frame,
+    "magos_biologis": _render_magos_biologis_frame,
+
+
+    "noosphere_tether": _render_noosphere_tether_frame,
+    "titan_manifold": _render_titan_manifold_frame,
+    "stc_recompilation": _render_stc_recompilation_frame,
+    "servitor_lobotomy": _render_servitor_lobotomy_frame,
+    "fabricator_matrix": _render_fabricator_matrix_frame,
+    "linguis_technis": _render_linguis_technis_frame,
+    "lexmechanic_ledger": _render_lexmechanic_ledger_frame,
+
+    "cogitator_terminal": _render_cogitator_terminal_frame,
+    "astronomican_pulse": _render_astronomican_pulse_frame,
+        "exterminatus_targeting": _render_exterminatus_targeting_frame,
+        "astropathic_choir": _render_astropathic_choir_frame,
+    "bio_magos_sequencer": _render_bio_magos_sequencer_frame,
+    "golden_throne_ekg": _render_golden_throne_ekg_frame,
+
     "pong": _render_pong_frame,
     "canticle_rain": _render_canticle_rain_frame,
     "starfield": _render_starfield_frame,
@@ -1807,22 +2664,13 @@ _RENDERERS = {
     "orbitals": _render_orbitals_frame,
     "spectrum_bars": _render_spectrum_bars_frame,
     "plasma": _render_plasma_frame,
-    "lissajous": _render_lissajous_frame,
-    "voronoi": _render_voronoi_frame,
-    "data_stream": _render_data_stream_frame,
-    "mandala": _render_mandala_frame,
-    "rune_wheel": _render_rune_wheel_frame,
-    "glitch": _render_glitch_frame,
-    "dna_helix": _render_dna_helix_frame,
+            "data_stream": _render_data_stream_frame,
+            "glitch": _render_glitch_frame,
     "neural_net": _render_neural_net_frame,
-    "gravity_well": _render_gravity_well_frame,
     "void_shield": _render_void_shield_frame,
     "hex_grid": _render_hex_grid_frame,
-    "kaleidoscope": _render_kaleidoscope_frame,
-    "particle_burst": _render_particle_burst_frame,
-    "asteroids": _render_asteroids_frame,
-    "battlezone": _render_battlezone_frame,
-    "trench_run": _render_trench_run_frame,
+            "asteroids": _render_asteroids_frame,
+    "battlezone": _render_battlezone_frame
 }
 
 

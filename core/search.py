@@ -203,7 +203,8 @@ def _fetch_guardian_rss(max_items: int = 3) -> str:
     """Fetch headlines from The Guardian UK RSS feed."""
     url = "https://www.theguardian.com/uk/rss"
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"})
-    content = urllib.request.urlopen(req, timeout=5).read()
+    with urllib.request.urlopen(req, timeout=5) as resp:
+        content = resp.read()
     import xml.etree.ElementTree as ET
     root = ET.fromstring(content)
     items = []

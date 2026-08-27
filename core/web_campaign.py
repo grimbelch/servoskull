@@ -306,17 +306,30 @@ def _handle_campaign_module_state_update(server_handler: Any) -> None:
         if not active:
             server_handler._send_json({"ok": False, "error": "No active campaign"}, 400)
             return
-            
+
         entity_type = data.get("entity_type")
         entity_id = data.get("entity_id")
-        status = data.get("status", "Not Started")
-        gm_notes = data.get("gm_notes", "")
-        
+        status = data.get("status")
+        gm_notes = data.get("gm_notes")
+
         if not entity_type or not entity_id:
             server_handler._send_json({"ok": False, "error": "entity_type and entity_id required"}, 400)
             return
-            
-        modules_db.update_module_state(active["id"], entity_type, entity_id, status, gm_notes)
+
+        # Chapters, rooms and plots are all sections in the module tree, so they
+        # share one state table; events are tracked separately as fired or not.
+        if entity_type == "event":
+            modules_db.set_event_fired(
+                active["id"], int(entity_id),
+                fired=str(status).lower() in {"complete", "fired", "done", "true"},
+                gm_notes=gm_notes or "",
+            )
+        elif entity_type == "npc":
+            modules_db.set_npc_state(active["id"], int(entity_id), gm_notes=gm_notes or "")
+        else:
+            modules_db.set_section_state(
+                active["id"], int(entity_id), status=status, gm_notes=gm_notes
+            )
         server_handler._send_json({"ok": True})
     except Exception as e:
         server_handler._send_json({"ok": False, "error": str(e)}, 500)

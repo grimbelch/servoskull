@@ -444,13 +444,14 @@
     <div id="toast" class="toast">Saved.</div>
 
     <script>
-        const slug = window.location.pathname.split("/").pop();
+        let pathStr = window.location.pathname.replace(/\/$/, "");
+        const slug = pathStr.split("/").pop();
         let moduleData = null;
 
         function getImgUrl(imgPath) {
             if (!imgPath) return "";
             if (imgPath.startsWith("/")) return imgPath;
-            return `/images/modules/${moduleData.slug}/${imgPath.split('/').pop()}`;
+            return `/rules_images/${imgPath}`;
         }
 
         async function init() {

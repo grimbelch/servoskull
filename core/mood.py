@@ -5,6 +5,7 @@ and system prompt context. Persists across restarts via SQLite.
 
 from __future__ import annotations
 import random
+import threading
 import time
 
 from core import config
@@ -93,6 +94,7 @@ MOODS: dict[str, dict] = {
 
 _MOOD_NAMES = list(MOODS.keys())
 _DEFAULT = "DUTIFUL"
+_state_lock = threading.Lock()
 
 def _get_state() -> dict:
     return db.kv_get("mood_state", {"mood": _DEFAULT, "set_at": 0.0})
@@ -103,13 +105,14 @@ def _save_state(state: dict) -> None:
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 def get() -> str:
-    state = _get_state()
-    m = state.get("mood", _DEFAULT)
-    if m not in MOODS:
-        m = _DEFAULT
-        state["mood"] = m
-        _save_state(state)
-    return m
+    with _state_lock:
+        state = _get_state()
+        m = state.get("mood", _DEFAULT)
+        if m not in MOODS:
+            m = _DEFAULT
+            state["mood"] = m
+            _save_state(state)
+        return m
 
 
 def label() -> str:
@@ -122,11 +125,12 @@ def set_mood(mood: str) -> str:
     if mood not in MOODS:
         mood = _DEFAULT
         
-    state = _get_state()
-    prev = state.get("mood", _DEFAULT)
-    state["mood"] = mood
-    state["set_at"] = time.monotonic()
-    _save_state(state)
+    with _state_lock:
+        state = _get_state()
+        prev = state.get("mood", _DEFAULT)
+        state["mood"] = mood
+        state["set_at"] = time.monotonic()
+        _save_state(state)
     
     if mood != prev:
         print(f"[mood] {prev} → {mood}")
@@ -155,7 +159,7 @@ def drift() -> str | None:
 
 def system_addendum() -> str:
     """System prompt snippet describing the current mood."""
-    if config.SKULL_NAME.lower() == "jax":
+    if config.get_personality_key() == "jax":
         jax_addenda = {
             "VIGILANT": "CURRENT DISPOSITION — ALERT: Perked up, ears attentive, watching out eagerly to protect and help your owner.",
             "CONTEMPLATIVE": "CURRENT DISPOSITION — THOUGHTFUL: Gentle, calm, and resting quietly while staying attentive to your owner.",
@@ -171,7 +175,7 @@ def system_addendum() -> str:
 
 def idle_bias() -> str:
     """Guidance string for idle utterance generation."""
-    if config.SKULL_NAME.lower() == "jax":
+    if config.get_personality_key() == "jax":
         return "a happy, playful Golden Retriever thought about your owner, playing, fetching, or going outside"
     return MOODS[get()]["idle_bias"]
 

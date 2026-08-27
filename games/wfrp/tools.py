@@ -124,14 +124,14 @@ TOOLS = [
     },
     {
         "name": "whfrp_load_scene",
-        "description": "Load the current adventure scene/node. Returns the read-aloud text, GM secrets, NPCs present, and event triggers. Use this to advance the plot in structured adventures.",
+        "description": "Load a scene from the adventure module and mark it as the party's current location in the story. Returns the book's text for that section, the NPCs present, and the sub-scenes you can move to next. Call with no section_id to resume where the party left off.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "adventure_name": {"type": "string", "description": "Name of the adventure (e.g. 'Three Feathers')"},
-                "node_id": {"type": "string", "description": "Optional: Specific node ID to load. If omitted, loads the current active node."}
+                "section_id": {"type": "integer", "description": "Section to load, from whfrp_lookup_module or whfrp_search_module. Omit to resume the current scene."},
+                "slug": {"type": "string", "description": "Module slug, used when resuming. Defaults to the campaign's module."}
             },
-            "required": ["adventure_name"]
+            "required": []
         }
     },
     {
@@ -416,14 +416,38 @@ TOOLS = [
     },
     {
         "name": "whfrp_lookup_module",
-        "description": "Lookup an adventure module's full chapter events, NPCs, and plots so that you can understand the chronological timeline of events for the campaign.",
+        "description": "Look up an adventure module: its chapters, or one chapter's plots, timed events and NPCs, so that you can run the adventure and understand the chronological timeline.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "slug": {"type": "string", "description": "The slug of the module, e.g. rough-nights-and-hard-days"},
-                "chapter_number": {"type": "integer", "description": "The chapter number to lookup. If omitted, returns an overview of the whole module."}
+                "chapter": {"type": "string", "description": "Chapter title or 1-based number. If omitted, returns an overview of the whole module."}
             },
             "required": ["slug"]
+        }
+    },
+    {
+        "name": "whfrp_search_module",
+        "description": "Full-text search the adventure module for a name, place, plot or rule, returning the matching sections and NPCs with page numbers. Use this when a player asks about something and you need the book's exact wording.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Words to search for, e.g. 'Glimbrin Oddsocks' or 'trapdoor cellar'"},
+                "slug": {"type": "string", "description": "Restrict to one module by slug."},
+                "limit": {"type": "integer", "description": "Maximum results, default 8."}
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "whfrp_read_section",
+        "description": "Read the full text of one module section by its id, as returned by whfrp_search_module or whfrp_lookup_module. Use this to get the book's complete description of a room, plot or event.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "section_id": {"type": "integer", "description": "The section id."}
+            },
+            "required": ["section_id"]
         }
     },
     {
@@ -435,6 +459,18 @@ TOOLS = [
                 "image_path": {"type": "string", "description": "The path to the image, returned by whfrp_lookup_module or stored in module data."}
             },
             "required": ["image_path"]
+        }
+    },
+    {
+        "name": "whfrp_map_key",
+        "description": "Look up what the numbered locations on a module map are. Call with no arguments to list every map and its numbered rooms. Give 'key' to answer a question like 'what is room 24?'. Give 'map' to narrow the search to one map by name, caption or page number.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "key": {"type": "string", "description": "A callout number printed on the map, e.g. '24'."},
+                "map": {"type": "string", "description": "Map name, caption fragment, or page number to restrict the lookup to."}
+            },
+            "required": []
         }
     }
 ]
@@ -462,6 +498,7 @@ def _tool_whfrp_manage_npc(i):
             npc_dict[k] = i[k]
             
     db.upsert_npc(slug, npc_dict)
+    _campaign.reload_active()
     return {"status": "success", "message": f"Updated NPC {i['name']}"}
 
 def _tool_whfrp_manage_location(i):
@@ -486,6 +523,7 @@ def _tool_whfrp_manage_location(i):
             loc_dict[k] = i[k]
             
     db.upsert_location(slug, loc_dict)
+    _campaign.reload_active()
     return {"status": "success", "message": f"Updated Location {i['name']}"}
 
 def _tool_whfrp_log_timeline_event(i):
@@ -495,6 +533,7 @@ def _tool_whfrp_log_timeline_event(i):
     slug = active.get("slug")
     from . import db
     db.add_timeline_event(slug, i["event_summary"], i.get("in_game_date", ""))
+    _campaign.reload_active()
     return {"status": "success", "message": "Event logged to timeline."}
 def _tool_whfrp_rules(i):
     query = i.get("query", "")
@@ -860,78 +899,258 @@ def _tool_whfrp_resolve_attack(i):
 
 
 def _tool_whfrp_load_scene(i):
-    from . import db
-    c_id = _campaign.get_active_campaign().get("id") if _campaign.get_active_campaign() else 1
-    adv_name = i.get("adventure_name")
-    node_id = i.get("node_id")
-    
+    """Move the party to a section of the module and return it as a playable scene."""
+    from . import db, modules_db
+    active = _campaign.get_active_campaign()
+    if not active:
+        return {"error": "No active campaign. Call start_campaign first."}
+    campaign_id = active["id"]
+    section_id = i.get("section_id")
+
     conn = db.get_connection()
     try:
-        if not node_id:
-            # Get current active node
-            state = conn.execute("SELECT current_node_id FROM adventure_state WHERE campaign_id = ? AND adventure_name = ?", (c_id, adv_name)).fetchone()
-            if state:
-                node_id = state['current_node_id']
-            else:
-                return f"No active state found for adventure '{adv_name}'."
-        
-        node = conn.execute("SELECT * FROM adventure_nodes WHERE campaign_id = ? AND adventure_name = ? AND node_id = ?", (c_id, adv_name, node_id)).fetchone()
-        if not node:
-            return f"Node '{node_id}' not found in adventure '{adv_name}'."
-            
-        # Update active state if we loaded a specific node
-        if i.get("node_id"):
-            state = conn.execute("SELECT id FROM adventure_state WHERE campaign_id = ? AND adventure_name = ?", (c_id, adv_name)).fetchone()
-            if state:
-                conn.execute("UPDATE adventure_state SET current_node_id = ? WHERE id = ?", (node_id, state['id']))
-            else:
-                conn.execute("INSERT INTO adventure_state (campaign_id, adventure_name, current_node_id) VALUES (?, ?, ?)", (c_id, adv_name, node_id))
-            conn.commit()
-            
-        return (
-            f"SCENE: {node['title']} ({node['node_id']})\n"
-            f"=========================================\n"
-            f"READ ALOUD:\n{node['read_aloud']}\n\n"
-            f"GM SECRETS (Do not read aloud):\n{node['gm_secrets']}\n\n"
-            f"NPCS PRESENT: {node['npcs_present']}\n\n"
-            f"TRIGGERS/EXITS:\n{node['triggers']}"
+        if not section_id:
+            resumed = conn.execute(
+                "SELECT current_section_id FROM campaign_modules WHERE campaign_id = ?"
+                " ORDER BY id DESC LIMIT 1",
+                (campaign_id,),
+            ).fetchone()
+            section_id = resumed["current_section_id"] if resumed else None
+        if not section_id:
+            return {"error": "No current scene. Pass a section_id from whfrp_lookup_module."}
+
+        row = conn.execute(
+            "SELECT * FROM module_sections WHERE id = ?", (section_id,)
+        ).fetchone()
+        if not row:
+            return {"error": f"Section {section_id} not found."}
+        section = dict(row)
+
+        children = [
+            dict(child)
+            for child in conn.execute(
+                "SELECT id, title, kind, page_start FROM module_sections"
+                " WHERE parent_id = ? ORDER BY doc_order",
+                (section_id,),
+            ).fetchall()
+        ]
+        npcs = [
+            dict(npc)
+            for npc in conn.execute(
+                "SELECT n.id, n.name, n.title, n.faction FROM module_npcs n"
+                "  JOIN module_npc_appearances a ON a.npc_id = n.id"
+                " WHERE a.section_id = ?",
+                (section_id,),
+            ).fetchall()
+        ]
+        assets = [
+            dict(asset)
+            for asset in conn.execute(
+                "SELECT id, kind, path, caption FROM module_assets"
+                " WHERE section_id = ? OR (kind = 'map' AND page BETWEEN ? AND ?)",
+                (section_id, section["page_start"], section["page_end"]),
+            ).fetchall()
+        ]
+
+        # Remember where the party is so the next call can resume without an id.
+        conn.execute(
+            "UPDATE campaign_modules SET current_section_id = ?"
+            "  WHERE campaign_id = ? AND module_id ="
+            "        (SELECT module_id FROM module_sections WHERE id = ?)",
+            (section_id, campaign_id, section_id),
         )
+        conn.commit()
     finally:
         conn.close()
 
+    modules_db.set_section_state(campaign_id, section_id, status="active", revealed=True)
+
+    return {
+        "section_id": section["id"],
+        "title": section["title"],
+        "kind": section["kind"],
+        "pages": [section["page_start"], section["page_end"]],
+        "text": section["body_md"],
+        "npcs_present": npcs,
+        "images": assets,
+        "next_scenes": children,
+    }
+
+
 def _tool_whfrp_lookup_module(i):
     slug = i.get("slug")
-    chap_num = i.get("chapter_number")
+    wanted = i.get("chapter")
     from . import modules_db
     mod = modules_db.get_module(slug)
     if not mod:
         return {"error": f"Module {slug} not found."}
-    
-    if chap_num:
-        for chap in mod.get("chapters", []):
-            if chap["chapter_number"] == chap_num:
-                return {"chapter": chap, "npcs": mod.get("npcs")}
-        return {"error": f"Chapter {chap_num} not found in {slug}."}
-    
+
+    chapters = mod.get("chapters", [])
+    if wanted not in (None, ""):
+        chapter = None
+        if str(wanted).isdigit() and 1 <= int(wanted) <= len(chapters):
+            chapter = chapters[int(wanted) - 1]
+        else:
+            needle = str(wanted).lower()
+            chapter = next(
+                (c for c in chapters if needle in c["title"].lower()), None
+            )
+        if not chapter:
+            return {"error": f"Chapter {wanted!r} not found in {slug}."}
+        return {
+            "chapter": {
+                "id": chapter["id"],
+                "title": chapter["title"],
+                "pages": [chapter["page_start"], chapter["page_end"]],
+                "summary": chapter.get("body_md", "")[:2000],
+            },
+            "plots": [
+                {"number": p["plot_number"], "title": p["title"],
+                 "description": p["description"], "page": p["page"]}
+                for p in chapter.get("plots", [])
+            ],
+            # Already ordered along the in-fiction timeline, including the
+            # rollover past midnight into the next morning.
+            "timeline": [
+                {"id": e["id"], "time": e["time_label"],
+                 "description": e["description"], "page": e["page"]}
+                for e in chapter.get("events", [])
+            ],
+            "npcs": [
+                {"id": n["id"], "name": n["name"], "title": n["title"],
+                 "faction": n["faction"], "page": n["page"]}
+                for n in chapter.get("npcs", [])
+            ],
+        }
+
     return {
         "title": mod.get("title"),
-        "description": mod.get("description"),
-        "chapters": [{"chapter_number": c["chapter_number"], "title": c["title"]} for c in mod.get("chapters", [])],
-        "images": mod.get("images")
+        "slug": mod.get("slug"),
+        "pages": mod.get("page_count"),
+        "chapters": [
+            {"number": index + 1, "id": c["id"], "title": c["title"],
+             "pages": [c["page_start"], c["page_end"]]}
+            for index, c in enumerate(chapters)
+        ],
+        "maps": [
+            {"caption": a["caption"], "page": a["page"], "path": a["path"]}
+            for a in mod.get("maps", [])
+        ],
+        "npc_count": len(mod.get("npcs", [])),
     }
+
+
+def _tool_whfrp_search_module(i):
+    from . import modules_db
+    query = (i.get("query") or "").strip()
+    if not query:
+        return {"error": "A query is required."}
+    module_id = None
+    if i.get("slug"):
+        mod = modules_db.get_module(i["slug"])
+        if not mod:
+            return {"error": f"Module {i['slug']} not found."}
+        module_id = mod["id"]
+    results = modules_db.search_module(query, module_id, int(i.get("limit") or 8))
+    if not results:
+        return {"results": [], "message": f"Nothing in the module matches {query!r}."}
+    return {"results": results}
+
+
+def _tool_whfrp_read_section(i):
+    from . import db as _db
+    conn = _db.get_connection()
+    try:
+        row = conn.execute(
+            "SELECT id, title, kind, body_md, page_start, page_end"
+            "  FROM module_sections WHERE id = ?",
+            (i.get("section_id"),),
+        ).fetchone()
+        if not row:
+            return {"error": "Section not found."}
+        section = dict(row)
+        section["children"] = [
+            dict(child)
+            for child in conn.execute(
+                "SELECT id, title, kind, page_start FROM module_sections"
+                " WHERE parent_id = ? ORDER BY doc_order",
+                (section["id"],),
+            ).fetchall()
+        ]
+        return section
+    finally:
+        conn.close()
+
 
 def _tool_whfrp_show_module_image(i):
     img = i.get("image_path")
-    import sys
+    if not img:
+        return {"error": "image_path is required"}
     from pathlib import Path
-    img_path = Path(__file__).resolve().parent.parent.parent / "games" / img.lstrip("/")
+    img_path = Path(__file__).resolve().parent.parent.parent / img.lstrip("/")
     if not img_path.exists():
         return {"error": "Image not found"}
-    
-    import core.web
-    skull.web._command_queue.put({"type": "show_image", "url": img})
+
+    from core import web
+    web._command_queue.put({"type": "show_image", "url": img})
     return {"status": "success", "message": f"Image {img} broadcasted to players.", "url": img}
 
+
+
+def _tool_whfrp_map_key(i):
+    """Translate the numbered circles printed on a module map into room names."""
+    from . import db as _db
+
+    key = str(i.get("key") or "").strip()
+    map_hint = str(i.get("map") or "").strip()
+
+    sql = [
+        "SELECT k.key_label, k.label, k.detail, k.section_id,",
+        "       a.caption, a.page, a.path",
+        "  FROM module_map_keys k",
+        "  JOIN module_assets a ON a.id = k.asset_id",
+        " WHERE 1 = 1",
+    ]
+    params = []
+    if key:
+        sql.append("   AND k.key_label = ?")
+        params.append(key)
+    if map_hint:
+        if map_hint.isdigit():
+            sql.append("   AND a.page = ?")
+            params.append(int(map_hint))
+        else:
+            sql.append("   AND LOWER(a.caption) LIKE ?")
+            params.append(f"%{map_hint.lower()}%")
+    sql.append(" ORDER BY a.page, CAST(k.key_label AS INTEGER), k.key_label")
+
+    conn = _db.get_connection()
+    try:
+        rows = [dict(r) for r in conn.execute("\n".join(sql), params).fetchall()]
+    finally:
+        conn.close()
+
+    if not rows:
+        if key:
+            return {"error": f"No map callout numbered {key!r} was found."}
+        return {"error": "No map keys are available for the loaded module."}
+
+    maps: dict[int, dict] = {}
+    for row in rows:
+        entry = maps.setdefault(
+            row["page"],
+            {"map": row["caption"], "page": row["page"],
+             "image_path": row["path"], "keys": []},
+        )
+        entry["keys"].append(
+            {
+                "key": row["key_label"],
+                "label": row["label"],
+                "detail": row["detail"] or "",
+                "section_id": row["section_id"],
+            }
+        )
+    return {"maps": list(maps.values())}
 
 
 HANDLERS = {
@@ -957,4 +1176,7 @@ HANDLERS = {
     "whfrp_lookup_equipment": _tool_whfrp_lookup_equipment,
     "whfrp_lookup_module": _tool_whfrp_lookup_module,
     "whfrp_show_module_image": _tool_whfrp_show_module_image,
+    "whfrp_search_module": _tool_whfrp_search_module,
+    "whfrp_read_section": _tool_whfrp_read_section,
+    "whfrp_map_key": _tool_whfrp_map_key,
 }

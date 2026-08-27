@@ -4,6 +4,7 @@ import pathlib
 import re
 import subprocess
 import sys
+import threading
 from datetime import datetime
 from core import config
 from core.config import SYSTEM_PROMPT
@@ -20,7 +21,8 @@ import importlib
 
 _brain_module = None
 try:
-    _brain_module = importlib.import_module(f"personalities.{config.SKULL_NAME.lower()}.brain")
+    _persona_key = config.get_personality_key() if hasattr(config, "get_personality_key") else config.SKULL_NAME.lower().replace("-", "")
+    _brain_module = importlib.import_module(f"personalities.{_persona_key}.brain")
 except Exception as e:
     print(f"[brain] Could not load personality brain module: {e}")
 
@@ -28,7 +30,7 @@ _history: list[dict] = []
 
 # Tools that hit the network/hardware and can take a noticeable moment. Omega-7
 # speaks a short "stand by" before running any of these so the user gets feedback.
-_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings", "register_face", "register_voice", "purge_identity", "connect_bambu_printer", "set_weather_location", "get_spotify_current_track"} | wfrp.tools.SLOW_TOOLS
+_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings", "register_face", "register_voice", "purge_identity", "connect_bambu_printer", "get_spotify_current_track"} | wfrp.tools.SLOW_TOOLS
 
 from core import db
 _last_turn_tools: list[str] = []
@@ -120,92 +122,95 @@ def _strip_actions(text: str) -> str:
 
 
 def _run_auspex_scan() -> str:
-    # 1. Temperature
-    from core.temperature import read_temp_c
-    temp = read_temp_c()
-
-    # 2. CPU load
     import os
     import sys
-    cpu_count = os.cpu_count() or 1
-    cpu_load_pct = 0.0
-    try:
-        load = os.getloadavg()
-        cpu_load_pct = (load[0] / cpu_count) * 100
-    except Exception:
-        pass
+    import shutil
+    import subprocess
+    import concurrent.futures
 
-    # 3. Memory
-    mem_total_gb, mem_used_gb, mem_pct = 0.0, 0.0, 0.0
-    try:
-        if sys.platform != "darwin" and os.path.exists("/proc/meminfo"):
-            mem_total, mem_avail = 0, 0
-            with open("/proc/meminfo") as f:
-                for line in f:
-                    if line.startswith("MemTotal:"):
-                        mem_total = int(line.split()[1]) * 1024
-                    elif line.startswith("MemAvailable:"):
-                        mem_avail = int(line.split()[1]) * 1024
-            if mem_total > 0:
+    def get_temp():
+        from core.temperature import read_temp_c
+        return read_temp_c()
+
+    def get_cpu():
+        try:
+            load = os.getloadavg()
+            return (load[0] / (os.cpu_count() or 1)) * 100
+        except Exception:
+            return 0.0
+
+    def get_mem():
+        mem_total_gb, mem_used_gb, mem_pct = 4.0, 1.0, 25.0
+        try:
+            if sys.platform != "darwin" and os.path.exists("/proc/meminfo"):
+                mem_total, mem_avail = 0, 0
+                with open("/proc/meminfo") as f:
+                    for line in f:
+                        if line.startswith("MemTotal:"):
+                            mem_total = int(line.split()[1]) * 1024
+                        elif line.startswith("MemAvailable:"):
+                            mem_avail = int(line.split()[1]) * 1024
+                if mem_total > 0:
+                    mem_used = mem_total - mem_avail
+                    mem_total_gb = mem_total / (1024**3)
+                    mem_used_gb = mem_used / (1024**3)
+                    mem_pct = (mem_used / mem_total) * 100
+            else:
+                out = subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=1).stdout.strip()
+                mem_total = int(out)
+                vm = subprocess.run(["vm_stat"], capture_output=True, text=True, timeout=1).stdout
+                pages_free = pages_speculative = pages_purgeable = 0
+                page_size = 4096
+                for line in vm.splitlines():
+                    if "Pages free:" in line: pages_free = int(line.split()[-1].strip("."))
+                    elif "Pages speculative:" in line: pages_speculative = int(line.split()[-1].strip("."))
+                    elif "Pages purgeable:" in line: pages_purgeable = int(line.split()[-1].strip("."))
+                    elif "page size of" in line:
+                        match_size = re.search(r"page size of (\d+) bytes", line)
+                        if match_size: page_size = int(match_size.group(1))
+                mem_avail = (pages_free + pages_speculative + pages_purgeable) * page_size
                 mem_used = mem_total - mem_avail
                 mem_total_gb = mem_total / (1024**3)
                 mem_used_gb = mem_used / (1024**3)
                 mem_pct = (mem_used / mem_total) * 100
-        else:
-            import subprocess
-            out = subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=1).stdout.strip()
-            mem_total = int(out)
-            vm = subprocess.run(["vm_stat"], capture_output=True, text=True, timeout=1).stdout
-            pages_free = 0
-            pages_speculative = 0
-            pages_purgeable = 0
-            page_size = 4096
-            for line in vm.splitlines():
-                if "Pages free:" in line:
-                    pages_free = int(line.split()[-1].strip("."))
-                elif "Pages speculative:" in line:
-                    pages_speculative = int(line.split()[-1].strip("."))
-                elif "Pages purgeable:" in line:
-                    pages_purgeable = int(line.split()[-1].strip("."))
-                elif "page size of" in line:
-                    match_size = re.search(r"page size of (\d+) bytes", line)
-                    if match_size:
-                        page_size = int(match_size.group(1))
-            mem_avail = (pages_free + pages_speculative + pages_purgeable) * page_size
-            mem_used = mem_total - mem_avail
-            mem_total_gb = mem_total / (1024**3)
-            mem_used_gb = mem_used / (1024**3)
-            mem_pct = (mem_used / mem_total) * 100
-    except Exception:
-        mem_total_gb = 4.0
-        mem_pct = 25.0
-        mem_used_gb = 1.0
+        except Exception as e:
+            print(f"[auspex] Mem error: {e}")
+        return mem_total_gb, mem_used_gb, mem_pct
 
-    # 4. Disk Usage
-    import shutil
-    disk_total_gb, disk_used_gb, disk_pct = 0.0, 0.0, 0.0
-    try:
-        total, used, free = shutil.disk_usage("/")
-        disk_total_gb = total / (1024**3)
-        disk_used_gb = used / (1024**3)
-        disk_pct = (used / total) * 100
-    except Exception:
-        pass
+    def get_disk():
+        try:
+            total, used, free = shutil.disk_usage("/")
+            return total / (1024**3), used / (1024**3), (used / total) * 100
+        except Exception:
+            return 0.0, 0.0, 0.0
 
-    # 5. Network / Noosphere Latency
-    import subprocess
-    latency_ms = None
-    noosphere_status = "unreachable"
-    try:
-        flag = "-t" if sys.platform == "darwin" else "-W"
-        res = subprocess.run(["ping", "-c", "1", flag, "1", "1.1.1.1"], capture_output=True, text=True, timeout=1.5)
-        if res.returncode == 0:
-            match = re.search(r"time=([\d.]+)\s*ms", res.stdout)
-            if match:
-                latency_ms = float(match.group(1))
-                noosphere_status = "connected"
-    except Exception:
-        pass
+    def get_ping():
+        latency_ms, status = None, "unreachable"
+        try:
+            flag = "-t" if sys.platform == "darwin" else "-W"
+            res = subprocess.run(["ping", "-c", "1", flag, "1", "1.1.1.1"], capture_output=True, text=True, timeout=1.5)
+            if res.returncode == 0:
+                match = re.search(r"time=([\d.]+)\s*ms", res.stdout)
+                if match:
+                    latency_ms = float(match.group(1))
+                    status = "connected"
+        except Exception as e:
+            print(f"[auspex] Ping error: {e}")
+        return latency_ms, status
+
+    # Run all diagnostics in parallel to prevent blocking the LLM loop
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        f_temp = executor.submit(get_temp)
+        f_cpu = executor.submit(get_cpu)
+        f_mem = executor.submit(get_mem)
+        f_disk = executor.submit(get_disk)
+        f_ping = executor.submit(get_ping)
+
+        temp = f_temp.result()
+        cpu_load_pct = f_cpu.result()
+        mem_total_gb, mem_used_gb, mem_pct = f_mem.result()
+        disk_total_gb, disk_used_gb, disk_pct = f_disk.result()
+        latency_ms, noosphere_status = f_ping.result()
 
     # Compose reports
     report = []
@@ -241,7 +246,6 @@ def _simulate_dice(
     feel_no_pain: int | None = None,
 ) -> str:
     import random
-    global _last_roll_result
     display_val = 0
 
     details = []
@@ -278,7 +282,7 @@ def _simulate_dice(
 
     if total_hits == 0:
         details.append("No hits generated. The attack sequence terminates.")
-        _last_roll_result = str(display_val)
+        _set_roll_result(display_val)
         return "\n".join(details)
 
     # Wounds
@@ -311,12 +315,12 @@ def _simulate_dice(
 
     if total_wounds == 0:
         details.append("No wounds generated. The attack sequence terminates.")
-        _last_roll_result = str(display_val)
+        _set_roll_result(display_val)
         return "\n".join(details)
 
     # Saves
     if save_on is None:
-        _last_roll_result = str(display_val)
+        _set_roll_result(display_val)
         return "\n".join(details)
 
     ap_val = abs(ap)
@@ -348,7 +352,7 @@ def _simulate_dice(
 
     if failed_saves == 0:
         details.append("All saves succeeded. No damage inflicted.")
-        _last_roll_result = str(display_val)
+        _set_roll_result(display_val)
         return "\n".join(details)
 
     # Feel No Pain
@@ -363,7 +367,7 @@ def _simulate_dice(
     else:
         details.append(f"Result: {failed_saves} damage inflicted.")
 
-    _last_roll_result = str(display_val)
+    _set_roll_result(display_val)
     return "\n".join(details)
 
 
@@ -387,12 +391,16 @@ def get_active_tools_for_game(game_name: str) -> list[dict]:
 
     g_lower = (game_name or "").lower()
 
-    whfrp_tools = {
-        "whfrp_rules", "whfrp_lookup_character", "whfrp_lookup_npc", "whfrp_lookup_location",
-        "whfrp_log_timeline_event", "roll_whfrp_dice", "start_campaign", "list_campaigns",
-        "get_campaign_state", "save_campaign_state", "roll_character_stats", "save_character",
-        "roll_random_talent", "get_species_info", "get_class_trappings", "roll_starting_wealth",
-        "roll_physical_details"
+    # Derived from the WFRP tool module rather than hardcoded, so tools added
+    # there are gated automatically instead of leaking into every other game.
+    try:
+        from games import wfrp as _wfrp
+
+        whfrp_tools = set(_wfrp.tools.HANDLERS)
+    except Exception:
+        whfrp_tools = set()
+    whfrp_tools |= {
+        name for name in (t.get("name") for t in _TOOLS) if name and name.startswith("whfrp_")
     }
     w40k_tools = {"warhammer40k_rules"}
     necro_tools = {"necromunda_rules"}
@@ -436,10 +444,20 @@ def set_current_game(game: str) -> None:
 
 
 _last_roll_result = "0"
+_roll_lock = threading.Lock()
 
+
+def _set_roll_result(val: int | str) -> None:
+    """Thread-safe setter for the last dice roll result."""
+    with _roll_lock:
+        _last_roll_result = str(val)
+
+def _get_roll_result() -> str:
+    """Thread-safe getter for the last dice roll result."""
+    with _roll_lock:
+        return _last_roll_result
 
 def _trigger_dice_effects(display_val: int | str | None = None) -> None:
-    global _last_roll_result
     try:
         from core import sfx as _sfx
         _sfx.play("dice_roll")
@@ -447,7 +465,7 @@ def _trigger_dice_effects(display_val: int | str | None = None) -> None:
         print(f"[brain] SFX play failed: {e}")
 
     try:
-        val = display_val if display_val is not None else _last_roll_result
+        val = display_val if display_val is not None else _get_roll_result()
         from core import display as _display
         _display.start_die_roll(val)
     except Exception as e:
@@ -459,7 +477,6 @@ def _trigger_dice_effects(display_val: int | str | None = None) -> None:
 
 def _simulate_necromunda(dice_type: str, count: int, target: int | None = None) -> str:
     import random
-    global _last_roll_result
     display_val = "0"
     details = []
     
@@ -597,13 +614,12 @@ def _simulate_necromunda(dice_type: str, count: int, target: int | None = None) 
             else:
                 display_val = str(sum(rolls))
             
-    _last_roll_result = str(display_val)
+    _set_roll_result(display_val)
     return "\n".join(details)
 
 
 def _simulate_standard_dice(count: int, sides: int, target: int | None = None) -> str:
     import random
-    global _last_roll_result
     display_val = "0"
     rolls = [random.randint(1, sides) for _ in range(count)]
     total = sum(rolls)
@@ -618,7 +634,7 @@ def _simulate_standard_dice(count: int, sides: int, target: int | None = None) -
         else:
             display_val = str(total)
             
-    _last_roll_result = str(display_val)
+    _set_roll_result(display_val)
     return "\n".join(details)
 
 
@@ -637,7 +653,6 @@ def _simulate_epic_dice(
     opponent_count: int | None = None,
 ) -> str:
     import random
-    global _last_roll_result
     display_val = "0"
     details = []
 
@@ -667,7 +682,7 @@ def _simulate_epic_dice(
         display_val = str(hit_count)
 
         if hit_count == 0:
-            _last_roll_result = str(display_val)
+            _set_roll_result(display_val)
             return "\n".join(details)
 
         if save_on is not None:
@@ -826,7 +841,7 @@ def _simulate_epic_dice(
             else:
                 display_val = str(sum(rolls))
 
-    _last_roll_result = str(display_val)
+    _set_roll_result(display_val)
     return "\n".join(details)
 
 
@@ -1075,11 +1090,40 @@ _PENDING_CHAR_BLOCKS: dict = {}
 
 
 def _tool_get_weather(i):
-    from core.config import WEATHER_LAT, WEATHER_LON
-    if WEATHER_LAT == 0.0 and WEATHER_LON == 0.0:
-        return "Weather location not configured. Set WEATHER_LAT and WEATHER_LON in .env"
-    print("[skull] Fetching weather...")
-    return _search.get_weather(WEATHER_LAT, WEATHER_LON)
+    import urllib.parse
+    import urllib.request
+    import json
+    
+    loc_str = str(i.get("location", "") or "").strip()
+    if not loc_str:
+        return "Please specify a location argument."
+    
+    city_query = loc_str.split(",")[0].strip()
+    print(f"[skull] Geocoding location: {loc_str}...")
+    try:
+        url = f"https://geocoding-api.open-meteo.com/v1/search?name={urllib.parse.quote(city_query)}&count=1"
+        req = urllib.request.Request(url, headers={"User-Agent": "Omega7/1.0"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+            results = data.get("results", [])
+            if not results:
+                return f"Could not geocode location '{loc_str}'. Please check the city name."
+            res = results[0]
+            lat = float(res["latitude"])
+            lon = float(res["longitude"])
+            name = res.get("name", city_query)
+            region = res.get("admin1", "")
+            country = res.get("country", "")
+            display_name = f"{name}"
+            if region:
+                display_name += f", {region}"
+            elif country:
+                display_name += f", {country}"
+                
+            print(f"[skull] Fetching weather for {display_name}...")
+            return f"Weather for {display_name}:\\n" + _search.get_weather(lat, lon)
+    except Exception as e:
+        return f"Error resolving location: {e}"
 
 def _tool_set_volume(i):
     from core import audio
@@ -1253,57 +1297,6 @@ def _tool_connect_bambu_printer(i):
     else:
         return f"Updated printer credentials (IP: {ip}, Serial: {serial}, Access Code: {access_code}), but background connection timed out. Verify the printer is powered on and connected to the local network."
 
-
-def _tool_set_weather_location(i):
-    import urllib.parse
-    import urllib.request
-    import json
-    import pathlib
-    from core import config
-
-    loc_str = str(i.get("location", "") or "").strip()
-    if not loc_str:
-        return "Please specify a location, such as 'Seattle, WA' or 'Chicago'."
-
-    city_query = loc_str.split(",")[0].strip()
-    try:
-        url = f"https://geocoding-api.open-meteo.com/v1/search?name={urllib.parse.quote(city_query)}&count=1"
-        req = urllib.request.Request(url, headers={"User-Agent": "Omega7/1.0"})
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode())
-            results = data.get("results", [])
-            if not results:
-                return f"Could not geocode location '{loc_str}'. Please check the city name."
-            res = results[0]
-            lat = float(res["latitude"])
-            lon = float(res["longitude"])
-            name = res.get("name", city_query)
-            region = res.get("admin1", "")
-            country = res.get("country", "")
-            display_name = f"{name}"
-            if region:
-                display_name += f", {region}"
-            elif country:
-                display_name += f", {country}"
-
-            # Save to .env
-            env_path = pathlib.Path(__file__).resolve().parent.parent / ".env"
-            if not env_path.exists():
-                env_path = pathlib.Path("~/.config/omega7/.env").expanduser()
-
-            content = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
-            lines = [l for l in content.splitlines() if not (l.startswith("WEATHER_LAT=") or l.startswith("WEATHER_LON="))]
-            lines.append(f"WEATHER_LAT={lat:.4f}")
-            lines.append(f"WEATHER_LON={lon:.4f}")
-            env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-            # Update in-memory config
-            config.WEATHER_LAT = lat
-            config.WEATHER_LON = lon
-
-            return f"Weather location updated to {display_name} (Coordinates: {lat:.4f}, {lon:.4f}). Future weather forecasts will reflect this location."
-    except Exception as e:
-        return f"Failed to set weather location: {e}"
 
 
 def _tool_set_display_rotation(i):
@@ -1513,7 +1506,7 @@ def _tool_acknowledge_reminders(i):
 def _tool_set_quiet_mode(i):
     enabled = bool(i.get("enabled", True))
     _quiet.set_silent(enabled)
-    if config.SKULL_NAME.lower() == "jax":
+    if config.get_personality_key() == "jax":
         return (
             "Quiet mode on! I'll stay nice and quiet until you call me."
             if enabled
@@ -1592,7 +1585,7 @@ def _tool_rebuild_sounds(i):
     if _RELOAD_VOICE_CACHE_CB:
         res_msg = _RELOAD_VOICE_CACHE_CB()
     else:
-        cache_dir = pathlib.Path(f"models/phrase_cache/{config.SKULL_NAME.lower()}")
+        cache_dir = pathlib.Path(f"models/phrase_cache/{config.get_personality_key()}")
         if cache_dir.exists():
             try:
                 shutil.rmtree(cache_dir)
@@ -1601,7 +1594,7 @@ def _tool_rebuild_sounds(i):
         res_msg = "Spoken voice phrase cache cleared and reset for regeneration."
 
     print(f"[brain] Rebuilt speech phrases: {res_msg}")
-    if config.SKULL_NAME.lower() == "jax":
+    if config.get_personality_key() == "jax":
         return "Voice library and phrase cache cleared! Regenerating all phrases with my Golden Retriever voice now!"
     return f"Spoken voice phrases rebuilt successfully: {res_msg}"
 
@@ -1700,6 +1693,22 @@ def _tool_get_distance(i):
     from core import proximity
     return proximity.get_distance_summary()
 
+def _tool_set_active_game(i: dict) -> str:
+    game = str(i.get("game", "Warhammer 40k")).strip()
+    set_current_game(game)
+    try:
+        from games import wfrp
+        if game.lower() in ["wfrp", "warhammer fantasy roleplay", "warhammer roleplay"]:
+            campaigns = wfrp.campaign.list_campaigns()
+            if campaigns:
+                wfrp.campaign.load_campaign(campaigns[0]["name"])
+        else:
+            wfrp.campaign.load_campaign(game)
+    except Exception:
+        pass
+    print(f"[brain] Active game set to {game}")
+    return f"Active game is now set to {game}."
+
 _TOOL_REGISTRY = {
     "web_search": _tool_web_search,
     "news_search": _tool_news_search,
@@ -1707,13 +1716,14 @@ _TOOL_REGISTRY = {
     "get_distance": _tool_get_distance,
     "get_daily_briefing": _tool_get_daily_briefing,
     "set_volume": _tool_set_volume,
+    "set_active_game": _tool_set_active_game,
     "bluetooth_scan": _tool_bluetooth_scan,
     "bluetooth_connect": _tool_bluetooth_connect,
     "bluetooth_disconnect": _tool_bluetooth_disconnect,
     "set_voice_output": _tool_set_voice_output,
     "get_bambu_status": _tool_get_bambu_status,
     "connect_bambu_printer": _tool_connect_bambu_printer,
-    "set_weather_location": _tool_set_weather_location,
+    
     "set_display_rotation": _tool_set_display_rotation,
     "show_display_alignment": _tool_show_display_alignment,
     "set_audio_sensitivity": _tool_set_audio_sensitivity,
@@ -1886,11 +1896,11 @@ def _execute_purge_identity(name: str) -> str:
         print(f"[brain] Error purging memory of {name}: {e}")
         
     if not purged_parts:
-        if config.SKULL_NAME.lower() == "jax":
+        if config.get_personality_key() == "jax":
             return f"I don't have any records or memories saved for '{name}'!"
         return f"No visage, vox, or memory records found for identity '{name}' in this unit's archives."
         
-    if config.SKULL_NAME.lower() == "jax":
+    if config.get_personality_key() == "jax":
         return f"Wiped all records for '{name}': {', '.join(purged_parts)}. The slate is clean!"
     return f"Purged the following records for identity '{name}': {', '.join(purged_parts)}. The data has been expunged from the machine spirit's registries."
 
@@ -2247,7 +2257,7 @@ def generate_daily_briefing() -> str:
         news_info = f"Failed to poll news headlines: {e}"
 
     try:
-        if config.SKULL_NAME.lower() == "jax":
+        if config.get_personality_key() == "jax":
             system = (
                 SYSTEM_PROMPT +
                 "\n\nYou are compiling a daily briefing for your owner (weather and news). "
@@ -2268,7 +2278,7 @@ def generate_daily_briefing() -> str:
         return (briefing or "").strip()
     except Exception as e:
         print(f"[brain] Error generating daily briefing LLM response: {e}")
-        if config.SKULL_NAME.lower() == "jax":
+        if config.get_personality_key() == "jax":
             return f"Good morning! Here is your weather update: {weather_info}."
         return f"Warning: Noosphere link degraded. Weather reports: {weather_info}."
 
@@ -2280,7 +2290,7 @@ def generate_morning_greeting(detected_name: str | None) -> str:
     If detected_name is None, greets them as an unrecognized visitor.
     """
     import random
-    is_jax = config.SKULL_NAME.lower() == "jax"
+    is_jax = config.get_personality_key() == "jax"
     if detected_name:
         name_clean = detected_name.strip()
         if is_jax:
