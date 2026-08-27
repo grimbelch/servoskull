@@ -101,7 +101,8 @@ _speech_lock = threading.RLock()
 import hashlib
 import pathlib
 
-_VOICE_CACHE_DIR = pathlib.Path(f"models/phrase_cache/{config.SKULL_NAME.lower()}")
+_persona_key = config.get_personality_key() if hasattr(config, "get_personality_key") else config.SKULL_NAME.lower().replace("-", "")
+_VOICE_CACHE_DIR = pathlib.Path(f"models/phrase_cache/{_persona_key}")
 
 
 def _voice_cache_path(text: str) -> pathlib.Path:
@@ -283,9 +284,7 @@ def switch_personality(target: str) -> str:
     if target not in ("jax", "omega7"):
         return f"Unknown personality '{target}'. Valid options are 'jax' or 'omega7'."
 
-    current = config.SKULL_NAME.lower()
-    # Normalise — 'jax' service = retriever, 'omega7' service = omega7
-    current_key = "jax" if current == "jax" else "omega7"
+    current_key = config.get_personality_key()
     if current_key == target:
         return f"I'm already {config.SKULL_NAME}! No switch needed."
 
@@ -1283,7 +1282,7 @@ def main():
                 _briefing_awaiting_response = False
                 print("[skull] User declined morning briefing. Archiving.")
                 try:
-                    if config.SKULL_NAME == "jax":
+                    if config.get_personality_key() == "jax":
                         ack_text = "Okay, no problem! We can catch up later."
                     else:
                         ack_text = "Understood, master. Cogitations archived. Speak freely."
@@ -1315,7 +1314,7 @@ def main():
         if any(p in _t for p in _RESET_TRIGGERS):
             print("[skull] Conversation reset requested — clearing short-term history.")
             brain.reset()
-            if config.SKULL_NAME == "jax":
+            if config.get_personality_key() == "jax":
                 _ack = "Alright, I've cleared my head! What do you want to talk about now? Woof!"
             else:
                 _ack = ("As you command, master. This unit's short-term cogitation is purged — "
@@ -1718,7 +1717,7 @@ def main():
             print(f"[skull] Overriding LLM reply with switch farewell: {reply}")
 
         # ── 5. Synthesize speech ───────────────────────────────────────────────
-        tts_text = reply[:1200]  # cap chars (Piper is unlimited; guards ElevenLabs quota)
+        tts_text = reply
         try:
             # synthesize() already falls back from ElevenLabs to local Piper on
             # quota exhaustion; reaching this except means Piper failed too, so
