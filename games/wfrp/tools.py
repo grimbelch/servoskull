@@ -460,6 +460,18 @@ TOOLS = [
             },
             "required": ["image_path"]
         }
+    },
+    {
+        "name": "whfrp_map_key",
+        "description": "Look up what the numbered locations on a module map are. Call with no arguments to list every map and its numbered rooms. Give 'key' to answer a question like 'what is room 24?'. Give 'map' to narrow the search to one map by name, caption or page number.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "key": {"type": "string", "description": "A callout number printed on the map, e.g. '24'."},
+                "map": {"type": "string", "description": "Map name, caption fragment, or page number to restrict the lookup to."}
+            },
+            "required": []
+        }
     }
 ]
 
@@ -1085,6 +1097,62 @@ def _tool_whfrp_show_module_image(i):
 
 
 
+def _tool_whfrp_map_key(i):
+    """Translate the numbered circles printed on a module map into room names."""
+    from . import db as _db
+
+    key = str(i.get("key") or "").strip()
+    map_hint = str(i.get("map") or "").strip()
+
+    sql = [
+        "SELECT k.key_label, k.label, k.detail, k.section_id,",
+        "       a.caption, a.page, a.path",
+        "  FROM module_map_keys k",
+        "  JOIN module_assets a ON a.id = k.asset_id",
+        " WHERE 1 = 1",
+    ]
+    params = []
+    if key:
+        sql.append("   AND k.key_label = ?")
+        params.append(key)
+    if map_hint:
+        if map_hint.isdigit():
+            sql.append("   AND a.page = ?")
+            params.append(int(map_hint))
+        else:
+            sql.append("   AND LOWER(a.caption) LIKE ?")
+            params.append(f"%{map_hint.lower()}%")
+    sql.append(" ORDER BY a.page, CAST(k.key_label AS INTEGER), k.key_label")
+
+    conn = _db.get_connection()
+    try:
+        rows = [dict(r) for r in conn.execute("\n".join(sql), params).fetchall()]
+    finally:
+        conn.close()
+
+    if not rows:
+        if key:
+            return {"error": f"No map callout numbered {key!r} was found."}
+        return {"error": "No map keys are available for the loaded module."}
+
+    maps: dict[int, dict] = {}
+    for row in rows:
+        entry = maps.setdefault(
+            row["page"],
+            {"map": row["caption"], "page": row["page"],
+             "image_path": row["path"], "keys": []},
+        )
+        entry["keys"].append(
+            {
+                "key": row["key_label"],
+                "label": row["label"],
+                "detail": row["detail"] or "",
+                "section_id": row["section_id"],
+            }
+        )
+    return {"maps": list(maps.values())}
+
+
 HANDLERS = {
     "whfrp_load_scene": _tool_whfrp_load_scene,
     "whfrp_combat_start": _tool_whfrp_combat_start,
@@ -1110,4 +1178,5 @@ HANDLERS = {
     "whfrp_show_module_image": _tool_whfrp_show_module_image,
     "whfrp_search_module": _tool_whfrp_search_module,
     "whfrp_read_section": _tool_whfrp_read_section,
+    "whfrp_map_key": _tool_whfrp_map_key,
 }

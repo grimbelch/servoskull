@@ -170,6 +170,18 @@ def get_module(slug: str) -> Optional[dict]:
             "SELECT * FROM module_assets WHERE module_id = ? ORDER BY page, id",
             module_id,
         )
+        keys_by_asset: dict[int, list[dict]] = {}
+        for key in _rows(
+            conn,
+            "SELECT k.* FROM module_map_keys k"
+            "  JOIN module_assets a ON a.id = k.asset_id"
+            " WHERE a.module_id = ?"
+            " ORDER BY k.asset_id, CAST(k.key_label AS INTEGER), k.key_label",
+            module_id,
+        ):
+            keys_by_asset.setdefault(key["asset_id"], []).append(key)
+        for asset in module["assets"]:
+            asset["keys"] = keys_by_asset.get(asset["id"], [])
         module["maps"] = [a for a in module["assets"] if a["kind"] == "map"]
         module["tables"] = [
             dict(
