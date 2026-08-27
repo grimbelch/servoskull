@@ -6,6 +6,42 @@ import random
 import math
 import subprocess
 
+
+def _core_brain():
+    """core.brain imports this personality module at load time, so it can only be
+    imported lazily from inside the tool handlers."""
+    from core import brain as _brain
+    return _brain
+
+
+def get_current_game() -> str:
+    return _core_brain().get_current_game()
+
+
+def set_current_game(game: str) -> None:
+    _core_brain().set_current_game(game)
+
+
+def _trigger_dice_effects(display_val=None) -> None:
+    _core_brain()._trigger_dice_effects(display_val)
+
+
+def _simulate_dice(**kwargs) -> str:
+    return _core_brain()._simulate_dice(**kwargs)
+
+
+def _simulate_necromunda(*args, **kwargs) -> str:
+    return _core_brain()._simulate_necromunda(*args, **kwargs)
+
+
+def _simulate_standard_dice(*args, **kwargs) -> str:
+    return _core_brain()._simulate_standard_dice(*args, **kwargs)
+
+
+def _simulate_epic_dice(*args, **kwargs) -> str:
+    return _core_brain()._simulate_epic_dice(*args, **kwargs)
+
+
 def get_tools():
     return [
 {
