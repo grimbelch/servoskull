@@ -22,15 +22,16 @@ import time
 from core import config
 import importlib
 
+_persona_key = config.get_personality_key() if hasattr(config, "get_personality_key") else config.SKULL_NAME.lower().replace("-", "")
 _screensavers = None
 try:
-    _screensavers = importlib.import_module(f"personalities.{config.SKULL_NAME.lower()}.screensavers")
+    _screensavers = importlib.import_module(f"personalities.{_persona_key}.screensavers")
 except Exception as e:
     print(f"[display] Could not load personality screensavers module: {e}")
 
 _display_module = None
 try:
-    _display_module = importlib.import_module(f"personalities.{config.SKULL_NAME.lower()}.display")
+    _display_module = importlib.import_module(f"personalities.{_persona_key}.display")
 except Exception as e:
     print(f"[display] Could not load personality display module: {e}")
 

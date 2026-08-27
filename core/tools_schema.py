@@ -7,7 +7,8 @@ from games import wfrp
 
 _brain_module = None
 try:
-    _brain_module = importlib.import_module(f"personalities.{config.SKULL_NAME.lower()}.brain")
+    _persona_key = config.get_personality_key() if hasattr(config, "get_personality_key") else config.SKULL_NAME.lower().replace("-", "")
+    _brain_module = importlib.import_module(f"personalities.{_persona_key}.brain")
 except Exception as e:
     print(f"[tools_schema] Could not load personality brain module: {e}")
 
@@ -64,13 +65,19 @@ def build_tools() -> list[dict]:
     {
         "name": "get_weather",
         "description": (
-            "Get current local weather conditions (temperature, humidity, wind, sky). "
-            "Call when the user asks about the weather or outdoor conditions."
+            "Get current weather conditions (temperature, humidity, wind, sky) and 2-day forecast for a given city/location. "
+            "Call when the user asks about the weather. If the user asks for the weather generally (e.g. 'what's the weather like?'), "
+            "retrieve their home city from your long-term memory and use it as the location."
         ),
         "input_schema": {
             "type": "object",
-            "properties": {},
-            "required": [],
+            "properties": {
+                "location": {
+                    "type": "string",
+                    "description": "City name and optional state/country e.g. 'Seattle, WA' or 'London'",
+                },
+            },
+            "required": ["location"],
         },
     },
     {
@@ -217,25 +224,7 @@ def build_tools() -> list[dict]:
             "required": [],
         },
     },
-    {
-        "name": "set_weather_location",
-        "description": (
-            "Set or update the user's location for weather forecasts. "
-            "Use when the user says 'set weather location to [City]', 'change weather location to [City]', "
-            "or 'update my location for weather'. Geocodes city names (e.g. 'Seattle, WA', 'Chicago', 'London') "
-            "to latitude and longitude and updates configuration."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "location": {
-                    "type": "string",
-                    "description": "City name and optional state/country e.g. 'Seattle, WA' or 'Chicago'",
-                },
-            },
-            "required": ["location"],
-        },
-    },
+
     {
         "name": "set_display_rotation",
         "description": (
@@ -803,8 +792,31 @@ def build_tools() -> list[dict]:
             "required": ["name"]
         }
     },
+    {
+        "name": "set_active_game",
+        "description": (
+            "Configure which tabletop or roleplaying game is currently being played "
+            "(e.g. 'Warhammer Fantasy Roleplay', 'WFRP', 'Warhammer 40k', 'Necromunda', 'NetEpic', 'Kill Team', etc.) "
+            "so that the active game indicator and web console update. YOU MUST call this tool when the user asks to switch games."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "game": {
+                    "type": "string",
+                    "description": "The name of the game or roleplaying campaign being played."
+                }
+            },
+            "required": ["game"]
+        }
+    },
     ]
     base_tools.extend(wfrp.tools.TOOLS)
     if _brain_module and hasattr(_brain_module, 'get_tools'):
-        base_tools.extend(_brain_module.get_tools())
+        core_names = {t["name"] for t in base_tools}
+        for t in _brain_module.get_tools():
+            if t["name"] in core_names:
+                print(f"[tools_schema] Skipping duplicate personality tool '{t['name']}' (already in core)")
+                continue
+            base_tools.append(t)
     return base_tools

@@ -96,13 +96,10 @@ def build_owner_section(owner: dict, skull_name: str = "Omega-7") -> str:
 
 
 def get_personality_config(skull_name: str = "Omega-7") -> dict:
-    name = (skull_name or "Omega-7").strip().lower()
+    from core import config
+    key = config.get_personality_key(skull_name)
     base_dir = pathlib.Path(__file__).parent.parent / "personalities"
-    
-    p_dir = base_dir / name
-    if not p_dir.exists():
-        p_dir = base_dir / "omega7" if (base_dir / "omega7").exists() else base_dir / "skull"
-        
+    p_dir = base_dir / key
     cfg_path = p_dir / "config.json"
     if cfg_path.exists():
         try:
@@ -114,10 +111,12 @@ def get_personality_config(skull_name: str = "Omega-7") -> dict:
 
 def build_system_prompt(owner: dict, skull_name: str = "Omega-7") -> str:
     """Load the shipped character template and inject the skull's name + owner section."""
+    from core import config
     name = (skull_name or "Omega-7").strip()
+    key = config.get_personality_key(name)
     base_dir = pathlib.Path(__file__).parent.parent / "personalities"
     
-    p_dir = base_dir / name.lower()
+    p_dir = base_dir / key
     if not p_dir.exists():
         p_dir = base_dir / "omega7" if (base_dir / "omega7").exists() else base_dir / "skull"
         

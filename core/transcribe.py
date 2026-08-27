@@ -1,5 +1,6 @@
 import io
 import re
+from core import config
 from core.config import OPENAI_API_KEY, SKULL_NAME
 
 # Built lazily on first transcription so importing this module never fails just
@@ -61,7 +62,7 @@ def transcribe(wav_bytes: bytes) -> str:
     result = _get_client().audio.transcriptions.create(
         model="whisper-1",
         file=audio_file,
-        prompt=f"Jax, {SKULL_NAME}, Golden Retriever, dog, fetch, woof" if SKULL_NAME.lower() == "jax" else f"{SKULL_NAME}, Omnissiah, Adeptus Mechanicus, Necromunda, Warhammer",
+        prompt=f"Jax, {SKULL_NAME}, Golden Retriever, dog, fetch, woof" if config.get_personality_key() == "jax" else f"{SKULL_NAME}, Omnissiah, Adeptus Mechanicus, Necromunda, Warhammer",
     )
     text = result.text.strip()
     print(f"[skull] Whisper raw: {text!r}")
@@ -71,7 +72,7 @@ def transcribe(wav_bytes: bytes) -> str:
         return ""
 
     # Normalize common Whisper mishearings of assistant names (e.g. "Jez" -> "Jax")
-    if SKULL_NAME.lower() == "jax":
+    if config.get_personality_key() == "jax":
         text = re.sub(r"\b(jez|jacks|jags|chax)\b", "Jax", text, flags=re.IGNORECASE)
 
     return text

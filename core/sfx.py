@@ -23,7 +23,8 @@ def _load(name: str) -> bytes | None:
         return _cache[name]
     
     # Check personality-specific sounds first
-    persona_path = pathlib.Path(__file__).parent.parent / "personalities" / config.SKULL_NAME.lower() / "sounds" / f"{name}.wav"
+    _persona_key = config.get_personality_key() if hasattr(config, "get_personality_key") else config.SKULL_NAME.lower().replace("-", "")
+    persona_path = pathlib.Path(__file__).parent.parent / "personalities" / _persona_key / "sounds" / f"{name}.wav"
     path = persona_path if persona_path.exists() else _FALLBACK_SOUNDS_DIR / f"{name}.wav"
     
     if not path.exists():

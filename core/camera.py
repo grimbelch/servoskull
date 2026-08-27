@@ -86,6 +86,8 @@ def _is_blank(gray) -> bool:
     return mean < config.CAMERA_MIN_BRIGHTNESS or std < 8.0
 
 
+_rate_lock = threading.Lock()
+
 def _rate_limited() -> bool:
     """True if we've already hit the per-hour vision-call ceiling.
 
@@ -94,15 +96,16 @@ def _rate_limited() -> bool:
     """
     now = time.time()
     cutoff = now - 3600.0
-    _call_times[:] = [t for t in _call_times if t >= cutoff]
-    if len(_call_times) >= config.CAMERA_MAX_PER_HOUR:
-        return True
-    _call_times.append(now)
+    with _rate_lock:
+        _call_times[:] = [t for t in _call_times if t >= cutoff]
+        if len(_call_times) >= config.CAMERA_MAX_PER_HOUR:
+            return True
+        _call_times.append(now)
     return False
 
 
 def _get_vision_prompt(detected_name: str | None = None) -> tuple[str, str]:
-    if config.SKULL_NAME.lower() == "jax":
+    if config.get_personality_key() == "jax":
         sys_prompt = (
             config.SYSTEM_PROMPT
             + "\n\nCRITICAL PERSONALITY OVERRIDE: You are Jax, a warm, joyful, loyal Golden Retriever. "
@@ -331,10 +334,10 @@ def _motion_trigger_loop(read) -> None:
 
 def _vision_loop() -> None:
     global _read_frame_fn
-    backend = _open_backend()
+    backend = get_camera_backend()
     if backend is None:
         return
-    read, close = backend
+    read, _ = backend
     _read_frame_fn = read
     try:
         use_proximity = proximity.start()
@@ -348,7 +351,6 @@ def _vision_loop() -> None:
             _motion_trigger_loop(read)
     finally:
         _read_frame_fn = None
-        close()
 
 
 def start() -> None:
