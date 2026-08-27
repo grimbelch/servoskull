@@ -76,4 +76,8 @@ skull/web_bak.py
 skull/web_new.py
 skull/web_server.py
 
-
+# Adventure module content extracted from Foundry VTT. The artwork and prose are
+# licensed Cubicle 7 material, reproducible from a local Foundry install with
+# games/wfrp/extract/foundry_export.cjs, so only the extractor is tracked.
+games/wfrp/rules/modules/
+*.foundry-export.json
