@@ -20,6 +20,8 @@ import datetime
 import re
 from typing import Any, Optional, Dict, List
 
+from . import module_schema as _module_schema
+
 _DB_PATH: Optional[pathlib.Path] = None
 
 
@@ -280,96 +282,11 @@ def init_db() -> None:
                 is_npc INTEGER DEFAULT 1,
                 FOREIGN KEY (encounter_id) REFERENCES combat_encounters (id) ON DELETE CASCADE
             );
-            CREATE TABLE IF NOT EXISTS adventure_nodes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                campaign_id INTEGER NOT NULL,
-                adventure_name TEXT NOT NULL,
-                node_id TEXT NOT NULL,
-                title TEXT NOT NULL,
-                read_aloud TEXT DEFAULT '',
-                gm_secrets TEXT DEFAULT '',
-                npcs_present TEXT DEFAULT '',
-                triggers TEXT DEFAULT '',
-                FOREIGN KEY (campaign_id) REFERENCES campaigns (id) ON DELETE CASCADE
-            );
-
-            CREATE TABLE IF NOT EXISTS adventure_state (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                campaign_id INTEGER NOT NULL,
-                adventure_name TEXT NOT NULL,
-                current_node_id TEXT NOT NULL,
-                flags TEXT DEFAULT '{}',
-                FOREIGN KEY (campaign_id) REFERENCES campaigns (id) ON DELETE CASCADE
-            );
-
-            CREATE TABLE IF NOT EXISTS module_catalog (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                slug TEXT UNIQUE NOT NULL,
-                title TEXT NOT NULL,
-                description TEXT DEFAULT '',
-                cover_image_path TEXT DEFAULT ''
-            );
-
-            CREATE TABLE IF NOT EXISTS module_chapters (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                module_id INTEGER NOT NULL,
-                chapter_number INTEGER NOT NULL,
-                title TEXT NOT NULL,
-                location_name TEXT DEFAULT '',
-                location_description TEXT DEFAULT '',
-                map_image_path TEXT DEFAULT '',
-                FOREIGN KEY (module_id) REFERENCES module_catalog (id) ON DELETE CASCADE
-            );
-
-            CREATE TABLE IF NOT EXISTS module_plots (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                chapter_id INTEGER NOT NULL,
-                title TEXT NOT NULL,
-                description TEXT DEFAULT '',
-                FOREIGN KEY (chapter_id) REFERENCES module_chapters (id) ON DELETE CASCADE
-            );
-
-            CREATE TABLE IF NOT EXISTS module_events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                chapter_id INTEGER NOT NULL,
-                time_label TEXT NOT NULL,
-                time_sort_key INTEGER DEFAULT 0,
-                description TEXT DEFAULT '',
-                related_plot_ids_json TEXT DEFAULT '[]',
-                FOREIGN KEY (chapter_id) REFERENCES module_chapters (id) ON DELETE CASCADE
-            );
-
-            CREATE TABLE IF NOT EXISTS module_npcs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                module_id INTEGER NOT NULL,
-                name TEXT NOT NULL,
-                description TEXT DEFAULT '',
-                stats_json TEXT DEFAULT '{}',
-                image_path TEXT DEFAULT '',
-                FOREIGN KEY (module_id) REFERENCES module_catalog (id) ON DELETE CASCADE
-            );
-
-            CREATE TABLE IF NOT EXISTS module_images (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                module_id INTEGER NOT NULL,
-                chapter_id INTEGER,
-                image_path TEXT NOT NULL,
-                caption TEXT DEFAULT '',
-                FOREIGN KEY (module_id) REFERENCES module_catalog (id) ON DELETE CASCADE,
-                FOREIGN KEY (chapter_id) REFERENCES module_chapters (id) ON DELETE CASCADE
-            );
-
-            CREATE TABLE IF NOT EXISTS campaign_module_state (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                campaign_id INTEGER NOT NULL,
-                entity_type TEXT NOT NULL,
-                entity_id INTEGER NOT NULL,
-                status TEXT DEFAULT 'Not Started',
-                gm_notes TEXT DEFAULT '',
-                UNIQUE(campaign_id, entity_type, entity_id),
-                FOREIGN KEY (campaign_id) REFERENCES campaigns (id) ON DELETE CASCADE
-            );
         """)
+        # Published module content and the per-campaign state laid over it live
+        # in games/wfrp/module_schema.py — see that module for the split between
+        # re-extractable content and campaign state.
+        _module_schema.init_module_schema(conn)
         for col, default in [("price", "''"), ("availability", "'Common'"), ("penalty", "'-'")]:
             try:
                 conn.execute(f"ALTER TABLE armour_catalog ADD COLUMN {col} TEXT DEFAULT {default};")
