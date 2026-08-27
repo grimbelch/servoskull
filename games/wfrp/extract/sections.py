@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 from typing import Optional
 
 from .layout import Block, ModuleDocument
@@ -36,6 +37,12 @@ class Section:
     doc_order: int = 0
     ordinal: int = 0
     anchor: Optional[int] = None  # index into the flat block list
+    # Half-open span of the flat block list holding this section's own prose,
+    # i.e. everything after its heading and before the next section's. Callers
+    # that need the typographic style of the text (to tell a run-in "CN:" label
+    # from the description that follows it) read the blocks directly.
+    block_start: int = 0
+    block_end: int = 0
 
     @property
     def word_count(self) -> int:
@@ -126,8 +133,25 @@ def infer_kind(section: Section, chapter_titles: set[str]) -> str:
     return "section"
 
 
-def build_tree(doc: ModuleDocument) -> list[Section]:
-    """Assemble the outline into a tree of Section nodes."""
+def classify_module_sections(roots: list[Section]) -> None:
+    """Assign a `kind` to every node of an adventure-module outline."""
+    chapter_titles = {
+        _match_key(node.title)
+        for node in roots
+        if node.level == 1 and any(c.title.lower() == "the adventure" for c in node.children)
+    }
+    for root in roots:
+        for node in root.walk():
+            node.kind = infer_kind(node, chapter_titles)
+
+
+def build_tree(doc: ModuleDocument, classifier=classify_module_sections) -> list[Section]:
+    """Assemble the outline into a tree of Section nodes.
+
+    ``classifier`` sets each node's ``kind`` and is supplied by the caller,
+    because what a section *is* depends on the kind of book: an adventure has
+    plots and events where a rulebook has careers and spell lists.
+    """
     toc = doc.toc()
     roots: list[Section] = []
     stack: list[Section] = []
@@ -147,14 +171,9 @@ def build_tree(doc: ModuleDocument) -> list[Section]:
             roots.append(section)
         stack.append(section)
 
-    chapter_titles = {
-        _match_key(node.title)
-        for node in roots
-        if node.level == 1 and any(c.title.lower() == "the adventure" for c in node.children)
-    }
+    classifier(roots)
     for root in roots:
         for node in root.walk():
-            node.kind = infer_kind(node, chapter_titles)
             node.slug = slugify(node.title)
     return roots
 
@@ -188,13 +207,20 @@ def anchor_sections(doc: ModuleDocument, roots: list[Section]) -> list[Block]:
         key = _match_key(section.title)
         if not key:
             continue
-        candidates = [
-            position
-            for position, (block_i, block_key, block_page) in enumerate(heading_index)
-            if block_i not in claimed
-            and abs(block_page - section.page) <= 2
-            and (block_key == key or (len(key) > 6 and block_key.startswith(key)))
-        ]
+        # A printed heading often carries a qualifier the outline omits: the
+        # skill listed as "Art" is set as "Art (Dex) basic, grouped". Exact
+        # matches are still preferred, so a prefix only wins when nothing
+        # matches the title outright.
+        exact: list[int] = []
+        prefixed: list[int] = []
+        for position, (block_i, block_key, block_page) in enumerate(heading_index):
+            if block_i in claimed or abs(block_page - section.page) > 2:
+                continue
+            if block_key == key:
+                exact.append(position)
+            elif len(key) >= 3 and block_key.startswith(key):
+                prefixed.append(position)
+        candidates = exact or prefixed
         if not candidates:
             continue
         # Prefer the next unclaimed match at or after the cursor so repeated
@@ -217,9 +243,11 @@ def _fallback_anchor(
     """Second pass for sections the strict matcher missed.
 
     Printed headings sometimes differ from the outline in wording or case, so a
-    looser substring match is tried. It is confined to the gap between the
-    neighbouring anchored sections, which keeps a loose match from binding to a
-    similarly titled heading elsewhere in the book.
+    looser substring match is tried, then a fuzzy one -- the publisher's own
+    bookmarks contain typos ("Clases", "Warior Priest", "Sucess Levels") that
+    never appear in the printed heading. Both are confined to the gap between
+    the neighbouring anchored sections, which keeps a loose match from binding
+    to a similarly titled heading elsewhere in the book.
     """
     claimed = {s.anchor for s in sections if s.anchor is not None}
 
@@ -227,7 +255,7 @@ def _fallback_anchor(
         if section.anchor is not None:
             continue
         key = _match_key(section.title)
-        if len(key) < 5:
+        if len(key) < 3:
             continue
 
         lo = next(
@@ -249,13 +277,31 @@ def _fallback_anchor(
         if hi is None:
             hi = heading_index[-1][0] + 1 if heading_index else 0
 
-        for block_i, block_key, _page in heading_index:
-            if block_i <= lo or block_i >= hi or block_i in claimed:
-                continue
-            if key in block_key or block_key in key:
-                section.anchor = block_i
-                claimed.add(block_i)
-                break
+        window = [
+            (block_i, block_key)
+            for block_i, block_key, _page in heading_index
+            if lo < block_i < hi and block_i not in claimed
+        ]
+
+        match = next(
+            (
+                block_i
+                for block_i, block_key in window
+                if key in block_key or block_key in key
+            ),
+            None,
+        )
+        if match is None:
+            scored = [
+                (SequenceMatcher(None, key, block_key).ratio(), block_i)
+                for block_i, block_key in window
+            ]
+            scored = [pair for pair in scored if pair[0] >= 0.88]
+            if scored:
+                match = max(scored)[1]
+        if match is not None:
+            section.anchor = match
+            claimed.add(match)
 
 
 def attach_bodies(blocks: list[Block], roots: list[Section]) -> None:
@@ -270,12 +316,25 @@ def attach_bodies(blocks: list[Block], roots: list[Section]) -> None:
     for position, section in enumerate(anchored):
         start = section.anchor + 1
         end = anchored[position + 1].anchor if position + 1 < len(anchored) else len(blocks)
+        section.block_start = start
+        section.block_end = end
         parts: list[str] = []
         pages: list[int] = [blocks[section.anchor].page]
         for block in blocks[start:end]:
             pages.append(block.page)
             if block.style == "SIDEBAR_TITLE":
                 parts.append(f"### {block.text}")
+            elif block.style == "SIDEBAR":
+                # Boxed commentary. Quoting it keeps the aside distinguishable
+                # from the rules around it once the prose is flattened.
+                parts.append(
+                    "\n".join(f"> {line}" for line in block.text.split("\n"))
+                )
+            elif block.style == "LETTER":
+                parts.append(
+                    "\n".join(f"> *{line}*" if line else ">"
+                              for line in block.text.split("\n"))
+                )
             elif block.style == "STATHEAD":
                 parts.append(f"**{block.text}**")
             elif block.is_heading:
@@ -307,9 +366,11 @@ def attach_bodies(blocks: list[Block], roots: list[Section]) -> None:
         section.page_end = max(ends)
 
 
-def extract_sections(doc: ModuleDocument) -> tuple[list[Section], list[Block]]:
+def extract_sections(
+    doc: ModuleDocument, classifier=classify_module_sections
+) -> tuple[list[Section], list[Block]]:
     """Build the section tree and populate it with body text."""
-    roots = build_tree(doc)
+    roots = build_tree(doc, classifier)
     blocks = anchor_sections(doc, roots)
     attach_bodies(blocks, roots)
     return roots, blocks

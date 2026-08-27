@@ -1,4 +1,4 @@
-"""Column-aware, font-driven text extraction for WFRP module PDFs.
+"""Column-aware, font-driven text extraction for WFRP PDFs.
 
 PyMuPDF's ``get_text("text")`` returns content in raw PDF drawing order. On a
 two-column layout that interleaves the columns, so an event from column one can
@@ -16,11 +16,16 @@ This module rebuilds the true reading order instead:
 4. Page furniture, and any text sitting inside a detected table, is dropped so
    it cannot pollute the prose.
 
-The font map below was derived from a census of the source PDF; sizes are
-matched with a tolerance because the typesetting varies by a few tenths.
+The font map below was derived from a census of the source PDFs. Sizes are
+matched with a tolerance because the typesetting varies by a few tenths, and the
+map is per-book: the same face at the same size means different things in
+different Cubicle 7 books. ``CaslonAntique`` at 10pt is a collective stat-block
+name in *Rough Nights & Hard Days* but the body copy of a boxed sidebar in the
+core rulebook, so each book supplies its own :class:`StyleSheet`.
 """
 from __future__ import annotations
 
+import math
 import re
 import unicodedata
 from dataclasses import dataclass, field
@@ -29,8 +34,68 @@ from typing import Iterable, Iterator, Optional, Sequence
 import fitz
 
 
+# PDF font names carry a subset prefix ("ABCDEF+Caslon") and spell the weight
+# inconsistently between books -- the module says "CaslonAntique-Bold" where the
+# rulebook says "CaslonAntique,Bold" for the identical face. Normalising here
+# means one style rule matches both.
+_SUBSET_PREFIX = re.compile(r"^[A-Z]{6}\+")
+
+
+def normalise_font(font: str) -> str:
+    return _SUBSET_PREFIX.sub("", font or "").replace(",", "-")
+
+
 # (style, font name, nominal size, tolerance)
-_STYLE_RULES: list[tuple[str, str, float, float]] = [
+StyleRule = tuple[str, str, float, float]
+
+
+@dataclass(frozen=True)
+class StyleSheet:
+    """How one book's fonts map onto logical styles.
+
+    ``rules`` are matched first, by exact (normalised) font name and nearest
+    size within tolerance. ``fallbacks`` then catch faces used at many sizes for
+    different purposes, as ascending ``(upper_bound, style)`` bands. Anything
+    still unmatched is body copy.
+    """
+
+    rules: tuple[StyleRule, ...]
+    junk_fonts: frozenset = frozenset({"DwarvenAxeBB", "IM_FELL_Great_Primer_Rom"})
+    # Faces whose every glyph is a decoration rather than a character. Their
+    # spans are stripped from the text outright, where the remaining junk faces
+    # are ordinary text faces that merely happen to be used for furniture: when
+    # one of those turns up mid-line it is carrying real characters, so its text
+    # is kept even though it never votes on the line's style.
+    ornament_fonts: frozenset = frozenset({"DwarvenAxeBB", "crossbatstfb"})
+    fallbacks: tuple[tuple[str, tuple[tuple[float, str], ...]], ...] = ()
+    junk_text: "re.Pattern" = re.compile(
+        r"^(warhammer\s+fantasy\s+rolepl\s*ay|\d{1,3})$", re.IGNORECASE
+    )
+    skip_pages: frozenset = frozenset()
+
+    def classify(self, font: str, size: float) -> str:
+        font = normalise_font(font)
+        if font in self.junk_fonts:
+            return "JUNK"
+        best: Optional[tuple[float, str]] = None
+        for style, rule_font, rule_size, tol in self.rules:
+            if font != rule_font:
+                continue
+            delta = abs(size - rule_size)
+            if delta <= tol and (best is None or delta < best[0]):
+                best = (delta, style)
+        if best is not None:
+            return best[1]
+        for fallback_font, bands in self.fallbacks:
+            if font != fallback_font:
+                continue
+            for upper, style in bands:
+                if size < upper:
+                    return style
+        return "BODY"
+
+
+_MODULE_RULES: tuple[StyleRule, ...] = (
     ("H1", "CaslonAntique-Bold", 38.0, 6.0),
     ("H2", "CaslonAntique-Bold", 19.0, 3.0),
     ("H3", "CaslonAntique-Bold-SC700", 18.0, 1.5),
@@ -42,16 +107,65 @@ _STYLE_RULES: list[tuple[str, str, float, float]] = [
     ("EM", "ACaslonPro-Italic", 9.0, 1.2),
     ("BODY", "ACaslonPro-Regular", 9.0, 1.5),
     ("BODY", "ACaslonPro-Regular", 8.0, 0.6),
-]
-
-# Fonts that only ever carry running heads, folios and decorative numerals.
-_JUNK_FONTS = {"DwarvenAxeBB", "IM_FELL_Great_Primer_Rom"}
-
-# Running header text that appears on nearly every page.
-_JUNK_TEXT = re.compile(
-    r"^(warhammer\s+fantasy\s+rolepl\s*ay|\d{1,3})$",
-    re.IGNORECASE,
 )
+
+# Small CaslonAntique is the running head; larger is a sidebar heading.
+MODULE_STYLESHEET = StyleSheet(
+    rules=_MODULE_RULES,
+    fallbacks=(("CaslonAntique", ((9.0, "JUNK"), (math.inf, "SIDEBAR_TITLE"))),),
+)
+
+# The core rulebook shares the Caslon family but adds boxed sidebars set in
+# CaslonAntique 10, in-world handwritten letters in GourdieCursive, and dingbat
+# advance markers in crossbatstfb that carry no readable text of their own.
+_RULEBOOK_RULES: tuple[StyleRule, ...] = (
+    ("H1", "CaslonAntique-Bold", 38.0, 6.0),
+    ("H2", "CaslonAntique-Bold", 19.0, 3.0),
+    ("H2", "CaslonAntique-Bold", 17.0, 1.0),
+    ("H3", "CaslonAntique-Bold-SC700", 18.0, 1.5),
+    ("H3", "CaslonAntique-Bold-SC700", 12.6, 1.5),
+    ("STATHEAD", "CaslonAntique-Bold", 10.0, 1.2),
+    ("SIDEBAR_TITLE", "CaslonAntique-Bold", 14.0, 0.6),
+    ("H4", "ACaslonPro-Bold", 12.0, 1.0),
+    ("H4", "ACaslonPro-Bold", 10.0, 0.55),
+    ("RUNIN", "ACaslonPro-Bold", 9.0, 0.6),
+    ("RUNIN", "ACaslonPro-Bold", 8.3, 0.4),
+    ("EM", "ACaslonPro-Italic", 9.0, 1.2),
+    ("EM", "ACaslonPro-BoldItalic", 9.5, 1.0),
+    ("BODY", "ACaslonPro-Regular", 9.0, 1.2),
+    ("BODY", "ACaslonPro-Regular", 8.0, 0.6),
+    ("LETTER", "GourdieCursive", 12.0, 4.5),
+)
+
+RULEBOOK_STYLESHEET = StyleSheet(
+    rules=_RULEBOOK_RULES,
+    # TreasureMapDeadhand and Jefferson letter in the fiction's maps and
+    # signatures; crossbatstfb is the advance-scheme dingbat, read separately by
+    # geometry in careers.py. ACaslonPro-Regular 7.5 is the back-of-book index.
+    junk_fonts=frozenset({
+        "DwarvenAxeBB", "IM_FELL_Great_Primer_Rom", "TreasureMapDeadhand",
+        "Jefferson", "GoudyOldStyle", "ArialMT", "Arial-BoldMT",
+        "TimesNewRomanPSMT", "crossbatstfb",
+    }),
+    fallbacks=(
+        ("CaslonAntique", ((9.0, "JUNK"), (11.5, "SIDEBAR"), (math.inf, "SIDEBAR_TITLE"))),
+        ("CaslonAntique-SC700", ((math.inf, "DROPCAP"),)),
+    ),
+    junk_text=re.compile(
+        r"^(warhammer\s+fantasy\s+rolepl\s*ay|\d{1,3}|"
+        r"a\s+grim\s+world\s+of\s+perilous\s+adventure)$",
+        re.IGNORECASE,
+    ),
+    # The printed contents, the blank character-sheet form and the
+    # back-of-book index are navigation aids, not rules. Left in, the index
+    # alone would add 65,000 characters of page-number noise to the corpus.
+    skip_pages=frozenset({2, 3, 4} | set(range(344, 353))),
+)
+
+# Retained for callers that predate the stylesheet split.
+_STYLE_RULES = list(_MODULE_RULES)
+_JUNK_FONTS = MODULE_STYLESHEET.junk_fonts
+_JUNK_TEXT = MODULE_STYLESHEET.junk_text
 
 _HEADING_STYLES = {"H1", "H2", "H3", "H4"}
 
@@ -113,40 +227,58 @@ class Block:
         )
 
 
-def classify_span(font: str, size: float) -> str:
+def classify_span(font: str, size: float, sheet: Optional[StyleSheet] = None) -> str:
     """Resolve a span's font and size to a logical style name."""
-    if font in _JUNK_FONTS:
-        return "JUNK"
-    best: Optional[tuple[float, str]] = None
-    for style, rule_font, rule_size, tol in _STYLE_RULES:
-        if font != rule_font:
-            continue
-        delta = abs(size - rule_size)
-        if delta <= tol and (best is None or delta < best[0]):
-            best = (delta, style)
-    if best is not None:
-        return best[1]
-    if font == "CaslonAntique":
-        # Small CaslonAntique is the running head; larger is a sidebar heading.
-        return "JUNK" if size < 9.0 else "SIDEBAR_TITLE"
-    return "BODY"
+    return (sheet or MODULE_STYLESHEET).classify(font, size)
 
 
-def _line_style(spans: Sequence[dict]) -> str:
+def content_spans(spans: Sequence[dict], sheet: StyleSheet) -> list[dict]:
+    """The spans of a line that carry text, with ornament glyphs removed.
+
+    Ornaments are set in display faces and sit on the same line as the text they
+    decorate -- a career's tier heading is preceded by a dingbat bullet, for
+    instance -- so they neither contribute characters nor get a vote on the
+    line's style.
+    """
+    return [
+        span
+        for span in spans
+        if span["text"].strip()
+        and normalise_font(span["font"]) not in sheet.ornament_fonts
+    ]
+
+
+def _line_style(spans: Sequence[dict], sheet: StyleSheet) -> str:
     """Pick the dominant style of a line, weighted by visible characters."""
     weights: dict[str, int] = {}
+    furniture = 0
+    content = 0
     for span in spans:
         text = span["text"].strip()
         if not text:
             continue
-        style = classify_span(span["font"], round(span["size"], 1))
+        style = sheet.classify(span["font"], round(span["size"], 1))
+        if style == "JUNK":
+            # Ornaments decorate real text, so they are not evidence that the
+            # line as a whole is furniture; other junk faces are.
+            if normalise_font(span["font"]) not in sheet.ornament_fonts:
+                furniture += len(text)
+            continue
+        content += len(text)
         weights[style] = weights.get(style, 0) + len(text)
-    if not weights:
+    # A running header can pick up a stray glyph in a text face -- the rulebook's
+    # chapter tabs set their dash in the body font -- which would otherwise let
+    # one character carry a line of furniture into the prose.
+    if not weights or furniture > content:
         return "JUNK"
     # A run-in label such as "Skills:" shares its line with body text; the line
     # as a whole should read as body so the label stays attached to its list.
     if "RUNIN" in weights and len(weights) > 1:
         weights.pop("RUNIN")
+    # A dropped capital is one glyph in a display face opening a body
+    # paragraph; the paragraph, not the glyph, decides the style.
+    if "DROPCAP" in weights and len(weights) > 1:
+        weights.pop("DROPCAP")
     return max(weights.items(), key=lambda kv: kv[1])[0]
 
 
@@ -174,8 +306,11 @@ def _column_of(bbox: Sequence[float], mid: float, tol: float = 24.0) -> int:
     return -1
 
 
-def page_lines(page: "fitz.Page", page_number: int) -> list[Line]:
+def page_lines(
+    page: "fitz.Page", page_number: int, sheet: Optional[StyleSheet] = None
+) -> list[Line]:
     """Return the page's lines in true reading order, free of furniture."""
+    sheet = sheet or MODULE_STYLESHEET
     mid = page.rect.width / 2
     tables = table_bboxes(page)
     ordered: list[tuple[int, float, float, dict]] = []
@@ -190,11 +325,12 @@ def page_lines(page: "fitz.Page", page_number: int) -> list[Line]:
     for column, _, _, block in ordered:
         for raw_line in block["lines"]:
             spans = raw_line["spans"]
-            text = _norm("".join(span["text"] for span in spans)).strip()
+            kept = content_spans(spans, sheet)
+            text = _norm("".join(span["text"] for span in kept)).strip()
             if not text:
                 continue
-            style = _line_style(spans)
-            if style == "JUNK" or _JUNK_TEXT.match(text):
+            style = _line_style(spans, sheet)
+            if style == "JUNK" or sheet.junk_text.match(text):
                 continue
             if any(_bbox_contains(tb, raw_line["bbox"]) for tb in tables):
                 continue
@@ -323,10 +459,11 @@ def merge_lines(lines: Iterable[Line], compounds: Optional[set[str]] = None) -> 
 
 
 class ModuleDocument:
-    """A module PDF with reading-order text and its bookmark outline."""
+    """A book PDF with reading-order text and its bookmark outline."""
 
-    def __init__(self, path: str):
+    def __init__(self, path: str, sheet: Optional[StyleSheet] = None):
         self.path = path
+        self.sheet = sheet or MODULE_STYLESHEET
         self.doc = fitz.open(path)
         self._lines: dict[int, list[Line]] = {}
         self._compounds: Optional[set[str]] = None
@@ -343,8 +480,10 @@ class ModuleDocument:
         """Reading-order lines for a 1-based page number, memoised."""
         if page_number not in self._lines:
             index = page_number - 1
-            if 0 <= index < self.doc.page_count:
-                self._lines[page_number] = page_lines(self.doc[index], page_number)
+            if 0 <= index < self.doc.page_count and page_number not in self.sheet.skip_pages:
+                self._lines[page_number] = page_lines(
+                    self.doc[index], page_number, self.sheet
+                )
             else:
                 self._lines[page_number] = []
         return self._lines[page_number]
