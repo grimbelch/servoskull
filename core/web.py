@@ -444,6 +444,41 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(f"Error loading module viewer: {e}".encode("utf-8"))
 
+    def _handle_static(self) -> None:
+        """Serve a front-end asset from core/static.
+
+        The 40K terminal client is embedded in this module as a string, but the
+        book-styled campaign and module pages are large enough that keeping
+        their CSS and JS as real files is worth a route of their own.
+        """
+        import os
+        try:
+            rel = self.path.split("?")[0][len("/static/"):]
+            base = os.path.join(os.path.dirname(__file__), "static")
+            target = os.path.abspath(os.path.join(base, rel))
+            if not target.startswith(os.path.abspath(base) + os.sep) or not os.path.isfile(target):
+                self.send_response(404)
+                self.end_headers()
+                return
+            mime = {
+                "css": "text/css; charset=utf-8",
+                "js": "application/javascript; charset=utf-8",
+                "svg": "image/svg+xml",
+                "png": "image/png",
+                "woff2": "font/woff2",
+            }.get(target.rsplit(".", 1)[-1].lower(), "application/octet-stream")
+            with open(target, "rb") as f:
+                data = f.read()
+            self.send_response(200)
+            self.send_header("Content-Type", mime)
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            self.wfile.write(data)
+        except Exception:
+            self.send_response(500)
+            self.end_headers()
+
     def _handle_rules_image(self) -> None:
         import os
         try:
@@ -953,6 +988,10 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             path_clean = "/"
 
         if web_campaign.dispatch_request(self, self.path, "GET"):
+            return
+
+        if path_clean.startswith("/static/"):
+            self._handle_static()
             return
 
         if path_clean.startswith("/module/"):

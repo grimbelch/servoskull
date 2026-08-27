@@ -249,6 +249,21 @@ def extract_npcs(
             name = _titlecase(raw_name)
             career = _titlecase(career)
 
+            # A stat heading that carries only the status tier means the name
+            # and career were set on the line above it. That happens where the
+            # name is typeset in regular rather than bold Caslon, so it reads as
+            # a sidebar title instead of a stat heading:
+            #
+            #     NASTASSIA VON SAPONATHEIM - SCION     <- regular, so a title
+            #                (GOLD 1)                   <- bold, so a stathead
+            if not name and index > 0:
+                above = blocks[index - 1]
+                if above.page == block.page and above.style == "SIDEBAR_TITLE":
+                    above_name, above_career, _ = _split_stathead(above.text.strip())
+                    if above_name:
+                        name = _titlecase(above_name)
+                        career = career or _titlecase(above_career)
+
             # The heading above the stat heading usually carries the full,
             # properly cased name, e.g. "Gravin Maria-Ulrike von Liebwitz".
             display = name

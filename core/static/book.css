@@ -1,0 +1,393 @@
+/* book.css — the printed look of Rough Nights & Hard Days, on screen.
+ *
+ * Every value here is measured from the PDF rather than invented: the paper is
+ * #f6f8f5 (a cool grey-white, not the warm cream the old viewer used), the ink
+ * is #231f20, the body is Adobe Caslon at 9pt justified in two columns, and
+ * headings are letterspaced Caslon small caps over a thin rule.
+ *
+ * The page textures and the per-chapter accent colours are extracted from the
+ * book itself and handed over at runtime as custom properties, so this file
+ * never hard-codes a chapter colour.
+ */
+
+:root {
+  --paper: #f6f8f5;
+  --ink: #231f20;
+  --ink-soft: #5a5553;
+  --ink-faint: #8d8785;
+  --rule: #c9c6c0;
+  --accent: #7a1717;
+
+  --serif: "Adobe Caslon Pro", "Libre Caslon Text", "Baskerville",
+    "Hoefler Text", "Georgia", "Times New Roman", serif;
+  --display: "Adobe Caslon Pro", "Baskerville", "Georgia", serif;
+
+  --measure: 78ch;
+  --gutter: 2.4rem;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: #2b2825;
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 1.52;
+  font-kerning: normal;
+  font-variant-numeric: oldstyle-num;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---------------------------------------------------------------- paper --- */
+
+/* The recto and verso textures are mirrored in the book, so the ghosted
+ * ornament column always falls on the outer margin. On screen there is only
+ * ever one page in view, so the recto texture is the default and .verso is
+ * available where an opening is shown as a spread. */
+.paper {
+  position: relative;
+  background-color: var(--paper);
+  background-image: var(--paper-texture, none);
+  background-size: 100% auto;
+  background-repeat: repeat-y;
+}
+
+.paper.verso { background-image: var(--paper-texture-verso, var(--paper-texture, none)); }
+
+/* The texture is a scan, so it carries the book's own slight warmth and
+ * blotching. Left raw it fights the text; knocked back it reads as paper. */
+.paper::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--paper);
+  opacity: 0.34;
+  pointer-events: none;
+}
+
+.paper > * { position: relative; }
+
+/* ------------------------------------------------------------- headings --- */
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--display);
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+  line-height: 1.16;
+}
+
+/* Chapter openers: the title is set large and widely letterspaced, flanked by
+ * diamonds, exactly as the book does it. */
+.chapter-opener {
+  text-align: center;
+  padding: 3.4rem 0 2.2rem;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 2rem;
+}
+
+.chapter-opener .numeral {
+  font-size: 0.78rem;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 1.1rem;
+}
+
+.chapter-opener h1 {
+  font-size: clamp(1.9rem, 4.4vw, 3rem);
+  letter-spacing: 0.1em;
+  font-variant: small-caps;
+  text-transform: lowercase;
+}
+
+.chapter-opener h1::before,
+.chapter-opener h1::after {
+  content: "◆";
+  font-size: 0.34em;
+  vertical-align: 0.55em;
+  color: var(--accent);
+  margin: 0 0.75em;
+  letter-spacing: 0;
+}
+
+.chapter-opener .medallion {
+  width: 74px;
+  height: 74px;
+  margin: 1.5rem auto 0;
+  border-radius: 50%;
+  border: 1px solid var(--rule);
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  font-size: 1.6rem;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+/* Section headings: small caps over a hairline rule. */
+.h-section {
+  font-size: 1.34rem;
+  letter-spacing: 0.09em;
+  font-variant: small-caps;
+  text-transform: lowercase;
+  margin: 2.4rem 0 0.2rem;
+  padding-bottom: 0.34rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.h-sub {
+  font-size: 1.06rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 1.7rem 0 0.35rem;
+}
+
+.h-run {
+  font-size: 0.95rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 1.3rem 0 0.3rem;
+}
+
+/* ----------------------------------------------------------------- body --- */
+
+.prose p {
+  margin: 0 0 0.72rem;
+  text-align: justify;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+}
+
+.prose p:last-child { margin-bottom: 0; }
+
+/* The book sets its body in two columns. Below the point where a column would
+ * be too narrow to justify without rivers, it collapses to one. */
+.prose.two-column {
+  column-count: 2;
+  column-gap: var(--gutter);
+  column-rule: 1px solid transparent;
+}
+
+@media (max-width: 900px) {
+  .prose.two-column { column-count: 1; }
+}
+
+.prose em, .prose i { font-style: italic; }
+
+/* Read-aloud text: the book indents and italicises it. */
+.read-aloud {
+  font-style: italic;
+  border-left: 2px solid var(--accent);
+  padding: 0.3rem 0 0.3rem 1rem;
+  margin: 0 0 0.9rem;
+  color: var(--ink-soft);
+}
+
+/* ---------------------------------------------------------------- rules --- */
+
+.ink-rule {
+  height: 10px;
+  border: 0;
+  margin: 1.6rem 0;
+  background-image: var(--ink-rule, none);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  opacity: 0.75;
+}
+
+.ink-rule.plain {
+  height: 1px;
+  background: var(--rule);
+  opacity: 1;
+}
+
+/* ------------------------------------------------------------ sidebars --- */
+
+/* Rules boxes in the book sit on a tinted panel with a heavier border. */
+.box {
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--rule);
+  border-top: 3px solid var(--accent);
+  padding: 1rem 1.2rem;
+  margin: 1.4rem 0;
+  break-inside: avoid;
+}
+
+.box > h4 {
+  font-size: 1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.5rem;
+}
+
+/* --------------------------------------------------------- stat blocks --- */
+
+.statblock {
+  border: 1px solid var(--rule);
+  background: rgba(255, 255, 255, 0.5);
+  padding: 1rem 1.15rem;
+  margin: 1.2rem 0;
+  break-inside: avoid;
+}
+
+.statblock > header { margin-bottom: 0.7rem; }
+
+.statblock h3 {
+  font-size: 1.18rem;
+  letter-spacing: 0.07em;
+  font-variant: small-caps;
+  text-transform: lowercase;
+}
+
+.statblock .npc-title {
+  font-style: italic;
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+}
+
+/* The characteristics line is a 12-column grid in the book. It scrolls rather
+ * than wraps on a narrow screen, because wrapping it destroys the reading. */
+.char-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.6rem 0 0.9rem;
+  font-variant-numeric: lining-num;
+}
+
+.char-table th,
+.char-table td {
+  border: 1px solid var(--rule);
+  padding: 0.26rem 0.2rem;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.char-table th {
+  background: var(--accent);
+  color: var(--paper);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.char-scroll { overflow-x: auto; }
+
+.trait-line {
+  margin: 0.28rem 0;
+  font-size: 0.95rem;
+  text-align: left;
+}
+
+.trait-line > b {
+  font-variant: small-caps;
+  text-transform: lowercase;
+  letter-spacing: 0.05em;
+}
+
+/* --------------------------------------------------------------- tables --- */
+
+.book-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.2rem 0;
+  font-size: 0.95rem;
+  break-inside: avoid;
+}
+
+.book-table caption {
+  caption-side: top;
+  font-family: var(--display);
+  font-variant: small-caps;
+  text-transform: lowercase;
+  letter-spacing: 0.09em;
+  font-size: 1.1rem;
+  text-align: left;
+  padding-bottom: 0.35rem;
+}
+
+.book-table th {
+  background: var(--accent);
+  color: var(--paper);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-size: 0.78rem;
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+}
+
+.book-table td {
+  border-bottom: 1px solid var(--rule);
+  padding: 0.4rem 0.6rem;
+  vertical-align: top;
+}
+
+.book-table tbody tr:nth-child(even) { background: rgba(0, 0, 0, 0.028); }
+
+/* --------------------------------------------------------------- plates --- */
+
+figure.plate {
+  margin: 1.5rem 0;
+  break-inside: avoid;
+}
+
+figure.plate img {
+  width: 100%;
+  display: block;
+  border: 1px solid var(--rule);
+  background: #fff;
+}
+
+figure.plate figcaption {
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--ink-soft);
+  text-align: center;
+  padding-top: 0.45rem;
+}
+
+/* ----------------------------------------------------------------- misc --- */
+
+a { color: var(--accent); text-underline-offset: 2px; }
+a:hover { color: var(--ink); }
+
+.folio {
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 0.82rem;
+  letter-spacing: 0.16em;
+  padding: 1.4rem 0 0.4rem;
+}
+
+.running-head {
+  text-align: center;
+  font-size: 0.72rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding: 0.9rem 0 1.4rem;
+}
+
+.muted { color: var(--ink-soft); }
+.tiny { font-size: 0.8rem; }
+
+/* The torn chapter tab, bleeding off the outer edge as it does in print. */
+.chapter-tab {
+  display: inline-block;
+  background: var(--accent);
+  color: var(--paper);
+  font-family: var(--display);
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  padding: 0.28rem 0.85rem;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 6% 92%, 0 60%);
+}
