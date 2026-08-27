@@ -63,11 +63,33 @@ Then in the world: **Manage Modules → Foundry MCP Bridge → enable**, and und
 | :--- | :--- |
 | Enable MCP Bridge | checked |
 | Connection Type | `WebSocket (Local Only)` |
-| Websocket Server Host | the Pi's IP, e.g. `192.168.0.108` |
+| Websocket Server Host | an address for the Pi that the **browser** can reach |
+
+That host is resolved by the GM's browser, not by the Foundry server, and the
+setting is world-scoped so it applies to every client. Verify it before
+trusting it:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' http://<host>:31415/foundry-mcp
+```
+
+`404` means the port is reachable (the endpoint requires a WebSocket upgrade);
+a timeout means the browser will not get through either.
+
+Note the direction of travel: the **browser opens a connection into the Pi**.
+Anything that permits the Pi's outbound traffic but blocks inbound traffic to it
+— wireless client isolation, a guest SSID, a host firewall — breaks the bridge
+while leaving the Pi apparently "on the network". Test with `nc -z <host> 22`
+first; if plain SSH to that address fails, the bridge will fail too, and the
+problem is the network rather than the module.
 
 The module only retries **5 times, 1 second apart**, after the world loads. If
 Omega-7 was not running at that moment, reload the browser tab — it is almost
 always the explanation for a bridge that "won't connect".
+
+Note that the backend only binds ports **after** an MCP client completes the
+stdio handshake, so `ss -lntp | grep 31415` shows nothing until Omega-7 has
+actually called it once.
 
 ## Configuration
 
