@@ -84,11 +84,23 @@ def difficulty_modifier(difficulty) -> int:
     return int(match.group(1)) if match else 0
 
 
-def outcome_label(success_levels: int) -> str:
-    for threshold, label in _OUTCOMES:
+def outcome_label(success_levels: int, success: Optional[bool] = None) -> str:
+    """Name the degree of success on page 152's ladder.
+
+    A Test resolved at 0 SL sits on the boundary: the book prints it as a
+    Marginal Success above the line and a Marginal Failure below, so whether
+    the roll beat its target settles which it was.
+    """
+    label = "Astounding Failure"
+    for threshold, candidate in _OUTCOMES:
         if success_levels >= threshold:
-            return label
-    return "Astounding Failure"
+            label = candidate
+            break
+    if success is True and label.endswith("Failure"):
+        return "Marginal Success"
+    if success is False and label.endswith("Success"):
+        return "Marginal Failure"
+    return label
 
 
 def is_double(roll: int) -> bool:
@@ -113,14 +125,16 @@ class TestResult:
 
     @property
     def outcome(self) -> str:
-        return outcome_label(self.success_levels)
+        return outcome_label(self.success_levels, self.success)
 
     def summary(self) -> str:
         parts = ["%s vs %d" % (self.roll, self.target)]
         if self.modifier:
             parts[0] += " (%d %+d)" % (self.base_target, self.modifier)
-        parts.append("%s, SL %+d" % ("SUCCESS" if self.success else "FAILURE",
-                                     self.success_levels))
+        # A failure at 0 SL is the book's -0, not +0.
+        sl = ("%+d" % self.success_levels
+              if self.success or self.success_levels else "-0")
+        parts.append("%s, SL %s" % ("SUCCESS" if self.success else "FAILURE", sl))
         parts.append(self.outcome)
         if self.critical:
             parts.append("CRITICAL")
@@ -477,6 +491,8 @@ def resolve_attack(
     defender_difficulty=0,
     attacker_roll: Optional[int] = None,
     defender_roll: Optional[int] = None,
+    attacker_name: str = "attacker",
+    defender_name: str = "defender",
     lookup: Optional[RulesLookup] = None,
     rng: Optional[random.Random] = None,
 ) -> AttackResult:
@@ -495,14 +511,16 @@ def resolve_attack(
         if melee:
             opposed = opposed_test(
                 attacker_skill, defender_skill, difficulty, defender_difficulty,
-                attacker_roll, defender_roll, "attacker", "defender", rng=rng,
+                attacker_roll, defender_roll, attacker_name, defender_name,
+                rng=rng,
             )
             result.opposed = opposed
             to_hit = opposed.attacker
             won = opposed.winner == "attacker"
             net_sl = opposed.net_sl if won else 0
         else:
-            to_hit = test(attacker_skill, difficulty, attacker_roll, "ranged", rng=rng)
+            to_hit = test(attacker_skill, difficulty, attacker_roll,
+                          "%s shooting" % attacker_name, rng=rng)
             result.to_hit = to_hit
             won = to_hit.success
             net_sl = to_hit.success_levels

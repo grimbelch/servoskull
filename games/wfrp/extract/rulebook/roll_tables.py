@@ -36,7 +36,7 @@ _KINDS = (
     ("critical", re.compile(r"criticalwounds?", re.IGNORECASE)),
     ("miscast", re.compile(r"miscast", re.IGNORECASE)),
     ("hit_location", re.compile(r"hitlocations?", re.IGNORECASE)),
-    ("fumble", re.compile(r"fumble|misfire", re.IGNORECASE)),
+    ("fumble", re.compile(r"fumble|misfire|oops", re.IGNORECASE)),
 )
 
 
@@ -267,7 +267,7 @@ def extract_roll_tables(
                 label = row[roll_at] if roll_at is not None and roll_at < len(row) else ""
                 low, high = parse_roll(label)
                 rest = [
-                    cell
+                    (part_headers[index] if index < len(part_headers) else "", cell)
                     for index, cell in enumerate(row)
                     if index != roll_at and cell
                 ]
@@ -277,8 +277,9 @@ def extract_roll_tables(
                         roll_min=low,
                         roll_max=high,
                         roll_label=label if low is not None else "",
-                        result=rest[0] if rest else "",
-                        detail=" ".join(rest[1:]),
+                        result=rest[0][1] if rest else "",
+                        detail=" | ".join(_labelled(header, cell)
+                                          for header, cell in rest[1:]),
                         cells=list(row),
                     )
                 )
@@ -287,6 +288,18 @@ def extract_roll_tables(
     _stitch(out)
     _dedupe_slugs(out)
     return out
+
+
+def _labelled(header: str, cell: str) -> str:
+    """Keep a short value tied to its column, e.g. the Wounds a Critical costs.
+
+    Prose cells read better bare, but a lone "1" is meaningless without the
+    "Wounds" heading it sat under.
+    """
+    header = (header or "").strip()
+    if header and len(cell) <= 20:
+        return "%s: %s" % (header, cell)
+    return cell
 
 
 def _rolled(table: RollTable) -> list:

@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 from . import campaign as _campaign
-from . import search as _search
+from . import rules_engine as _rules_engine
+from . import rules_tools as _rules_tools
 
 SLOW_TOOLS = {
     "whfrp_rules",
@@ -106,23 +107,6 @@ TOOLS = [
         }
     },
     {
-        "name": "whfrp_resolve_attack",
-        "description": "Calculate exact WFRP 4E combat damage based on attacker SL, defender SL, weapon damage, SB, TB, and AP.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "attacker_sl": {"type": "integer"},
-                "defender_sl": {"type": "integer"},
-                "weapon_damage": {"type": "integer"},
-                "attacker_sb": {"type": "integer", "description": "Attacker's Strength Bonus (0 for ranged)"},
-                "defender_tb": {"type": "integer", "description": "Defender's Toughness Bonus"},
-                "defender_ap": {"type": "integer", "description": "Defender's Armour Points on the hit location"},
-                "is_melee": {"type": "boolean", "description": "True if melee attack, False if ranged"}
-            },
-            "required": ["attacker_sl", "defender_sl", "weapon_damage", "attacker_sb", "defender_tb", "defender_ap"]
-        }
-    },
-    {
         "name": "whfrp_load_scene",
         "description": "Load a scene from the adventure module and mark it as the party's current location in the story. Returns the book's text for that section, the NPCs present, and the sub-scenes you can move to next. Call with no section_id to resume where the party left off.",
         "input_schema": {
@@ -132,32 +116,6 @@ TOOLS = [
                 "slug": {"type": "string", "description": "Module slug, used when resuming. Defaults to the campaign's module."}
             },
             "required": []
-        }
-    },
-    {
-        "name": "whfrp_rules",
-        "description": (
-            "Look up Warhammer Fantasy Roleplay 4th Edition (WFRP 4E) rules from the local offline "
-            "rules library — the full Core Rulebook and the Quick Reference guide. Use for ANY "
-            "WFRP 4E question: characteristics and tests, Success Levels (SL), opposed/extended tests, "
-            "combat (hit locations, damage, criticals, Advantage), careers and advances, skills and "
-            "talents, fate/fortune/resilience points, corruption/mutation, magic and spells, "
-            "bestiary entries, travel/encumbrance, social encounters, and all other mechanics. "
-            "Always call this tool before ruling on any WFRP mechanic rather than relying on memory. "
-            "IMPORTANT: When searching for a career's starting skills, talents, or trappings, ALWAYS include "
-            "the specific career name in your query (e.g. 'Scout career skills talents trappings' or "
-            "'Apothecary career skills'). Generic queries like 'starting skills' without the career name "
-            "will return general chapter overviews instead of the specific career page."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Rule, mechanic, career, spell, creature, or topic to look up (e.g. 'characteristic test', 'hit location table', 'Warrior career', 'Fireball spell', 'Troll')",
-                }
-            },
-            "required": ["query"]
         }
     },
     {
@@ -535,17 +493,6 @@ def _tool_whfrp_log_timeline_event(i):
     db.add_timeline_event(slug, i["event_summary"], i.get("in_game_date", ""))
     _campaign.reload_active()
     return {"status": "success", "message": "Event logged to timeline."}
-def _tool_whfrp_rules(i):
-    query = i.get("query", "")
-    print(f"[skull] Looking up WFRP 4E rules: {query}")
-    from core import display
-    display.start_rules_lookup()
-    try:
-        return _search.whfrp_rules(query)
-    finally:
-        display.stop_rules_lookup()
-
-
 def _tool_roll_whfrp_dice(i):
     import random
     die_type = i.get("die_type", "d100")
@@ -556,21 +503,16 @@ def _tool_roll_whfrp_dice(i):
 
     if die_type == "d100":
         rolls = [random.randint(1, 100) for _ in range(count)]
-        lines = []
-        for roll in rolls:
+        if characteristic is None:
             prefix = f"{label}: " if label else ""
-            if characteristic is not None:
-                effective = max(1, min(100, int(characteristic) + modifier))
-                sl_raw = (effective // 10) - (roll // 10)
-                if roll <= effective:
-                    outcome = f"SUCCESS (SL +{sl_raw})"
-                else:
-                    outcome = f"FAILURE (SL {sl_raw})"
-                mod_str = f" (modified {effective})" if modifier != 0 else ""
-                lines.append(f"{prefix}Rolled {roll} vs {characteristic}{mod_str} \u2192 {outcome}")
-            else:
-                lines.append(f"{prefix}Rolled {roll}")
-        return "\n".join(lines)
+            return "\n".join(f"{prefix}Rolled {roll}" for roll in rolls)
+        # Success Levels, Criticals and Fumbles are the engine's job, so a roll
+        # made here is resolved exactly as one made by whfrp_test.
+        return "\n".join(
+            _rules_engine.test(int(characteristic), modifier, roll,
+                               label or "Test").summary()
+            for roll in rolls
+        )
     elif die_type == "d10":
         rolls = [random.randint(1, 10) for _ in range(count)]
         return f"d10 \u00d7 {count}: {rolls} (total {sum(rolls)})"
@@ -884,20 +826,6 @@ def _tool_whfrp_combat_update(i):
         res.append(combat.next_turn(c_id))
     return "\n".join(res) if res else "No updates made."
 
-def _tool_whfrp_resolve_attack(i):
-    from . import combat
-    return combat.calculate_attack(
-        int(i.get("attacker_sl", 0)),
-        int(i.get("defender_sl", 0)),
-        int(i.get("weapon_damage", 0)),
-        int(i.get("attacker_sb", 0)),
-        int(i.get("defender_tb", 0)),
-        int(i.get("defender_ap", 0)),
-        bool(i.get("is_melee", True))
-    )
-
-
-
 def _tool_whfrp_load_scene(i):
     """Move the party to a section of the module and return it as a playable scene."""
     from . import db, modules_db
@@ -1158,8 +1086,6 @@ HANDLERS = {
     "whfrp_combat_start": _tool_whfrp_combat_start,
     "whfrp_combat_status": _tool_whfrp_combat_status,
     "whfrp_combat_update": _tool_whfrp_combat_update,
-    "whfrp_resolve_attack": _tool_whfrp_resolve_attack,
-    "whfrp_rules": _tool_whfrp_rules,
     "roll_whfrp_dice": _tool_roll_whfrp_dice,
     "start_campaign": _tool_start_campaign,
     "list_campaigns": _tool_list_campaigns,
@@ -1180,3 +1106,8 @@ HANDLERS = {
     "whfrp_read_section": _tool_whfrp_read_section,
     "whfrp_map_key": _tool_whfrp_map_key,
 }
+
+# The rulebook tools live in their own module: they read the extracted rulebook
+# and resolve mechanics deterministically rather than managing campaign state.
+TOOLS.extend(_rules_tools.TOOLS)
+HANDLERS.update(_rules_tools.HANDLERS)
