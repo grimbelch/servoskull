@@ -147,6 +147,21 @@ def get_module(slug: str) -> Optional[dict]:
         for npc in npcs:
             npc["profiles"] = by_npc.get(npc["id"], [])
 
+        # Which scenes each NPC turns up in. The module extractor reads this
+        # from the book's own cross-references, so it is dense enough to drive
+        # a cast list on every scene rather than just a note on the NPC.
+        appearances_by_npc: dict[int, list[dict]] = {}
+        for row in _rows(
+            conn,
+            "SELECT a.* FROM module_npc_appearances a"
+            "  JOIN module_npcs n ON n.id = a.npc_id"
+            " WHERE n.module_id = ? ORDER BY a.section_id",
+            module_id,
+        ):
+            appearances_by_npc.setdefault(row["npc_id"], []).append(row)
+        for npc in npcs:
+            npc["appearances"] = appearances_by_npc.get(npc["id"], [])
+
         chapter_of_section = {
             row["id"]: row["chapter_id"]
             for row in _rows(
