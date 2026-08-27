@@ -391,12 +391,16 @@ def get_active_tools_for_game(game_name: str) -> list[dict]:
 
     g_lower = (game_name or "").lower()
 
-    whfrp_tools = {
-        "whfrp_rules", "whfrp_lookup_character", "whfrp_lookup_npc", "whfrp_lookup_location",
-        "whfrp_log_timeline_event", "roll_whfrp_dice", "start_campaign", "list_campaigns",
-        "get_campaign_state", "save_campaign_state", "roll_character_stats", "save_character",
-        "roll_random_talent", "get_species_info", "get_class_trappings", "roll_starting_wealth",
-        "roll_physical_details"
+    # Derived from the WFRP tool module rather than hardcoded, so tools added
+    # there are gated automatically instead of leaking into every other game.
+    try:
+        from games import wfrp as _wfrp
+
+        whfrp_tools = set(_wfrp.tools.HANDLERS)
+    except Exception:
+        whfrp_tools = set()
+    whfrp_tools |= {
+        name for name in (t.get("name") for t in _TOOLS) if name and name.startswith("whfrp_")
     }
     w40k_tools = {"warhammer40k_rules"}
     necro_tools = {"necromunda_rules"}
