@@ -22,6 +22,7 @@ from typing import Optional
 from .. import module_schema
 from .assets import Asset, extract_assets
 from .layout import ModuleDocument
+from .map_keys import apply_map_keys
 from .sections import Section, extract_sections, slugify
 from .statblocks import Npc, extract_npcs
 from .tables import RulesTable, extract_tables
@@ -365,6 +366,7 @@ def ingest(pdf_path: str, db_path: str, slug: str, title: str, image_dir: str) -
     writer.write_npcs(npcs)
     cover_id = writer.write_assets(assets)
     writer.write_tables(tables)
+    map_keys = apply_map_keys(conn, module_id, slug)
     writer.build_search_index(roots, npcs)
     if cover_id:
         conn.execute("UPDATE modules SET cover_asset_id = ? WHERE id = ?", (cover_id, module_id))
@@ -381,6 +383,7 @@ def ingest(pdf_path: str, db_path: str, slug: str, title: str, image_dir: str) -
         "SELECT COUNT(*) FROM module_npc_profiles p JOIN module_npcs n ON n.id = p.npc_id"
         " WHERE n.module_id = ?", (module_id,)
     ).fetchone()[0]
+    counts["module_map_keys"] = map_keys
     conn.close()
     return counts
 
