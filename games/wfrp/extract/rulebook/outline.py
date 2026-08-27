@@ -141,16 +141,15 @@ def _kind_of(section: Section) -> str:
     if _ancestor_titled(section, "Miracles") is not None and section.level == 4:
         return "miracle"
 
-    # Bestiary: creature entries are the leaf sections beneath each category,
-    # and traits are listed under their own level-2 section. The Chaos and
-    # Skaven categories sit a level deeper in the outline than the others, so
-    # depth alone cannot tell an entry from the group that contains it.
+    # Bestiary: creature entries sit at level 3 or deeper beneath a category.
+    # The outline cannot tell an entry from a category or from a sidebar nested
+    # inside an entry -- "Trolls" and its "Going for a Troll" aside are the same
+    # shape as a category and its creatures -- so everything at that depth is a
+    # candidate and `creatures.extract_creatures` settles it from the page.
     if chapter == "bestiary":
         if _ancestor_titled(section, "Creature Traits") is not None:
             return "creature_trait"
-        if section.level >= 3 and not section.children:
-            if parent_key in {"creature hit locations"}:
-                return "section"
+        if section.level >= 3 and parent_key not in {"creature hit locations"}:
             return "creature"
         return "section"
 

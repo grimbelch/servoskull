@@ -166,22 +166,26 @@ def _category_of(section: Section) -> str:
 def extract_creatures(
     doc: ModuleDocument, sections: list, blocks: list
 ) -> list:
-    """Build a `Creature` for every bestiary entry in the outline."""
+    """Build a `Creature` for every bestiary entry, correcting the outline.
+
+    The outline marks every section at entry depth as a candidate because it
+    cannot distinguish an entry from the category above it or from a sidebar
+    nested inside it. Only the page can: an entry is introduced by an H3, so a
+    candidate without one is re-kinded here -- as a category if it contains
+    other sections, otherwise as a sidebar.
+    """
     out: list = []
     for section in sections:
         if section.kind != "creature":
             continue
         position = _heading_position(doc, section)
         if position is None:
+            section.kind = "section" if section.children else "sidebar"
             continue
         page_number, top, left = position
         text = _entry_text(doc, page_number, top, left)
         lists = _split_runin(text)
-        description = text
-        first = min(
-            (match.start() for match in (_TRAITS_RE.search(text),) if match),
-            default=len(text),
-        )
+        traits_at = _TRAITS_RE.search(text)
         creature = Creature(
             name=section.title.strip(),
             slug=slugify(section.title),
@@ -189,7 +193,7 @@ def extract_creatures(
             page=page_number,
             section_slug=section.slug,
             characteristics=_profile_for(doc, page_number, top, left),
-            description=description[:first].strip(),
+            description=text[: traits_at.start()].strip() if traits_at else text.strip(),
             traits=lists.get("traits", []),
             optional_traits=lists.get("optional", []),
             skills=lists.get("skills", []),

@@ -39,6 +39,14 @@ from .roll_tables import extract_roll_tables
 
 EXTRACTOR_VERSION = "1.0"
 
+# Section kinds that also get a structured row. Their prose is indexed once,
+# from the entry, so a search for "Dodge" returns the Skill and not the same
+# text twice.
+_STRUCTURED_KINDS = frozenset({
+    "skill", "talent", "spell", "blessing", "miracle",
+    "career", "creature", "condition",
+})
+
 
 def _walk(roots: list) -> list:
     """Every section in document order."""
@@ -103,7 +111,7 @@ class RulesIngestor:
             self.section_ids[section.doc_order] = section_id
             self.section_by_slug.setdefault(section.slug, section_id)
 
-            if (section.body_md or "").strip():
+            if (section.body_md or "").strip() and section.kind not in _STRUCTURED_KINDS:
                 self._index(section.title, section.body_md, section.kind,
                             section_id, "rule_sections", section_id,
                             section.page_start)
