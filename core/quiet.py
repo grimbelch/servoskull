@@ -6,6 +6,7 @@ on-demand requests are unaffected. Persists across restarts via SQLite KV store.
 """
 
 from __future__ import annotations
+import threading
 from datetime import datetime
 
 from core import config
@@ -17,6 +18,8 @@ _DEFAULT_STATE = {
     "sleep_end_hour": 7,            # 07:00 (7:00 AM)
     "sleep_schedule_enabled": True,
 }
+
+_state_lock = threading.Lock()
 
 def _get_state() -> dict:
     state = dict(_DEFAULT_STATE)
@@ -55,14 +58,15 @@ def is_silent() -> bool:
 
 def set_silent(enabled: bool) -> bool:
     """Enable or disable manual silent mode. Returns the new state."""
-    state = _get_state()
-    prev = bool(state.get("silent", False))
-    state["silent"] = bool(enabled)
-    
-    if state["silent"] != prev:
-        _save_state(state)
-        print(f"[quiet] Silent mode {'ON' if enabled else 'OFF'}")
+    with _state_lock:
+        state = _get_state()
+        prev = bool(state.get("silent", False))
+        state["silent"] = bool(enabled)
         
+        if state["silent"] != prev:
+            _save_state(state)
+            print(f"[quiet] Silent mode {'ON' if enabled else 'OFF'}")
+            
     return bool(enabled)
 
 
@@ -71,11 +75,12 @@ def set_sleep_schedule(start_hour: int, end_hour: int, enabled: bool = True) -> 
     start_hour = max(0, min(23, int(start_hour)))
     end_hour = max(0, min(23, int(end_hour)))
 
-    state = _get_state()
-    state["sleep_start_hour"] = start_hour
-    state["sleep_end_hour"] = end_hour
-    state["sleep_schedule_enabled"] = bool(enabled)
-    _save_state(state)
+    with _state_lock:
+        state = _get_state()
+        state["sleep_start_hour"] = start_hour
+        state["sleep_end_hour"] = end_hour
+        state["sleep_schedule_enabled"] = bool(enabled)
+        _save_state(state)
 
     def _fmt(h: int) -> str:
         if h == 0 or h == 24:

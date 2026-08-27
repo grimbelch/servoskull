@@ -50,8 +50,22 @@ Rules/*
 !Rules/README.md
 !Rules/ingest_pdf.py
 !Rules/clean_necromunda_tables.py
+# Extracted module page images — hundreds of MB of copyrighted Games Workshop
+# artwork. Regenerate locally with games/wfrp/extract_images.py.
+games/*/rules/**/images/
+
+# Generated TTS phrase cache — rebuilt on demand per personality.
+models/phrase_cache/
+
 # Scratch and temporary scripts
 scratch/
+scratch_*.py
+scratch_*/
+debug_*.py
+apply_*.py
+export_json.py
+import_json.py
+modules_export.json
 extract_js.py
 fix.py
 mock_*.js

@@ -3,6 +3,8 @@ import os
 import pathlib
 import sys
 
+import tempfile
+import threading
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
@@ -25,6 +27,32 @@ load_dotenv(override=True)
 _REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 USER_DATA_DIR = pathlib.Path(os.getenv("OMEGA7_DATA_DIR", "~/.config/omega7")).expanduser()
 USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+_env_lock = threading.Lock()
+
+def _update_env_var(key: str, value: str) -> None:
+    """Thread-safe, atomic update of a variable in the .env file."""
+    env_path = pathlib.Path(__file__).parent.parent / ".env"
+    with _env_lock:
+        if not env_path.exists():
+            return
+        try:
+            content = env_path.read_text(encoding="utf-8")
+            import re
+            if f"{key}=" in content:
+                content = re.sub(rf"^{key}=.*$", f"{key}={value}", content, flags=re.M)
+            else:
+                if not content.endswith("\n"):
+                    content += "\n"
+                content += f"{key}={value}\n"
+            
+            # Atomic write
+            fd, temp_path = tempfile.mkstemp(dir=env_path.parent, prefix=".env.tmp")
+            with os.fdopen(fd, 'w', encoding="utf-8") as f:
+                f.write(content)
+            os.replace(temp_path, env_path)
+        except Exception as e:
+            print(f"[config] Failed to update .env with {key}: {e}")
 
 
 def data_path(name: str) -> pathlib.Path:
@@ -72,6 +100,7 @@ def save_settings(new_settings: dict) -> None:
     current["configured"] = True
     
     p.write_text(json.dumps(current, indent=2), encoding="utf-8")
+    os.chmod(p, 0o600)
     _SETTINGS = current
     
     # Update active globals
@@ -127,13 +156,26 @@ ANTHROPIC_API_KEY = _cfg("ANTHROPIC_API_KEY", "")
 OPENAI_API_KEY = _cfg("OPENAI_API_KEY", "")
 ELEVENLABS_API_KEY = _cfg("ELEVENLABS_API_KEY", "")
 SKULL_NAME = _cfg("SKULL_NAME", "Omega-7")
+from typing import Optional
+
+def get_personality_key(name: Optional[str] = None) -> str:
+    """Resolve a personality name (e.g. 'Omega-7', 'omega 7', 'omega-7') to its
+    directory/module key under personalities/ (e.g. 'omega7')."""
+    target = (name or SKULL_NAME or "Omega-7").strip().lower()
+    raw_key = target.replace("-", "").replace(" ", "")
+    base_dir = pathlib.Path(__file__).parent.parent / "personalities"
+    if (base_dir / raw_key).exists():
+        return raw_key
+    if (base_dir / target).exists():
+        return target
+    if (base_dir / "omega7").exists():
+        return "omega7"
+    return "skull"
 
 def _load_personality_config(name: str) -> dict:
-    name = name.strip().lower()
+    key = get_personality_key(name)
     base_dir = pathlib.Path(__file__).parent.parent / "personalities"
-    p_dir = base_dir / name
-    if not p_dir.exists():
-        p_dir = base_dir / "omega7" if (base_dir / "omega7").exists() else base_dir / "skull"
+    p_dir = base_dir / key
     cfg_path = p_dir / "config.json"
     if cfg_path.exists():
         try:
@@ -207,9 +249,7 @@ AUDIO_DEBUG = os.getenv("AUDIO_DEBUG", "false").lower() == "true"
 # Auto-listen for follow-up recording only when the spoken response ends with a question
 AUTO_LISTEN_ON_QUESTION = _cfg("AUTO_LISTEN_ON_QUESTION", "true").lower() == "true"
 
-# ── Weather (get_weather tool; Open-Meteo, no key required) ──────────────────────
-WEATHER_LAT = float(_cfg("WEATHER_LAT", "0.0"))
-WEATHER_LON = float(_cfg("WEATHER_LON", "0.0"))
+
 
 # ── Spotify (optional music control; Premium required) ───────────────────────────
 SPOTIFY_CLIENT_ID = _cfg("SPOTIFY_CLIENT_ID", "")
@@ -321,19 +361,7 @@ def set_display_rotation(degrees: float, relative: bool = False) -> str:
         new_val = degrees
     
     DISPLAY_FINE_ROTATION = round(new_val, 1)
-    
-    env_path = pathlib.Path(__file__).parent.parent / ".env"
-    if env_path.exists():
-        try:
-            content = env_path.read_text()
-            if "DISPLAY_FINE_ROTATION=" in content:
-                import re
-                content = re.sub(r"^DISPLAY_FINE_ROTATION=.*$", f"DISPLAY_FINE_ROTATION={DISPLAY_FINE_ROTATION}", content, flags=re.M)
-            else:
-                content += f"\nDISPLAY_FINE_ROTATION={DISPLAY_FINE_ROTATION}\n"
-            env_path.write_text(content)
-        except Exception as e:
-            print(f"[config] Failed to update .env with DISPLAY_FINE_ROTATION: {e}")
+    _update_env_var("DISPLAY_FINE_ROTATION", str(DISPLAY_FINE_ROTATION))
             
     return f"Display rotation set to {DISPLAY_FINE_ROTATION} degrees."
 
@@ -353,7 +381,7 @@ TEMP_WARN_COOLDOWN = int(os.getenv("TEMP_WARN_COOLDOWN", "300"))       # min sec
 
 # ── Conversation history ─────────────────────────────────────────────────────────
 # Stored inside USER_DATA_DIR. HISTORY_FILE may be a bare filename or an absolute path.
-HISTORY_FILE = os.getenv("HISTORY_FILE", f"history_{SKULL_NAME.lower()}.json")
+HISTORY_FILE = os.getenv("HISTORY_FILE", f"history_{get_personality_key()}.json")
 # Maximum number of messages (turns) to keep in the short-term conversation history.
 # 60 messages corresponds to 30 full back-and-forth conversation exchanges.
 HISTORY_LIMIT = int(os.getenv("HISTORY_LIMIT", "60"))
@@ -374,19 +402,7 @@ def set_silence_duration(seconds: float) -> str:
     val = max(0.5, min(10.0, float(seconds)))
     SILENCE_DURATION = round(val, 1)
     
-    env_path = pathlib.Path(__file__).parent.parent / ".env"
-    if env_path.exists():
-        try:
-            content = env_path.read_text()
-            if "SILENCE_DURATION=" in content:
-                import re
-                content = re.sub(r"^SILENCE_DURATION=.*$", f"SILENCE_DURATION={SILENCE_DURATION}", content, flags=re.M)
-            else:
-                content += f"\nSILENCE_DURATION={SILENCE_DURATION}\n"
-            env_path.write_text(content)
-        except Exception as e:
-            print(f"[config] Failed to update .env with SILENCE_DURATION: {e}")
-            
+    _update_env_var("SILENCE_DURATION", str(SILENCE_DURATION))
     return f"Voice wait duration set to {SILENCE_DURATION} seconds."
 
 # Speaker identification GMM score threshold to reject untrained/unknown voices.

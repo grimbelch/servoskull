@@ -211,11 +211,8 @@ def get_all_reminders() -> list[dict]:
 def get_due_reminders(now_iso: str) -> list[dict]:
     conn = _get_conn()
     with conn:
-        cursor = conn.execute("SELECT id, message, fire_at, repeating FROM reminders WHERE fire_at <= ?", (now_iso,))
-        due = [{"id": r['id'], "message": r['message'], "fire_at": r['fire_at'], "repeating": bool(r['repeating'])} for r in cursor.fetchall()]
-        if due:
-            conn.execute("DELETE FROM reminders WHERE fire_at <= ?", (now_iso,))
-        return due
+        cursor = conn.execute("DELETE FROM reminders WHERE fire_at <= ? RETURNING id, message, fire_at, repeating", (now_iso,))
+        return [{"id": r['id'], "message": r['message'], "fire_at": r['fire_at'], "repeating": bool(r['repeating'])} for r in cursor.fetchall()]
 
 def remove_reminder(rid: str) -> bool:
     conn = _get_conn()

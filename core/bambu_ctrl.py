@@ -285,11 +285,11 @@ class BambuMonitor:
 
     def notify_start(self):
         if self.on_status_change_cb:
-            msg = "Woof! A new 3D printing job just started!" if config.SKULL_NAME.lower() == "jax" else "The machine spirit has initiated a new 3D printing fabrication task."
+            msg = "Woof! A new 3D printing job just started!" if config.get_personality_key() == "jax" else "The machine spirit has initiated a new 3D printing fabrication task."
             self.on_status_change_cb("start", msg)
 
     def notify_completion(self):
-        text = "Woof woof! The 3D printing job is finished! Your print is ready!" if config.SKULL_NAME.lower() == "jax" else "Praise the Omnissiah! The 3D printing task is complete. Your physical artifact is ready for extraction."
+        text = "Woof woof! The 3D printing job is finished! Your print is ready!" if config.get_personality_key() == "jax" else "Praise the Omnissiah! The 3D printing task is complete. Your physical artifact is ready for extraction."
         self.start_repeating_notification("finish", text)
 
     def notify_error(self, code_str: str, severity: str):

@@ -6,6 +6,42 @@ import random
 import math
 import subprocess
 
+
+def _core_brain():
+    """core.brain imports this personality module at load time, so it can only be
+    imported lazily from inside the tool handlers."""
+    from core import brain as _brain
+    return _brain
+
+
+def get_current_game() -> str:
+    return _core_brain().get_current_game()
+
+
+def set_current_game(game: str) -> None:
+    _core_brain().set_current_game(game)
+
+
+def _trigger_dice_effects(display_val=None) -> None:
+    _core_brain()._trigger_dice_effects(display_val)
+
+
+def _simulate_dice(**kwargs) -> str:
+    return _core_brain()._simulate_dice(**kwargs)
+
+
+def _simulate_necromunda(*args, **kwargs) -> str:
+    return _core_brain()._simulate_necromunda(*args, **kwargs)
+
+
+def _simulate_standard_dice(*args, **kwargs) -> str:
+    return _core_brain()._simulate_standard_dice(*args, **kwargs)
+
+
+def _simulate_epic_dice(*args, **kwargs) -> str:
+    return _core_brain()._simulate_epic_dice(*args, **kwargs)
+
+
 def get_tools():
     return [
 {
@@ -200,20 +236,6 @@ def get_tools():
             },
             "required": ["num_dice", "hit_on", "wound_on"],
         },
-    },
-{
-        "name": "set_active_game",
-        "description": "Configure which tabletop or roleplaying game is currently being played (e.g. 'Warhammer Fantasy Roleplay', 'WFRP', 'Shadows Over Reikland', 'Warhammer 40k', 'Necromunda', 'NetEpic', 'Kill Team', etc.) so that the active game indicator and web console update.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "game": {
-                    "type": "string",
-                    "description": "The name of the game or roleplaying campaign being played."
-                }
-            },
-            "required": ["game"]
-        }
     },
 {
         "name": "roll_necromunda_dice",
@@ -430,22 +452,6 @@ def _tool_roll_dice(i):
     _trigger_dice_effects()
     return res
 
-def _tool_set_active_game(i):
-    game = str(i.get("game", "Warhammer 40k")).strip()
-    set_current_game(game)
-    try:
-        from games import wfrp
-        if game.lower() in ["wfrp", "warhammer fantasy roleplay", "warhammer roleplay"]:
-            campaigns = wfrp.campaign.list_campaigns()
-            if campaigns:
-                wfrp.campaign.load_campaign(campaigns[0]["name"])
-        else:
-            wfrp.campaign.load_campaign(game)
-    except Exception:
-        pass
-    print(f"[brain] Active game set to {game}")
-    return f"Active game is now set to {game}."
-
 def _tool_roll_necromunda_dice(i):
     dice_type = str(i.get("dice_type", "d6")).strip()
     count = int(i.get("count", 1))
@@ -529,7 +535,6 @@ def get_handlers():
         "play_ambient_hymn": _tool_play_ambient_hymn,
         "set_candles": _tool_set_candles,
         "roll_dice": _tool_roll_dice,
-        "set_active_game": _tool_set_active_game,
         "roll_necromunda_dice": _tool_roll_necromunda_dice,
         "roll_standard_dice": _tool_roll_standard_dice,
         "roll_epic_dice": _tool_roll_epic_dice,

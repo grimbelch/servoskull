@@ -375,8 +375,22 @@ def test_api_key(provider: str, key: str) -> tuple[bool, str]:
 
 
 class WebRequestHandler(http.server.BaseHTTPRequestHandler):
+    _MAX_BODY_BYTES = 1_048_576
+
+    def _read_body(self, max_bytes: int | None = None) -> str | None:
+        limit = max_bytes or self._MAX_BODY_BYTES
+        content_length = int(self.headers.get("Content-Length", 0))
+        if content_length > limit:
+            self.send_response(413)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"error": "body too large"}')
+            return None
+        if content_length <= 0:
+            return "{}"
+        return self.rfile.read(content_length).decode("utf-8")
+
     def log_message(self, format, *args):
-        # Suppress automatic logging to console to keep main logs readable
         pass
 
     def _send_json(self, data: dict, status_code: int = 200) -> None:
@@ -430,11 +444,46 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(f"Error loading module viewer: {e}".encode("utf-8"))
 
+    def _handle_rules_image(self) -> None:
+        import os
+        try:
+            rel_path = self.path.split("?")[0].replace("/rules_images/", "")
+            rules_base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "games", "wfrp", "rules"))
+            img_path = os.path.abspath(os.path.join(rules_base, rel_path))
+            if not img_path.startswith(rules_base + os.sep) and img_path != rules_base:
+                self.send_response(403)
+                self.end_headers()
+                return
+            if os.path.exists(img_path) and os.path.isfile(img_path):
+                with open(img_path, "rb") as f:
+                    body = f.read()
+                self.send_response(200)
+                ext = os.path.splitext(img_path)[1].lower()
+                mime = "image/png"
+                if ext in [".jpg", ".jpeg"]: mime = "image/jpeg"
+                elif ext == ".webp": mime = "image/webp"
+                self.send_header("Content-Type", mime)
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "public, max-age=86400")
+                self.end_headers()
+                self.wfile.write(body)
+            else:
+                self.send_response(404)
+                self.end_headers()
+        except Exception:
+            self.send_response(500)
+            self.end_headers()
+
     def _handle_module_image(self) -> None:
         import os
         try:
             rel_path = self.path.split("?")[0].lstrip("/")
-            img_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "games", rel_path))
+            games_base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "games"))
+            img_path = os.path.abspath(os.path.join(games_base, rel_path))
+            if not img_path.startswith(games_base + os.sep) and img_path != games_base:
+                self.send_response(403)
+                self.end_headers()
+                return
             if os.path.exists(img_path) and os.path.isfile(img_path):
                 ext = img_path.split(".")[-1].lower()
                 mime = "image/jpeg" if ext in ("jpg", "jpeg") else ("image/png" if ext == "png" else "application/octet-stream")
@@ -887,6 +936,10 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
 
         if path_clean.startswith("/images/modules/"):
             self._handle_module_image()
+            return
+
+        if path_clean.startswith("/rules_images/"):
+            self._handle_rules_image()
             return
 
         get_routes = {
