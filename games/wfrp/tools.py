@@ -462,6 +462,7 @@ def _tool_whfrp_manage_npc(i):
             npc_dict[k] = i[k]
             
     db.upsert_npc(slug, npc_dict)
+    _campaign.reload_active()
     return {"status": "success", "message": f"Updated NPC {i['name']}"}
 
 def _tool_whfrp_manage_location(i):
@@ -486,6 +487,7 @@ def _tool_whfrp_manage_location(i):
             loc_dict[k] = i[k]
             
     db.upsert_location(slug, loc_dict)
+    _campaign.reload_active()
     return {"status": "success", "message": f"Updated Location {i['name']}"}
 
 def _tool_whfrp_log_timeline_event(i):
@@ -495,6 +497,7 @@ def _tool_whfrp_log_timeline_event(i):
     slug = active.get("slug")
     from . import db
     db.add_timeline_event(slug, i["event_summary"], i.get("in_game_date", ""))
+    _campaign.reload_active()
     return {"status": "success", "message": "Event logged to timeline."}
 def _tool_whfrp_rules(i):
     query = i.get("query", "")
