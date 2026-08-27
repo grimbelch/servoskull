@@ -425,9 +425,17 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _handle_module_viewer(self) -> None:
+        self._send_page("module_viewer.html")
+
+    def _handle_campaign_page(self) -> None:
+        self._send_page("static/campaign.html")
+
+    def _send_page(self, relative_path: str) -> None:
+        """Serve one of the book-styled pages from core/."""
         import os
         try:
-            with open(os.path.join(os.path.dirname(__file__), "module_viewer.html"), "r", encoding="utf-8") as f:
+            target = os.path.join(os.path.dirname(__file__), *relative_path.split("/"))
+            with open(target, "r", encoding="utf-8") as f:
                 html_body = f.read()
             body = html_body.encode("utf-8")
             self.send_response(200)
@@ -442,7 +450,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         except Exception as e:
             self.send_response(500)
             self.end_headers()
-            self.wfile.write(f"Error loading module viewer: {e}".encode("utf-8"))
+            self.wfile.write(f"Error loading page: {e}".encode("utf-8"))
 
     def _handle_static(self) -> None:
         """Serve a front-end asset from core/static.
@@ -1008,7 +1016,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
 
         get_routes = {
             "/": self._handle_root,
-            "/campaign": self._handle_root,
+            "/campaign": self._handle_campaign_page,
             "/memory": self._handle_root,
             "/api/campaign": self._handle_campaign_get,
             "/api/memory": self._handle_memory_get,
