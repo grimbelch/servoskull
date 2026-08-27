@@ -54,6 +54,15 @@ CHARACTERISTICS = {
     "int": "Intelligence", "wp": "Willpower", "fel": "Fellowship",
 }
 
+# Words a GM's question is phrased with rather than about. Dropping them keeps
+# "how does advantage work" from ranking on "does" and "work".
+_STOPWORDS = frozenset("""
+about and any are can does doing for from get gets has have how its
+into much not the their them then there these this those use used using
+was were what when where which who why will with work works you your
+rule rules game
+""".split())
+
 
 def difficulty_modifier(difficulty) -> int:
     """Accept either a named difficulty or a raw modifier."""
@@ -337,6 +346,55 @@ class RulesLookup:
             " WHERE b.slug = ? AND lower(c.name) = ? LIMIT 1",
             (self.rulebook, (name or "").strip().lower()),
         ).fetchone()
+
+    def available(self) -> bool:
+        """Whether an extracted rulebook is present to be consulted."""
+        try:
+            row = self.conn.execute(
+                "SELECT 1 FROM rulebooks WHERE slug = ?", (self.rulebook,)
+            ).fetchone()
+        except sqlite3.Error:
+            return False
+        return row is not None
+
+    def search(self, query: str, limit: int = 6, kind: str = "") -> list:
+        """Full-text search across both the prose and the structured entries.
+
+        Titles are weighted far above bodies so that asking for "Dodge" returns
+        the Skill rather than every paragraph that mentions dodging. Questions
+        are asked conversationally, so the words that carry no meaning for
+        retrieval are dropped before matching.
+        """
+        terms = [
+            term for term in re.findall(r"[\w']+", (query or "").lower())
+            if len(term) > 2 and term not in _STOPWORDS
+        ]
+        if not terms:
+            return []
+        # Prefix matching, so asking about a "Troll" finds the "Trolls" entry
+        # and "casting" finds "cast".
+        match = " OR ".join('"%s"*' % term.replace('"', "") for term in terms)
+        sql = [
+            "SELECT title, body, kind, ref_table, ref_id, section_id, page,",
+            "       bm25(rule_search, 10.0, 1.0) AS score",
+            "FROM rule_search WHERE rule_search MATCH ? AND rulebook_id = ?",
+        ]
+        args = [match, self._rulebook_id()]
+        if kind:
+            sql.append("AND kind = ?")
+            args.append(kind)
+        sql.append("ORDER BY score LIMIT ?")
+        args.append(int(limit))
+        try:
+            return self.conn.execute(" ".join(sql), args).fetchall()
+        except sqlite3.Error:
+            return []
+
+    def _rulebook_id(self) -> int:
+        row = self.conn.execute(
+            "SELECT id FROM rulebooks WHERE slug = ?", (self.rulebook,)
+        ).fetchone()
+        return row[0] if row else -1
 
 
 def _row_text(row) -> str:
