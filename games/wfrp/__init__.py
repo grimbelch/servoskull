@@ -5,6 +5,7 @@ Provides:
 - persona_prompt: Returns persona text for GM mode & character creation
 - campaign: Campaign memory manager and character sheet persistence
 - search: Offline rules search engine
+- foundry: Optional Foundry VTT bridge (enable with FOUNDRY_MCP_ENABLED=true)
 """
 from __future__ import annotations
 
@@ -12,6 +13,7 @@ import pathlib
 from . import campaign
 from . import search
 from . import tools
+from . import foundry
 
 
 def get_persona_prompt() -> str:
@@ -22,4 +24,4 @@ def get_persona_prompt() -> str:
     return ""
 
 
-__all__ = ["campaign", "search", "tools", "get_persona_prompt"]
+__all__ = ["campaign", "search", "tools", "foundry", "get_persona_prompt"]

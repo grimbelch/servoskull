@@ -1111,3 +1111,17 @@ HANDLERS = {
 # and resolve mechanics deterministically rather than managing campaign state.
 TOOLS.extend(_rules_tools.TOOLS)
 HANDLERS.update(_rules_tools.HANDLERS)
+
+# Foundry VTT bridge. Only contributes tools when FOUNDRY_MCP_ENABLED is set,
+# so a table running purely off the offline rules database is unaffected.
+try:
+    from . import foundry as _foundry
+
+    if _foundry.TOOLS:
+        TOOLS.extend(_foundry.TOOLS)
+        HANDLERS.update(_foundry.HANDLERS)
+        SLOW_TOOLS.update(_foundry.SLOW_TOOLS)
+except Exception:  # pragma: no cover - never block game start on the bridge
+    import logging
+
+    logging.getLogger(__name__).exception("Foundry bridge unavailable; continuing without it")

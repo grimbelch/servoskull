@@ -37,18 +37,27 @@ class MapKey:
 
 @dataclass(frozen=True)
 class MapKeySet:
-    """A KEY panel, and the map pages it applies to.
+    """A KEY panel, and the artwork it applies to.
 
-    A single key can serve more than one page: the Staatsoper is drawn as a
+    A single key can serve more than one image: the Staatsoper is drawn as a
     two-page spread (ground floor, then first floor) with one shared key
     printed on the second of them.
+
+    ``images`` names files inside the Foundry module's ``assets/`` directory.
+    The module's scenes carry only thumbnails, and no map pins at all, so the
+    full-size artwork is addressed by filename -- the one stable handle the
+    package offers.
     """
 
     module_slug: str
     title: str
-    pages: tuple[int, ...]
+    images: tuple[str, ...]
+    # Slug of the location section this map illustrates. The map's own name
+    # rarely matches it -- the Three Feathers floorplan belongs to "The Inn" --
+    # and it anchors the map to the right chapter for room-name resolution.
+    location_slug: str
     entries: tuple[MapKey, ...]
-    captions: dict[int, str] = field(default_factory=dict)
+    captions: dict[str, str] = field(default_factory=dict)
 
 
 def _rooms(
@@ -97,7 +106,8 @@ _THREE_FEATHERS_OCCUPANTS = {
 _THREE_FEATHERS = MapKeySet(
     module_slug="rough-nights-and-hard-days",
     title="The Three Feathers",
-    pages=(12,),
+    images=("maps/01-3feathers-3268x4662.webp",),
+    location_slug="the-inn",
     entries=tuple(
         _rooms(1, 10, "Double Room", _THREE_FEATHERS_OCCUPANTS)
         + _rooms(11, 20, "Single Room", _THREE_FEATHERS_OCCUPANTS)
@@ -122,7 +132,8 @@ _THREE_FEATHERS = MapKeySet(
 _COURTHOUSE = MapKeySet(
     module_slug="rough-nights-and-hard-days",
     title="The Courthouse",
-    pages=(25,),
+    images=("maps/courthouse.webp",),
+    location_slug="the-courthouse",
     entries=(
         MapKey("1", "Lobby"),
         MapKey("2", "Porter's Room"),
@@ -147,7 +158,8 @@ _COURTHOUSE = MapKeySet(
 _ARENA = MapKeySet(
     module_slug="rough-nights-and-hard-days",
     title="The Arena",
-    pages=(27,),
+    images=("maps/th-arena-unlabeled.webp",),
+    location_slug="the-courthouse",
     entries=(
         MapKey("1", "Makeshift Arena"),
         MapKey("2", "Ambosstein Pavilion"),
@@ -165,10 +177,12 @@ _ARENA = MapKeySet(
 _STAATSOPER = MapKeySet(
     module_slug="rough-nights-and-hard-days",
     title="Staatsoper Theatre",
-    pages=(39, 40),
+    images=("maps/staatsoper-theatre.webp",
+            "maps/staatsoper-theatre-first-floor.webp"),
+    location_slug="the-opera-house",
     captions={
-        39: "Staatsoper Theatre Map (Ground Floor)",
-        40: "Staatsoper Theatre Map (First Floor)",
+        "maps/staatsoper-theatre.webp": "Staatsoper Theatre Map (Ground Floor)",
+        "maps/staatsoper-theatre-first-floor.webp": "Staatsoper Theatre Map (First Floor)",
     },
     entries=(
         MapKey("1", "Ladies' Door"),
@@ -219,7 +233,8 @@ _STAATSOPER = MapKeySet(
 _GRAUENBERG = MapKeySet(
     module_slug="rough-nights-and-hard-days",
     title="Castle Grauenberg",
-    pages=(57,),
+    images=("maps/castle-grauenberg.webp",),
+    location_slug="the-castle",
     entries=(
         MapKey("1", "Gatehouse and State Army Barracks", section_slug="gatehouse"),
         MapKey("2", "Courtyard"),
@@ -250,7 +265,8 @@ _GRAUENBERG = MapKeySet(
 _NIEDERSTADT = MapKeySet(
     module_slug="rough-nights-and-hard-days",
     title="Niederstadt Haus",
-    pages=(72,),
+    images=("maps/niederstadt-haus.webp",),
+    location_slug="the-mansion",
     entries=(
         MapKey("1", "Portico"),
         MapKey("2", "Carriage House"),
@@ -283,7 +299,8 @@ _NIEDERSTADT = MapKeySet(
 _CAMPAIGN = MapKeySet(
     module_slug="rough-nights-and-hard-days",
     title="Gamemaster's Campaign Map",
-    pages=(7,),
+    images=("maps/00-rnhd-campaign-map.webp",),
+    location_slug="",
     entries=(
         MapKey("1", "Three Feathers", "Adventure 1: A Rough Night at the Three Feathers",
                section_slug="a-rough-night-at-the-three-feathers"),
@@ -357,9 +374,9 @@ def apply_map_keys(
 ) -> int:
     """Populate ``module_map_keys`` for a freshly ingested module.
 
-    Also promotes any map page that the outline failed to caption -- the
-    Staatsoper ground floor is drawn without its own bookmark, so it arrives
-    classified as untitled art.
+    Also anchors each map to the location section it illustrates. Foundry's
+    scenes for this module carry no map notes, so the callouts are the only
+    route from a numbered circle on the floorplan to a room name.
     """
     sets = [s for s in MAP_KEY_SETS if s.module_slug == module_slug]
     if not sets:
@@ -374,27 +391,30 @@ def apply_map_keys(
 
     written = 0
     for key_set in sets:
-        for page in key_set.pages:
+        location = (by_slug.get(key_set.location_slug) or [(None, None)])[0]
+        section_id_for_map, chapter_id = location
+
+        for image in key_set.images:
+            # Artwork paths are stored relative to the repository root, so match
+            # on the module-relative tail rather than the full path.
             row = conn.execute(
-                "SELECT id, chapter_id FROM module_assets"
-                " WHERE module_id = ? AND page = ? AND kind IN ('map', 'art')"
-                " ORDER BY CASE kind WHEN 'map' THEN 0 ELSE 1 END, id LIMIT 1",
-                (module_id, page),
+                "SELECT id FROM module_assets"
+                " WHERE module_id = ? AND path LIKE ? ORDER BY id LIMIT 1",
+                (module_id, f"%/{image}"),
             ).fetchone()
             if row is None:
                 continue
-            asset_id, chapter_id = row[0], row[1]
+            asset_id = row[0]
 
-            caption = key_set.captions.get(page)
-            if caption:
-                conn.execute(
-                    "UPDATE module_assets SET kind = 'map', caption = ? WHERE id = ?",
-                    (caption, asset_id),
-                )
-            else:
-                conn.execute(
-                    "UPDATE module_assets SET kind = 'map' WHERE id = ?", (asset_id,)
-                )
+            conn.execute(
+                "UPDATE module_assets"
+                "   SET kind = 'map', caption = ?, section_id = ?, chapter_id = ?"
+                " WHERE id = ?",
+                (
+                    key_set.captions.get(image) or key_set.title,
+                    section_id_for_map, chapter_id, asset_id,
+                ),
+            )
 
             candidates: list[tuple[str, int]] = []
             if chapter_id is not None:
