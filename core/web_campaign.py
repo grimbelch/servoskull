@@ -86,7 +86,9 @@ def dispatch_request(server_handler: Any, path: str, method: str) -> bool:
 def _handle_campaign_get(server_handler: Any) -> None:
     try:
         c_list = campaign.list_campaigns()
-        active = campaign.get_active_campaign()
+        # Re-read rather than trust the cache: the skull's voice loop and the
+        # web UI both write to the same database from different code paths.
+        active = campaign.reload_active() or campaign.get_active_campaign()
         if not active and c_list:
             first_name = c_list[0].get("name") or c_list[0].get("slug")
             if first_name:
@@ -133,7 +135,7 @@ def _handle_campaign_update(server_handler: Any) -> None:
         for k in ("name", "adventure", "current_location", "current_scene", "party_ambition_short", "party_ambition_long", "notes"):
             if k in data:
                 campaign.update_field(k, data[k])
-        server_handler._send_json({"ok": True, "active_campaign": campaign.get_active_campaign()})
+        _send_active(server_handler)
     except Exception as e:
         server_handler._send_json({"ok": False, "error": str(e)}, 500)
 
@@ -146,7 +148,7 @@ def _handle_campaign_character_upsert(server_handler: Any) -> None:
             server_handler._send_json({"ok": False, "error": "No active campaign"}, 400)
             return
         campaign.upsert_character(char_dict)
-        server_handler._send_json({"ok": True, "active_campaign": campaign.get_active_campaign()})
+        _send_active(server_handler)
     except Exception as e:
         server_handler._send_json({"ok": False, "error": str(e)}, 500)
 
@@ -161,7 +163,7 @@ def _handle_campaign_character_delete(server_handler: Any) -> None:
             return
         if char_identifier:
             campaign.delete_character(char_identifier)
-        server_handler._send_json({"ok": True, "active_campaign": campaign.get_active_campaign()})
+        _send_active(server_handler)
     except Exception as e:
         server_handler._send_json({"ok": False, "error": str(e)}, 500)
 
@@ -185,7 +187,7 @@ def _handle_campaign_npc_add(server_handler: Any) -> None:
             return
         slug = active.get("slug", "shadows-over-reikland")
         res = db.add_npc(slug, data.get("name", "NPC"), data.get("role_career", ""), data.get("disposition", "Neutral"), data.get("secrets_lore", ""), data.get("notes", ""))
-        server_handler._send_json({"ok": True, "npc": res, "active_campaign": campaign.get_active_campaign()})
+        _send_active(server_handler, npc=res)
     except Exception as e:
         server_handler._send_json({"ok": False, "error": str(e)}, 500)
 
@@ -199,9 +201,21 @@ def _handle_campaign_timeline_add(server_handler: Any) -> None:
             return
         slug = active.get("slug", "shadows-over-reikland")
         db.add_timeline_event(slug, data.get("event_summary", ""), data.get("in_game_date", ""))
-        server_handler._send_json({"ok": True, "active_campaign": campaign.get_active_campaign()})
+        _send_active(server_handler)
     except Exception as e:
         server_handler._send_json({"ok": False, "error": str(e)}, 500)
+
+
+def _send_active(server_handler: Any, **extra: Any) -> None:
+    """Reply with the campaign as it now stands on disk.
+
+    Writes go straight to SQLite while `campaign` keeps the active campaign
+    cached in memory, so the cache has to be re-read after every mutation or
+    the caller is handed a snapshot that predates its own change.
+    """
+    payload = {"ok": True, "active_campaign": campaign.reload_active()}
+    payload.update(extra)
+    server_handler._send_json(payload)
 
 
 def _read_json(server_handler: Any) -> dict:
@@ -219,7 +233,7 @@ def _handle_campaign_npc_upsert(server_handler: Any) -> None:
             return
         slug = active.get("slug", "shadows-over-reikland")
         res = db.upsert_npc(slug, data)
-        server_handler._send_json({"ok": True, "active_campaign": res})
+        _send_active(server_handler)
     except Exception as e:
         server_handler._send_json({"ok": False, "error": str(e)}, 500)
 
@@ -235,7 +249,7 @@ def _handle_campaign_npc_delete(server_handler: Any) -> None:
         slug = active.get("slug", "shadows-over-reikland")
         if nid:
             db.delete_npc(slug, int(nid))
-        server_handler._send_json({"ok": True, "active_campaign": campaign.get_active_campaign()})
+        _send_active(server_handler)
     except Exception as e:
         server_handler._send_json({"ok": False, "error": str(e)}, 500)
 
@@ -249,7 +263,7 @@ def _handle_campaign_location_upsert(server_handler: Any) -> None:
             return
         slug = active.get("slug", "shadows-over-reikland")
         res = db.upsert_location(slug, data)
-        server_handler._send_json({"ok": True, "active_campaign": res})
+        _send_active(server_handler)
     except Exception as e:
         server_handler._send_json({"ok": False, "error": str(e)}, 500)
 
@@ -265,7 +279,7 @@ def _handle_campaign_location_delete(server_handler: Any) -> None:
         slug = active.get("slug", "shadows-over-reikland")
         if lid:
             db.delete_location(slug, int(lid))
-        server_handler._send_json({"ok": True, "active_campaign": campaign.get_active_campaign()})
+        _send_active(server_handler)
     except Exception as e:
         server_handler._send_json({"ok": False, "error": str(e)}, 500)
 
@@ -279,7 +293,7 @@ def _handle_campaign_quest_upsert(server_handler: Any) -> None:
             return
         slug = active.get("slug", "shadows-over-reikland")
         res = db.upsert_quest(slug, data)
-        server_handler._send_json({"ok": True, "active_campaign": res})
+        _send_active(server_handler)
     except Exception as e:
         server_handler._send_json({"ok": False, "error": str(e)}, 500)
 
@@ -295,7 +309,7 @@ def _handle_campaign_quest_delete(server_handler: Any) -> None:
         slug = active.get("slug", "shadows-over-reikland")
         if qid:
             db.delete_quest(slug, int(qid))
-        server_handler._send_json({"ok": True, "active_campaign": campaign.get_active_campaign()})
+        _send_active(server_handler)
     except Exception as e:
         server_handler._send_json({"ok": False, "error": str(e)}, 500)
 

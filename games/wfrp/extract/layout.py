@@ -243,11 +243,48 @@ def join_wrapped(parts: Sequence[str], compounds: Optional[set[str]] = None) -> 
     return out
 
 
+def split_paragraphs(lines: list[Line]) -> list[list[Line]]:
+    """Split a run of same-styled lines into its typeset paragraphs.
+
+    The book separates paragraphs with a blank line rather than a first-line
+    indent, so a paragraph break shows up as roughly double the normal leading.
+    The leading itself varies by style, so it is measured from the run instead
+    of hard-coded: the median gap is the body leading, and anything markedly
+    larger is a blank line.
+
+    A change of left edge also starts a paragraph, which is what separates an
+    indented stat line such as "Talents: Weapon (Fist) +5" from the prose above
+    it. Gaps are only meaningful within one column of one page; where text
+    flows on to the next column the paragraph simply continues.
+    """
+    if not lines:
+        return []
+
+    gaps = [
+        b.bbox[1] - a.bbox[1]
+        for a, b in zip(lines, lines[1:])
+        if a.page == b.page and a.column == b.column and b.bbox[1] > a.bbox[1]
+    ]
+    leading = sorted(gaps)[len(gaps) // 2] if gaps else 0.0
+
+    paragraphs: list[list[Line]] = [[lines[0]]]
+    for prev, line in zip(lines, lines[1:]):
+        same_column = prev.page == line.page and prev.column == line.column
+        if same_column and leading > 0 and line.bbox[1] - prev.bbox[1] > leading * 1.5:
+            paragraphs.append([line])
+        elif same_column and abs(line.bbox[0] - prev.bbox[0]) > 2.0:
+            paragraphs.append([line])
+        else:
+            paragraphs[-1].append(line)
+    return paragraphs
+
+
 def merge_lines(lines: Iterable[Line], compounds: Optional[set[str]] = None) -> list[Block]:
     """Group consecutive lines of the same style into paragraph blocks.
 
     Multi-line headings are merged, which matters because names such as "Gravin
     Maria-Ulrike von Liebwitz of Ambosstein" are typeset across three lines.
+    Body runs keep their paragraph breaks as blank lines in the block text.
     """
     blocks: list[Block] = []
     buffer: list[Line] = []
@@ -256,7 +293,19 @@ def merge_lines(lines: Iterable[Line], compounds: Optional[set[str]] = None) -> 
     def flush() -> None:
         nonlocal buffer, style
         if buffer and style is not None:
-            text = join_wrapped([line.text for line in buffer], compounds)
+            if style in _HEADING_STYLES:
+                paragraphs = [buffer]
+            else:
+                paragraphs = split_paragraphs(buffer)
+            text = "\n\n".join(
+                filter(
+                    None,
+                    (
+                        join_wrapped([line.text for line in para], compounds)
+                        for para in paragraphs
+                    ),
+                )
+            )
             if text:
                 blocks.append(
                     Block(style=style, text=text, page=buffer[0].page, lines=list(buffer))

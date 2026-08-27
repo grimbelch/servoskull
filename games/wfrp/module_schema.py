@@ -38,7 +38,8 @@ CREATE TABLE IF NOT EXISTS modules (
     page_count        INTEGER DEFAULT 0,
     cover_asset_id    INTEGER,
     extracted_at      TEXT DEFAULT '',
-    extractor_version TEXT DEFAULT ''
+    extractor_version TEXT DEFAULT '',
+    theme_json        TEXT DEFAULT ''   -- page textures and rules lifted from the PDF
 );
 
 -- Self-referencing tree mirroring the PDF bookmark outline. `kind` is inferred
@@ -60,6 +61,7 @@ CREATE TABLE IF NOT EXISTS module_sections (
     page_start    INTEGER DEFAULT 0,
     page_end      INTEGER DEFAULT 0,
     word_count    INTEGER DEFAULT 0,
+    accent        TEXT DEFAULT '',   -- chapter tab colour, sampled from the book
     FOREIGN KEY (module_id)  REFERENCES modules (id)         ON DELETE CASCADE,
     FOREIGN KEY (parent_id)  REFERENCES module_sections (id) ON DELETE CASCADE,
     FOREIGN KEY (chapter_id) REFERENCES module_sections (id) ON DELETE CASCADE
@@ -329,8 +331,8 @@ def has_fts5(conn: sqlite3.Connection) -> bool:
 # rebuilt rather than migrated — the rows are extracted content and are always
 # reproducible from the source PDF.
 _SHAPE_SENTINELS = {
-    "modules": "source_sha256",
-    "module_sections": "doc_order",
+    "modules": "theme_json",
+    "module_sections": "accent",
     "module_plots": "plot_number",
     "module_events": "time_minutes",
     "module_npcs": "faction",
@@ -364,8 +366,21 @@ def drop_stale_content_tables(conn: sqlite3.Connection) -> list[str]:
 
 def init_module_schema(conn: sqlite3.Connection) -> None:
     """Create module content and campaign state tables if absent."""
-    drop_legacy_tables(conn)
-    drop_stale_content_tables(conn)
+    # Dropping a stale table fires its foreign-key actions, and those cascades
+    # walk into sibling tables whose own references may already be gone -- a
+    # half-migrated database raises "no such table" from a table we never
+    # touched. Enforcement is off for the teardown and restored afterwards.
+    # The pragma is a no-op inside a transaction, so any open one is closed
+    # first.
+    previous = conn.execute("PRAGMA foreign_keys").fetchone()[0]
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys = OFF")
+    try:
+        drop_legacy_tables(conn)
+        drop_stale_content_tables(conn)
+        conn.commit()
+    finally:
+        conn.execute(f"PRAGMA foreign_keys = {'ON' if previous else 'OFF'}")
     conn.executescript(SCHEMA_SQL)
     if _table_exists(conn, "campaigns"):
         conn.executescript(CAMPAIGN_SCHEMA_SQL)

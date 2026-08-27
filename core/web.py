@@ -425,9 +425,17 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _handle_module_viewer(self) -> None:
+        self._send_page("module_viewer.html")
+
+    def _handle_campaign_page(self) -> None:
+        self._send_page("static/campaign.html")
+
+    def _send_page(self, relative_path: str) -> None:
+        """Serve one of the book-styled pages from core/."""
         import os
         try:
-            with open(os.path.join(os.path.dirname(__file__), "module_viewer.html"), "r", encoding="utf-8") as f:
+            target = os.path.join(os.path.dirname(__file__), *relative_path.split("/"))
+            with open(target, "r", encoding="utf-8") as f:
                 html_body = f.read()
             body = html_body.encode("utf-8")
             self.send_response(200)
@@ -442,7 +450,42 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         except Exception as e:
             self.send_response(500)
             self.end_headers()
-            self.wfile.write(f"Error loading module viewer: {e}".encode("utf-8"))
+            self.wfile.write(f"Error loading page: {e}".encode("utf-8"))
+
+    def _handle_static(self) -> None:
+        """Serve a front-end asset from core/static.
+
+        The 40K terminal client is embedded in this module as a string, but the
+        book-styled campaign and module pages are large enough that keeping
+        their CSS and JS as real files is worth a route of their own.
+        """
+        import os
+        try:
+            rel = self.path.split("?")[0][len("/static/"):]
+            base = os.path.join(os.path.dirname(__file__), "static")
+            target = os.path.abspath(os.path.join(base, rel))
+            if not target.startswith(os.path.abspath(base) + os.sep) or not os.path.isfile(target):
+                self.send_response(404)
+                self.end_headers()
+                return
+            mime = {
+                "css": "text/css; charset=utf-8",
+                "js": "application/javascript; charset=utf-8",
+                "svg": "image/svg+xml",
+                "png": "image/png",
+                "woff2": "font/woff2",
+            }.get(target.rsplit(".", 1)[-1].lower(), "application/octet-stream")
+            with open(target, "rb") as f:
+                data = f.read()
+            self.send_response(200)
+            self.send_header("Content-Type", mime)
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            self.wfile.write(data)
+        except Exception:
+            self.send_response(500)
+            self.end_headers()
 
     def _handle_rules_image(self) -> None:
         import os
@@ -475,18 +518,43 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
 
     def _handle_module_image(self) -> None:
+        """Serve a module asset addressed by its repository-relative path.
+
+        Asset paths are stored in the database relative to the repository root
+        ("games/wfrp/rules/modules/<slug>/images/x.png") so that the database
+        can be built on a workstation and served from the Pi. The canonical URL
+        is therefore /asset/<that path>.
+
+        The older /images/modules/<...> form is kept working for anything still
+        linking to it; it was resolving against games/ and so pointed at
+        games/images/modules/<...>, which has never existed.
+        """
         import os
         try:
-            rel_path = self.path.split("?")[0].lstrip("/")
-            games_base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "games"))
-            img_path = os.path.abspath(os.path.join(games_base, rel_path))
-            if not img_path.startswith(games_base + os.sep) and img_path != games_base:
+            rel_path = self.path.split("?")[0]
+            repo_base = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            games_base = os.path.join(repo_base, "games")
+
+            if rel_path.startswith("/asset/"):
+                base = repo_base
+                rel_path = rel_path[len("/asset/"):]
+            else:
+                base = games_base
+                rel_path = rel_path.lstrip("/")
+
+            img_path = os.path.abspath(os.path.join(base, rel_path))
+            # Only ever serve artwork out of the games tree, whichever form the
+            # request took.
+            if not img_path.startswith(games_base + os.sep):
                 self.send_response(403)
                 self.end_headers()
                 return
             if os.path.exists(img_path) and os.path.isfile(img_path):
                 ext = img_path.split(".")[-1].lower()
-                mime = "image/jpeg" if ext in ("jpg", "jpeg") else ("image/png" if ext == "png" else "application/octet-stream")
+                mime = {
+                    "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+                    "webp": "image/webp", "gif": "image/gif", "svg": "image/svg+xml",
+                }.get(ext, "application/octet-stream")
                 with open(img_path, "rb") as f:
                     data = f.read()
                 self.send_response(200)
@@ -498,7 +566,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             else:
                 self.send_response(404)
                 self.end_headers()
-        except Exception as e:
+        except Exception:
             self.send_response(500)
             self.end_headers()
 
@@ -930,11 +998,15 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         if web_campaign.dispatch_request(self, self.path, "GET"):
             return
 
+        if path_clean.startswith("/static/"):
+            self._handle_static()
+            return
+
         if path_clean.startswith("/module/"):
             self._handle_module_viewer()
             return
 
-        if path_clean.startswith("/images/modules/"):
+        if path_clean.startswith("/images/modules/") or path_clean.startswith("/asset/"):
             self._handle_module_image()
             return
 
@@ -944,7 +1016,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
 
         get_routes = {
             "/": self._handle_root,
-            "/campaign": self._handle_root,
+            "/campaign": self._handle_campaign_page,
             "/memory": self._handle_root,
             "/api/campaign": self._handle_campaign_get,
             "/api/memory": self._handle_memory_get,
