@@ -640,34 +640,7 @@ def normalize_character(char_dict: dict) -> dict:
     return c
 
 
-def upsert_character(char_dict: dict) -> None:
-    """Add or replace a character in the active campaign by unique ID (or original_name/name fallback), then autosave."""
-    global _active_campaign
-    if _active_campaign is None:
-        print("[campaign] No active campaign — cannot upsert character.")
-        return
-    norm_char = normalize_character(char_dict)
-    char_id = norm_char.get("id") or char_dict.get("id")
-    name = norm_char.get("name", "").strip()
-    orig_name = (char_dict.get("original_name") or name).strip()
-    existing = _active_campaign.setdefault("characters", [])
 
-    if char_id:
-        for i, c in enumerate(existing):
-            if c.get("id") == char_id or str(c.get("id")) == str(char_id):
-                existing[i] = norm_char
-                save_campaign()
-                return
-
-    for i, c in enumerate(existing):
-        c_name = c.get("name", "").strip().lower()
-        if c_name == orig_name.lower() or c_name == name.lower():
-            existing[i] = norm_char
-            save_campaign()
-            return
-
-    existing.append(norm_char)
-    save_campaign()
 
 
 
@@ -692,6 +665,16 @@ def set_active_campaign(name: str) -> Optional[dict]:
     if data:
         _active_campaign = data
     return data
+
+
+def reload_active() -> Optional[dict]:
+    global _active_campaign
+    if _active_campaign is None:
+        return None
+    slug = _active_campaign.get("slug")
+    if slug:
+        _active_campaign = db.get_campaign_dict(slug)
+    return _active_campaign
 
 
 def list_campaigns() -> list:
@@ -729,8 +712,7 @@ def save_campaign(data: Optional[dict] = None) -> None:
         data = _active_campaign
     if data is None:
         return
-    saved = db.save_or_upsert_campaign(data)
-    _active_campaign = saved
+    db.save_or_upsert_campaign(data)
 
 
 def update_field(key: str, value: Any) -> None:

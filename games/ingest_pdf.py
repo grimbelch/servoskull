@@ -143,8 +143,7 @@ def _page_title(raw_text: str, fallback: str) -> str:
             if t.lower().startswith("warhammer fantasy rolepl"):
                 continue
             return t
-    return fallbackb(r"\s+", " ", s)[:80]
-    return fallback
+    return re.sub(r"\s+", " ", fallback)[:80]
 
 
 # ── Datasheet stat-block reconstruction ────────────────────────────────────────
