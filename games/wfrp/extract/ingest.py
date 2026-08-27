@@ -25,6 +25,7 @@ from .layout import ModuleDocument
 from .map_keys import apply_map_keys
 from .sections import Section, extract_sections, slugify
 from .statblocks import Npc, extract_npcs
+from .theme import ThemeAssets, accent_for_page, extract_theme
 from .tables import RulesTable, extract_tables
 
 EXTRACTOR_VERSION = "2.0"
@@ -88,7 +89,7 @@ class Ingestor:
 
     # ── sections ─────────────────────────────────────────────────────────────
 
-    def write_sections(self, roots: list[Section]) -> None:
+    def write_sections(self, roots: list[Section], theme: ThemeAssets) -> None:
         ordered = sorted(
             (node for root in roots for node in root.walk()), key=lambda n: n.doc_order
         )
@@ -105,14 +106,16 @@ class Ingestor:
                 """
                 INSERT INTO module_sections
                     (module_id, parent_id, chapter_id, level, ordinal, doc_order,
-                     kind, slug, title, body_md, page_start, page_end, word_count)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                     kind, slug, title, body_md, page_start, page_end, word_count,
+                     accent)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     self.module_id, parent_id, chapter_id, section.level,
                     section.ordinal, section.doc_order, section.kind, section.slug,
                     section.title, section.body_md, section.page_start,
                     section.page_end, section.word_count,
+                    accent_for_page(theme, section.page_start),
                 ),
             )
             row_id = cursor.lastrowid
@@ -330,6 +333,7 @@ def ingest(pdf_path: str, db_path: str, slug: str, title: str, image_dir: str) -
         npcs = extract_npcs(doc, blocks, roots)
         tables = extract_tables(doc, blocks, roots)
         assets = extract_assets(doc, roots, image_dir)
+        theme = extract_theme(doc, image_dir)
         page_count = doc.page_count
 
     # Image paths are stored relative to the repository root so the database can
@@ -340,6 +344,11 @@ def ingest(pdf_path: str, db_path: str, slug: str, title: str, image_dir: str) -
     )
     for asset in assets:
         asset.path = os.path.relpath(os.path.abspath(asset.path), repo_root)
+    for field in ("background_recto", "background_verso", "rule"):
+        value = getattr(theme, field)
+        if value:
+            setattr(theme, field,
+                    os.path.relpath(os.path.abspath(value), repo_root))
 
     # Replacing a module cascades away its old content but leaves campaign state,
     # which references module id and is re-linked on the next run.
@@ -348,20 +357,25 @@ def ingest(pdf_path: str, db_path: str, slug: str, title: str, image_dir: str) -
         """
         INSERT INTO modules
             (slug, title, system, source_file, source_sha256, page_count,
-             extracted_at, extractor_version)
-        VALUES (?,?,?,?,?,?,?,?)
+             extracted_at, extractor_version, theme_json)
+        VALUES (?,?,?,?,?,?,?,?,?)
         """,
         (
             slug, title, "WFRP 4E", os.path.basename(pdf_path),
             file_sha256(pdf_path), page_count,
             datetime.now(timezone.utc).isoformat(timespec="seconds"),
             EXTRACTOR_VERSION,
+            json.dumps({
+                "background_recto": theme.background_recto,
+                "background_verso": theme.background_verso,
+                "rule": theme.rule,
+            }),
         ),
     )
     module_id = cursor.lastrowid
 
     writer = Ingestor(conn, module_id)
-    writer.write_sections(roots)
+    writer.write_sections(roots, theme)
     writer.write_plots_and_events(roots)
     writer.write_npcs(npcs)
     cover_id = writer.write_assets(assets)

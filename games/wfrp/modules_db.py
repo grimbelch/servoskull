@@ -108,6 +108,7 @@ def get_module(slug: str) -> Optional[dict]:
             return None
         module = rows[0]
         module_id = module["id"]
+        module["theme"] = _loads(module.pop("theme_json", None), {})
 
         module["sections"] = get_section_tree(module_id, conn)
         module["chapters"] = _rows(

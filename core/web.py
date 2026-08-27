@@ -475,18 +475,43 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
 
     def _handle_module_image(self) -> None:
+        """Serve a module asset addressed by its repository-relative path.
+
+        Asset paths are stored in the database relative to the repository root
+        ("games/wfrp/rules/modules/<slug>/images/x.png") so that the database
+        can be built on a workstation and served from the Pi. The canonical URL
+        is therefore /asset/<that path>.
+
+        The older /images/modules/<...> form is kept working for anything still
+        linking to it; it was resolving against games/ and so pointed at
+        games/images/modules/<...>, which has never existed.
+        """
         import os
         try:
-            rel_path = self.path.split("?")[0].lstrip("/")
-            games_base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "games"))
-            img_path = os.path.abspath(os.path.join(games_base, rel_path))
-            if not img_path.startswith(games_base + os.sep) and img_path != games_base:
+            rel_path = self.path.split("?")[0]
+            repo_base = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            games_base = os.path.join(repo_base, "games")
+
+            if rel_path.startswith("/asset/"):
+                base = repo_base
+                rel_path = rel_path[len("/asset/"):]
+            else:
+                base = games_base
+                rel_path = rel_path.lstrip("/")
+
+            img_path = os.path.abspath(os.path.join(base, rel_path))
+            # Only ever serve artwork out of the games tree, whichever form the
+            # request took.
+            if not img_path.startswith(games_base + os.sep):
                 self.send_response(403)
                 self.end_headers()
                 return
             if os.path.exists(img_path) and os.path.isfile(img_path):
                 ext = img_path.split(".")[-1].lower()
-                mime = "image/jpeg" if ext in ("jpg", "jpeg") else ("image/png" if ext == "png" else "application/octet-stream")
+                mime = {
+                    "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+                    "webp": "image/webp", "gif": "image/gif", "svg": "image/svg+xml",
+                }.get(ext, "application/octet-stream")
                 with open(img_path, "rb") as f:
                     data = f.read()
                 self.send_response(200)
@@ -498,7 +523,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             else:
                 self.send_response(404)
                 self.end_headers()
-        except Exception as e:
+        except Exception:
             self.send_response(500)
             self.end_headers()
 
@@ -934,7 +959,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             self._handle_module_viewer()
             return
 
-        if path_clean.startswith("/images/modules/"):
+        if path_clean.startswith("/images/modules/") or path_clean.startswith("/asset/"):
             self._handle_module_image()
             return
 
