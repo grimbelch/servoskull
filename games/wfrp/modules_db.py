@@ -1,8 +1,9 @@
 """Read access to extracted module content, optionally overlaid with campaign state.
 
 This is the query layer the web app and the GM tools sit on. It reads the
-``module_*`` content tables produced by :mod:`games.wfrp.extract.ingest` and, when
-given a campaign, merges in that campaign's progress from ``campaign_*_state``.
+``module_*`` content tables produced by :mod:`games.wfrp.extract.foundry_module`
+and, when given a campaign, merges in that campaign's progress from
+``campaign_*_state``.
 """
 from __future__ import annotations
 
