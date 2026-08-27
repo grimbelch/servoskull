@@ -93,6 +93,8 @@ def parse_trait_list(text: str) -> list[dict]:
         if not chunk:
             continue
         match = _TRAIT_VALUE_RE.match(chunk)
+        if match is None:
+            continue
         name = (match.group("name") or chunk).strip()
         raw_value = match.group("value")
         if not name:
@@ -102,13 +104,19 @@ def parse_trait_list(text: str) -> list[dict]:
 
 
 def parse_runin_lists(text: str) -> dict[str, list[dict]]:
-    """Pull the Skills/Talents/Traits/Trappings lists out of a prose run."""
+    """Pull the Skills/Talents/Traits/Trappings lists out of a prose run.
+
+    Each list is typeset as its own paragraph, so a blank line ends it. Without
+    that stop the trailing list would swallow the prose that follows it.
+    """
     result: dict[str, list[dict]] = {}
     matches = list(_RUNIN_RE.finditer(text or ""))
     for index, match in enumerate(matches):
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        segment = text[match.end() : end]
+        segment = segment.split("\n\n")[0]
         label = match.group(1).lower()
-        result[label] = parse_trait_list(text[match.end() : end])
+        result[label] = parse_trait_list(segment)
     return result
 
 
@@ -240,6 +248,21 @@ def extract_npcs(
                 raw_name, career, status = block.text.strip(), "", ""
             name = _titlecase(raw_name)
             career = _titlecase(career)
+
+            # A stat heading that carries only the status tier means the name
+            # and career were set on the line above it. That happens where the
+            # name is typeset in regular rather than bold Caslon, so it reads as
+            # a sidebar title instead of a stat heading:
+            #
+            #     NASTASSIA VON SAPONATHEIM - SCION     <- regular, so a title
+            #                (GOLD 1)                   <- bold, so a stathead
+            if not name and index > 0:
+                above = blocks[index - 1]
+                if above.page == block.page and above.style == "SIDEBAR_TITLE":
+                    above_name, above_career, _ = _split_stathead(above.text.strip())
+                    if above_name:
+                        name = _titlecase(above_name)
+                        career = career or _titlecase(above_career)
 
             # The heading above the stat heading usually carries the full,
             # properly cased name, e.g. "Gravin Maria-Ulrike von Liebwitz".

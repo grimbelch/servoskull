@@ -1,0 +1,454 @@
+/* campaign.css — the campaign manager's own chrome.
+ *
+ * The printed look comes from book.css; this file covers the parts a book has
+ * no equivalent for: the masthead, the roster, editable fields, the character
+ * sheet grid and the tracker pips a GM actually pokes at during play.
+ */
+
+:root { --accent: #7a1717; }
+
+#app.loading {
+  display: grid;
+  place-items: center;
+  height: 100vh;
+  color: #b9b2a6;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+}
+
+.shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100vh;
+}
+
+/* --------------------------------------------------------------- masthead --- */
+
+.masthead {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+  padding: 0.55rem 1.3rem;
+  background: #1c1a17;
+  border-bottom: 3px solid var(--accent);
+  color: #efe9dc;
+  flex-wrap: wrap;
+}
+
+.masthead .brand {
+  font-family: var(--display);
+  font-variant: small-caps;
+  text-transform: lowercase;
+  letter-spacing: 0.09em;
+  font-size: 1.2rem;
+  white-space: nowrap;
+}
+
+.masthead .brand small {
+  display: block;
+  font-variant: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.26em;
+  font-size: 0.56rem;
+  color: #9a9184;
+}
+
+.tabs { display: flex; gap: 0.3rem; margin-left: auto; flex-wrap: wrap; }
+
+.tabs button {
+  background: transparent;
+  border: 1px solid #3b3630;
+  color: #b9b2a6;
+  font-family: var(--display);
+  font-size: 0.72rem;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+}
+
+.tabs button:hover { color: #efe9dc; border-color: #6a6258; }
+.tabs button[aria-selected="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.masthead select {
+  background: #100f0d;
+  border: 1px solid #3b3630;
+  color: #efe9dc;
+  font-family: var(--serif);
+  font-size: 0.88rem;
+  padding: 0.36rem 0.5rem;
+}
+
+/* ------------------------------------------------------------------ page --- */
+
+.page-scroll { overflow-y: auto; padding: 0 0 5rem; }
+
+.sheet {
+  max-width: 66rem;
+  margin: 0 auto;
+  min-height: 100%;
+  padding: 1.6rem clamp(1.1rem, 4vw, 3.4rem) 3rem;
+  box-shadow: 0 0 44px rgba(0, 0, 0, 0.5);
+}
+
+body { background: #2b2825; }
+
+/* ---------------------------------------------------------------- fields --- */
+
+.field { margin: 0 0 0.85rem; }
+
+.field > label {
+  display: block;
+  font-size: 0.66rem;
+  letter-spacing: 0.19em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 0.22rem;
+}
+
+.field input,
+.field textarea,
+.field select {
+  width: 100%;
+  font-family: var(--serif);
+  font-size: 1rem;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--rule);
+  padding: 0.42rem 0.55rem;
+}
+
+.field textarea { resize: vertical; min-height: 5.5rem; line-height: 1.5; }
+
+.field input:focus,
+.field textarea:focus,
+.field select:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: #fff;
+}
+
+.field.saved input,
+.field.saved textarea { border-color: #4d7a3f; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1.1rem; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 1.1rem; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0 1.1rem; }
+
+@media (max-width: 780px) {
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+}
+
+/* --------------------------------------------------------------- buttons --- */
+
+.btn {
+  font-family: var(--display);
+  font-size: 0.72rem;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  padding: 0.44rem 0.95rem;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.btn:hover { background: var(--accent); color: #fff; }
+.btn.solid { background: var(--accent); color: #fff; }
+.btn.solid:hover { filter: brightness(1.15); }
+.btn.quiet { border-color: var(--rule); color: var(--ink-soft); }
+.btn.quiet:hover { background: var(--ink-soft); color: var(--paper); border-color: var(--ink-soft); }
+.btn.danger { border-color: #8d3030; color: #8d3030; }
+.btn.danger:hover { background: #8d3030; color: #fff; }
+
+.row-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  margin: 2.2rem 0 0.2rem;
+  padding-bottom: 0.34rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.section-head h2 {
+  font-family: var(--display);
+  font-size: 1.32rem;
+  letter-spacing: 0.09em;
+  font-variant: small-caps;
+  text-transform: lowercase;
+}
+
+.section-head .spacer { margin-left: auto; }
+
+/* --------------------------------------------------------------- roster --- */
+
+.roster {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 1.1rem;
+  align-items: start;
+  margin: 1.2rem 0;
+}
+
+.pc {
+  border: 1px solid var(--rule);
+  border-top: 3px solid var(--accent);
+  background: rgba(255, 255, 255, 0.55);
+  padding: 0.9rem 1rem 1rem;
+}
+
+.pc h3 {
+  font-family: var(--display);
+  font-size: 1.16rem;
+  font-variant: small-caps;
+  text-transform: lowercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.pc h3:hover { color: var(--accent); }
+
+.pc .who {
+  font-style: italic;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  margin-bottom: 0.6rem;
+}
+
+/* Tracker pips: the wounds, fate and fortune a GM adjusts constantly. */
+.tracker {
+  display: grid;
+  grid-template-columns: 4.6rem auto 1fr auto;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.16rem 0;
+}
+
+.tracker > .name {
+  font-size: 0.66rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.tracker .value {
+  font-variant-numeric: lining-num;
+  font-weight: 700;
+  min-width: 3.4rem;
+  text-align: center;
+}
+
+.tracker button {
+  width: 1.5rem;
+  height: 1.5rem;
+  line-height: 1;
+  border: 1px solid var(--rule);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.tracker button:hover { border-color: var(--accent); color: var(--accent); }
+
+.bar {
+  height: 6px;
+  background: rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--rule);
+}
+
+.bar > span { display: block; height: 100%; background: var(--accent); }
+.bar.low > span { background: #a33; }
+
+/* ------------------------------------------------------------- list rows --- */
+
+.rows { border-top: 1px solid var(--rule); margin: 1rem 0; }
+
+.rows > .row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.8rem;
+  align-items: start;
+  padding: 0.7rem 0.2rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.row .title {
+  font-family: var(--display);
+  font-variant: small-caps;
+  text-transform: lowercase;
+  letter-spacing: 0.05em;
+  font-size: 1.08rem;
+}
+
+.row .meta {
+  font-size: 0.72rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.row p { margin: 0.25rem 0 0; }
+
+.pill {
+  display: inline-block;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 0.14rem 0.5rem;
+  border: 1px solid var(--rule);
+  color: var(--ink-soft);
+  margin-right: 0.35rem;
+}
+
+.pill.good { border-color: #4d7a3f; color: #3f6634; }
+.pill.bad { border-color: #8d3030; color: #8d3030; }
+
+/* ------------------------------------------------------- character sheet --- */
+
+.sheet-grid { display: grid; gap: 1.4rem; }
+
+@media (min-width: 1000px) {
+  .sheet-grid.split { grid-template-columns: 1fr 1fr; }
+}
+
+.char-edit {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: lining-num;
+}
+
+.char-edit th,
+.char-edit td { border: 1px solid var(--rule); text-align: center; padding: 0; }
+
+.char-edit th {
+  background: var(--accent);
+  color: var(--paper);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.28rem 0.15rem;
+}
+
+.char-edit td > input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: center;
+  font-family: var(--serif);
+  font-size: 0.95rem;
+  padding: 0.3rem 0.1rem;
+  color: var(--ink);
+}
+
+.char-edit td > input:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+.char-edit td.derived { background: rgba(0, 0, 0, 0.05); font-weight: 700; }
+.char-edit tbody th {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--ink-soft);
+  text-align: right;
+  padding-right: 0.5rem;
+  font-size: 0.62rem;
+}
+
+/* Repeating lists (skills, talents, trappings, weapons, armour). */
+.entries { margin: 0.6rem 0 0; }
+
+.entry {
+  display: grid;
+  gap: 0.4rem;
+  align-items: center;
+  padding: 0.22rem 0;
+}
+
+.entry.two { grid-template-columns: minmax(0, 1fr) 5rem auto; }
+.entry.three { grid-template-columns: minmax(0, 1fr) 6rem minmax(0, 1fr) auto; }
+
+.entry input {
+  font-family: var(--serif);
+  font-size: 0.92rem;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--rule);
+  padding: 0.3rem 0.45rem;
+  color: var(--ink);
+  min-width: 0;
+}
+
+.entry input:focus { outline: none; border-color: var(--accent); background: #fff; }
+
+.entry .drop {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0 0.35rem;
+}
+
+.entry .drop:hover { color: #8d3030; }
+
+/* ---------------------------------------------------------------- notice --- */
+
+.notice {
+  position: fixed;
+  bottom: 1.2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1c1a17;
+  color: #efe9dc;
+  border-left: 3px solid var(--accent);
+  padding: 0.6rem 1.1rem;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  z-index: 60;
+  box-shadow: 0 4px 22px rgba(0, 0, 0, 0.5);
+}
+
+.notice.bad { border-left-color: #a33; }
+
+.empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+/* --------------------------------------------------------------- overlay --- */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(12, 11, 10, 0.9);
+  z-index: 55;
+  overflow-y: auto;
+  padding: 2rem 1rem 4rem;
+}
+
+.overlay-card {
+  max-width: 44rem;
+  margin: 0 auto;
+  min-height: 0;
+  padding: 1.6rem 2rem 2rem;
+}
+
+/* ------------------------------------------------------------- chronicle --- */
+
+.chronicle-input {
+  font-family: var(--serif);
+  font-size: 1rem;
+  padding: 0.42rem 0.55rem;
+  border: 1px solid var(--rule);
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--ink);
+}
+
+.chronicle-input.wide {
+  flex: 1 1 22rem;
+}
