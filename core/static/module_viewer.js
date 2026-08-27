@@ -3,12 +3,13 @@
  * Reads a module straight out of /api/modules/<slug> and lays it out the way
  * the book lays itself out: a chapter at a time, two columns of justified
  * Caslon, stat blocks and tables in their printed form, and each chapter
- * carrying the accent colour of its own torn paper tab.
+ * carrying its own accent colour.
  *
- * The one thing deliberately not copied from print is the map key. In the book
- * the key is a panel of tiny numbers beside the plan; here the key is a live
- * list next to the map, so a GM can read a room description without hunting
- * for the number.
+ * Two things are deliberately not copied from print. The map key, which in the
+ * book is a panel of tiny numbers beside the plan, is a live list next to the
+ * map, so a GM can read a room description without hunting for the number. And
+ * each scene carries a cast line, built from the cross-references in the
+ * module's own text, which the printed page has no room for.
  */
 
 (function () {
@@ -91,6 +92,7 @@
 
   var M = null;          // the module payload
   var bySection = {};    // section id -> { assets, tables, npcs }
+  var castBySection = {};// section id -> [npc] appearing but housed elsewhere
   var sectionById = {};
   var rootOf = {};       // section id -> its top-level root
   var roots = [];
@@ -124,13 +126,35 @@
       if (npc.section_id) bucket(npc.section_id).npcs.push(npc);
     });
 
+    /* An NPC's stat block is printed once, at the first scene that calls for
+     * it. Every other scene it appears in gets a cast line instead, so a GM
+     * reading "8:10 p.m." can see who is involved without a stat block
+     * interrupting the timeline. */
+    (M.npcs || []).forEach(function (npc) {
+      (npc.appearances || []).forEach(function (appearance) {
+        var id = appearance.section_id;
+        if (!id || id === npc.section_id) return;
+        if (!castBySection[id]) castBySection[id] = [];
+        castBySection[id].push(npc);
+      });
+    });
+
     var firstChapter = roots.filter(function (r) { return r.kind === "chapter"; })[0];
     currentRootId = (firstChapter || roots[0] || {}).id || null;
   }
 
+  /* The books tint each chapter's tab differently. That colour used to be
+   * sampled from the page; the structured source has no colour in it, so the
+   * chapters are tinted from a fixed palette in their printed order instead. */
+  var PALETTE = ["#7a1717", "#1f4f3f", "#2f3f6b", "#6b4416", "#4a2b57",
+                 "#1c5158", "#6b2340", "#3f4a1c"];
+
   function accentOf(section) {
     var root = section && rootOf[section.id];
-    return (section && section.accent) || (root && root.accent) || "#7a1717";
+    if (section && section.accent) return section.accent;
+    if (root && root.accent) return root.accent;
+    var at = roots.indexOf(root || section);
+    return at >= 0 ? PALETTE[at % PALETTE.length] : PALETTE[0];
   }
 
   // ------------------------------------------------------ prose rendering ---
@@ -237,8 +261,52 @@
       });
     });
 
-    if (npc.page) block.appendChild(el("div", { class: "tiny muted", text: "p. " + npc.page }));
+
+    var elsewhere = (npc.appearances || []).filter(function (a) {
+      return a.section_id !== npc.section_id && sectionById[a.section_id];
+    });
+    if (elsewhere.length) {
+      var seen = {};
+      var links = [];
+      elsewhere.forEach(function (appearance) {
+        var section = sectionById[appearance.section_id];
+        var root = rootOf[section.id];
+        var label = (root && root !== section ? root.title + " \u00b7 " : "") + section.title;
+        if (seen[label]) return;
+        seen[label] = true;
+        links.push(el("button", {
+          class: "cast-chip",
+          text: label,
+          onclick: function () { goTo(section); }
+        }));
+      });
+      block.appendChild(el("div", { class: "appears-in" },
+        el("span", { class: "tiny muted", text: "Also appears in" }), links));
+    }
     return block;
+  }
+
+  /* Everyone the scene calls for, other than those whose stat block is printed
+   * here. Clicking a name opens the Dramatis Personae at that stat block. */
+  function castStrip(section) {
+    var cast = castBySection[section.id] || [];
+    if (!cast.length) return null;
+
+    var seen = {};
+    var chips = [];
+    cast.forEach(function (npc) {
+      if (seen[npc.id]) return;
+      seen[npc.id] = true;
+      chips.push(el("button", {
+        class: "cast-chip",
+        text: npc.name,
+        onclick: function () { goToNpc(npc); }
+      }));
+    });
+    if (!chips.length) return null;
+
+    return el("div", { class: "cast" },
+      el("span", { class: "cast-label", text: "Cast" }), chips);
   }
 
   // -------------------------------------------------------------- tables ---
@@ -320,6 +388,9 @@
     var body = prose(section.body_md);
     if (body) out.appendChild(body);
 
+    var cast = castStrip(section);
+    if (cast) out.appendChild(cast);
+
     maps.forEach(function (asset) { out.appendChild(mapPlate(asset)); });
 
     art.forEach(function (asset) {
@@ -345,9 +416,7 @@
     return el("div", { class: "chapter-opener" },
       el("div", { class: "numeral", text: romanise(ordinal) }),
       el("h1", { text: root.title || "" }),
-      el("div", { class: "medallion", text: "\u2620" }),
-      el("div", { class: "tiny muted", style: "margin-top:.9rem" },
-        "pages " + root.page_start + "\u2013" + root.page_end));
+      el("div", { class: "medallion", text: "\u2620" }));
   }
 
   function readView(sheet) {
@@ -364,6 +433,8 @@
     var extras = bySection[root.id] || { assets: [], tables: [], npcs: [] };
     var intro = prose(root.body_md);
     if (intro) body.appendChild(intro);
+    var cast = castStrip(root);
+    if (cast) body.appendChild(cast);
     extras.assets.filter(function (a) { return a.kind === "map"; })
       .forEach(function (a) { body.appendChild(mapPlate(a)); });
     extras.tables.forEach(function (t) { body.appendChild(bookTable(t)); });
@@ -371,7 +442,6 @@
 
     (root.children || []).forEach(function (child) { renderSection(child, body); });
     sheet.appendChild(body);
-    sheet.appendChild(el("div", { class: "folio", text: root.page_end }));
   }
 
   function galleryView(sheet, kind, title) {
@@ -384,7 +454,7 @@
         var section = el("section", { style: "--accent:" + accentOf(owner || {}) });
         section.appendChild(el("h3", {
           class: "h-sub",
-          text: asset.caption || ("Map, p. " + asset.page)
+          text: asset.caption || "Map"
         }));
         section.appendChild(mapPlate(asset));
         sheet.appendChild(section);
@@ -441,7 +511,6 @@
       hits.push({
         title: section.title,
         where: (rootOf[section.id] || {}).title || "",
-        page: section.page_start,
         excerpt: at === -1 ? (section.body_md || "").slice(0, 180)
                            : (section.body_md || "").slice(Math.max(0, at - 90), at + 130),
         go: function () { goTo(section); }
@@ -454,7 +523,6 @@
       hits.push({
         title: npc.name,
         where: "NPC \u00b7 " + ((rootOf[npc.section_id] || {}).title || ""),
-        page: npc.page,
         excerpt: (npc.description || "").slice(0, 200),
         go: function () { goTo(sectionById[npc.section_id], "npc-" + npc.id); }
       });
@@ -464,7 +532,7 @@
 
     hits.slice(0, 120).forEach(function (hit) {
       sheet.appendChild(el("button", { class: "hit", onclick: hit.go },
-        el("div", { class: "where", text: hit.where + (hit.page ? " \u00b7 p. " + hit.page : "") }),
+        el("div", { class: "where", text: hit.where }),
         el("div", { class: "title", html: highlight(hit.title || "") }),
         el("div", { class: "tiny muted", html: "\u2026" + highlight(hit.excerpt) + "\u2026" })));
     });
@@ -483,6 +551,30 @@
     });
   }
 
+  /* Stat blocks are printed once, in whichever chapter first calls for them,
+   * so a cast link cannot assume the block is on the page it was clicked from.
+   * The Dramatis Personae always holds every one of them. */
+  function goToNpc(npc) {
+    view = "npcs";
+    query = "";
+    render();
+    requestAnimationFrame(function () {
+      var target = document.getElementById("npc-" + npc.id);
+      if (target) target.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }
+
+  function countScenes(root) {
+    var total = 0;
+    (function walk(list) {
+      list.forEach(function (section) {
+        total += 1;
+        walk(section.children || []);
+      });
+    })(root.children || []);
+    return total;
+  }
+
   // --------------------------------------------------------------- chrome ---
 
   function rail() {
@@ -496,7 +588,7 @@
         onclick: function () { view = "read"; currentRootId = root.id; render(); }
       },
         el("span", { text: romanise(i + 1) + ". " + (root.title || "") }),
-        el("span", { class: "pages", text: root.page_start + "\u2013" + root.page_end })));
+        el("span", { class: "pages", text: countScenes(root) + " scenes" })));
 
       if (!isCurrent) return;
 
@@ -623,20 +715,6 @@
 
   // ----------------------------------------------------------------- boot ---
 
-  function applyTheme(theme) {
-    if (!theme) return;
-    var root = document.documentElement;
-    if (theme.background_recto) {
-      root.style.setProperty("--paper-texture", "url('" + assetUrl(theme.background_recto) + "')");
-    }
-    if (theme.background_verso) {
-      root.style.setProperty("--paper-texture-verso", "url('" + assetUrl(theme.background_verso) + "')");
-    }
-    if (theme.rule) {
-      root.style.setProperty("--ink-rule", "url('" + assetUrl(theme.rule) + "')");
-    }
-  }
-
   fetch("/api/modules/" + encodeURIComponent(slug))
     .then(function (response) {
       if (!response.ok) throw new Error("HTTP " + response.status);
@@ -646,7 +724,6 @@
       M = payload && payload.module ? payload.module : payload;
       if (!M || !M.sections) throw new Error("This module has no extracted content.");
       document.title = (M.title || "Adventure Module") + " \u2014 Omega7";
-      applyTheme(M.theme);
       index();
       readHash();
       render();
