@@ -452,3 +452,248 @@ body { background: #2b2825; }
 .chronicle-input.wide {
   flex: 1 1 22rem;
 }
+
+/* ----------------------------------------------------- creation wizard --- */
+
+/* The wizard is a long, dense form that the player works through once. It
+ * leans on the same paper/ink tokens as the rest of the sheet so it reads as
+ * part of the book rather than a modal bolted on top. */
+
+.cg-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0 0 1.1rem;
+  padding: 0 0 0.7rem;
+  border-bottom: 1px solid var(--rule);
+  counter-reset: cg;
+}
+
+.cg-steps li {
+  counter-increment: cg;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding: 0.28rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+}
+
+.cg-steps li::before { content: counter(cg) ". "; }
+.cg-steps li.done { color: var(--ink-soft); cursor: pointer; }
+.cg-steps li.done:hover { border-color: var(--rule); }
+.cg-steps li.on { color: #fff; background: var(--accent); border-color: var(--accent); }
+
+.cg-xp {
+  font-family: var(--display);
+  font-size: 0.95rem;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0.1rem 0.7rem;
+  white-space: nowrap;
+}
+
+.cg-body { min-height: 18rem; }
+
+.cg-note {
+  margin: 0 0 0.9rem;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  max-width: 62ch;
+}
+
+.cg-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 1.4rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--rule);
+}
+
+.cg-footer .spacer { margin-left: auto; }
+.cg-footer .btn[disabled] { opacity: 0.35; cursor: not-allowed; }
+.cg-footer .btn[disabled]:hover { background: none; color: var(--ink-soft); }
+
+/* ---- rolled results ---- */
+
+.cg-rolls { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 1rem; }
+
+.cg-roll {
+  font-family: var(--display);
+  font-size: 0.95rem;
+  background: rgba(122, 23, 23, 0.06);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  padding: 0.45rem 0.75rem;
+  margin: 0 0 1rem;
+}
+
+.cg-rolls .cg-roll { margin: 0; }
+.cg-roll.pick { cursor: pointer; text-align: left; color: var(--ink); }
+.cg-roll.pick:hover { border-color: var(--accent); }
+.cg-roll.pick.on { background: var(--accent); color: #fff; }
+
+/* ---- species cards ---- */
+
+.cg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.6rem;
+  margin: 0 0 1rem;
+}
+
+.cg-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  text-align: left;
+  padding: 0.65rem 0.8rem;
+  background: none;
+  border: 1px solid var(--rule);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+}
+
+.cg-card strong { font-family: var(--display); font-size: 1.05rem; }
+.cg-card:hover { border-color: var(--accent); }
+.cg-card.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.cg-card.on .muted { color: rgba(255, 255, 255, 0.75); }
+
+/* ---- characteristics table ---- */
+
+.cg-chars { border-collapse: collapse; margin: 0 0 1rem; }
+.cg-chars th, .cg-chars td { padding: 0.22rem 0.7rem 0.22rem 0; text-align: left; }
+.cg-chars thead th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); }
+.cg-chars tbody th { font-family: var(--display); font-size: 0.95rem; width: 3.5rem; }
+.cg-chars .cg-total { font-family: var(--display); font-size: 1.1rem; }
+.cg-chars .cg-fixed { font-variant-numeric: tabular-nums; }
+.cg-chars.review td { font-family: var(--display); font-size: 1.15rem; text-align: center; }
+.cg-chars.review th { text-align: center; }
+
+.cg-num, .cg-pick {
+  font: inherit;
+  padding: 0.15rem 0.3rem;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.cg-num { width: 4rem; }
+
+.cg-tally {
+  display: inline-block;
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  margin: 0 0 1rem;
+}
+
+.cg-tally.ok { background: rgba(77, 122, 63, 0.14); color: #3f6634; }
+.cg-tally.bad { background: rgba(141, 48, 48, 0.12); color: #8d3030; }
+
+/* ---- fate / resilience steppers ---- */
+
+.cg-extra { display: flex; flex-wrap: wrap; align-items: center; gap: 1.2rem; }
+
+.cg-stepper { display: flex; align-items: center; gap: 0.4rem; }
+.cg-stepper .name { font-family: var(--display); font-size: 1rem; }
+.cg-stepper .value { font-family: var(--display); font-size: 1.3rem; min-width: 1.4rem; text-align: center; }
+
+.cg-stepper button {
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 1px solid var(--rule);
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+}
+
+.cg-stepper button:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ---- skill pickers ---- */
+
+.cg-skills {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.3rem 1.2rem;
+  margin: 0 0 0.9rem;
+}
+
+.cg-skill {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.15rem 0;
+  border-bottom: 1px dotted var(--rule);
+}
+
+.cg-skill .nm { flex: 1; font-size: 0.88rem; }
+.cg-seg { display: flex; align-items: center; gap: 0.25rem; }
+
+.cg-seg button {
+  min-width: 2.1rem;
+  padding: 0.1rem 0.35rem;
+  font: inherit;
+  font-size: 0.78rem;
+  border: 1px solid var(--rule);
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.cg-seg button:hover { border-color: var(--accent); color: var(--accent); }
+.cg-seg button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.cg-adv { font-family: var(--display); font-size: 1.05rem; min-width: 1.4rem; text-align: center; }
+
+/* ---- talent pills ---- */
+
+.cg-choice { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin: 0 0 0.7rem; }
+
+.cg-pill {
+  padding: 0.22rem 0.65rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.cg-pill:hover { border-color: var(--accent); }
+.cg-pill.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* ---- detail rows ---- */
+
+.cg-detail { display: flex; align-items: center; gap: 0.6rem; margin: 0 0 0.5rem; }
+.cg-detail label { width: 11rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); }
+.cg-detail input { flex: 1; max-width: 26rem; font: inherit; padding: 0.28rem 0.4rem; border: 1px solid var(--rule); background: var(--paper); color: var(--ink); }
+
+/* ---- review ---- */
+
+.cg-summary { border-left: 3px solid var(--accent); padding: 0.15rem 0 0.15rem 0.8rem; margin: 0 0 1rem; }
+.cg-summary h3 { font-family: var(--display); margin: 0 0 0.15rem; font-size: 1.25rem; }
+.cg-summary .tiny { display: block; }
+
+.cg-stats { display: flex; flex-wrap: wrap; gap: 1.3rem; margin: 0 0 1.2rem; font-size: 0.8rem; color: var(--ink-soft); }
+.cg-stats strong { font-family: var(--display); font-size: 1.35rem; color: var(--ink); margin-right: 0.25rem; }
+
+.cg-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0 0 1.1rem; }
+
+.cg-chip {
+  font-size: 0.8rem;
+  padding: 0.18rem 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink-soft);
+}
