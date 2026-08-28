@@ -2,6 +2,7 @@
 import math
 from . import db
 from . import campaign
+from . import events
 
 def start_combat(campaign_id: int, name: str, combatants_list: list) -> str:
     """Initializes a new combat encounter."""
@@ -31,6 +32,10 @@ def start_combat(campaign_id: int, name: str, combatants_list: list) -> str:
             )
             
         conn.commit()
+        events.try_log(
+            "combat", f"Combat began: {name}",
+            detail=", ".join(c.get("name", "Unknown") for c in combatants_list),
+            campaign=campaign_id)
         return f"Combat '{name}' started. Encounter ID: {encounter_id}"
     finally:
         conn.close()
@@ -78,6 +83,16 @@ def update_combatant(campaign_id: int, combatant_name: str, wounds_change: int =
             (new_wounds, new_adv, new_cond, c['id'])
         )
         conn.commit()
+        if wounds_change:
+            verb = "takes" if wounds_change < 0 else "recovers"
+            events.try_log(
+                "damage",
+                f"{c['name']} {verb} {abs(wounds_change)} wounds"
+                f" ({new_wounds}/{c['wounds_max']})",
+                actor=c["name"], campaign=campaign_id)
+        if wounds_change < 0 and new_wounds == 0 and c["wounds_current"] > 0:
+            events.try_log("death", f"{c['name']} falls in combat",
+                           actor=c["name"], campaign=campaign_id)
         return f"Updated {c['name']}: Wounds {new_wounds}/{c['wounds_max']}, Adv {new_adv}, Cond: {new_cond}"
     finally:
         conn.close()

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from . import campaign as _campaign
+from . import events as _events
 from . import rules_engine as _rules_engine
 from . import rules_tools as _rules_tools
 
@@ -50,15 +51,53 @@ TOOLS = [
         }
     },
     {
-        "name": "whfrp_log_timeline_event",
-        "description": "Log a major chronological event into the campaign timeline. Use this to permanently record key milestones, battles, or plot reveals.",
+        "name": "whfrp_session_start",
+        "description": "Open a new game session (or resume one left open). Returns the previous session's recap so you can open with 'when last we left our heroes...'. Call this when actual play begins, after start_campaign.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "event_summary": {"type": "string", "description": "Summary of the event"},
-                "in_game_date": {"type": "string", "description": "Optional: In-game date (e.g. '2502 IC')"}
+                "title": {"type": "string", "description": "Optional session title, e.g. 'Into the Drakwald'"},
+                "in_game_date": {"type": "string", "description": "Optional in-game date, e.g. '17 Sigmarzeit 2512 IC'. Defaults to the last session's date."}
+            }
+        }
+    },
+    {
+        "name": "whfrp_session_end",
+        "description": "Close the current game session: store a recap for next time and award XP to every party member. If no recap is given, one is distilled from the session's logged events.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "recap": {"type": "string", "description": "A few sentences summarising what happened this session"},
+                "xp": {"type": "integer", "description": "XP to award to each character (WFRP guideline: 50-150 per session)"}
+            }
+        }
+    },
+    {
+        "name": "whfrp_log_event",
+        "description": "Append an event to the campaign chronicle — the permanent, searchable history of the game. Log scenes framed, quests advanced, NPCs met, loot found, deaths, dramatic rolls and plot milestones as they happen. Combat and damage are logged automatically.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "kind": {"type": "string", "enum": list(_events.EVENT_KINDS), "description": "What sort of event this is"},
+                "summary": {"type": "string", "description": "One line, past tense: 'The party met Gravin Roteisen at the Red Moon Inn'"},
+                "detail": {"type": "string", "description": "Optional longer detail worth remembering"},
+                "actor": {"type": "string", "description": "Optional character or NPC at the centre of the event"},
+                "in_game_date": {"type": "string", "description": "Optional in-game date if it differs from the session's"}
             },
-            "required": ["event_summary"]
+            "required": ["kind", "summary"]
+        }
+    },
+    {
+        "name": "whfrp_chronicle",
+        "description": "Read or search the campaign's history. With a query, full-text searches every logged event ('when did we meet the witch hunter?'). Without one, lists recent events, one session's events, or past sessions with their recaps.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Optional search terms"},
+                "session_number": {"type": "integer", "description": "Optional: list this session's events in order"},
+                "sessions": {"type": "boolean", "description": "Optional: list past sessions with recaps and XP instead of events"},
+                "limit": {"type": "integer", "description": "Max results (default 20)"}
+            }
         }
     },
     {
@@ -484,15 +523,84 @@ def _tool_whfrp_manage_location(i):
     _campaign.reload_active()
     return {"status": "success", "message": f"Updated Location {i['name']}"}
 
-def _tool_whfrp_log_timeline_event(i):
-    active = _campaign.get_active_campaign()
-    if not active:
-        return {"error": "No active campaign. Call start_campaign first."}
-    slug = active.get("slug")
-    from . import db
-    db.add_timeline_event(slug, i["event_summary"], i.get("in_game_date", ""))
-    _campaign.reload_active()
-    return {"status": "success", "message": "Event logged to timeline."}
+def _tool_whfrp_session_start(i):
+    out = _events.start_session(title=i.get("title", ""),
+                                in_game_date=i.get("in_game_date", ""))
+    if "error" in out:
+        return out["error"]
+    sess = out["session"]
+    verb = "Resumed open" if out.get("resumed") else "Started"
+    title = f" — {sess['title']}" if sess.get("title") else ""
+    date = f" ({sess['in_game_date']})" if sess.get("in_game_date") else ""
+    lines = [f"{verb} session {sess['number']}{title}{date}."]
+    if out.get("recap"):
+        lines.append("Previously:\n" + out["recap"])
+    else:
+        lines.append("This is the campaign's first session.")
+    return "\n\n".join(lines)
+
+
+def _tool_whfrp_session_end(i):
+    out = _events.end_session(recap=i.get("recap", ""), xp=i.get("xp", 0))
+    if "error" in out:
+        return out["error"]
+    lines = [f"Session {out['number']} ended."]
+    if out.get("xp_awarded"):
+        who = ", ".join(out.get("xp_awarded_to", [])) or "the party"
+        lines.append(f"{out['xp_awarded']} XP awarded to {who}.")
+    if out.get("recap"):
+        lines.append("Recap stored:\n" + out["recap"])
+    return "\n".join(lines)
+
+
+def _tool_whfrp_log_event(i):
+    event_id = _events.log_event(
+        i.get("kind", "note"), i.get("summary", ""),
+        detail=i.get("detail", ""), actor=i.get("actor", ""),
+        in_game_date=i.get("in_game_date", ""))
+    if event_id is None:
+        return "No active campaign. Call start_campaign first."
+    return "Logged to the chronicle."
+
+
+def _format_event(e):
+    sess = f"S{e['session_number']}" if e.get("session_number") else "--"
+    date = f" [{e['in_game_date']}]" if e.get("in_game_date") else ""
+    actor = f" ({e['actor']})" if e.get("actor") else ""
+    line = f"{sess}{date} {e['kind']}: {e['summary']}{actor}"
+    if e.get("detail"):
+        line += f"\n    {e['detail']}"
+    return line
+
+
+def _tool_whfrp_chronicle(i):
+    limit = int(i.get("limit", 20))
+    if i.get("sessions"):
+        sessions = _events.list_sessions(limit=limit)
+        if not sessions:
+            return "No sessions recorded yet."
+        lines = []
+        for s in sessions:
+            title = f" — {s['title']}" if s.get("title") else ""
+            date = f" ({s['in_game_date']})" if s.get("in_game_date") else ""
+            state = "open" if not s.get("ended_at") else f"{s['event_count']} events, {s['xp_awarded']} XP"
+            lines.append(f"Session {s['number']}{title}{date} [{state}]")
+            if s.get("recap"):
+                lines.append("  " + s["recap"].replace("\n", "\n  "))
+        return "\n".join(lines)
+    query = i.get("query", "").strip()
+    if query:
+        events = _events.search_events(query, limit=limit)
+        if not events:
+            return f"Nothing in the chronicle matches '{query}'."
+    else:
+        events = _events.chronicle(
+            session_number=i.get("session_number"), limit=limit)
+        if not events:
+            return "The chronicle is empty."
+    return "\n".join(_format_event(e) for e in events)
+
+
 def _tool_roll_whfrp_dice(i):
     import random
     die_type = i.get("die_type", "d100")
@@ -1082,6 +1190,12 @@ def _tool_whfrp_map_key(i):
 
 
 HANDLERS = {
+    "whfrp_manage_npc": _tool_whfrp_manage_npc,
+    "whfrp_manage_location": _tool_whfrp_manage_location,
+    "whfrp_session_start": _tool_whfrp_session_start,
+    "whfrp_session_end": _tool_whfrp_session_end,
+    "whfrp_log_event": _tool_whfrp_log_event,
+    "whfrp_chronicle": _tool_whfrp_chronicle,
     "whfrp_load_scene": _tool_whfrp_load_scene,
     "whfrp_combat_start": _tool_whfrp_combat_start,
     "whfrp_combat_status": _tool_whfrp_combat_status,

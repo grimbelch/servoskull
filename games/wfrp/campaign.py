@@ -719,8 +719,14 @@ def update_field(key: str, value: Any) -> None:
     global _active_campaign
     if _active_campaign is None:
         return
+    old = _active_campaign.get(key)
     _active_campaign[key] = value
     save_campaign(_active_campaign)
+    # Travel and scene changes are chronicle events in their own right.
+    if key in ("current_location", "current_scene") and value and value != old:
+        from . import events
+        kind = "location" if key == "current_location" else "scene"
+        events.try_log(kind, f"{'Travelled to' if kind == 'location' else 'Scene'}: {value}")
 
 
 def add_session_note(note: str) -> None:
@@ -728,6 +734,8 @@ def add_session_note(note: str) -> None:
     if _active_campaign is None:
         return
     db.add_timeline_event(_active_campaign.get("slug", "shadows-over-reikland"), note)
+    from . import events
+    events.try_log("note", note)
     _active_campaign = db.get_campaign_dict(_active_campaign.get("slug", "shadows-over-reikland"))
 
 
