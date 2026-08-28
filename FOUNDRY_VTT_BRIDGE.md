@@ -91,15 +91,64 @@ Run this on the Pi while the browser is trying to connect:
 ss -tn state all | grep 31415
 ```
 
-Connections parked in `SYN-RECV` mean the browser's SYN arrived and the Pi
-answered, but the final ACK never came back — the return path is blocked. This
-looks like a module fault and is not one. A working bridge shows `ESTAB`.
+The three outcomes mean very different things:
+
+| What `ss` shows | Meaning |
+| --- | --- |
+| `ESTAB` | Working. |
+| `SYN-RECV` | The browser's SYN arrived and the Pi answered, but the final ACK never came back — the return path is blocked. Looks like a module fault and is not one. |
+| `LISTEN` only, no peer | The browser is not dialling at all. The network is fine; the module has given up or is misconfigured. |
+
+That last case is the easy one to misread, because everything on the Pi looks
+healthy. Confirm the port really is reachable from the machine running the
+browser before touching anything else:
+
+```bash
+nc -z omega7.panther-firefighter.ts.net 31415
+```
+
+If that succeeds while nothing reaches 31415, the fault is in the module's saved
+settings. They can be read straight out of the world's LevelDB without stopping
+Foundry, by copying the store and dropping the `LOCK` (read-only — Foundry
+overwrites the live values on shutdown, so never write here):
+
+```bash
+W=/mnt/user/data/Foundry/Data/worlds/<world>/data/settings
+rm -rf /tmp/setread && mkdir -p /tmp/setread
+cp -r "$W" /tmp/setread/settings && rm -f /tmp/setread/settings/LOCK
+
+docker run --rm -v /tmp/setread:/work \
+  -v /mnt/user/appdata/FoundryVTT/resources/app/node_modules:/nm:ro \
+  -e NODE_PATH=/nm -w /work node:24-alpine node -e '
+const {ClassicLevel}=require("classic-level");
+(async()=>{const db=new ClassicLevel("/work/settings",{valueEncoding:"json"});
+for await (const [k,v] of db.iterator()){const key=(v&&v.key)?v.key:String(k);
+if(/foundry-mcp-bridge/.test(key)) console.log(key,"=",JSON.stringify(v.value));}
+await db.close();})();'
+```
+
+Note the setting name lives in the *value* (`v.key`), not the LevelDB key, so
+filtering on the raw key returns nothing. Check `serverHost`,
+`autoReconnectEnabled`, and `lastConnectionState`.
 
 With auto-reconnect disabled, the module only retries **5 times, 1 second
 apart**, after the world loads. If Omega-7 was not running at that moment,
 reload the browser tab — it is almost always the explanation for a bridge that
 "won't connect". Leaving auto-reconnect enabled avoids this, at the cost of the
 backoff described below.
+
+`autoReconnectEnabled` has been observed reverting to `false` on its own after a
+failed session, leaving `lastConnectionState: "error"`. The module then never
+dials again and the Pi sits at `LISTEN` forever. Re-enable it in **Game Settings
+→ Configure Settings → MCP Bridge**; because the Pi only holds 31415 open while
+an MCP client is attached, hold a listener open while reconnecting:
+
+```bash
+PYTHONPATH=$HOME/Servoskull .venv/bin/python -u -c '
+import time
+from games.wfrp import foundry
+for i in range(200): foundry.status(); time.sleep(3)'
+```
 
 Because the server is spawned per MCP client and torn down when that client
 exits, the module loses its socket every time a short-lived process (a test
