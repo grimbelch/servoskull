@@ -374,6 +374,32 @@ def _make_handler(local_name: str):
 HANDLERS = {name: _make_handler(name) for name in _NAME_MAP}
 
 
+def call_raw(mcp_name: str, payload: Optional[dict] = None) -> Any:
+    """Call any Foundry MCP tool by its raw ``mcp_name`` (e.g. ``manage-actors``).
+
+    Unlike :data:`HANDLERS`, this bypasses the ``DEFAULT_TOOLS``/``FOUNDRY_MCP_TOOLS``
+    allowlist entirely, so it works for tools never exposed to the LLM tool loop
+    (like ``manage-actors``). Intended for server-side features — e.g. Foundry
+    character sync — that need direct, unrestricted bridge access. Returns a
+    flattened result dict; never raises (mirrors the ``HANDLERS`` error shape).
+    """
+    try:
+        return _flatten(_client.call_tool(mcp_name, payload or {}))
+    except FoundryBridgeError as exc:
+        log.warning("Foundry tool %s failed: %s", mcp_name, exc)
+        return {
+            "error": str(exc),
+            "hint": (
+                "The Foundry bridge is unreachable. Confirm the world is open "
+                "in a logged-in Gamemaster browser session and that the MCP "
+                "bridge module reports Connected."
+            ),
+        }
+    except Exception as exc:  # defensive: never kill a request mid-sync
+        log.exception("Unexpected Foundry bridge failure")
+        return {"error": f"Unexpected Foundry bridge failure: {exc}"}
+
+
 def refresh_schema_cache() -> int:
     """Re-query the live MCP server and rewrite ``foundry_tools.json``.
 

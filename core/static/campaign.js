@@ -323,6 +323,28 @@
       el("button", { onclick: function () { nudge(1); }, title: "Recover one" }, "+"));
   }
 
+  // -------------------------------------------------------- Foundry sync ---
+
+  function syncWithFoundry(character, onDone) {
+    notice("Syncing " + (character.name || "adventurer") + " with Foundry\u2026");
+    api("/api/campaign/foundry/sync", { id: character.id, name: character.name })
+      .then(function (payload) {
+        var s = payload.sync || {};
+        var added = (s.added_items || []).length;
+        var msg = s.created_actor
+          ? "Created a new Foundry actor and pushed " + (character.name || "the character") + " to it."
+          : "Pulled the latest from Foundry" + (added ? " and added " + added + " missing item" + (added === 1 ? "" : "s") + "." : ".");
+        return refresh().then(function () {
+          notice(msg);
+          if (onDone) onDone();
+          render();
+        });
+      })
+      .catch(function (e) { notice("Foundry sync failed: " + e.message, true); });
+  }
+
+  // -------------------------------------------------------------- party ---
+
   function partyView(sheet) {
     var characters = C.characters || [];
 
@@ -351,6 +373,11 @@
         tracker(character, "Corrupt.", "corruption.current", "corruption.max"),
         el("div", { class: "row-actions", style: "margin-top:.8rem" },
           el("button", { class: "btn", onclick: function () { openSheet(index); } }, "Open sheet"),
+          el("button", {
+            class: "btn quiet",
+            title: character.foundry_actor_id ? "Last synced " + (character.foundry_synced_at || "") : "Link/create a matching Foundry actor",
+            onclick: function () { syncWithFoundry(character); }
+          }, character.foundry_actor_id ? "Sync w/ Foundry" : "Link Foundry"),
           el("button", {
             class: "btn danger",
             onclick: function () {
@@ -1262,6 +1289,13 @@
       el("span", { class: "spacer" }),
       el("div", { class: "row-actions" },
         el("button", { class: "btn quiet", onclick: function () { view = "party"; draft = null; render(); } }, "Back to party"),
+        el("button", {
+          class: "btn quiet",
+          onclick: function () {
+            saveCharacter(draft).then(function () { syncWithFoundry(draft, function () { draft = JSON.parse(JSON.stringify(C.characters[openChar] || draft)); }); })
+              .catch(function (e) { notice(e.message, true); });
+          }
+        }, draft.foundry_actor_id ? "Sync w/ Foundry" : "Link Foundry"),
         el("button", {
           class: "btn solid", id: "save-bar",
           style: "visibility:" + (dirty ? "visible" : "hidden"),

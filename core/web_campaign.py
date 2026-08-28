@@ -7,7 +7,7 @@ and WFRP 4E Core Rulebook Page Spread HTML rendering.
 from __future__ import annotations
 import json
 from typing import Any
-from games.wfrp import campaign, chargen, db, modules_db
+from games.wfrp import campaign, chargen, db, modules_db, foundry, foundry_sync
 
 
 def dispatch_request(server_handler: Any, path: str, method: str) -> bool:
@@ -47,6 +47,9 @@ def dispatch_request(server_handler: Any, path: str, method: str) -> bool:
         elif path_clean == "/api/campaign/chargen/data":
             _handle_chargen_data(server_handler)
             return True
+        elif path_clean == "/api/campaign/foundry/status":
+            server_handler._send_json({"ok": True, "status": foundry.status()})
+            return True
         elif path_clean.startswith("/api/campaign/module/"):
             slug = path_clean.split("/")[-1]
             active = campaign.get_active_campaign()
@@ -79,6 +82,7 @@ def dispatch_request(server_handler: Any, path: str, method: str) -> bool:
             "/api/campaign/quest/delete": _handle_campaign_quest_delete,
             "/api/campaign/timeline/add": _handle_campaign_timeline_add,
             "/api/campaign/module/state": _handle_campaign_module_state_update,
+            "/api/campaign/foundry/sync": _handle_foundry_sync,
         }
         fn = routes.get(path_clean)
         if fn:
@@ -179,6 +183,39 @@ def _handle_campaign_roll_char(server_handler: Any) -> None:
         race = data.get("race", "Human")
         c_block = campaign.roll_characteristics(race)
         server_handler._send_json({"ok": True, "race": race, "characteristics": c_block, "character_block": c_block})
+    except Exception as e:
+        server_handler._send_json({"ok": False, "error": str(e)}, 500)
+
+
+def _handle_foundry_sync(server_handler: Any) -> None:
+    """Sync one character with its linked (or matched-by-name) Foundry actor.
+
+    Foundry always wins on fields both sides track; local-only additions
+    (skills/talents/trappings/career picked up since the actor was last
+    touched) are pushed as gap-fills. See games/wfrp/foundry_sync.py.
+    """
+    try:
+        data = _read_json(server_handler)
+        char_identifier = data.get("id") or (data.get("name") or "").strip()
+        if not char_identifier:
+            server_handler._send_json({"ok": False, "error": "No character id/name given"}, 400)
+            return
+        active = campaign.get_active_campaign()
+        if not active:
+            server_handler._send_json({"ok": False, "error": "No active campaign"}, 400)
+            return
+        char = None
+        for c in active.get("characters", []):
+            if str(c.get("id")) == str(char_identifier) or c.get("name") == char_identifier:
+                char = c
+                break
+        if not char:
+            server_handler._send_json({"ok": False, "error": "Character not found"}, 404)
+            return
+        summary = foundry_sync.sync_character(active["slug"], char)
+        _send_active(server_handler, sync=summary)
+    except foundry_sync.SyncError as e:
+        server_handler._send_json({"ok": False, "error": str(e)}, 400)
     except Exception as e:
         server_handler._send_json({"ok": False, "error": str(e)}, 500)
 

@@ -303,6 +303,11 @@ def init_db() -> None:
             conn.execute("ALTER TABLE npcs ADD COLUMN module_npc_id INTEGER REFERENCES module_npcs (id) ON DELETE SET NULL;")
         except Exception:
             pass
+        for col, default in [("foundry_actor_id", "''"), ("foundry_synced_at", "''")]:
+            try:
+                conn.execute(f"ALTER TABLE characters ADD COLUMN {col} TEXT DEFAULT {default};")
+            except Exception:
+                pass
     conn.close()
 
     try:
@@ -782,6 +787,55 @@ def upsert_character_record(slug: str, char_dict: dict) -> None:
                 json.dumps(char_dict.get("ambitions", {})),
                 json.dumps(char_dict.get("ten_questions", {}))
             ))
+    conn.close()
+
+
+def get_character_row(slug: str, char_id: int) -> Optional[dict]:
+    """Raw row lookup by campaign slug + character id, for Foundry-sync bookkeeping."""
+    conn = get_connection()
+    cur = conn.execute("SELECT id FROM campaigns WHERE slug = ?", (slug,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return None
+    cid = row["id"]
+    cur = conn.execute("SELECT * FROM characters WHERE campaign_id = ? AND id = ?", (cid, char_id))
+    c_row = cur.fetchone()
+    conn.close()
+    return dict(c_row) if c_row else None
+
+
+def set_foundry_link(slug: str, char_id: int, actor_id: str) -> None:
+    """Record the Foundry actor id a local character is linked to, and stamp the sync time."""
+    conn = get_connection()
+    cur = conn.execute("SELECT id FROM campaigns WHERE slug = ?", (slug,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return
+    cid = row["id"]
+    with conn:
+        conn.execute(
+            "UPDATE characters SET foundry_actor_id = ?, foundry_synced_at = ? WHERE campaign_id = ? AND id = ?",
+            (actor_id, _now(), cid, char_id),
+        )
+    conn.close()
+
+
+def touch_foundry_sync(slug: str, char_id: int) -> None:
+    """Stamp the last-synced time without changing the linked actor id."""
+    conn = get_connection()
+    cur = conn.execute("SELECT id FROM campaigns WHERE slug = ?", (slug,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return
+    cid = row["id"]
+    with conn:
+        conn.execute(
+            "UPDATE characters SET foundry_synced_at = ? WHERE campaign_id = ? AND id = ?",
+            (_now(), cid, char_id),
+        )
     conn.close()
 
 
