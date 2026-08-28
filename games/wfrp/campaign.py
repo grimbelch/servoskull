@@ -20,7 +20,7 @@ roll_characteristics(race, rolls)   -> dict           (calculate full char block
 upsert_character(char_dict)         -> None           (add/replace char in active)
 """
 from __future__ import annotations
-from . import db
+from . import chargen, db
 
 import json
 import os
@@ -149,48 +149,36 @@ SPECIES_TALENTS = {
     },
 }
 
-RACIAL_DATA = {
-    "human": {
-        "display": "Human (Reiklander)",
-        "base": {"WS": 20, "BS": 20, "S": 20, "T": 20, "I": 20,
-                 "Ag": 20, "Dex": 20, "Int": 20, "WP": 20, "Fel": 20},
-        "wounds_bonus": 0,
-        "fate": 2, "fortune": 2, "resilience": 1, "resolve": 1,
-        "move": 4, "xp_bonus": 20,
-    },
-    "dwarf": {
-        "display": "Dwarf",
-        "base": {"WS": 30, "BS": 20, "S": 20, "T": 30, "I": 20,
-                 "Ag": 10, "Dex": 30, "Int": 20, "WP": 40, "Fel": 10},
-        "wounds_bonus": 0,
-        "fate": 0, "fortune": 0, "resilience": 2, "resolve": 2,
-        "move": 3, "xp_bonus": 0,
-    },
-    "halfling": {
-        "display": "Halfling",
-        "base": {"WS": 10, "BS": 30, "S": 10, "T": 20, "I": 20,
-                 "Ag": 20, "Dex": 30, "Int": 20, "WP": 30, "Fel": 30},
-        "wounds_bonus": 0,
-        "fate": 3, "fortune": 3, "resilience": 0, "resolve": 0,
-        "move": 3, "xp_bonus": 0,
-    },
-    "high_elf": {
-        "display": "High Elf (Asur)",
-        "base": {"WS": 30, "BS": 30, "S": 20, "T": 20, "I": 40,
-                 "Ag": 30, "Dex": 30, "Int": 30, "WP": 30, "Fel": 20},
-        "wounds_bonus": 0,
-        "fate": 0, "fortune": 0, "resilience": 2, "resolve": 2,
-        "move": 5, "xp_bonus": 0,
-    },
-    "wood_elf": {
-        "display": "Wood Elf (Asrai)",
-        "base": {"WS": 30, "BS": 30, "S": 20, "T": 20, "I": 50,
-                 "Ag": 40, "Dex": 30, "Int": 30, "WP": 30, "Fel": 10},
-        "wounds_bonus": 0,
-        "fate": 0, "fortune": 0, "resilience": 2, "resolve": 2,
-        "move": 5, "xp_bonus": 0,
-    },
-}
+# The species numbers live in `chargen`, which is the module that has to get
+# them exactly right for character creation. Deriving the older RACIAL_DATA
+# shape from it keeps the voice tool ("roll me a dwarf") and the wizard from
+# drifting apart — the previous hand-maintained copy had a Halfling with the
+# wrong Fate and Resilience, Elves with the wrong Agility and Initiative, and
+# no notion of the free points every species distributes between Fate and
+# Resilience.
+def _racial_data_from_chargen() -> dict:
+    out = {}
+    for key, spec in chargen.SPECIES.items():
+        out[key] = {
+            "display": spec["display"],
+            "base": dict(spec["base"]),
+            # Halflings alone take no Strength Bonus to Wounds.
+            "wounds_includes_sb": spec["wounds_includes_sb"],
+            "wounds_bonus": 0,
+            "fate": spec["fate"],
+            "fortune": spec["fate"],
+            "resilience": spec["resilience"],
+            "resolve": spec["resilience"],
+            "extra_points": spec["extra_points"],
+            "move": spec["move"],
+            # The +20 XP is the reward for letting the dice pick a species, not
+            # a property of any species, so nothing here carries a bonus.
+            "xp_bonus": 0,
+        }
+    return out
+
+
+RACIAL_DATA = _racial_data_from_chargen()
 
 RACE_ALIASES = {
     "human": "human", "reiklander": "human", "humans": "human",
@@ -470,7 +458,10 @@ def roll_characteristics(race_key: str, rolls: Any = None) -> dict:
     sb = characteristics["S"] // 10
     tb = characteristics["T"] // 10
     wpb = characteristics["WP"] // 10
-    wounds = sb + (2 * tb) + wpb + racial.get("wounds_bonus", 0)
+    # Halflings are the exception: their Wounds leave out the Strength Bonus.
+    wounds = (2 * tb) + wpb + racial.get("wounds_bonus", 0)
+    if racial.get("wounds_includes_sb", True):
+        wounds += sb
 
     return {
         "race_key": race_key,

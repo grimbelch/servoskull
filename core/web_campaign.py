@@ -7,7 +7,7 @@ and WFRP 4E Core Rulebook Page Spread HTML rendering.
 from __future__ import annotations
 import json
 from typing import Any
-from games.wfrp import campaign, db, modules_db
+from games.wfrp import campaign, chargen, db, modules_db
 
 
 def dispatch_request(server_handler: Any, path: str, method: str) -> bool:
@@ -44,6 +44,9 @@ def dispatch_request(server_handler: Any, path: str, method: str) -> bool:
             else:
                 server_handler._send_json({"ok": False, "error": "Module not found"}, 404)
             return True
+        elif path_clean == "/api/campaign/chargen/data":
+            _handle_chargen_data(server_handler)
+            return True
         elif path_clean.startswith("/api/campaign/module/"):
             slug = path_clean.split("/")[-1]
             active = campaign.get_active_campaign()
@@ -65,6 +68,8 @@ def dispatch_request(server_handler: Any, path: str, method: str) -> bool:
             "/api/campaign/character/upsert": _handle_campaign_character_upsert,
             "/api/campaign/character/delete": _handle_campaign_character_delete,
             "/api/campaign/roll_char": _handle_campaign_roll_char,
+            "/api/campaign/chargen/roll": _handle_chargen_roll,
+            "/api/campaign/chargen/finalize": _handle_chargen_finalize,
             "/api/campaign/npc/add": _handle_campaign_npc_add,
             "/api/campaign/npc/upsert": _handle_campaign_npc_upsert,
             "/api/campaign/npc/delete": _handle_campaign_npc_delete,
@@ -174,6 +179,72 @@ def _handle_campaign_roll_char(server_handler: Any) -> None:
         race = data.get("race", "Human")
         c_block = campaign.roll_characteristics(race)
         server_handler._send_json({"ok": True, "race": race, "characteristics": c_block, "character_block": c_block})
+    except Exception as e:
+        server_handler._send_json({"ok": False, "error": str(e)}, 500)
+
+
+def _handle_chargen_data(server_handler: Any) -> None:
+    """Static data for the creation wizard: species, careers, tables, limits."""
+    try:
+        server_handler._send_json({"ok": True, "data": chargen.wizard_data()})
+    except Exception as e:
+        server_handler._send_json({"ok": False, "error": str(e)}, 500)
+
+
+def _handle_chargen_roll(server_handler: Any) -> None:
+    """Roll one step of creation.
+
+    The wizard keeps the draft; the server only ever rolls dice, so a reload
+    cannot be used to reroll a result the player has already accepted.
+    """
+    try:
+        data = _read_json(server_handler)
+        what = (data.get("what") or "").strip()
+        species = data.get("species") or ""
+        conn = db.get_connection()
+        try:
+            if what == "species":
+                result = chargen.roll_species(conn)
+            elif what == "career":
+                count = max(1, min(3, int(data.get("count") or 1)))
+                result = [chargen.roll_career(conn, species) for _ in range(count)]
+            elif what == "characteristics":
+                result = chargen.roll_characteristic_dice()
+            elif what == "talents":
+                result = chargen.roll_random_talents(
+                    conn, int(data.get("count") or 0), data.get("held") or [])
+            elif what == "detail":
+                result = chargen.roll_detail(conn, data.get("table") or "", species)
+            else:
+                server_handler._send_json(
+                    {"ok": False, "error": f"Cannot roll {what!r}."}, 400)
+                return
+        finally:
+            conn.close()
+        server_handler._send_json({"ok": True, "what": what, "result": result})
+    except chargen.CharGenError as e:
+        server_handler._send_json({"ok": False, "error": str(e)}, 400)
+    except Exception as e:
+        server_handler._send_json({"ok": False, "error": str(e)}, 500)
+
+
+def _handle_chargen_finalize(server_handler: Any) -> None:
+    """Validate a finished draft and add the adventurer to the party."""
+    try:
+        draft = _read_json(server_handler)
+        active = campaign.get_active_campaign()
+        if not active:
+            server_handler._send_json({"ok": False, "error": "No active campaign"}, 400)
+            return
+        conn = db.get_connection()
+        try:
+            character = chargen.build_character(draft, conn)
+        finally:
+            conn.close()
+        campaign.upsert_character(character)
+        _send_active(server_handler, character=character)
+    except chargen.CharGenError as e:
+        server_handler._send_json({"ok": False, "error": str(e)}, 400)
     except Exception as e:
         server_handler._send_json({"ok": False, "error": str(e)}, 500)
 

@@ -331,10 +331,7 @@
       el("span", { class: "muted tiny", text: characters.length + " adventurer" + (characters.length === 1 ? "" : "s") }),
       el("span", { class: "spacer" }),
       el("div", { class: "row-actions" },
-        el("select", { id: "roll-race" }, RACES.map(function (pair) {
-          return el("option", { value: pair[0] }, pair[1]);
-        })),
-        el("button", { class: "btn", onclick: rollNewCharacter }, "Roll an adventurer"),
+        el("button", { class: "btn", onclick: startChargen }, "Roll an adventurer"),
         el("button", { class: "btn quiet", onclick: blankCharacter }, "Blank sheet"))));
 
     if (!characters.length) {
@@ -366,31 +363,784 @@
     })));
   }
 
-  function rollNewCharacter() {
-    var select = document.getElementById("roll-race");
-    var race = select ? select.value : "human";
-    api("/api/campaign/roll_char", { race: race }).then(function (payload) {
-      var block = payload.characteristics || {};
-      var characteristics = {};
-      CHARS.forEach(function (key) {
-        var value = (block.characteristics || {})[key] || 30;
-        characteristics[key] = { initial: value, advances: 0, total: value };
-      });
-      return saveCharacter({
-        name: "New Adventurer",
-        race: block.race_display || race,
-        characteristics: characteristics,
-        wounds: { max: block.wounds_max || 10, current: block.wounds_current || 10 },
-        fate: { total: block.fate || 0, current: block.fate || 0 },
-        fortune: { total: block.fortune || 0, current: block.fortune || 0 },
-        resilience: { total: block.resilience || 0, current: block.resilience || 0 },
-        resolve: { total: block.resolve || 0, current: block.resolve || 0 },
-        move: { walk: block.move || 4, run: (block.move || 4) * 2 },
-        xp: { total: block.xp_bonus || 0, spent: 0, current: block.xp_bonus || 0 }
-      }, true);
-    }).then(refresh).then(function () {
-      notice("Adventurer rolled.");
-      openSheet((C.characters || []).length - 1);
+  // ------------------------------------------------------- create a PC ---
+
+  /* The creation wizard walks the eight steps from Chapter 2 of the rulebook.
+   * Every step that the rules allow you to roll for is worth experience, so
+   * the wizard tracks *how* each decision was made rather than just its
+   * result: a Dwarf Slayer who was rolled up starts with more XP than an
+   * identical one who was chosen. The running total is shown throughout so
+   * the trade-off is visible while it is still reversible. */
+
+  var CG = null;    // static rules data, fetched once
+  var cg = null;    // the draft being built
+
+  var CG_STEPS = [
+    "Species", "Class & Career", "Attributes", "Species Skills & Talents",
+    "Career Skills & Talent", "Detail", "Review"
+  ];
+
+  function startChargen() {
+    var begin = CG ? Promise.resolve() : api("/api/campaign/chargen/data")
+      .then(function (payload) { CG = payload.data; });
+    begin.then(function () {
+      cg = {
+        step: 0, name: "",
+        species: "", species_random: false, species_roll: null,
+        career: "", career_source: "chosen", career_rolls: [],
+        char_rolls: [], characteristics_mode: null, assignment: {},
+        points: {}, fate_extra: 0, resilience_extra: 0,
+        species_skills_major: [], species_skills_minor: [],
+        talent_choices: [], random_talents: [],
+        career_advances: {}, career_talent: "",
+        details: {}
+      };
+      view = "chargen";
+      render();
+    }).catch(function (e) { notice(e.message, true); });
+  }
+
+  function cgSpecies() {
+    if (!cg || !cg.species) return null;
+    for (var i = 0; i < CG.species.length; i++) {
+      if (CG.species[i].key === cg.species) return CG.species[i];
+    }
+    return null;
+  }
+
+  function cgCareer() {
+    if (!cg || !cg.career) return null;
+    for (var i = 0; i < CG.careers.length; i++) {
+      if (CG.careers[i].name === cg.career) return CG.careers[i];
+    }
+    return null;
+  }
+
+  /* Mirrors the award table in chargen.py. Kept client side so the player can
+   * watch the number move as they choose, but the server recomputes it from
+   * the draft on finalize — this is a preview, not the source of truth. */
+  function cgXP() {
+    var xp = CG.rules.xp, total = 0;
+    if (cg.species_random) total += xp.species_random;
+    if (cg.career_source === "first_roll") total += xp.career_first_roll;
+    else if (cg.career_source === "one_of_three") total += xp.career_one_of_three;
+    if (cg.characteristics_mode === "rolled") total += xp.characteristics_rolled;
+    else if (cg.characteristics_mode === "rearranged") total += xp.characteristics_rearranged;
+    return total;
+  }
+
+  function cgRoll(body) {
+    return api("/api/campaign/chargen/roll", body).then(function (p) { return p.result; });
+  }
+
+  function cgHeading(text, hint) {
+    return el("div", { class: "section-head" },
+      el("h2", { text: text }),
+      hint ? el("span", { class: "muted tiny", text: hint }) : null);
+  }
+
+  function cgNote(text) {
+    return el("p", { class: "cg-note", text: text });
+  }
+
+  /* Each step decides for itself whether it is complete; the footer uses this
+   * to decide whether "Next" is live, so a half-finished step cannot be
+   * carried forward into the summary. */
+  function cgStepReady(step) {
+    var species = cgSpecies(), career = cgCareer();
+    if (step === 0) return !!cg.species;
+    if (step === 1) return !!career;
+    if (step === 2) {
+      if (!cg.characteristics_mode) return false;
+      if (cg.characteristics_mode === "points") {
+        if (cgPointTotal() !== CG.rules.point_buy_total) return false;
+      } else if (!cgAssignmentValid()) return false;
+      return (num(cg.fate_extra) + num(cg.resilience_extra)) === species.extra_points;
+    }
+    if (step === 3) {
+      return cg.species_skills_major.length === CG.rules.species_skill_major_count
+        && cg.species_skills_minor.length === CG.rules.species_skill_minor_count
+        && cg.talent_choices.length === species.talents_choices.length
+        && cg.random_talents.length === species.talents_random;
+    }
+    if (step === 4) return cgAdvanceTotal() === CG.rules.career_advance_total;
+    return true;
+  }
+
+  // ---- step 1: species ----------------------------------------------------
+
+  function cgStepSpecies(sheet) {
+    sheet.appendChild(cgHeading("1) Species",
+      "Roll for +" + CG.rules.xp.species_random + " XP, or choose for none"));
+    sheet.appendChild(cgNote(
+      "Roll 1d100 on the Random Species Table and accept the result for +"
+      + CG.rules.xp.species_random + " XP. Choosing outright is free but earns nothing."));
+
+    sheet.appendChild(el("div", { class: "row-actions" },
+      el("button", {
+        class: "btn", onclick: function () {
+          cgRoll({ what: "species" }).then(function (r) {
+            cg.species_roll = r;
+            cg.species = r.species;
+            cg.species_random = true;
+            cgResetSpeciesChoices();
+            render();
+          }).catch(function (e) { notice(e.message, true); });
+        }
+      }, "Roll 1d100")));
+
+    if (cg.species_roll) {
+      sheet.appendChild(el("div", { class: "cg-roll" },
+        "d100 \u2192 " + cg.species_roll.roll
+        + " (" + cg.species_roll.label + "): " + cg.species_roll.result
+        + (cg.species_random ? "  \u2014 accepted, +" + CG.rules.xp.species_random + " XP" : "")));
+    }
+
+    sheet.appendChild(el("div", { class: "cg-grid" }, CG.species.map(function (s) {
+      return el("button", {
+        class: "cg-card" + (cg.species === s.key ? " on" : ""),
+        onclick: function () {
+          cg.species = s.key;
+          cg.species_random = false;   // choosing forfeits the roll bonus
+          cgResetSpeciesChoices();
+          render();
+        }
+      },
+        el("strong", { text: s.display }),
+        el("span", { class: "tiny muted", text: "M " + s.move + " \u00b7 Fate " + s.fate + " \u00b7 Res " + s.resilience + " \u00b7 " + s.extra_points + " extra" }),
+        el("span", { class: "tiny muted", text: "Wounds " + s.wounds_formula }));
+    })));
+
+    if (cg.species && !cg.species_random) {
+      sheet.appendChild(cgNote("Chosen rather than rolled \u2014 no XP bonus."));
+    }
+  }
+
+  /* Species-dependent choices have to be dropped whenever the species moves,
+   * or a Dwarf can keep a Halfling's skill list. */
+  function cgResetSpeciesChoices() {
+    cg.species_skills_major = [];
+    cg.species_skills_minor = [];
+    cg.talent_choices = [];
+    cg.random_talents = [];
+    cg.fate_extra = 0;
+    cg.resilience_extra = 0;
+    var career = cgCareer();
+    var species = cgSpecies();
+    if (career && species && career.species.length
+        && career.species.indexOf(speciesTableName(species)) < 0) {
+      cg.career = "";
+      cg.career_source = "chosen";
+      cg.career_advances = {};
+      cg.career_talent = "";
+    }
+  }
+
+  function speciesTableName(species) {
+    return { human: "Human", dwarf: "Dwarf", halfling: "Halfling",
+             high_elf: "High Elf", wood_elf: "Wood Elf" }[species.key];
+  }
+
+  function cgCareersForSpecies() {
+    var species = cgSpecies();
+    if (!species) return [];
+    var name = speciesTableName(species);
+    return CG.careers.filter(function (c) {
+      return !c.species.length || c.species.indexOf(name) >= 0;
+    });
+  }
+
+  // ---- step 2: class and career -------------------------------------------
+
+  function cgStepCareer(sheet) {
+    var xp = CG.rules.xp;
+    sheet.appendChild(cgHeading("2) Class & Career",
+      "+" + xp.career_first_roll + " XP for the first roll, +"
+      + xp.career_one_of_three + " for one of three"));
+    sheet.appendChild(cgNote(
+      "Roll once and keep it for +" + xp.career_first_roll
+      + " XP. Not to your taste? Roll twice more and pick one of the three for +"
+      + xp.career_one_of_three + " XP. Or choose freely for no bonus."));
+
+    sheet.appendChild(el("div", { class: "row-actions" },
+      el("button", {
+        class: "btn", onclick: function () {
+          cgRoll({ what: "career", species: cg.species, count: 1 }).then(function (rolls) {
+            cg.career_rolls = rolls;
+            cg.career = rolls[0].result;
+            cg.career_source = "first_roll";
+            cg.career_advances = {}; cg.career_talent = "";
+            render();
+          }).catch(function (e) { notice(e.message, true); });
+        }
+      }, "Roll 1d100"),
+      cg.career_rolls.length === 1 ? el("button", {
+        class: "btn quiet", onclick: function () {
+          cgRoll({ what: "career", species: cg.species, count: 2 }).then(function (rolls) {
+            cg.career_rolls = cg.career_rolls.concat(rolls);
+            cg.career_source = "one_of_three";
+            cg.career = "";
+            cg.career_advances = {}; cg.career_talent = "";
+            render();
+          }).catch(function (e) { notice(e.message, true); });
+        }
+      }, "Roll twice more") : null));
+
+    if (cg.career_rolls.length) {
+      sheet.appendChild(el("div", { class: "cg-rolls" }, cg.career_rolls.map(function (r) {
+        var picked = cg.career === r.result;
+        return el("button", {
+          class: "cg-roll pick" + (picked ? " on" : ""),
+          onclick: function () {
+            cg.career = r.result;
+            cg.career_source = cg.career_rolls.length > 1 ? "one_of_three" : "first_roll";
+            cg.career_advances = {}; cg.career_talent = "";
+            render();
+          }
+        }, "d100 \u2192 " + r.roll + ": " + r.result);
+      })));
+    }
+
+    var byClass = {};
+    cgCareersForSpecies().forEach(function (c) {
+      (byClass[c.class] = byClass[c.class] || []).push(c);
+    });
+    var classes = Object.keys(byClass).sort();
+
+    sheet.appendChild(el("div", { class: "field" },
+      el("label", { text: "Or choose (no XP bonus)" }),
+      el("select", {
+        onchange: function (e) {
+          if (!e.target.value) return;
+          cg.career = e.target.value;
+          cg.career_source = "chosen";
+          cg.career_advances = {}; cg.career_talent = "";
+          render();
+        }
+      },
+        [el("option", { value: "" }, "\u2014 choose a career \u2014")].concat(
+          classes.map(function (cls) {
+            return el("optgroup", { label: cls }, byClass[cls].map(function (c) {
+              return el("option", { value: c.name, selected: cg.career === c.name ? "selected" : null }, c.name);
+            }));
+          })))));
+
+    var career = cgCareer();
+    if (career) {
+      var t = career.tier1;
+      sheet.appendChild(el("div", { class: "cg-summary" },
+        el("h3", { text: career.name + " \u2014 " + career.class }),
+        el("div", { class: "tiny muted", text: "Level 1: " + t.name + " \u00b7 Status " + t.status_tier + " " + t.status_standing }),
+        career.description && career.description !== career.name
+          ? el("p", { class: "cg-note", text: career.description }) : null,
+        el("div", { class: "tiny", text: "Skills: " + t.skills.join(", ") }),
+        el("div", { class: "tiny", text: "Talents: " + t.talents.join(", ") }),
+        el("div", { class: "tiny", text: "Trappings: " + (t.trappings.join(", ") || "\u2014") })));
+      if (cg.career_source === "chosen") {
+        sheet.appendChild(cgNote("Chosen rather than rolled \u2014 no XP bonus."));
+      }
+    }
+  }
+
+  // ---- step 3: attributes -------------------------------------------------
+
+  function cgPointTotal() {
+    var total = 0;
+    CHARS.forEach(function (k) { total += num(cg.points[k]); });
+    return total;
+  }
+
+  /* In "rolled" and "rearranged" modes the ten 2d10 results are a fixed pool:
+   * every characteristic must hold exactly one of them. */
+  function cgAssignmentValid() {
+    if (!cg.char_rolls.length) return false;
+    var used = {};
+    for (var i = 0; i < CHARS.length; i++) {
+      var idx = cg.assignment[CHARS[i]];
+      if (idx === undefined || idx === null || used[idx]) return false;
+      used[idx] = true;
+    }
+    return true;
+  }
+
+  function cgStepAttributes(sheet) {
+    var species = cgSpecies(), xp = CG.rules.xp, rules = CG.rules;
+    sheet.appendChild(cgHeading("3) Attributes",
+      "+" + xp.characteristics_rolled + " XP as rolled, +"
+      + xp.characteristics_rearranged + " rearranged"));
+    sheet.appendChild(cgNote(
+      "Roll 2d10 for each of the ten Characteristics. Keep them in the order "
+      + "rolled for +" + xp.characteristics_rolled + " XP, rearrange the ten numbers for +"
+      + xp.characteristics_rearranged + " XP, or ignore the dice and allocate "
+      + rules.point_buy_total + " points (" + rules.point_buy_min + "\u2013"
+      + rules.point_buy_max + " each) for none."));
+
+    sheet.appendChild(el("div", { class: "row-actions" },
+      el("button", {
+        class: "btn", onclick: function () {
+          cgRoll({ what: "characteristics" }).then(function (rolls) {
+            var reroll = cg.char_rolls.length > 0;
+            cg.char_rolls = rolls;
+            cg.assignment = {};
+            CHARS.forEach(function (k, i) { cg.assignment[k] = i; });
+            // A reroll forfeits the bonus; only the first set can be "as rolled".
+            cg.characteristics_mode = reroll ? "rerolled" : "rolled";
+            render();
+          }).catch(function (e) { notice(e.message, true); });
+        }
+      }, cg.char_rolls.length ? "Roll again (no bonus)" : "Roll 2d10 \u00d7 10"),
+      cg.char_rolls.length ? el("button", {
+        class: "btn quiet" + (cg.characteristics_mode === "rearranged" ? " on" : ""),
+        onclick: function () { cg.characteristics_mode = "rearranged"; render(); }
+      }, "Rearrange (+" + xp.characteristics_rearranged + ")") : null,
+      cg.char_rolls.length && cg.characteristics_mode !== "rolled" ? el("button", {
+        class: "btn quiet", onclick: function () {
+          cg.assignment = {};
+          CHARS.forEach(function (k, i) { cg.assignment[k] = i; });
+          cg.characteristics_mode = "rolled";
+          render();
+        }
+      }, "Back to order rolled") : null,
+      el("button", {
+        class: "btn quiet" + (cg.characteristics_mode === "points" ? " on" : ""),
+        onclick: function () {
+          cg.characteristics_mode = "points";
+          CHARS.forEach(function (k) {
+            if (cg.points[k] === undefined) cg.points[k] = 10;
+          });
+          render();
+        }
+      }, "Allocate " + rules.point_buy_total + " points")));
+
+    if (!cg.characteristics_mode) return;
+
+    var pool = cg.char_rolls.map(function (r, i) { return { i: i, total: r.total, dice: r.dice }; });
+    var rows = CHARS.map(function (key) {
+      var modifier = species.base[key];
+      var cell, value;
+
+      if (cg.characteristics_mode === "points") {
+        value = num(cg.points[key]);
+        cell = el("input", {
+          type: "number", min: rules.point_buy_min, max: rules.point_buy_max,
+          value: value, class: "cg-num",
+          onchange: function (e) { cg.points[key] = num(e.target.value); render(); }
+        });
+      } else if (cg.characteristics_mode === "rearranged") {
+        value = pool.length ? pool[cg.assignment[key]] ? pool[cg.assignment[key]].total : 0 : 0;
+        cell = el("select", {
+          class: "cg-pick",
+          onchange: function (e) { cg.assignment[key] = num(e.target.value); render(); }
+        }, pool.map(function (p) {
+          return el("option", {
+            value: p.i,
+            selected: cg.assignment[key] === p.i ? "selected" : null
+          }, p.total + " (" + p.dice.join("+") + ")");
+        }));
+      } else {
+        var entry = pool[cg.assignment[key]];
+        value = entry ? entry.total : 0;
+        cell = el("span", { class: "cg-fixed", text: entry ? entry.total + " (" + entry.dice.join("+") + ")" : "\u2014" });
+      }
+
+      return el("tr", null,
+        el("th", { text: key }),
+        el("td", null, cell),
+        el("td", { class: "muted", text: "+" + modifier }),
+        el("td", { class: "cg-total", text: String(modifier + value) }));
+    });
+
+    sheet.appendChild(el("table", { class: "cg-chars" },
+      el("thead", null, el("tr", null,
+        el("th", { text: "" }), el("th", { text: cg.characteristics_mode === "points" ? "Points" : "Roll" }),
+        el("th", { text: "Species" }), el("th", { text: "Total" }))),
+      el("tbody", null, rows)));
+
+    if (cg.characteristics_mode === "points") {
+      var total = cgPointTotal();
+      sheet.appendChild(el("div", {
+        class: "cg-tally" + (total === rules.point_buy_total ? " ok" : " bad"),
+        text: total + " / " + rules.point_buy_total + " points allocated"
+      }));
+    } else if (!cgAssignmentValid()) {
+      sheet.appendChild(el("div", { class: "cg-tally bad",
+        text: "Each rolled number must be used exactly once." }));
+    }
+
+    // Extra points: the free Fate/Resilience split every species gets.
+    var spent = num(cg.fate_extra) + num(cg.resilience_extra);
+    sheet.appendChild(cgHeading("Fate & Resilience",
+      species.extra_points + " extra point" + (species.extra_points === 1 ? "" : "s") + " to split"));
+    sheet.appendChild(cgNote(
+      species.display + " begins with Fate " + species.fate + " and Resilience "
+      + species.resilience + ", plus " + species.extra_points
+      + " point(s) to distribute between them as you like."));
+    sheet.appendChild(el("div", { class: "cg-extra" },
+      cgStepper("Fate", species.fate, cg.fate_extra, function (d) {
+        var next = num(cg.fate_extra) + d;
+        if (next < 0 || next + num(cg.resilience_extra) > species.extra_points) return;
+        cg.fate_extra = next; render();
+      }),
+      cgStepper("Resilience", species.resilience, cg.resilience_extra, function (d) {
+        var next = num(cg.resilience_extra) + d;
+        if (next < 0 || next + num(cg.fate_extra) > species.extra_points) return;
+        cg.resilience_extra = next; render();
+      }),
+      el("div", {
+        class: "cg-tally" + (spent === species.extra_points ? " ok" : " bad"),
+        text: spent + " / " + species.extra_points + " allocated"
+      })));
+  }
+
+  function cgStepper(label, base, extra, onChange) {
+    return el("div", { class: "cg-stepper" },
+      el("span", { class: "name", text: label }),
+      el("button", { onclick: function () { onChange(-1); } }, "\u2212"),
+      el("span", { class: "value", text: String(base + num(extra)) }),
+      el("button", { onclick: function () { onChange(1); } }, "+"),
+      el("span", { class: "tiny muted", text: base + " + " + num(extra) }));
+  }
+
+  // ---- step 4: species skills and talents ---------------------------------
+
+  function cgStepSpeciesSkills(sheet) {
+    var species = cgSpecies(), rules = CG.rules;
+    sheet.appendChild(cgHeading("4) Species Skills & Talents",
+      rules.species_skill_major_count + " at +" + rules.species_skill_major
+      + ", " + rules.species_skill_minor_count + " at +" + rules.species_skill_minor));
+    sheet.appendChild(cgNote(
+      "Choose " + rules.species_skill_major_count + " skills to gain +"
+      + rules.species_skill_major + " Advances each, and "
+      + rules.species_skill_minor_count + " to gain +" + rules.species_skill_minor
+      + " each. Every character also speaks Reikspiel for free."));
+
+    sheet.appendChild(el("div", { class: "cg-skills" }, species.skills.map(function (name) {
+      var isMajor = cg.species_skills_major.indexOf(name) >= 0;
+      var isMinor = cg.species_skills_minor.indexOf(name) >= 0;
+      function set(role) {
+        cg.species_skills_major = cg.species_skills_major.filter(function (s) { return s !== name; });
+        cg.species_skills_minor = cg.species_skills_minor.filter(function (s) { return s !== name; });
+        if (role === "major" && cg.species_skills_major.length < rules.species_skill_major_count) {
+          cg.species_skills_major.push(name);
+        } else if (role === "minor" && cg.species_skills_minor.length < rules.species_skill_minor_count) {
+          cg.species_skills_minor.push(name);
+        }
+        render();
+      }
+      return el("div", { class: "cg-skill" },
+        el("span", { class: "nm", text: name }),
+        el("div", { class: "cg-seg" },
+          el("button", { class: isMajor ? "on" : "", onclick: function () { set(isMajor ? "none" : "major"); } }, "+" + rules.species_skill_major),
+          el("button", { class: isMinor ? "on" : "", onclick: function () { set(isMinor ? "none" : "minor"); } }, "+" + rules.species_skill_minor)));
+    })));
+
+    sheet.appendChild(el("div", {
+      class: "cg-tally" + (cg.species_skills_major.length === rules.species_skill_major_count
+        && cg.species_skills_minor.length === rules.species_skill_minor_count ? " ok" : " bad"),
+      text: cg.species_skills_major.length + "/" + rules.species_skill_major_count + " at +"
+        + rules.species_skill_major + "  \u00b7  " + cg.species_skills_minor.length + "/"
+        + rules.species_skill_minor_count + " at +" + rules.species_skill_minor
+    }));
+
+    sheet.appendChild(cgHeading("Talents"));
+    if (species.talents_fixed.length) {
+      sheet.appendChild(el("div", { class: "tiny", text: "Automatic: " + species.talents_fixed.join(", ") }));
+    }
+
+    species.talents_choices.forEach(function (options, index) {
+      sheet.appendChild(el("div", { class: "cg-choice" },
+        el("span", { class: "tiny muted", text: "Choose one:" }),
+        options.map(function (option) {
+          return el("button", {
+            class: "cg-pill" + (cg.talent_choices[index] === option ? " on" : ""),
+            onclick: function () { cg.talent_choices[index] = option; render(); }
+          }, option);
+        })));
+    });
+
+    if (species.talents_random) {
+      sheet.appendChild(el("div", { class: "row-actions" },
+        el("button", {
+          class: "btn", onclick: function () {
+            var held = species.talents_fixed.concat(cg.talent_choices.filter(Boolean));
+            cgRoll({ what: "talents", count: species.talents_random, held: held })
+              .then(function (rolled) {
+                cg.random_talents = rolled.map(function (r) { return r.result; });
+                cg.random_talent_rolls = rolled;
+                render();
+              }).catch(function (e) { notice(e.message, true); });
+          }
+        }, "Roll " + species.talents_random + " random talent"
+          + (species.talents_random === 1 ? "" : "s"))));
+      if (cg.random_talent_rolls && cg.random_talent_rolls.length) {
+        sheet.appendChild(el("div", { class: "cg-rolls" }, cg.random_talent_rolls.map(function (r) {
+          return el("div", { class: "cg-roll" }, el("strong", { text: r.result }),
+            r.detail ? el("span", { class: "tiny muted", text: " \u2014 " + r.detail }) : null);
+        })));
+      } else {
+        sheet.appendChild(cgNote("Duplicates are rerolled automatically."));
+      }
+    }
+  }
+
+  // ---- step 5: career skills and talent -----------------------------------
+
+  function cgAdvanceTotal() {
+    var total = 0;
+    Object.keys(cg.career_advances || {}).forEach(function (k) { total += num(cg.career_advances[k]); });
+    return total;
+  }
+
+  function cgStepCareerSkills(sheet) {
+    var career = cgCareer(), rules = CG.rules;
+    sheet.appendChild(cgHeading("5) Career Skills & Talent",
+      rules.career_advance_total + " advances, max " + rules.career_advance_max + " each"));
+    sheet.appendChild(cgNote(
+      "Allocate " + rules.career_advance_total + " Advances across the eight "
+      + career.name + " skills, with no more than " + rules.career_advance_max
+      + " to any one. Then choose a single Talent to learn."));
+
+    var remaining = rules.career_advance_total - cgAdvanceTotal();
+    sheet.appendChild(el("div", { class: "row-actions" },
+      el("button", {
+        class: "btn quiet", onclick: function () {
+          // The rulebook's own suggestion: five to each of the eight skills.
+          cg.career_advances = {};
+          career.tier1.skills.forEach(function (s) { cg.career_advances[s] = 5; });
+          render();
+        }
+      }, "Spread evenly (5 each)"),
+      el("button", {
+        class: "btn quiet", onclick: function () { cg.career_advances = {}; render(); }
+      }, "Clear")));
+
+    sheet.appendChild(el("div", { class: "cg-skills" }, career.tier1.skills.map(function (name) {
+      var value = num(cg.career_advances[name]);
+      return el("div", { class: "cg-skill" },
+        el("span", { class: "nm", text: name }),
+        el("div", { class: "cg-seg" },
+          el("button", {
+            onclick: function () {
+              if (value <= 0) return;
+              cg.career_advances[name] = value - 1; render();
+            }
+          }, "\u2212"),
+          el("span", { class: "cg-adv", text: String(value) }),
+          el("button", {
+            onclick: function () {
+              if (value >= rules.career_advance_max || remaining <= 0) return;
+              cg.career_advances[name] = value + 1; render();
+            }
+          }, "+")));
+    })));
+
+    sheet.appendChild(el("div", {
+      class: "cg-tally" + (remaining === 0 ? " ok" : " bad"),
+      text: cgAdvanceTotal() + " / " + rules.career_advance_total + " advances allocated"
+        + (remaining > 0 ? " \u00b7 " + remaining + " left" : remaining < 0 ? " \u00b7 over by " + (-remaining) : "")
+    }));
+
+    sheet.appendChild(cgHeading("Career Talent", "choose one"));
+    sheet.appendChild(el("div", { class: "cg-choice" }, career.tier1.talents.map(function (t) {
+      return el("button", {
+        class: "cg-pill" + (cg.career_talent === t ? " on" : ""),
+        onclick: function () { cg.career_talent = cg.career_talent === t ? "" : t; render(); }
+      }, t);
+    })));
+  }
+
+  // ---- step 6: detail -----------------------------------------------------
+
+  function cgStepDetail(sheet) {
+    sheet.appendChild(cgHeading("6) Adding Detail", "all optional"));
+    sheet.appendChild(cgNote(
+      "None of this changes the numbers, but it is what turns a career into a "
+      + "person. Roll or type; anything left blank is simply omitted."));
+
+    sheet.appendChild(el("div", { class: "field" },
+      el("label", { text: "Name" }),
+      el("input", {
+        type: "text", value: cg.name || "", placeholder: "e.g. Gerta Vogel",
+        onchange: function (e) { cg.name = e.target.value; }
+      })));
+
+    CG.detail_tables.forEach(function (spec) {
+      sheet.appendChild(el("div", { class: "cg-detail" },
+        el("label", { text: spec.label }),
+        el("input", {
+          type: "text", value: cg.details[spec.key] || "",
+          onchange: function (e) { cg.details[spec.key] = e.target.value; }
+        }),
+        el("button", {
+          class: "btn quiet", onclick: function () {
+            cgRoll({ what: "detail", table: spec.key, species: cg.species })
+              .then(function (r) {
+                if (!r) { notice("No table for " + spec.label + ".", true); return; }
+                cg.details[spec.key] = r.result;
+                render();
+              }).catch(function (e) { notice(e.message, true); });
+          }
+        }, "Roll")));
+    });
+  }
+
+  // ---- step 7: review -----------------------------------------------------
+
+  function cgStepReview(sheet) {
+    var species = cgSpecies(), career = cgCareer(), rules = CG.rules;
+    sheet.appendChild(cgHeading("7) Review", cgXP() + " starting XP"));
+
+    var totals = {};
+    CHARS.forEach(function (key) {
+      var modifier = species.base[key];
+      var value = cg.characteristics_mode === "points"
+        ? num(cg.points[key])
+        : (cg.char_rolls[cg.assignment[key]] || {}).total || 0;
+      totals[key] = modifier + value;
+    });
+
+    function bonus(key) { return Math.floor(totals[key] / 10); }
+    var wounds = (2 * bonus("T")) + bonus("WP")
+      + (species.wounds_formula.indexOf("SB") >= 0 ? bonus("S") : 0);
+
+    sheet.appendChild(el("div", { class: "cg-summary" },
+      el("h3", { text: (cg.name || "Unnamed Adventurer") }),
+      el("div", { class: "tiny muted", text: species.display + " \u00b7 " + career.name
+        + " \u00b7 " + career.class + " \u00b7 Status " + career.tier1.status_tier
+        + " " + career.tier1.status_standing })));
+
+    sheet.appendChild(el("table", { class: "cg-chars review" },
+      el("thead", null, el("tr", null, CHARS.map(function (k) { return el("th", { text: k }); }))),
+      el("tbody", null, el("tr", null, CHARS.map(function (k) {
+        return el("td", { text: String(totals[k]) });
+      })))));
+
+    sheet.appendChild(el("div", { class: "cg-stats" },
+      el("span", null, el("strong", { text: String(wounds) }), " Wounds"),
+      el("span", null, el("strong", { text: String(species.fate + num(cg.fate_extra)) }), " Fate"),
+      el("span", null, el("strong", { text: String(species.resilience + num(cg.resilience_extra)) }), " Resilience"),
+      el("span", null, el("strong", { text: String(species.move) }), " Movement"),
+      el("span", null, el("strong", { text: String(cgXP()) }), " XP")));
+
+    var skills = {};
+    cg.species_skills_major.forEach(function (s) { skills[s] = (skills[s] || 0) + rules.species_skill_major; });
+    cg.species_skills_minor.forEach(function (s) { skills[s] = (skills[s] || 0) + rules.species_skill_minor; });
+    Object.keys(cg.career_advances).forEach(function (s) {
+      if (num(cg.career_advances[s])) skills[s] = (skills[s] || 0) + num(cg.career_advances[s]);
+    });
+
+    sheet.appendChild(cgHeading("Skills"));
+    sheet.appendChild(el("div", { class: "cg-chips" }, Object.keys(skills).sort().map(function (s) {
+      return el("span", { class: "cg-chip", text: s + " +" + skills[s] });
+    })));
+
+    var talents = species.talents_fixed.concat(cg.talent_choices.filter(Boolean))
+      .concat(cg.random_talents).concat(cg.career_talent ? [cg.career_talent] : []);
+    sheet.appendChild(cgHeading("Talents"));
+    sheet.appendChild(el("div", { class: "cg-chips" }, talents.map(function (t) {
+      return el("span", { class: "cg-chip", text: t });
+    })));
+
+    sheet.appendChild(cgHeading("Trappings"));
+    var trappings = (CG.class_trappings[career.class] || []).concat(career.tier1.trappings);
+    sheet.appendChild(el("div", { class: "cg-chips" }, trappings.map(function (t) {
+      return el("span", { class: "cg-chip", text: t });
+    })));
+    sheet.appendChild(cgNote("Starting wealth is rolled from Status ("
+      + career.tier1.status_tier + " " + career.tier1.status_standing
+      + ") when the character is created."));
+
+    var detail = Object.keys(cg.details).filter(function (k) { return cg.details[k]; });
+    if (detail.length) {
+      sheet.appendChild(cgHeading("Detail"));
+      sheet.appendChild(el("div", { class: "cg-chips" }, detail.map(function (k) {
+        var spec = CG.detail_tables.filter(function (d) { return d.key === k; })[0];
+        return el("span", { class: "cg-chip", text: (spec ? spec.label : k) + ": " + cg.details[k] });
+      })));
+    }
+  }
+
+  // ---- shell --------------------------------------------------------------
+
+  function chargenView(sheet) {
+    if (!CG || !cg) { view = "party"; return partyView(sheet); }
+
+    sheet.appendChild(el("div", { class: "section-head" },
+      el("h2", { text: "Roll an Adventurer" }),
+      el("span", { class: "muted tiny", text: "Step " + (cg.step + 1) + " of " + CG_STEPS.length + " \u00b7 " + CG_STEPS[cg.step] }),
+      el("span", { class: "spacer" }),
+      el("span", { class: "cg-xp", text: cgXP() + " XP" }),
+      el("button", {
+        class: "btn quiet",
+        onclick: function () { cg = null; view = "party"; render(); }
+      }, "Cancel")));
+
+    sheet.appendChild(el("ol", { class: "cg-steps" }, CG_STEPS.map(function (label, index) {
+      return el("li", {
+        class: (index === cg.step ? "on" : "") + (index < cg.step ? " done" : ""),
+        onclick: function () { if (index < cg.step) { cg.step = index; render(); } }
+      }, label);
+    })));
+
+    var body = el("div", { class: "cg-body" });
+    sheet.appendChild(body);
+
+    if (cg.step === 0) cgStepSpecies(body);
+    else if (cg.step === 1) cgStepCareer(body);
+    else if (cg.step === 2) cgStepAttributes(body);
+    else if (cg.step === 3) cgStepSpeciesSkills(body);
+    else if (cg.step === 4) cgStepCareerSkills(body);
+    else if (cg.step === 5) cgStepDetail(body);
+    else cgStepReview(body);
+
+    var ready = cgStepReady(cg.step);
+    var last = cg.step === CG_STEPS.length - 1;
+
+    sheet.appendChild(el("div", { class: "cg-footer" },
+      el("button", {
+        class: "btn quiet", disabled: cg.step === 0 ? "disabled" : null,
+        onclick: function () { if (cg.step > 0) { cg.step--; render(); } }
+      }, "Back"),
+      el("span", { class: "spacer" }),
+      last ? el("button", { class: "btn", onclick: cgFinalize }, "Create adventurer")
+        : el("button", {
+          class: "btn", disabled: ready ? null : "disabled",
+          onclick: function () { if (ready) { cg.step++; render(); } }
+        }, "Next")));
+  }
+
+  function cgFinalize() {
+    var species = cgSpecies();
+    var allocation = {};
+    CHARS.forEach(function (key) {
+      allocation[key] = cg.characteristics_mode === "points"
+        ? num(cg.points[key])
+        : (cg.char_rolls[cg.assignment[key]] || {}).total || 0;
+    });
+
+    api("/api/campaign/chargen/finalize", {
+      name: cg.name,
+      species: cg.species,
+      species_random: cg.species_random,
+      career: cg.career,
+      career_source: cg.career_source,
+      characteristics_mode: cg.characteristics_mode,
+      characteristics: allocation,
+      fate_extra: num(cg.fate_extra),
+      resilience_extra: num(cg.resilience_extra),
+      species_skills_major: cg.species_skills_major,
+      species_skills_minor: cg.species_skills_minor,
+      talent_choices: cg.talent_choices,
+      random_talents: cg.random_talents,
+      career_advances: cg.career_advances,
+      career_talent: cg.career_talent,
+      details: cg.details
+    }).then(function (payload) {
+      setCampaign(payload.active_campaign);
+      cg = null;
+      view = "party";
+      notice("Adventurer created.");
+      render();
     }).catch(function (e) { notice(e.message, true); });
   }
 
@@ -908,6 +1658,7 @@
       campaignView(sheet);
     } else if (view === "campaign") campaignView(sheet);
     else if (view === "party") partyView(sheet);
+    else if (view === "chargen") chargenView(sheet);
     else if (view === "sheet") sheetView(sheet);
     else if (view === "npcs") recordSection(sheet, NPC_CONFIG);
     else if (view === "locations") recordSection(sheet, LOCATION_CONFIG);
