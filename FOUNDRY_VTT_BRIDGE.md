@@ -62,7 +62,8 @@ Then in the world: **Manage Modules → Foundry MCP Bridge → enable**, and und
 | Setting | Value |
 | :--- | :--- |
 | Enable MCP Bridge | checked |
-| Connection Type | `WebSocket (Local Only)` |
+| Connection Type | `auto` |
+| Auto-reconnect | enabled |
 | Websocket Server Host | an address for the Pi that the **browser** can reach |
 
 That host is resolved by the GM's browser, not by the Foundry server, and the
@@ -83,13 +84,56 @@ while leaving the Pi apparently "on the network". Test with `nc -z <host> 22`
 first; if plain SSH to that address fails, the bridge will fail too, and the
 problem is the network rather than the module.
 
-The module only retries **5 times, 1 second apart**, after the world loads. If
-Omega-7 was not running at that moment, reload the browser tab — it is almost
-always the explanation for a bridge that "won't connect".
+The characteristic signature of a blocked inbound path is a half-open handshake.
+Run this on the Pi while the browser is trying to connect:
+
+```bash
+ss -tn state all | grep 31415
+```
+
+Connections parked in `SYN-RECV` mean the browser's SYN arrived and the Pi
+answered, but the final ACK never came back — the return path is blocked. This
+looks like a module fault and is not one. A working bridge shows `ESTAB`.
+
+With auto-reconnect disabled, the module only retries **5 times, 1 second
+apart**, after the world loads. If Omega-7 was not running at that moment,
+reload the browser tab — it is almost always the explanation for a bridge that
+"won't connect". Leaving auto-reconnect enabled avoids this, at the cost of the
+backoff described below.
+
+Because the server is spawned per MCP client and torn down when that client
+exits, the module loses its socket every time a short-lived process (a test
+script, a one-off `python -c`) finishes. With auto-reconnect on, repeated
+teardowns push the module into exponential backoff, and a subsequent connection
+can take **up to two minutes**. This is invisible in normal use — the long-lived
+Omega-7 service starts the node process once and the module stays attached — but
+it makes short-lived scripts a poor way to test the bridge. Reloading the
+Foundry tab resets the backoff immediately.
 
 Note that the backend only binds ports **after** an MCP client completes the
 stdio handshake, so `ss -lntp | grep 31415` shows nothing until Omega-7 has
 actually called it once.
+
+### This deployment
+
+Omega-7's Pi lives inside the skull prop, so **ethernet is not an option** —
+`eth0` stays down and it is on `wlan0` permanently. The house AP has client
+isolation enabled, which blocks traffic between wireless clients. The practical
+consequences:
+
+| From the GM's machine | Result |
+| :--- | :--- |
+| `192.168.0.108` (the Pi's LAN address) | blocked — stalls in `SYN-RECV` |
+| `omega7.local` | unreliable — resolves to IPv4 for browsers and is blocked, even though a shell may reach it over IPv6 link-local |
+| `omega7.panther-firefighter.ts.net` (Tailscale) | works |
+
+**Tailscale is therefore a hard requirement, not a convenience.** Any machine
+running the GM browser must be on the tailnet, and the Server Host must be the
+Tailscale name above. The raw Tailscale IP works too but is not stable across
+re-registration, so prefer the MagicDNS name.
+
+The same isolation blocks Omega-7's web app on port 8080, which additionally
+binds IPv4-only. Reach it over Tailscale as well.
 
 ## Configuration
 
