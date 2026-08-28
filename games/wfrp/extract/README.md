@@ -80,8 +80,8 @@ Condition rules text is not compendium content — the wfrp4e system renders it
 from the module's language file — so the exporter bundles `lang/en.json` into
 the export and the ingester reads `WFRP4E.Conditions.*` from there.
 
-The PDF path (`rulebook/ingest.py`) remains for books that have no Foundry
-module.
+Foundry is the only supported source; the old PDF extraction path has been
+removed.
 
 ## What is not in Foundry
 

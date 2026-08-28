@@ -287,6 +287,9 @@ def init_db() -> None:
         # in games/wfrp/module_schema.py — see that module for the split between
         # re-extractable content and campaign state.
         _module_schema.init_module_schema(conn)
+        # The session/event chronicle lives in games/wfrp/events.py.
+        from . import events as _events
+        _events.init_events_schema(conn)
         for col, default in [("price", "''"), ("availability", "'Common'"), ("penalty", "'-'")]:
             try:
                 conn.execute(f"ALTER TABLE armour_catalog ADD COLUMN {col} TEXT DEFAULT {default};")
