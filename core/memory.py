@@ -24,41 +24,44 @@ _MAX_FACTS = 150
 
 # ── Long-term explicit memory (only changes on direct user instruction) ────────
 
-def load_longterm() -> list[str]:
-    return db.get_memory_facts(longterm=True)
+def load_longterm(personality: str | None = None) -> list[str]:
+    return db.get_memory_facts(longterm=True, personality=personality)
 
-def remember(fact: str) -> str:
+def remember(fact: str, personality: str | None = None) -> str:
     """Add a fact to long-term memory. Returns confirmation string."""
-    facts = load_longterm()
+    p = personality or config.get_personality_key()
+    facts = load_longterm(personality=p)
     if fact.lower() in {f.lower() for f in facts}:
         return "Already committed to long-term memory."
-    db.add_memory_fact(fact, longterm=True)
-    print(f"[memory] Longterm stored: {fact!r}")
+    db.add_memory_fact(fact, longterm=True, personality=p)
+    print(f"[memory] Longterm stored ({p}): {fact!r}")
     return f"Committed to long-term memory: {fact}"
 
-def forget(query: str) -> str:
+def forget(query: str, personality: str | None = None) -> str:
     """Remove the fact most closely matching query. Returns confirmation string."""
-    facts = load_longterm()
+    p = personality or config.get_personality_key()
+    facts = load_longterm(personality=p)
     q = query.lower()
     matches = [f for f in facts if q in f.lower()]
     if not matches:
         return f"No long-term memory found matching: {query}"
     for m in matches:
-        db.remove_memory_fact(m, longterm=True)
+        db.remove_memory_fact(m, longterm=True, personality=p)
     removed = "; ".join(matches)
-    print(f"[memory] Longterm removed: {removed!r}")
+    print(f"[memory] Longterm removed ({p}): {removed!r}")
     return f"Erased from long-term memory: {removed}"
 
-def update(query: str, new_fact: str) -> str:
+def update(query: str, new_fact: str, personality: str | None = None) -> str:
     """Replace the fact matching query with new_fact. Returns confirmation string."""
-    facts = load_longterm()
+    p = personality or config.get_personality_key()
+    facts = load_longterm(personality=p)
     q = query.lower()
     matches = [f for f in facts if q in f.lower()]
     if not matches:
         return f"No long-term memory found matching: {query}. Use remember_fact to add it as new."
     for m in matches:
-        db.update_memory_fact(m, new_fact, longterm=True)
-    print(f"[memory] Longterm updated: {matches} → {new_fact!r}")
+        db.update_memory_fact(m, new_fact, longterm=True, personality=p)
+    print(f"[memory] Longterm updated ({p}): {matches} → {new_fact!r}")
     return f"Updated long-term memory: {'; '.join(matches)} → {new_fact}"
 
 def longterm_prompt(facts: list[str]) -> str:
@@ -69,8 +72,8 @@ def longterm_prompt(facts: list[str]) -> str:
 
 # ── Short-term implicit memory (extracted automatically) ─────────────────────────
 
-def load() -> list[str]:
-    return db.get_memory_facts(longterm=False)
+def load(personality: str | None = None) -> list[str]:
+    return db.get_memory_facts(longterm=False, personality=personality)
 
 def facts_prompt(facts: list[str]) -> str:
     """Format the facts list for injection into the system prompt."""
@@ -79,10 +82,11 @@ def facts_prompt(facts: list[str]) -> str:
     lines = "\n".join(f"- {f}" for f in facts)
     return f"\n\nKNOWN FACTS ABOUT THE USER AND THEIR WORLD:\n{lines}\nRefer to these naturally when relevant."
 
-def extract_and_store(user_text: str, assistant_text: str) -> None:
+def extract_and_store(user_text: str, assistant_text: str, personality: str | None = None) -> None:
     """Extract memorable facts from one exchange and merge into memory. Runs in background."""
+    p = personality or config.get_personality_key()
     try:
-        existing = load()
+        existing = load(personality=p)
         existing_block = "\n".join(f"- {f}" for f in existing) or "(none yet)"
         raw = _llm.simple(
             _EXTRACT_SYSTEM,
@@ -119,28 +123,29 @@ def extract_and_store(user_text: str, assistant_text: str) -> None:
                 rl = r.lower()
                 matches = [f for f in existing if f.lower() == rl]
                 for m in matches:
-                    db.remove_memory_fact(m, longterm=False)
+                    db.remove_memory_fact(m, longterm=False, personality=p)
                     changed = True
                     existing.remove(m)
                     
             if fact.lower() not in {f.lower() for f in existing}:
-                db.add_memory_fact(fact, longterm=False)
+                db.add_memory_fact(fact, longterm=False, personality=p)
                 existing.append(fact)
                 changed = True
 
         if changed:
-            db.enforce_memory_limit(_MAX_FACTS)
-            print(f"[memory] Memory updated → {len(existing)} fact(s)")
+            db.enforce_memory_limit(_MAX_FACTS, personality=p)
+            print(f"[memory] Memory updated ({p}) → {len(existing)} fact(s)")
             
     except Exception as e:
-        print(f"[memory] Extraction error: {e}")
+        print(f"[memory] Extraction error ({p}): {e}")
 
-def store_in_background(user_text: str, assistant_text: str) -> None:
-    threading.Thread(target=extract_and_store, args=(user_text, assistant_text), daemon=True).start()
+def store_in_background(user_text: str, assistant_text: str, personality: str | None = None) -> None:
+    p = personality or config.get_personality_key()
+    threading.Thread(target=extract_and_store, args=(user_text, assistant_text, p), daemon=True).start()
 
-def purge_memory_of_name(name: str) -> int:
+def purge_memory_of_name(name: str, personality: str | None = None) -> int:
     """Remove any facts from memory and longterm_memory containing the name (case-insensitive).
     Returns the total number of facts removed.
     """
-    return db.remove_facts_by_name(name)
+    return db.remove_facts_by_name(name, personality=personality)
 
