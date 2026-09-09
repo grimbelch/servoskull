@@ -933,10 +933,17 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
 
     def _handle_memory_get(self) -> None:
         try:
-            from core import memory
-            longterm = memory.load_longterm()
-            shortterm = memory.load()
-            self._send_json({"ok": True, "longterm": longterm, "shortterm": shortterm})
+            from core import memory, config
+            p = None
+            if "?" in self.path:
+                import urllib.parse
+                qs = urllib.parse.parse_qs(self.path.split("?", 1)[1])
+                if "personality" in qs:
+                    p = qs["personality"][0]
+            active_p = p or config.get_personality_key()
+            longterm = memory.load_longterm(personality=active_p)
+            shortterm = memory.load(personality=active_p)
+            self._send_json({"ok": True, "personality": active_p, "longterm": longterm, "shortterm": shortterm})
         except Exception as e:
             self._send_json({"ok": False, "error": str(e)}, 500)
 
@@ -945,16 +952,17 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             data = self._read_json() or {}
             fact = data.get("fact", "").strip()
             longterm = data.get("longterm", True)
+            p = data.get("personality")
             if not fact:
                 self._send_json({"ok": False, "error": "Fact is empty"}, 400)
                 return
             from core import db, memory
             if longterm:
-                msg = memory.remember(fact)
+                msg = memory.remember(fact, personality=p)
             else:
-                db.add_memory_fact(fact, longterm=False)
+                db.add_memory_fact(fact, longterm=False, personality=p)
                 msg = f"Added auto-extracted fact: {fact}"
-            self._send_json({"ok": True, "message": msg, "longterm": memory.load_longterm(), "shortterm": memory.load()})
+            self._send_json({"ok": True, "message": msg, "longterm": memory.load_longterm(personality=p), "shortterm": memory.load(personality=p)})
         except Exception as e:
             self._send_json({"ok": False, "error": str(e)}, 500)
 
@@ -964,12 +972,13 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             old_fact = data.get("old_fact", "").strip()
             new_fact = data.get("new_fact", "").strip()
             longterm = data.get("longterm", True)
+            p = data.get("personality")
             if not old_fact or not new_fact:
                 self._send_json({"ok": False, "error": "Missing old_fact or new_fact"}, 400)
                 return
             from core import db, memory
-            db.update_memory_fact(old_fact, new_fact, longterm=bool(longterm))
-            self._send_json({"ok": True, "longterm": memory.load_longterm(), "shortterm": memory.load()})
+            db.update_memory_fact(old_fact, new_fact, longterm=bool(longterm), personality=p)
+            self._send_json({"ok": True, "longterm": memory.load_longterm(personality=p), "shortterm": memory.load(personality=p)})
         except Exception as e:
             self._send_json({"ok": False, "error": str(e)}, 500)
 
@@ -978,12 +987,13 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             data = self._read_json() or {}
             fact = data.get("fact", "").strip()
             longterm = data.get("longterm", True)
+            p = data.get("personality")
             if not fact:
                 self._send_json({"ok": False, "error": "Missing fact"}, 400)
                 return
             from core import db, memory
-            db.remove_memory_fact(fact, longterm=bool(longterm))
-            self._send_json({"ok": True, "longterm": memory.load_longterm(), "shortterm": memory.load()})
+            db.remove_memory_fact(fact, longterm=bool(longterm), personality=p)
+            self._send_json({"ok": True, "longterm": memory.load_longterm(personality=p), "shortterm": memory.load(personality=p)})
         except Exception as e:
             self._send_json({"ok": False, "error": str(e)}, 500)
 

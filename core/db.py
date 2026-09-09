@@ -1,6 +1,7 @@
 import sqlite3
 import json
 import threading
+from typing import Optional
 from core import config
 
 _DB_PATH = config.USER_DATA_DIR / "state.db"
@@ -18,12 +19,19 @@ def _get_conn():
         _local.conn.execute("PRAGMA journal_mode=WAL")
     return _local.conn
 
+def _current_personality(personality: Optional[str] = None) -> str:
+    if personality:
+        return str(personality).strip().lower()
+    return config.get_personality_key()
+
+
 def init_db():
     conn = _get_conn()
     with conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                personality TEXT NOT NULL DEFAULT 'omega7',
                 role TEXT NOT NULL,
                 content TEXT NOT NULL
             )
@@ -31,8 +39,10 @@ def init_db():
         conn.execute("""
             CREATE TABLE IF NOT EXISTS memory_facts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                fact TEXT UNIQUE NOT NULL,
-                is_longterm BOOLEAN NOT NULL DEFAULT 0
+                personality TEXT NOT NULL DEFAULT 'omega7',
+                fact TEXT NOT NULL,
+                is_longterm BOOLEAN NOT NULL DEFAULT 0,
+                UNIQUE(personality, fact, is_longterm)
             )
         """)
         conn.execute("""
@@ -49,7 +59,67 @@ def init_db():
                 value TEXT NOT NULL
             )
         """)
+    _check_schema_upgrades(conn)
     _run_migrations()
+
+
+def _check_schema_upgrades(conn):
+    """Upgrade existing SQLite tables to support per-personality scoping."""
+    # 1. Check memory_facts
+    cursor = conn.execute("PRAGMA table_info(memory_facts)")
+    mem_cols = [row['name'] for row in cursor.fetchall()]
+    if mem_cols and "personality" not in mem_cols:
+        print("[db] Migrating memory_facts table to support per-personality scoping...")
+        with conn:
+            conn.execute("""
+                CREATE TABLE memory_facts_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    personality TEXT NOT NULL DEFAULT 'omega7',
+                    fact TEXT NOT NULL,
+                    is_longterm BOOLEAN NOT NULL DEFAULT 0,
+                    UNIQUE(personality, fact, is_longterm)
+                )
+            """)
+            old_rows = conn.execute("SELECT id, fact, is_longterm FROM memory_facts").fetchall()
+            for r in old_rows:
+                fact_str = r['fact']
+                is_lt = r['is_longterm']
+                p = "jax" if "jax" in fact_str.lower() else "omega7"
+                conn.execute(
+                    "INSERT OR IGNORE INTO memory_facts_new (id, personality, fact, is_longterm) VALUES (?, ?, ?, ?)",
+                    (r['id'], p, fact_str, is_lt)
+                )
+            conn.execute("DROP TABLE memory_facts")
+            conn.execute("ALTER TABLE memory_facts_new RENAME TO memory_facts")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_mem_personality ON memory_facts(personality, is_longterm)")
+        print("[db] memory_facts migration complete.")
+
+    # 2. Check history
+    cursor = conn.execute("PRAGMA table_info(history)")
+    hist_cols = [row['name'] for row in cursor.fetchall()]
+    if hist_cols and "personality" not in hist_cols:
+        print("[db] Migrating history table to support per-personality scoping...")
+        current_p = config.get_personality_key()
+        with conn:
+            conn.execute("""
+                CREATE TABLE history_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    personality TEXT NOT NULL DEFAULT 'omega7',
+                    role TEXT NOT NULL,
+                    content TEXT NOT NULL
+                )
+            """)
+            old_rows = conn.execute("SELECT id, role, content FROM history").fetchall()
+            for r in old_rows:
+                conn.execute(
+                    "INSERT INTO history_new (id, personality, role, content) VALUES (?, ?, ?, ?)",
+                    (r['id'], current_p, r['role'], r['content'])
+                )
+            conn.execute("DROP TABLE history")
+            conn.execute("ALTER TABLE history_new RENAME TO history")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hist_personality ON history(personality)")
+        print("[db] history migration complete.")
+
 
 def _run_migrations():
     """Migrate data from legacy JSON files into SQLite on first boot."""
@@ -62,6 +132,7 @@ def _run_migrations():
         return
 
     print("[db] Running initial JSON to SQLite migrations...")
+    p = config.get_personality_key()
 
     # Migrate history
     history_path = config.USER_DATA_DIR / config.HISTORY_FILE
@@ -71,8 +142,8 @@ def _run_migrations():
                 history = json.load(f)
             with conn:
                 for item in history:
-                    conn.execute("INSERT INTO history (role, content) VALUES (?, ?)", 
-                                 (item["role"], json.dumps(item["content"]) if isinstance(item["content"], (list, dict)) else item["content"]))
+                    conn.execute("INSERT INTO history (personality, role, content) VALUES (?, ?, ?)", 
+                                 (p, item["role"], json.dumps(item["content"]) if isinstance(item["content"], (list, dict)) else item["content"]))
             print(f"[db] Migrated {len(history)} history turns.")
             history_path.rename(history_path.with_suffix(".json.bak"))
         except Exception as e:
@@ -86,7 +157,7 @@ def _run_migrations():
                 facts = json.load(f)
             with conn:
                 for f in facts:
-                    conn.execute("INSERT OR IGNORE INTO memory_facts (fact, is_longterm) VALUES (?, 0)", (str(f),))
+                    conn.execute("INSERT OR IGNORE INTO memory_facts (personality, fact, is_longterm) VALUES (?, ?, 0)", (p, str(f),))
             print(f"[db] Migrated {len(facts)} memory facts.")
             mem_path.rename(mem_path.with_suffix(".json.bak"))
         except Exception as e:
@@ -100,7 +171,7 @@ def _run_migrations():
                 lt_facts = json.load(f)
             with conn:
                 for f in lt_facts:
-                    conn.execute("INSERT OR IGNORE INTO memory_facts (fact, is_longterm) VALUES (?, 1)", (str(f),))
+                    conn.execute("INSERT OR IGNORE INTO memory_facts (personality, fact, is_longterm) VALUES (?, ?, 1)", (p, str(f),))
             print(f"[db] Migrated {len(lt_facts)} long-term memory facts.")
             lt_mem_path.rename(lt_mem_path.with_suffix(".json.bak"))
         except Exception as e:
@@ -121,28 +192,33 @@ def _run_migrations():
         except Exception as e:
             print(f"[db] Error migrating reminders: {e}")
 
-    # Mark as migrated
+    # Mark migration done
     with conn:
         conn.execute("INSERT OR REPLACE INTO kv_store (key, value) VALUES ('migrated_json', 'true')")
-    print("[db] Migrations complete.")
+    print("[db] Migrations finished.")
+
 
 # ── History API ─────────────────────────────────────────────────────────────
 
-def append_history(role: str, content):
+def append_history(role: str, content, personality: Optional[str] = None):
     conn = _get_conn()
+    p = _current_personality(personality)
     if isinstance(content, (list, dict)):
         content = json.dumps(content)
     with conn:
-        conn.execute("INSERT INTO history (role, content) VALUES (?, ?)", (role, content))
+        conn.execute("INSERT INTO history (personality, role, content) VALUES (?, ?, ?)", (p, role, content))
         
-        # Enforce history limit
-        # Delete rows where id is not in the last HISTORY_LIMIT ids
+        # Enforce history limit per personality
         limit = config.HISTORY_LIMIT
-        conn.execute(f"DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY id DESC LIMIT {limit})")
+        conn.execute(
+            f"DELETE FROM history WHERE personality = ? AND id NOT IN (SELECT id FROM history WHERE personality = ? ORDER BY id DESC LIMIT {limit})",
+            (p, p)
+        )
 
-def get_history() -> list[dict]:
+def get_history(personality: Optional[str] = None) -> list[dict]:
     conn = _get_conn()
-    cursor = conn.execute("SELECT role, content FROM history ORDER BY id ASC")
+    p = _current_personality(personality)
+    cursor = conn.execute("SELECT role, content FROM history WHERE personality = ? ORDER BY id ASC", (p,))
     res = []
     for row in cursor.fetchall():
         content_str = row['content']
@@ -156,43 +232,68 @@ def get_history() -> list[dict]:
         res.append({"role": row['role'], "content": content})
     return res
 
-def clear_history():
+def clear_history(personality: Optional[str] = None):
     conn = _get_conn()
+    p = _current_personality(personality)
     with conn:
-        conn.execute("DELETE FROM history")
+        conn.execute("DELETE FROM history WHERE personality = ?", (p,))
 
 # ── Memory API ──────────────────────────────────────────────────────────────
 
-def get_memory_facts(longterm: bool) -> list[str]:
+def get_memory_facts(longterm: bool, personality: Optional[str] = None) -> list[str]:
     conn = _get_conn()
-    cursor = conn.execute("SELECT fact FROM memory_facts WHERE is_longterm = ? ORDER BY id ASC", (1 if longterm else 0,))
+    p = _current_personality(personality)
+    cursor = conn.execute(
+        "SELECT fact FROM memory_facts WHERE is_longterm = ? AND personality = ? ORDER BY id ASC",
+        (1 if longterm else 0, p)
+    )
     return [row['fact'] for row in cursor.fetchall()]
 
-def add_memory_fact(fact: str, longterm: bool = False):
+def add_memory_fact(fact: str, longterm: bool = False, personality: Optional[str] = None):
     conn = _get_conn()
+    p = _current_personality(personality)
     with conn:
-        conn.execute("INSERT OR IGNORE INTO memory_facts (fact, is_longterm) VALUES (?, ?)", (fact, 1 if longterm else 0))
+        conn.execute(
+            "INSERT OR IGNORE INTO memory_facts (personality, fact, is_longterm) VALUES (?, ?, ?)",
+            (p, fact, 1 if longterm else 0)
+        )
 
-def remove_memory_fact(fact: str, longterm: bool = False):
+def remove_memory_fact(fact: str, longterm: bool = False, personality: Optional[str] = None):
     conn = _get_conn()
+    p = _current_personality(personality)
     with conn:
-        conn.execute("DELETE FROM memory_facts WHERE fact = ? AND is_longterm = ?", (fact, 1 if longterm else 0))
+        conn.execute(
+            "DELETE FROM memory_facts WHERE fact = ? AND is_longterm = ? AND personality = ?",
+            (fact, 1 if longterm else 0, p)
+        )
         
-def enforce_memory_limit(limit: int):
+def enforce_memory_limit(limit: int, personality: Optional[str] = None):
     conn = _get_conn()
+    p = _current_personality(personality)
     with conn:
-        conn.execute(f"DELETE FROM memory_facts WHERE is_longterm = 0 AND id NOT IN (SELECT id FROM memory_facts WHERE is_longterm = 0 ORDER BY id DESC LIMIT {limit})")
+        conn.execute(
+            f"DELETE FROM memory_facts WHERE is_longterm = 0 AND personality = ? AND id NOT IN (SELECT id FROM memory_facts WHERE is_longterm = 0 AND personality = ? ORDER BY id DESC LIMIT {limit})",
+            (p, p)
+        )
 
-def update_memory_fact(old_fact: str, new_fact: str, longterm: bool = False):
+def update_memory_fact(old_fact: str, new_fact: str, longterm: bool = False, personality: Optional[str] = None):
     conn = _get_conn()
+    p = _current_personality(personality)
     with conn:
-        conn.execute("UPDATE memory_facts SET fact = ? WHERE fact = ? AND is_longterm = ?", (new_fact, old_fact, 1 if longterm else 0))
+        conn.execute(
+            "UPDATE memory_facts SET fact = ? WHERE fact = ? AND is_longterm = ? AND personality = ?",
+            (new_fact, old_fact, 1 if longterm else 0, p)
+        )
 
-def remove_facts_by_name(name: str) -> int:
+def remove_facts_by_name(name: str, personality: Optional[str] = None) -> int:
     conn = _get_conn()
     name_like = f"%{name}%"
     with conn:
-        cursor = conn.execute("DELETE FROM memory_facts WHERE fact LIKE ?", (name_like,))
+        if personality:
+            p = _current_personality(personality)
+            cursor = conn.execute("DELETE FROM memory_facts WHERE fact LIKE ? AND personality = ?", (name_like, p))
+        else:
+            cursor = conn.execute("DELETE FROM memory_facts WHERE fact LIKE ?", (name_like,))
         return cursor.rowcount
 
 # ── Reminders API ───────────────────────────────────────────────────────────
