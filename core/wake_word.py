@@ -50,11 +50,17 @@ def _to_target(audio: np.ndarray, native: int) -> np.ndarray:
     return resampled.astype(np.int16)
 
 
+_ww_consecutive_failures = 0
+_DEVICE_UNAVAILABLE_ERR = -9985  # PaErrorCode: paDeviceUnavailable
+
+
 def wait_for_wake_word(on_detected=None, cancel=None) -> bool:
     """Block until the wake word is detected or cancel is set.
 
     Returns True if wake word was detected, False if cancelled.
     """
+    global _ww_consecutive_failures
+
     oww = _get_model()
     oww.reset()  # clear prediction buffer from any previous session before reuse
     native = _native_rate(MIC_DEVICE_INDEX)
@@ -70,6 +76,7 @@ def wait_for_wake_word(on_detected=None, cancel=None) -> bool:
     try:
         with sd.InputStream(samplerate=native, channels=1, dtype="int16",
                             blocksize=native_chunk, device=dev, callback=_cb):
+            _ww_consecutive_failures = 0  # device opened successfully — reset counter
             while True:
                 if cancel and cancel.is_set():
                     return False
@@ -94,8 +101,13 @@ def wait_for_wake_word(on_detected=None, cancel=None) -> bool:
                     return True
 
     except Exception as e:
-        print(f"[wake_word] Audio InputStream error: {e}")
         import time
-        time.sleep(1.0)
+        _ww_consecutive_failures += 1
+        # Back off exponentially (capped at 30s) when the device is unavailable,
+        # e.g. during the PipeWire startup race on boot. This prevents the tight
+        # failure loop that causes a sound to play every ~3 seconds.
+        backoff = min(5.0 * _ww_consecutive_failures, 30.0)
+        print(f"[wake_word] Audio InputStream error: {e} (retry in {backoff:.0f}s, attempt {_ww_consecutive_failures})")
+        time.sleep(backoff)
         return False
 
