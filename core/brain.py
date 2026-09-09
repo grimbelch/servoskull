@@ -1094,11 +1094,21 @@ def _tool_get_weather(i):
     import urllib.request
     import json
     
-    loc_str = str(i.get("location", "") or "").strip()
-    if not loc_str:
+    loc_arg = str(i.get("location", "") or "").strip()
+    is_local_query = not loc_arg or loc_arg.lower() in ("here", "local", "current", "my location", "current location")
+
+    if is_local_query:
+        ip_loc = _search.get_ip_location()
+        if ip_loc:
+            lat, lon, display_name = ip_loc
+            print(f"[skull] Defaulting weather to local IP location: {display_name} ({lat}, {lon})...")
+            return f"Weather for {display_name}:\n" + _search.get_weather(lat, lon)
         loc_str = str(getattr(config, "OWNER_LOCATION", "") or "").strip()
+    else:
+        loc_str = loc_arg
+
     if not loc_str:
-        return "Please specify a location argument or configure your location in owner.json."
+        return "Could not determine local IP location and no location argument was provided."
     
     # Try queries: full string, before comma, and if multiple words without comma, try all words except last or first word
     queries = [loc_str]
@@ -2280,8 +2290,7 @@ def generate_daily_briefing() -> str:
     """Compile weather and news, then generate an immersive briefing."""
     print("[brain] Generating proactive daily briefing...")
     try:
-        loc = getattr(config, "OWNER_LOCATION", "") or ""
-        weather_info = _tool_get_weather({"location": loc})
+        weather_info = _tool_get_weather({})
     except Exception as e:
         weather_info = f"Failed to retrieve atmospheric readouts: {e}"
 

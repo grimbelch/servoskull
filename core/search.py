@@ -147,6 +147,59 @@ def get_weather(lat: float, lon: float) -> str:
         return f"Weather data unavailable: {e}"
 
 
+_IP_LOCATION_CACHE = {"lat": 0.0, "lon": 0.0, "location": "", "timestamp": 0.0}
+
+
+def get_ip_location() -> tuple[float, float, str] | None:
+    """Resolve current geographical location and coordinates via local public IP.
+    
+    Caches results for 30 minutes to minimize external calls.
+    Returns (lat, lon, display_name) or None if unavailable.
+    """
+    import time
+    now = time.time()
+    if _IP_LOCATION_CACHE["timestamp"] and (now - _IP_LOCATION_CACHE["timestamp"] < 1800) and _IP_LOCATION_CACHE["location"]:
+        return _IP_LOCATION_CACHE["lat"], _IP_LOCATION_CACHE["lon"], _IP_LOCATION_CACHE["location"]
+
+    # Try ip-api.com
+    try:
+        req = urllib.request.Request("http://ip-api.com/json/", headers={"User-Agent": "Omega7/1.0"})
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            data = json.loads(resp.read().decode())
+            if data.get("status") == "success" or "lat" in data:
+                lat = float(data["lat"])
+                lon = float(data["lon"])
+                city = data.get("city", "")
+                region = data.get("regionName") or data.get("region", "")
+                country = data.get("country", "")
+                parts = [p for p in (city, region, country) if p]
+                display = ", ".join(parts) if parts else "Local Area"
+                _IP_LOCATION_CACHE.update({"lat": lat, "lon": lon, "location": display, "timestamp": now})
+                return lat, lon, display
+    except Exception as e:
+        print(f"[search] ip-api geolocation failed: {e}")
+
+    # Fallback to ipapi.co
+    try:
+        req = urllib.request.Request("https://ipapi.co/json/", headers={"User-Agent": "Omega7/1.0"})
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            data = json.loads(resp.read().decode())
+            if "latitude" in data and "longitude" in data:
+                lat = float(data["latitude"])
+                lon = float(data["longitude"])
+                city = data.get("city", "")
+                region = data.get("region", "")
+                country = data.get("country_name", "")
+                parts = [p for p in (city, region, country) if p]
+                display = ", ".join(parts) if parts else "Local Area"
+                _IP_LOCATION_CACHE.update({"lat": lat, "lon": lon, "location": display, "timestamp": now})
+                return lat, lon, display
+    except Exception as e:
+        print(f"[search] ipapi.co geolocation failed: {e}")
+
+    return None
+
+
 def web_search(query: str, max_results: int = 5) -> str:
     """Search the web and return results as a formatted string for Claude."""
     try:

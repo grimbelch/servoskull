@@ -67,14 +67,14 @@ def build_tools() -> list[dict]:
         "description": (
             "Get current weather conditions (temperature, humidity, wind, sky) and 2-day forecast for a given city/location. "
             "Call when the user asks about the weather. If no location is specified or the user asks generally (e.g. 'what's the weather like?'), "
-            "it automatically defaults to the owner's home location."
+            "it automatically defaults to the device's local IP address location."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "location": {
                     "type": "string",
-                    "description": "Optional city name and optional state/country e.g. 'Seattle, WA' or 'London'. If omitted, defaults to the owner's location.",
+                    "description": "Optional city name and optional state/country e.g. 'Seattle, WA' or 'London'. If omitted, defaults to the local IP address location.",
                 },
             },
         },
