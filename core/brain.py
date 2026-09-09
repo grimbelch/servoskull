@@ -1096,32 +1096,67 @@ def _tool_get_weather(i):
     
     loc_str = str(i.get("location", "") or "").strip()
     if not loc_str:
-        return "Please specify a location argument."
+        loc_str = str(getattr(config, "OWNER_LOCATION", "") or "").strip()
+    if not loc_str:
+        return "Please specify a location argument or configure your location in owner.json."
     
-    city_query = loc_str.split(",")[0].strip()
+    # Try queries: full string, before comma, and if multiple words without comma, try all words except last or first word
+    queries = [loc_str]
+    if "," in loc_str:
+        queries.append(loc_str.split(",")[0].strip())
+    words = loc_str.split()
+    if len(words) > 1:
+        queries.append(" ".join(words[:-1]))
+        queries.append(words[0])
+
+    hint = ""
+    if "," in loc_str:
+        hint = loc_str.split(",")[1].strip().lower()
+    elif len(words) > 1:
+        hint = words[-1].strip().lower()
+
     print(f"[skull] Geocoding location: {loc_str}...")
+    res = None
     try:
-        url = f"https://geocoding-api.open-meteo.com/v1/search?name={urllib.parse.quote(city_query)}&count=1"
-        req = urllib.request.Request(url, headers={"User-Agent": "Omega7/1.0"})
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode())
-            results = data.get("results", [])
-            if not results:
-                return f"Could not geocode location '{loc_str}'. Please check the city name."
-            res = results[0]
-            lat = float(res["latitude"])
-            lon = float(res["longitude"])
-            name = res.get("name", city_query)
-            region = res.get("admin1", "")
-            country = res.get("country", "")
-            display_name = f"{name}"
-            if region:
-                display_name += f", {region}"
-            elif country:
-                display_name += f", {country}"
-                
-            print(f"[skull] Fetching weather for {display_name}...")
-            return f"Weather for {display_name}:\\n" + _search.get_weather(lat, lon)
+        for q in queries:
+            url = f"https://geocoding-api.open-meteo.com/v1/search?name={urllib.parse.quote(q)}&count=10"
+            req = urllib.request.Request(url, headers={"User-Agent": "Omega7/1.0"})
+            try:
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    data = json.loads(resp.read().decode())
+                    results = data.get("results", [])
+                    if not results:
+                        continue
+                    if hint:
+                        for r in results:
+                            admin = (r.get("admin1") or "").lower()
+                            country = (r.get("country") or "").lower()
+                            code = (r.get("country_code") or "").lower()
+                            if hint == admin or hint in admin or hint == country or hint == code:
+                                res = r
+                                break
+                    if not res:
+                        res = results[0]
+                    break
+            except Exception:
+                continue
+
+        if not res:
+            return f"Could not geocode location '{loc_str}'. Please check the city name."
+
+        lat = float(res["latitude"])
+        lon = float(res["longitude"])
+        name = res.get("name", loc_str)
+        region = res.get("admin1", "")
+        country = res.get("country", "")
+        display_name = f"{name}"
+        if region:
+            display_name += f", {region}"
+        elif country:
+            display_name += f", {country}"
+            
+        print(f"[skull] Fetching weather for {display_name}...")
+        return f"Weather for {display_name}:\n" + _search.get_weather(lat, lon)
     except Exception as e:
         return f"Error resolving location: {e}"
 
@@ -2245,11 +2280,8 @@ def generate_daily_briefing() -> str:
     """Compile weather and news, then generate an immersive briefing."""
     print("[brain] Generating proactive daily briefing...")
     try:
-        from core.config import WEATHER_LAT, WEATHER_LON
-        if WEATHER_LAT != 0.0 or WEATHER_LON != 0.0:
-            weather_info = _search.get_weather(WEATHER_LAT, WEATHER_LON)
-        else:
-            weather_info = "Weather location coordinates not configured."
+        loc = getattr(config, "OWNER_LOCATION", "") or ""
+        weather_info = _tool_get_weather({"location": loc})
     except Exception as e:
         weather_info = f"Failed to retrieve atmospheric readouts: {e}"
 

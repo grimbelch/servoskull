@@ -66,18 +66,17 @@ def build_tools() -> list[dict]:
         "name": "get_weather",
         "description": (
             "Get current weather conditions (temperature, humidity, wind, sky) and 2-day forecast for a given city/location. "
-            "Call when the user asks about the weather. If the user asks for the weather generally (e.g. 'what's the weather like?'), "
-            "retrieve their home city from your long-term memory and use it as the location."
+            "Call when the user asks about the weather. If no location is specified or the user asks generally (e.g. 'what's the weather like?'), "
+            "it automatically defaults to the owner's home location."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "location": {
                     "type": "string",
-                    "description": "City name and optional state/country e.g. 'Seattle, WA' or 'London'",
+                    "description": "Optional city name and optional state/country e.g. 'Seattle, WA' or 'London'. If omitted, defaults to the owner's location.",
                 },
             },
-            "required": ["location"],
         },
     },
     {
