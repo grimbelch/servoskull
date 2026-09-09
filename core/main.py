@@ -53,7 +53,7 @@ def shutdown(sig=None, frame=None):
     eyes.cleanup()
     candles.cleanup()
     audio.cleanup()
-    sys.exit(0)
+    os._exit(0)
 
 
 if threading.current_thread() == threading.main_thread():
