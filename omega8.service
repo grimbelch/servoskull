@@ -11,10 +11,12 @@ EnvironmentFile=-__HOME__/Servoskull/.env
 Environment="HOME=__HOME__"
 Environment="XDG_RUNTIME_DIR=/run/user/__UID__"
 Environment="PULSE_SERVER=unix:/run/user/__UID__/pulse/native"
-ExecStart=__HOME__/Servoskull/.venv/bin/python -m core.main
+ExecStart=__HOME__/Servoskull/.venv/bin/python -u -m core.main
+KillMode=control-group
+KillSignal=SIGTERM
+TimeoutStopSec=30s
 Restart=on-failure
-RestartSec=5
-TimeoutStopSec=5s
+RestartSec=3s
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=omega8

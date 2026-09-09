@@ -1139,8 +1139,18 @@ def main():
                 continue
 
             if _rec_exc[0] is not None:
-                print(f"[skull] Audio record error: {_rec_exc[0]}")
-                sfx.play("negative", config.VOICE_OUTPUT_DEVICE)
+                err_str = str(_rec_exc[0])
+                # PaErrorCode -9985 = paDeviceUnavailable — audio device not ready yet
+                # (e.g. PipeWire startup race on boot). Back off silently rather than
+                # playing the "negative" sound and immediately retrying, which creates
+                # an audible loop every ~3 seconds until the device settles.
+                if "-9985" in err_str or "unavailable" in err_str.lower():
+                    print(f"[skull] Audio device unavailable, backing off 5s...")
+                    import time as _time
+                    _time.sleep(5.0)
+                else:
+                    print(f"[skull] Audio record error: {_rec_exc[0]}")
+                    sfx.play("negative", config.VOICE_OUTPUT_DEVICE)
                 eyes.off()
                 continue
 
