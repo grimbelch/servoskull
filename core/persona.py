@@ -37,7 +37,7 @@ def load_owner(data_dir) -> dict:
 
 
 def owner_location(owner: dict) -> str:
-    return _clean(owner.get("location"))
+    return _clean(owner.get("location") or owner.get("city"))
 
 
 def _clean(value) -> str:
@@ -77,14 +77,13 @@ def build_owner_section(owner: dict, skull_name: str = "Omega-7") -> str:
     parts = [_sentence(lead)]
 
     birth = _clean(owner.get("birth_year"))
-    location = _clean(owner.get("location"))
-    bio = []
-    if birth:
-        bio.append(f"born in {birth}")
-    if location:
-        bio.append(f"lives in {location}")
-    if bio:
-        parts.append(_sentence("They were " + " and ".join(bio)))
+    location = _clean(owner.get("location") or owner.get("city"))
+    if birth and location:
+        parts.append(_sentence(f"They were born in {birth} and live in {location}"))
+    elif birth:
+        parts.append(_sentence(f"They were born in {birth}"))
+    elif location:
+        parts.append(_sentence(f"They live in {location}"))
 
     for field in ("interests", "family", "occupation", "rapport"):
         parts.append(_sentence(owner.get(field)))
