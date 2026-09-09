@@ -8,25 +8,25 @@ from core import config
 # ── ElevenLabs (cloud, quota-limited) ─────────────────────────────────────────
 
 def _preprocess_text(text: str) -> str:
-    """Preprocess text for TTS: strip Markdown formatting (asterisks, headers, backticks, category prefixes) so symbols and labels aren't spoken aloud."""
+    """Preprocess text for TTS: strip stage directions/actions, Markdown formatting, and brackets so descriptions and symbols aren't spoken aloud."""
     if not text:
         return ""
     # Strip leading markdown category prefixes like "**WEATHER:**" or "**SUMMARY:**"
     text = re.sub(r"^\s*\*{0,2}[A-Z\s]{2,15}:\*{0,2}\s*", "", text)
-    # Strip markdown bold/italic asterisks (* and **)
-    text = re.sub(r"\*+", "", text)
+    # Strip stage directions / action descriptions enclosed in asterisks (*wags tail*, *yawns*, etc.)
+    text = re.sub(r"\*[^*]+\*", "", text)
+    # Strip stage directions / action descriptions enclosed in underscores (_soft bark_, etc.)
+    text = re.sub(r"_[^_]+_", "", text)
+    # Strip bracketed tokens and tags like [SPOTIFY: ...], [laughs], etc.
+    text = re.sub(r"\[[^\]]*\]", "", text)
     # Strip markdown headers (#)
     text = re.sub(r"#+\s*", "", text)
-    # Strip markdown underscores (_)
-    text = re.sub(r"_+", "", text)
-    # Strip markdown strikethrough (~)
-    text = re.sub(r"~+", "", text)
-    # Strip backticks (`)
-    text = re.sub(r"`+", "", text)
-    # Strip markdown link formatting [text](url) -> text
-    text = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", text)
-    # Normalize multiple spaces
-    text = re.sub(r" +", " ", text).strip()
+    # Strip markdown strikethrough (~) and backticks (`)
+    text = re.sub(r"[~`]+", "", text)
+    # Strip any remaining stray asterisks and underscores
+    text = re.sub(r"[*_]+", "", text)
+    # Normalize multiple spaces and whitespace
+    text = re.sub(r"\s+", " ", text).strip()
     return text
 
 def _elevenlabs_client():

@@ -2184,7 +2184,8 @@ def idle_utterance() -> str:
                 execute_tool=execute_tool,
                 max_tokens=400,
             )
-            return (text or "").strip()
+            res = (text or "").strip()
+            return _strip_actions(res)
         except Exception as e:
             print(f"[brain] Idle news utterance error: {e}")
             # Fall back to idle chat if news fails
@@ -2192,7 +2193,7 @@ def idle_utterance() -> str:
             
     if not do_news:
         print(f"[brain] Idle chat  mood bias: {_mood.get()}")
-        system_prompt = config.PERSONALITY.get("idle_chat_prompt", f"You are {config.SKULL_NAME}. Generate a quick observation. Keep it brief. Speak in character. Output ONLY spoken words.")
+        system_prompt = config.PERSONALITY.get("idle_chat_prompt", f"You are {config.SKULL_NAME}. Generate a quick observation. Keep it brief. Speak in character. Output ONLY spoken words. No asterisks, actions, emotes, or stage directions.")
         
         system = system_prompt + _mood.system_addendum()
         user_text = (
@@ -2209,7 +2210,8 @@ def idle_utterance() -> str:
                 execute_tool=lambda n, i: "",
                 max_tokens=400,
             )
-            return (text or "").strip()
+            res = (text or "").strip()
+            return _strip_actions(res)
         except Exception as e:
             print(f"[brain] Idle chat utterance error: {e}")
             return config.PERSONALITY.get("idle_chat_fallback", "Sensors online.")
