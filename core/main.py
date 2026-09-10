@@ -789,6 +789,7 @@ def main():
 
     web.start()
     print(f"[skull] {config.SKULL_NAME} online.")
+    audio.optimize_mic_levels()
     try:
         import sounddevice as sd
         devices = sd.query_devices()

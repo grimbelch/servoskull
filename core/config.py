@@ -392,7 +392,7 @@ RECORD_SECONDS = 10
 # any speech occurred at all — capture quieter than this is discarded as silence.
 # LOWER = more sensitive to quiet speech (but more prone to picking up background
 # noise); raise it if it starts transcribing ambient hum. Recorder floor is ~300.
-SILENCE_THRESHOLD = int(_cfg("SILENCE_THRESHOLD", "350"))
+SILENCE_THRESHOLD = int(_cfg("SILENCE_THRESHOLD", "180"))
 SILENCE_DURATION = float(_cfg("SILENCE_DURATION", "3.0"))
 
 

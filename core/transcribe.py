@@ -14,7 +14,7 @@ def _get_client():
         if not OPENAI_API_KEY:
             raise RuntimeError("OPENAI_API_KEY is not set (required for Whisper speech-to-text).")
         from openai import OpenAI
-        _client = OpenAI(api_key=OPENAI_API_KEY)
+        _client = OpenAI(api_key=OPENAI_API_KEY, timeout=15.0)
     return _client
 
 # Whisper hallucinates these strings on silence or ambient noise

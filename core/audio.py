@@ -70,7 +70,26 @@ def set_system_volume(level: str) -> str:
         return f"Volume adjustment failed: {e}"
 
 
-def record(seconds: float, device_index: int = -1, silence_threshold: int = 300, silence_duration: float = 1.5) -> tuple:
+def optimize_mic_levels() -> None:
+    """Ensure USB microphone has Auto Gain Control (AGC) disabled and optimal gain.
+    
+    AGC dynamically raises the noise floor in silence and compresses human voice,
+    severely degrading wake-word and silence-detection accuracy.
+    """
+    try:
+        import shutil
+        if shutil.which("amixer"):
+            subprocess.run(["amixer", "-q", "sset", "Auto Gain Control", "off"], capture_output=True)
+            for card in range(4):
+                subprocess.run(["amixer", "-q", "-c", str(card), "sset", "Auto Gain Control", "off"], capture_output=True)
+                subprocess.run(["amixer", "-q", "-c", str(card), "sset", "Mic", "33"], capture_output=True)
+        if shutil.which("wpctl"):
+            subprocess.run(["wpctl", "set-volume", "@DEFAULT_AUDIO_SOURCE@", "1.0"], capture_output=True)
+    except Exception:
+        pass
+
+
+def record(seconds: float, device_index: int = -1, silence_threshold: int = 180, silence_duration: float = 1.5) -> tuple:
     """Record audio via a single InputStream, stopping early on sustained silence.
 
     Returns (pcm_bytes, sample_rate) at the device's native rate.
