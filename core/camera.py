@@ -523,8 +523,7 @@ def capture_and_identify() -> tuple[any, str | None, bool]:
 
         import cv2
         from core import face_rec
-        res = face_rec.detect_face(frame)
-        face_found = res is not None
+        face_found = face_rec.face_present(frame)
         detected_name = face_rec.recognize(frame)
 
         # Publish latest frame for web streaming
