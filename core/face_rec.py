@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 import pickle
 import pathlib
+import threading
 import numpy as np
 import cv2
 import requests
@@ -76,6 +77,34 @@ def load_model() -> bool:
         print(f"[face_rec] Failed to load model: {e}")
         _embeddings_db = {}
         return False
+
+_YUNET_MODEL_PATH = pathlib.Path(__file__).resolve().parent.parent / "face_detection_yunet_2023mar.onnx"
+_yunet = None
+_yunet_lock = threading.Lock()
+
+
+def face_present(img, score_threshold: float = 0.6) -> bool:
+    """True if any face is visible, including turned or partly occluded faces.
+
+    Uses the YuNet DNN detector, which handles three-quarter profiles that the
+    frontal Haar cascade misses; falls back to detect_face() if YuNet is unavailable.
+    Presence check only — recognition and training keep using detect_face().
+    """
+    global _yunet
+    if img is None:
+        return False
+    try:
+        with _yunet_lock:
+            if _yunet is None:
+                _yunet = cv2.FaceDetectorYN.create(str(_YUNET_MODEL_PATH), "", (320, 320), score_threshold)
+            h, w = img.shape[:2]
+            _yunet.setInputSize((w, h))
+            _, faces = _yunet.detect(img)
+        return faces is not None and len(faces) > 0
+    except Exception as e:
+        print(f"[face_rec] YuNet face detection unavailable ({e}); falling back to Haar cascade.")
+        return detect_face(img) is not None
+
 
 def detect_face(img) -> tuple[np.ndarray, tuple[int, int, int, int]] | None:
     """Detect a single face trying multiple rotations (0, 90 CW, 90 CCW, 180).
