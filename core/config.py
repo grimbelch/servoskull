@@ -279,7 +279,9 @@ CAMERA_MAX_PER_HOUR = int(os.getenv("CAMERA_MAX_PER_HOUR", "15"))
 # dark and is never sent to Claude. Guards against covered-lens / night frames.
 CAMERA_MIN_BRIGHTNESS = int(os.getenv("CAMERA_MIN_BRIGHTNESS", "20"))
 CAMERA_ROTATION = int(os.getenv("CAMERA_ROTATION", "270"))  # 0, 90, 180, 270 (degrees clockwise)
-CAMERA_FINE_ROTATION = float(os.getenv("CAMERA_FINE_ROTATION", "25.0"))  # fine angle offset (degrees clockwise)
+# Fine tilt correction applied after CAMERA_ROTATION, in degrees counter-clockwise
+# (OpenCV convention; use a negative value to rotate clockwise). 0 = no correction.
+CAMERA_FINE_ROTATION = float(os.getenv("CAMERA_FINE_ROTATION", "0"))
 
 # ── Proximity trigger — VL53L1X time-of-flight sensor (I2C, optional) ─────────────
 # When present, the camera fires vision on genuine physical approach instead of
@@ -293,6 +295,9 @@ CAMERA_FINE_ROTATION = float(os.getenv("CAMERA_FINE_ROTATION", "25.0"))  # fine 
 PROXIMITY_ENABLED = _cfg("PROXIMITY_ENABLED", "false").lower() == "true"
 # Fire a vision call when a target is detected within this many centimetres.
 PROXIMITY_THRESHOLD_CM = int(os.getenv("PROXIMITY_THRESHOLD_CM", "150"))
+# The morning greeting fires when someone is within this range and a face is visible.
+# Sized for a person seated at the desk, which is farther than the vision trigger.
+MORNING_GREETING_DISTANCE_CM = int(os.getenv("MORNING_GREETING_DISTANCE_CM", "300"))
 PROXIMITY_I2C_BUS = int(os.getenv("PROXIMITY_I2C_BUS", "1"))
 # VL53L1X default I2C address. int(..., 0) accepts "0x29" or plain decimal.
 PROXIMITY_I2C_ADDR = int(os.getenv("PROXIMITY_I2C_ADDR", "0x29"), 0)
