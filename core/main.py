@@ -612,19 +612,39 @@ def _spotify_poller_loop():
         time.sleep(4.0)
 
 
+def _briefing_offer_text() -> str:
+    if config.PERSONALITY.get("eye_animation") == "dog":
+        return (
+            "Good morning, buddy! I've been sniffing around and I've got the weather and the latest updates. "
+            "Are you ready for your morning briefing? Woof!"
+        )
+    return (
+        "Master. This unit has compiled your morning cogitations — "
+        "weather data, hive dispatches, and machine-spirit telemetry. "
+        "Are you ready to receive your daily briefing?"
+    )
+
+
 _last_morning_greeting_date: str | None = None
 _morning_greeting_lock = threading.Lock()
 _startup_complete: bool = False
+# Set by the proximity watcher after a morning greeting; the main loop picks it up
+# and asks whether the master wants the daily briefing.
+_morning_briefing_offer_pending = threading.Event()
 
 
 def _morning_greeting_watcher() -> None:
-    """Background loop checking rangefinder distance in the morning (after 4:00 AM).
+    """Background loop checking rangefinder distance outside sleep hours.
 
-    If target is detected <= 1.5 meters (150 cm) and morning greeting has not yet
-    fired today, captures a frame, identifies the person, and delivers a greeting.
+    If a target is within PROXIMITY_THRESHOLD_CM, a face is visible and the morning
+    greeting has not yet fired today, identifies the person, delivers a greeting and
+    hands off to the main loop to offer the daily briefing.
     """
     global _last_morning_greeting_date, _startup_complete
-    print("[morning] Proximity morning greeting watcher active (after 4:00 AM, <= 1.5m)")
+    threshold = float(config.PROXIMITY_THRESHOLD_CM)
+    print(f"[morning] Proximity morning greeting watcher active (outside sleep hours, <= {threshold:.0f} cm)")
+    closest_cm: float | None = None
+    last_report = time.time()
     while True:
         time.sleep(0.5)
         try:
@@ -646,7 +666,14 @@ def _morning_greeting_watcher() -> None:
             from core import proximity
 
             cm = proximity.get_latest_distance_cm()
-            if cm is None or cm <= 0 or cm > 150.0:  # 1.5 meters = 150 cm
+            if cm is not None and cm > 0 and (closest_cm is None or cm < closest_cm):
+                closest_cm = cm
+            if time.time() - last_report >= 1800:
+                closest = f"{closest_cm:.0f} cm" if closest_cm is not None else "no readings"
+                print(f"[morning] Still waiting for morning target — closest in last 30 min: {closest} (threshold {threshold:.0f} cm)")
+                closest_cm = None
+                last_report = time.time()
+            if cm is None or cm <= 0 or cm > threshold:
                 continue
 
             from core import camera, brain, tts, audio, web
@@ -655,6 +682,7 @@ def _morning_greeting_watcher() -> None:
             if not face_found:
                 # Rangefinder was triggered by a static object (desk/chair/monitor).
                 # Re-check in 5 minutes (300s) when no face is present.
+                print(f"[morning] Target at {cm:.0f} cm but no face in frame — rechecking in 5 min.")
                 time.sleep(300.0)
                 continue
 
@@ -666,7 +694,7 @@ def _morning_greeting_watcher() -> None:
             with _morning_greeting_lock:
                 _last_morning_greeting_date = today_str
 
-            print(f"[morning] Morning target identified as '{detected_name}' at {cm:.1f} cm (<= 150 cm) — delivering morning greeting...")
+            print(f"[morning] Morning target identified as '{detected_name}' at {cm:.1f} cm (<= {threshold:.0f} cm) — delivering morning greeting...")
             
             # Activate visual targeting indicator & duck music (bypasses silent mode for morning greeting)
             set_speech_active(True)
@@ -690,6 +718,11 @@ def _morning_greeting_watcher() -> None:
                 spotify_ctrl.restore()
                 display.idle()
                 eyes.off()
+
+            if brain.is_daily_briefing_due():
+                # Interrupt the wake-word wait so the main loop offers the briefing now.
+                _morning_briefing_offer_pending.set()
+                web.trigger_cancel()
 
         except Exception as e:
             print(f"[morning] Error in morning greeting watcher: {e}")
@@ -849,15 +882,21 @@ def main():
 
     is_answering_question = False
 
-    # Morning briefing state — persists for the session but resets on next run.
-    # _briefing_offered:          True once we've asked "ready for briefing?"
+    # Morning briefing state — reset each calendar day at the top of the loop.
+    # _briefing_offered:          True once we've asked "ready for briefing?" today
     # _briefing_awaiting_response: True while we're listening for the yes/no reply.
     _briefing_offered = False
     _briefing_awaiting_response = False
+    _briefing_day = time.strftime("%Y-%m-%d")
 
     while True:
         # Back at idle — undo any music ducking from the previous interaction.
         spotify_ctrl.restore()
+
+        if time.strftime("%Y-%m-%d") != _briefing_day:
+            _briefing_day = time.strftime("%Y-%m-%d")
+            _briefing_offered = False
+            _briefing_awaiting_response = False
 
         if not skip_wake_word:
             set_speech_active(False)
@@ -911,6 +950,28 @@ def main():
                 eyes.off()
                 spotify_ctrl.restore()
             reminders.add(_rem["message"], 10, repeating=True)
+
+        # ── 0a2. Offer the briefing after a proximity morning greeting ──────────
+        if _morning_briefing_offer_pending.is_set():
+            _morning_briefing_offer_pending.clear()
+            if brain.is_daily_briefing_due() and not _briefing_offered:
+                _briefing_offered = True
+                _briefing_awaiting_response = True
+                print("[skull] Morning greeting delivered. Offering morning briefing.")
+                try:
+                    set_speech_active(True)
+                    offer_text = _briefing_offer_text()
+                    brain.record_assistant_turn(offer_text)
+                    offer_wav = tts.synthesize(offer_text)
+                    eyes.on()
+                    _speak_interruptible(offer_wav, on_wake)
+                    skip_wake_word = True  # listen immediately for yes/no
+                    skip_ack = True  # suppress the normal wake ack for this response
+                except Exception as e:
+                    print(f"[skull] Briefing offer failed: {e}")
+                    _briefing_awaiting_response = False
+                    set_speech_active(False)
+                continue
 
         # ── 0b. Speak any pending camera observations ──────────────────────────
         observation = camera.get_observation()
@@ -1081,6 +1142,9 @@ def main():
 
                 elif not detected and temperature.has_pending():
                     continue  # temp warning queued — spoken at the top of the loop
+
+                elif not detected and _morning_briefing_offer_pending.is_set():
+                    continue  # briefing offer queued — spoken at the top of the loop
 
                 if not run_brain:
                     _barge_wav = None
@@ -1765,24 +1829,14 @@ def main():
         # ── 7. Morning briefing offer (once per day, after first interaction) ───────
         # Only fires when the first turn of the day completes cleanly at idle
         # (not mid-question, not mid-barge-in, and not during active auto-listen).
-        if brain.is_daily_briefing_due() and not _briefing_offered:
+        if brain.is_daily_briefing_due() and not _briefing_offered and not quiet.is_in_sleep_hours():
             if not skip_wake_word and not interrupted and not has_question:
                 _briefing_offered = True
                 _briefing_awaiting_response = True
                 print("[skull] First interaction of the day complete. Offering morning briefing.")
                 try:
                     set_speech_active(True)
-                    if config.PERSONALITY.get("eye_animation") == "dog":
-                        offer_text = (
-                            "Good morning, buddy! I've been sniffing around and I've got the weather and the latest updates. "
-                            "Are you ready for your morning briefing? Woof!"
-                        )
-                    else:
-                        offer_text = (
-                            "Master. This unit has compiled your morning cogitations — "
-                            "weather data, hive dispatches, and machine-spirit telemetry. "
-                            "Are you ready to receive your daily briefing?"
-                        )
+                    offer_text = _briefing_offer_text()
                     brain.record_assistant_turn(offer_text)
                     offer_wav = tts.synthesize(offer_text)
                     eyes.on()
