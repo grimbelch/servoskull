@@ -636,12 +636,12 @@ _morning_briefing_offer_pending = threading.Event()
 def _morning_greeting_watcher() -> None:
     """Background loop checking rangefinder distance outside sleep hours.
 
-    If a target is within PROXIMITY_THRESHOLD_CM, a face is visible and the morning
+    If a target is within MORNING_GREETING_DISTANCE_CM, a face is visible and the morning
     greeting has not yet fired today, identifies the person, delivers a greeting and
     hands off to the main loop to offer the daily briefing.
     """
     global _last_morning_greeting_date, _startup_complete
-    threshold = float(config.PROXIMITY_THRESHOLD_CM)
+    threshold = float(config.MORNING_GREETING_DISTANCE_CM)
     print(f"[morning] Proximity morning greeting watcher active (outside sleep hours, <= {threshold:.0f} cm)")
     closest_cm: float | None = None
     last_report = time.time()
@@ -1331,11 +1331,19 @@ def main():
                     "proceed", "deliver", "go ahead", "please", "of course",
                     "absolutely", "aye", "correct", "indeed", "do it", "ok", "okay",
                     "briefing", "daily briefing", "morning briefing", "morning update", "daily update",
-                    "give it to me", "tell me", "update")
+                    "give it to me", "tell me", "update", "i am", "i'm ready", "let's hear it",
+                    "go on", "hit me", "let's go", "lay it on me", "bring it", "go for it")
             _NO  = ("no", "not now", "later", "skip", "negative", "cancel",
                     "nevermind", "never mind", "pass", "maybe later", "not yet",
-                    "nope", "nah")
-            if any(p in _t for p in _YES) or any(bk in _t for bk in _BRIEFING_KEYS):
+                    "nope", "nah", "not ready", "i'm not", "i am not", "don't", "do not")
+
+            # Whole-word/phrase matching, so "now" or "know" don't read as "no".
+            def _said(phrases) -> bool:
+                return any(re.search(rf"\b{re.escape(p)}\b", _t) for p in phrases)
+
+            # Declines are checked first so "I am not ready" isn't taken as a yes.
+            _declined = _briefing_awaiting_response and _said(_NO)
+            if not _declined and (_said(_YES) or any(bk in _t for bk in _BRIEFING_KEYS)):
                 _briefing_awaiting_response = False
                 print("[skull] User confirmed/requested morning briefing/update. Generating...")
                 try:
@@ -1354,7 +1362,7 @@ def main():
                     display.stop_noosphere_scan()
                     display.stop_auspex_scan()
                 continue
-            elif any(p in _t for p in _NO):
+            elif _declined:
                 _briefing_awaiting_response = False
                 print("[skull] User declined morning briefing. Archiving.")
                 try:
