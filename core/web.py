@@ -449,8 +449,36 @@ def get_fabricator_status() -> dict:
     except Exception:
         return {"text": "UNAVAILABLE", "percent": 0.0}
 
+_TLS_HANDSHAKE_TIMEOUT = 15.0   # seconds a client gets to finish the TLS handshake
+_CONNECTION_IDLE_TIMEOUT = 60.0  # seconds a connection may sit idle mid-request
+
+
 class ThreadingHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+    """Threaded server that does the TLS handshake on each connection's own worker
+    thread. Wrapping the listening socket instead would run every handshake inside
+    accept() on the single serving thread, so one client that connects and says
+    nothing would freeze the whole remote."""
     daemon_threads = True
+    ssl_context = None
+
+    def finish_request(self, request, client_address):
+        if self.ssl_context is None:
+            request.settimeout(_CONNECTION_IDLE_TIMEOUT)
+            return super().finish_request(request, client_address)
+        import ssl
+        request.settimeout(_TLS_HANDSHAKE_TIMEOUT)
+        try:
+            tls = self.ssl_context.wrap_socket(request, server_side=True)
+        except (ssl.SSLError, OSError):
+            return  # failed or stalled handshake: drop just this connection
+        try:
+            tls.settimeout(_CONNECTION_IDLE_TIMEOUT)
+            self.RequestHandlerClass(tls, client_address, self)
+        finally:
+            try:
+                tls.close()
+            except OSError:
+                pass
 
 _web_client_connected = False
 
@@ -531,6 +559,26 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         auth = self.headers.get("Authorization", "")
         return auth.startswith("Bearer ") and _session_valid(auth[7:].strip())
 
+    # Request bodies are capped before any handler reads them (handlers read
+    # Content-Length bytes into memory): 10 MB for recorded audio, 1 MB otherwise.
+    _BODY_LIMITS = {"/api/upload_audio": 10 * 1024 * 1024}
+    _DEFAULT_BODY_LIMIT = 1024 * 1024
+
+    def _body_size_ok(self, path: str) -> bool:
+        raw = self.headers.get("Content-Length")
+        if raw is None:
+            return True  # no body; handlers treat a missing length as empty
+        try:
+            length = int(raw)
+        except ValueError:
+            length = -1
+        limit = self._BODY_LIMITS.get(path, self._DEFAULT_BODY_LIMIT)
+        if length < 0 or length > limit:
+            self.close_connection = True
+            self._send_json({"error": f"request body must be 0-{limit} bytes"}, 413 if length > limit else 400)
+            return False
+        return True
+
     def _is_cross_site(self) -> bool:
         """True for requests another website caused the browser to send."""
         if self.headers.get("Sec-Fetch-Site", "") == "cross-site":
@@ -583,6 +631,8 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
 
         if method != "GET" and self._is_cross_site():
             self._send_json({"error": "cross-site request refused"}, 403)
+            return True
+        if method != "GET" and not self._body_size_ok(path):
             return True
         if path == "/logout":
             self.send_response(303)
@@ -773,18 +823,27 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                 self.send_response(403)
                 self.end_headers()
                 return
+            ext = img_path.rsplit(".", 1)[-1].lower()
+            mime = {
+                "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+                "webp": "image/webp", "gif": "image/gif", "svg": "image/svg+xml",
+            }.get(ext)
+            # Images only: never the campaign database, source code or other files.
+            if mime is None:
+                self.send_response(404)
+                self.end_headers()
+                return
             if os.path.exists(img_path) and os.path.isfile(img_path):
-                ext = img_path.split(".")[-1].lower()
-                mime = {
-                    "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
-                    "webp": "image/webp", "gif": "image/gif", "svg": "image/svg+xml",
-                }.get(ext, "application/octet-stream")
                 with open(img_path, "rb") as f:
                     data = f.read()
                 self.send_response(200)
                 self.send_header("Content-Type", mime)
                 self.send_header("Content-Length", str(len(data)))
                 self.send_header("Cache-Control", "public, max-age=86400")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                if ext == "svg":
+                    # SVG can carry script; sandbox it if opened directly.
+                    self.send_header("Content-Security-Policy", "sandbox")
                 self.end_headers()
                 self.wfile.write(data)
             else:
@@ -1520,7 +1579,7 @@ def _run_server(port: int) -> None:
         if use_https and os.path.exists(cert_file) and os.path.exists(key_file):
             context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             context.load_cert_chain(certfile=cert_file, keyfile=key_file)
-            server.socket = context.wrap_socket(server.socket, server_side=True)
+            server.ssl_context = context  # handshakes happen per connection, off the accept loop
             global _https_enabled
             _https_enabled = True
             print(f"[web] Servoskull Web Remote Server running SECURELY on HTTPS port {port}")

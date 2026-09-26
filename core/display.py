@@ -1339,6 +1339,34 @@ def show_access_code(code: str, duration: float = 60.0) -> None:
         print(f"[display] show_access_code error: {e}")
 
 
+def show_setup_screen(ssid: str, password: str, address: str, duration: float = 150.0) -> None:
+    """Setup-mode screen: hotspot name, its (random) password in large type, and the
+    address of the setup wizard — readable on the round eye."""
+    try:
+        from PIL import Image, ImageDraw
+        img = Image.new("RGB", (240, 240), (0, 0, 0))
+        d = ImageDraw.Draw(img)
+        d.ellipse([6, 6, 233, 233], outline=(0, 90, 35), width=2)
+
+        def centred(text, y, size, fill, max_w=200):
+            font = _get_font(size)
+            while d.textlength(text, font=font) > max_w and size > 10:
+                size -= 1
+                font = _get_font(size)
+            d.text(((240 - d.textlength(text, font=font)) / 2, y), text, fill=fill, font=font)
+
+        centred("SETUP MODE", 34, 16, (0, 200, 80))
+        centred("WI-FI", 64, 12, (0, 140, 55))
+        centred(ssid, 80, 20, (120, 255, 160))
+        centred("PASSWORD", 114, 12, (0, 140, 55))
+        centred(password, 130, 30, (170, 255, 190), max_w=196)
+        centred("THEN OPEN", 172, 12, (0, 140, 55))
+        centred(address, 188, 16, (120, 255, 160), max_w=150)
+        display_pil_image(img, duration=duration)
+    except Exception as e:
+        print(f"[display] show_setup_screen error: {e}")
+
+
 def show_text(text: str, duration: float = 10.0) -> None:
     """Renders text onto a 240x240 image and displays it on the panel."""
     try:

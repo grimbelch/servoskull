@@ -7,6 +7,23 @@ import threading
 
 _wifi_lock = threading.Lock()
 
+SETUP_SSID = "Omega-7-Setup"
+# Profiles this module creates are prefixed, so it only ever deletes its own.
+_PROFILE_PREFIX = "omega7-"
+_PASSWORD_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"  # no 0/o, 1/l/i lookalikes
+_hotspot_password: str | None = None
+
+
+def hotspot_password() -> str | None:
+    """The current setup-hotspot password (shown on the eye), or None if not started."""
+    return _hotspot_password
+
+
+def _new_hotspot_password() -> str:
+    import secrets
+    raw = "".join(secrets.choice(_PASSWORD_ALPHABET) for _ in range(10))
+    return f"{raw[:5]}-{raw[5:]}"
+
 
 def get_status() -> dict:
     """Return current Wi-Fi interface status, SSID, IP address, and AP mode state."""
@@ -32,7 +49,7 @@ def get_status() -> dict:
                     if state == "connected":
                         res["connected"] = True
                         res["ssid"] = conn
-                        if conn == "Omega-7-Setup":
+                        if conn in (SETUP_SSID, "Hotspot"):
                             res["is_ap"] = True
                     break
 
@@ -89,7 +106,7 @@ def scan_networks() -> list[dict]:
                     security = parts[2].strip()
 
                     # Skip empty SSIDs (hidden networks) and current setup AP
-                    if not ssid or ssid == "Omega-7-Setup" or ssid in seen_ssids:
+                    if not ssid or ssid == SETUP_SSID or ssid in seen_ssids:
                         continue
                     
                     try:
@@ -118,16 +135,22 @@ def connect_network(ssid: str, password: str | None = None) -> tuple[bool, str]:
         return False, "SSID cannot be empty."
 
     ssid = ssid.strip()
-    cmd = ["nmcli", "device", "wifi", "connect", ssid]
+    # Connect through a profile of our own ("omega7-<ssid>") so saved profiles — the
+    # home network in particular — are never modified or deleted. A stale profile of
+    # ours is replaced; if the attempt fails, only the profile we just made is
+    # removed and NetworkManager falls back to the previously known networks.
+    profile = f"{_PROFILE_PREFIX}{ssid}"[:64]
+    cmd = ["nmcli", "device", "wifi", "connect", ssid, "name", profile]
     if password and password.strip():
         cmd.extend(["password", password.strip()])
 
     try:
         with _wifi_lock:
             print(f"[wifi] Connecting to '{ssid}'...")
-            # Clean up stale connection profile if present to avoid missing key-mgmt property error
-            subprocess.run(["nmcli", "connection", "delete", "id", ssid], capture_output=True, timeout=5)
+            subprocess.run(["nmcli", "connection", "delete", "id", profile], capture_output=True, timeout=5)
             p = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if p.returncode != 0:
+                subprocess.run(["nmcli", "connection", "delete", "id", profile], capture_output=True, timeout=5)
 
         if p.returncode == 0:
             print(f"[wifi] Successfully connected to '{ssid}'")
@@ -142,11 +165,13 @@ def connect_network(ssid: str, password: str | None = None) -> tuple[bool, str]:
         return False, f"Connection error: {e}"
 
 
-def start_hotspot(ssid: str = "Omega-7-Setup", password: str = "servoskull") -> tuple[bool, str]:
-    """Start an Access Point hotspot on wlan0 for out-of-box provisioning."""
-    cmd = ["nmcli", "device", "wifi", "hotspot", "ifname", "wlan0", "ssid", ssid]
-    if password and len(password) >= 8:
-        cmd.extend(["password", password])
+def start_hotspot(ssid: str = SETUP_SSID, password: str | None = None) -> tuple[bool, str]:
+    """Start the WPA2 setup hotspot on wlan0 with a fresh random password (shown on the
+    eye by the caller; never a fixed, published one)."""
+    global _hotspot_password
+    password = password or _new_hotspot_password()
+    _hotspot_password = password
+    cmd = ["nmcli", "device", "wifi", "hotspot", "ifname", "wlan0", "ssid", ssid, "password", password]
 
     try:
         with _wifi_lock:

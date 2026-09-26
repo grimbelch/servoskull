@@ -851,8 +851,10 @@ def _play_setup_announcement() -> None:
     try:
         eyes.on()
         display.on()
-        setup_text = "SETUP MODE\nAP: Omega-7-Setup\nIP: 192.168.4.1:8080"
-        display.show_text(setup_text)
+        from core import wifi_provisioner
+        display.show_setup_screen(wifi_provisioner.SETUP_SSID,
+                                  wifi_provisioner.hotspot_password() or "(starting)",
+                                  "192.168.4.1:8080")
 
         cached_setup_wav = pathlib.Path("models/phrase_cache/setup_announcement.wav")
         if cached_setup_wav.exists():
@@ -862,7 +864,7 @@ def _play_setup_announcement() -> None:
             setup_announcement = (
                 "Greetings. I am an unconfigured Servo Skull unit. "
                 "Please connect your mobile device or cogitator to my Wi-Fi access point, "
-                "Omega-7-Setup, to begin initialization."
+                "Omega-7-Setup, using the password shown on my eye, to begin initialization."
             )
             print("[skull] Speaking setup vocal announcement via Piper local TTS...")
             setup_bytes = tts.synthesize_piper(setup_announcement)
