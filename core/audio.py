@@ -25,6 +25,26 @@ def _native_input_rate(device_index: int) -> int:
         return 44100
 
 
+def _unity_gain_under_echo_cancel() -> None:
+    """With PipeWire echo cancellation the default sink is echo_cancel.sink, which
+    feeds the real sound card. Volume changes apply to the default sink, so hold the
+    card itself at 100%; otherwise the two volumes multiply (50% x 50% ~ -36 dB)."""
+    import shutil
+    if not shutil.which("pactl"):
+        return
+    try:
+        default = subprocess.run(["pactl", "get-default-sink"], capture_output=True, text=True, timeout=3).stdout.strip()
+        if not default.startswith("echo_cancel") and not default.startswith("effect_input.echo_cancel"):
+            return
+        sinks = subprocess.run(["pactl", "list", "short", "sinks"], capture_output=True, text=True, timeout=3).stdout
+        for line in sinks.splitlines():
+            parts = line.split("\t")
+            if len(parts) > 1 and parts[1].startswith("alsa_output."):
+                subprocess.run(["pactl", "set-sink-volume", parts[1], "100%"], capture_output=True, timeout=3)
+    except Exception as e:
+        print(f"[audio] Could not normalise sound card volume under echo cancellation: {e}")
+
+
 def set_system_volume(level: str) -> str:
     """Set or adjust output volume across macOS (osascript) and Linux (wpctl/pactl/amixer)."""
     import shutil, sys, re
@@ -41,6 +61,7 @@ def set_system_volume(level: str) -> str:
                 script = f"set volume output volume {level_str.rstrip('%')}"
             subprocess.run(["osascript", "-e", script], capture_output=True, check=True)
         else:
+            _unity_gain_under_echo_cancel()
             if level_str.startswith("+") or level_str.startswith("-"):
                 val = float(level_str.lstrip("+").rstrip("%")) / 100.0
                 sign = "+" if level_str.startswith("+") else "-"

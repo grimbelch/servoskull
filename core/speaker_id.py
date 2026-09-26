@@ -388,10 +388,14 @@ def register_voice(name: str) -> str:
         
         print(f"[speaker_id] Starting voice registration for {name}")
         
+        # Five answers of up to 8 s each: a few seconds of speech isn't enough for a
+        # reliable voice model, so ask for more (answer in full sentences).
         questions = [
             f"First inquiry for the archives of Mars: State thy name and thy primary biological function or profession in this sector.",
             "Second inquiry: Which machine spirit or device in thy possession requires the most frequent application of sacred oils and prayers?",
-            "Third inquiry: In the name of the Omnissiah, what is thy ultimate purpose or duty?"
+            "Third inquiry: In the name of the Omnissiah, what is thy ultimate purpose or duty?",
+            "Fourth inquiry: Describe the place where thou dwellest, and what lies beyond its windows.",
+            "Final inquiry: Recount what thou didst this day, from the moment thou awoke."
         ]
         
         for i, q in enumerate(questions):
@@ -407,7 +411,7 @@ def register_voice(name: str) -> str:
             
             # Record up to 6.0 seconds, stopping early on silence
             try:
-                pcm, rate = audio.record(6.0, silence_threshold=250, silence_duration=1.5)
+                pcm, rate = audio.record(8.0, silence_threshold=config.SILENCE_THRESHOLD, silence_duration=1.5)
                 wav_bytes = audio.pcm_to_wav_bytes(pcm, rate)
                 # Save WAV
                 wav_path = target_dir / f"sample_{i}_{int(time.time())}.wav"

@@ -222,6 +222,8 @@ systemctl --user restart pipewire pipewire-pulse wireplumber || true
 sleep 3
 pactl set-default-sink echo_cancel.sink || echo "    (echo_cancel.sink not found — check the USB sound card names in the config)"
 pactl set-default-source echo_cancel.source || true
+# Volume is set on echo_cancel.sink; keep the sound card itself at unity gain.
+pactl set-sink-volume "$(pactl list short sinks | awk '$2 ~ /^alsa_output\./ {print $2; exit}')" 100% || true
 
 # ── SD-card resilience ─────────────────────────────────────────────────────
 # Brown-outs corrupt files that are mid-write, and every write wears the card.

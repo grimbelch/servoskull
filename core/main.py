@@ -1834,6 +1834,28 @@ def main():
                 skip_ack = True
                 continue
 
+            # Voice (re-)registration, handled directly: when the voice model mistakes
+            # the owner for a stranger (e.g. after a mic change), the LLM would rightly
+            # refuse to let an "unknown" speaker re-register as the owner.
+            _m_reg = re.search(r"\b(?:register|enrol+|record|re-?register|update|retrain)\s+(?:my\s+)?voice(?:\s+(?:print|profile|imprint))?"
+                               r"(?:\s+(?:as|for)\s+(?P<name>[a-z][a-z' -]{0,30}?))?[.!?]*$", _t)
+            if _m_reg:
+                _reg_name = (_m_reg.group("name") or config._OWNER_PROFILE.get("name") or "Master").strip().title()
+                print(f"[skull] Local voice registration intent for '{_reg_name}'.")
+                try:
+                    eyes.on()
+                    _speak_interruptible(tts.synthesize(
+                        f"Voice imprint protocol for {_reg_name}. Answer five inquiries in full sentences."), on_wake)
+                    from core import speaker_id
+                    _reg_result = speaker_id.register_voice(_reg_name)
+                    print(f"[skull] {_reg_result}")
+                    _speak_interruptible(tts.synthesize(
+                        f"Voice imprint for {_reg_name} is sealed in the archives." if "complete" in _reg_result.lower()
+                        else "The voice imprint rite has failed. Consult the logs."), on_wake)
+                except Exception as e:
+                    print(f"[skull] Voice registration error: {e}")
+                continue
+
             # Show the web remote access code on the eye (never spoken aloud or logged).
             if re.search(r"\b(web|remote)\b.*\b(access )?(code|password|pass ?code)\b|\baccess code\b", _t):
                 print("[skull] Local web-access-code intent detected — showing code on the eye.")
