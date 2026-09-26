@@ -29,6 +29,32 @@ _snippet_lock = threading.Lock()
 
 _on_wake_cb = None
 
+# Hooks registered by the running main loop. The service runs as `python -m core.main`,
+# so `from core import main` here would import a SECOND copy of main.py with its own
+# speech lock and speech-active flag; the real functions are handed over instead.
+_player = None             # main._speak_interruptible(wav_bytes, on_wake) -> bool
+_speech_active_fn = None   # main.is_speech_active() -> bool
+
+# Background snippets are queued for the main loop to play, so playback (and its
+# barge-in wake-word listener) never runs concurrently with the main loop's own
+# wake-word listening on the shared model.
+_pending_snippet: bytes | None = None
+_pending_lock = threading.Lock()
+
+
+def register_main_hooks(player, speech_active_fn) -> None:
+    global _player, _speech_active_fn
+    _player = player
+    _speech_active_fn = speech_active_fn
+
+
+def take_pending_snippet() -> bytes | None:
+    """Pop a queued background snippet for the main loop to play (or None)."""
+    global _pending_snippet
+    with _pending_lock:
+        wav, _pending_snippet = _pending_snippet, None
+        return wav
+
 
 def register_on_wake_cb(cb) -> None:
     """Register on_wake callback for barge-in interruption during music playback."""
@@ -108,8 +134,12 @@ def extract_random_snippet_wav(file_path: pathlib.Path, duration_sec: float = 30
     return None
 
 
-def play_random_snippet(specific_name: str | None = None, duration_sec: float = 30.0, force: bool = False) -> str | None:
-    """Extract and play a snippet from a music file. Returns a descriptive string or None if unplayable."""
+def play_random_snippet(specific_name: str | None = None, duration_sec: float = 30.0, force: bool = False,
+                        defer: bool = False) -> str | None:
+    """Extract and play a snippet from a music file. Returns a descriptive string or None if unplayable.
+
+    defer=True queues the snippet for the main loop to play (used by the background
+    loop's thread) instead of playing it on the calling thread."""
     global _is_playing_snippet
     from core import quiet, audio, spotify_ctrl
 
@@ -146,16 +176,25 @@ def play_random_snippet(specific_name: str | None = None, duration_sec: float = 
         print(f"[ambient_music] Failed to extract WAV bytes from '{chosen_file.name}'")
         return None
 
+    if defer:
+        global _pending_snippet
+        with _pending_lock:
+            _pending_snippet = wav_bytes
+        from core import web
+        web.trigger_cancel()  # interrupt the main loop's wake-word wait so it plays now
+        print(f"[ambient_music] Queued snippet from '{chosen_file.name}' for the main loop.")
+        return f"Queued 30-second sacred music snippet from '{chosen_file.name}'."
+
     with _snippet_lock:
         _is_playing_snippet = True
 
     try:
-        from core import eyes, display, main
+        from core import eyes, display
         display.on()
         eyes.on()
         print(f"[ambient_music] Playing sacred ambient music snippet: '{chosen_file.name}'")
-        if hasattr(main, "_speak_interruptible") and callable(main._speak_interruptible):
-            interrupted = main._speak_interruptible(wav_bytes, on_wake=_on_wake_cb)
+        if _player is not None:
+            interrupted = _player(wav_bytes, _on_wake_cb)
             if interrupted:
                 print(f"[ambient_music] Music snippet interrupted by barge-in wake word.")
         else:
@@ -190,17 +229,17 @@ def _ambient_music_loop() -> None:
         if _stop_event.wait(timeout=interval):
             break
 
-        from core import quiet, spotify_ctrl, main
+        from core import quiet, spotify_ctrl
         if quiet.is_silent():
             continue
 
         if spotify_ctrl.is_playing():
             continue
 
-        if hasattr(main, "is_speech_active") and main.is_speech_active():
+        if _speech_active_fn is not None and _speech_active_fn():
             continue
 
-        play_random_snippet(duration_sec=30.0)
+        play_random_snippet(duration_sec=30.0, defer=True)
 
 
 def start() -> None:

@@ -448,6 +448,7 @@ _roll_lock = threading.Lock()
 
 def _set_roll_result(val: int | str) -> None:
     """Thread-safe setter for the last dice roll result."""
+    global _last_roll_result
     with _roll_lock:
         _last_roll_result = str(val)
 

@@ -1035,7 +1035,11 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                 self._send_json({"ok": False, "error": "Game already running"})
                 return
             from core import display as _disp
-            import core.main as _main
+            # The running service is `python -m core.main` (__main__); importing
+            # core.main would load a second copy with its own speech lock.
+            _main = sys.modules.get("__main__")
+            if not hasattr(_main, "_game_narrate"):
+                import core.main as _main
             _disp.start_game_display()
             _bt_agent.start(disk_path, _main._game_narrate)
             self._send_json({"ok": True, "disk": disk_path})

@@ -722,6 +722,40 @@ def _split_for_pipelining(text: str, min_first: int = 25, min_total: int = 90) -
     return (first, rest) if rest else (clean, "")
 
 
+# ── Personality switch requests ──────────────────────────────────────────────────
+# Only explicit requests count ("switch to Jax", "change into Omega 7", "become the
+# dog"), and the target must be exactly a personality's id, name or alias. Matching
+# any sentence that merely contained "change" plus a name swallowed commands like
+# "Omega 7, change the song" and switched on "what will become of my dog".
+_SWITCH_LEADING = re.compile(r"^(?:(?:hey|ok|okay|please|omega[\s-]*(?:7|seven)|servitor|jax)\s+)*")
+_SWITCH_RE = re.compile(
+    r"(?:(?:switch|change|swap|turn)\s+(?:yourself\s+|your\s+personality\s+|personality\s+)?(?:back\s+)?"
+    r"(?:to|into)|become)\s+(?:the\s+)?(?P<target>.+?)(?:\s+(?:personality|mode|please|now|again))*"
+)
+_SWITCHABLE = ("omega7", "jax")  # the personalities switch_personality() accepts
+
+
+def _personality_switch_target(text: str) -> str | None:
+    t = " ".join(re.sub(r"[^a-z0-9\s-]", " ", (text or "").lower()).split())
+    t = _SWITCH_LEADING.sub("", t)
+    m = _SWITCH_RE.fullmatch(t)
+    if not m:
+        return None
+    target = m.group("target").replace("-", " ").strip()
+    try:
+        import json
+        p_path = pathlib.Path(__file__).parent.parent / "personalities" / "personalities.json"
+        valid = json.loads(p_path.read_text()).get("personalities", {})
+    except Exception:
+        valid = {}
+    for p_id in _SWITCHABLE:
+        info = valid.get(p_id, {})
+        names = {p_id, str(info.get("name", p_id)).lower(), *[a.lower() for a in info.get("aliases", [])]}
+        if target in {n.replace("-", " ") for n in names}:
+            return p_id
+    return None
+
+
 def _briefing_offer_text() -> str:
     if config.PERSONALITY.get("eye_animation") == "dog":
         return (
@@ -736,6 +770,7 @@ def _briefing_offer_text() -> str:
 
 
 _last_morning_greeting_date: str | None = None
+_MORNING_GREETING_KV = "morning_greeting_date"  # persisted so a restart doesn't re-greet
 _morning_greeting_lock = threading.Lock()
 _startup_complete: bool = False
 # Set by the proximity watcher after a morning greeting; the main loop picks it up
@@ -770,6 +805,8 @@ def _morning_greeting_watcher() -> None:
             today_str = now.strftime("%Y-%m-%d")
 
             with _morning_greeting_lock:
+                if _last_morning_greeting_date is None:
+                    _last_morning_greeting_date = db.kv_get(_MORNING_GREETING_KV, None)
                 if _last_morning_greeting_date == today_str:
                     continue
 
@@ -800,34 +837,49 @@ def _morning_greeting_watcher() -> None:
                 # Human face detected at console in morning — default to Master Sean if match score was slightly below threshold
                 detected_name = getattr(config, "OWNER_NAME", "Sean") or "Sean"
 
-            # Mark today's morning greeting as completed
-            with _morning_greeting_lock:
-                _last_morning_greeting_date = today_str
+            # Don't talk over a conversation that's already under way; try again shortly.
+            if is_speech_active():
+                time.sleep(5.0)
+                continue
 
             print(f"[morning] Morning target identified as '{detected_name}' at {cm:.1f} cm (<= {threshold:.0f} cm) — delivering morning greeting...")
-            
-            # Activate visual targeting indicator & duck music (bypasses silent mode for morning greeting)
-            set_speech_active(True)
-            spotify_ctrl.duck()
-            display.on()
-            eyes.on()
 
             greeting_text = brain.generate_morning_greeting(detected_name)
             print(f"[morning] Morning greeting ({detected_name}): {greeting_text}")
+            try:
+                speech_wav = tts.synthesize(greeting_text)
+            except Exception as se:
+                print(f"[morning] Greeting synthesis error: {se}")
+                time.sleep(30.0)
+                continue
+
+            # Mark today's morning greeting as delivered (persisted across restarts).
+            with _morning_greeting_lock:
+                _last_morning_greeting_date = today_str
+            try:
+                db.kv_set(_MORNING_GREETING_KV, today_str)
+            except Exception as e:
+                print(f"[morning] Could not persist greeting date: {e}")
 
             brain.record_assistant_turn(greeting_text)
             web.log_vox(config.SKULL_NAME, greeting_text)
 
-            try:
-                speech_wav = tts.synthesize(greeting_text)
-                audio.play_wav_bytes(speech_wav, output_device=config.VOICE_OUTPUT_DEVICE)
-            except Exception as se:
-                print(f"[morning] Greeting speech delivery error: {se}")
-            finally:
-                set_speech_active(False)
-                spotify_ctrl.restore()
-                display.idle()
-                eyes.off()
+            # Speak under the speech lock so the greeting never overlaps a reply
+            # (bypasses silent mode for the morning greeting).
+            with _speech_lock:
+                set_speech_active(True)
+                spotify_ctrl.duck()
+                display.on()
+                eyes.on()
+                try:
+                    audio.play_wav_bytes(speech_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+                except Exception as se:
+                    print(f"[morning] Greeting speech delivery error: {se}")
+                finally:
+                    set_speech_active(False)
+                    spotify_ctrl.restore()
+                    display.idle()
+                    eyes.off()
 
             if brain.is_daily_briefing_due():
                 # Interrupt the wake-word wait so the main loop offers the briefing now.
@@ -931,6 +983,7 @@ def main():
     bambu_ctrl.get_monitor().start()
     threading.Thread(target=_spotify_poller_loop, daemon=True).start()
     from core import ambient_music
+    ambient_music.register_main_hooks(_speak_interruptible, is_speech_active)
     ambient_music.start()
     from core import web
 
@@ -1089,6 +1142,20 @@ def main():
                         _briefing_awaiting_response = False
                         set_speech_active(False)
                     continue
+
+            # ── 0a3. Play a background hymn snippet queued by ambient_music ──────────
+            _snippet = ambient_music.take_pending_snippet()
+            if _snippet and not quiet.is_silent() and not spotify_ctrl.is_playing():
+                try:
+                    eyes.on()
+                    display.on()
+                    if _speak_interruptible(_snippet, on_wake):
+                        skip_wake_word = True
+                except Exception as e:
+                    print(f"[skull] Ambient hymn playback error: {e}")
+                    eyes.off()
+                    display.idle()
+                continue
 
             # ── 0b. Speak any pending camera observations ──────────────────────────
             observation = camera.get_observation()
@@ -1262,6 +1329,12 @@ def main():
 
                     elif not detected and _morning_briefing_offer_pending.is_set():
                         continue  # briefing offer queued — spoken at the top of the loop
+
+                    elif not detected:
+                        # No wake word and no other reason to act (a listener error or a
+                        # queued background task): go back to the top — never fall through
+                        # to recording, which made the skull say "Yes?" unprompted.
+                        continue
 
                     if not run_brain:
                         _barge_wav = None
@@ -1657,31 +1730,26 @@ def main():
                 
             # ── 3a-6. Detect Personality Switch commands ──────────────
             _t_norm = _t.lower()
-            if "switch" in _t_norm or "change" in _t_norm or "turn into" in _t_norm or "become" in _t_norm:
-                import json
-                p_path = pathlib.Path(__file__).parent.parent / "personalities" / "personalities.json"
-                if p_path.exists():
-                    valid_p = json.loads(p_path.read_text()).get("personalities", {})
-                    switched = False
-                    for p_id, p_info in valid_p.items():
-                        p_name = p_info.get("name", p_id).lower()
-                        if p_id in _t_norm or p_name in _t_norm or any(alias in _t_norm for alias in p_info.get("aliases", [])):
-                            print(f"[skull] Local personality switch to '{p_id}' detected.")
-                            msg = switch_personality(p_id)
-                            try:
-                                speech_wav = tts.synthesize(msg)
-                                eyes.on()
-                                _speak_interruptible(speech_wav, on_wake)
-                            except Exception:
-                                pass
-                            _execute_pending_system_command()
-                            switched = True
-                            break
-                    if switched:
-                        continue
+            _switch_to = _personality_switch_target(user_text)
+            if _switch_to:
+                print(f"[skull] Local personality switch to '{_switch_to}' detected.")
+                msg = switch_personality(_switch_to)
+                try:
+                    speech_wav = tts.synthesize(msg)
+                    eyes.on()
+                    _speak_interruptible(speech_wav, on_wake)
+                except Exception:
+                    pass
+                _execute_pending_system_command()
+                continue
 
             # ── 3a-5. Detect Voice Cache Refresh and Self-Update ──────────
-            _RE_REFRESH = re.compile(r"\b(refresh|reload|clear|rebuild|regenerate)\s+(your\s+)?(voice|sound|phrase|response|canned|precanned|audio|speech)?\s*(cache|library|responses|phrases|sounds)?\b|\b(update)\s+(your\s+)?(voice|sound|phrase|response|canned|precanned|audio|speech)\s*(cache|library|responses|phrases|sounds)?\b", re.I)
+            # Needs both a voice word and a cache word ("clear your voice cache", "rebuild
+            # the phrase library"): a bare "clear the table" used to wipe the cache and
+            # re-pay ElevenLabs to re-synthesize every phrase.
+            _RE_REFRESH = re.compile(r"\b(?:refresh|reload|clear|rebuild|regenerate|update|purge|reset)\s+(?:your\s+|the\s+)?"
+                                     r"(?:voice|sound|phrase|response|canned|precanned|audio|speech)\s+"
+                                     r"(?:cache|library|responses|phrases|sounds)\b", re.I)
         
             # ── 3a-7. Detect Display Rotation commands ──────────────
             if ("rotate" in _t_norm or "turn" in _t_norm or "adjust" in _t_norm or "tilt" in _t_norm) and ("display" in _t_norm or "screen" in _t_norm or "eye" in _t_norm):
