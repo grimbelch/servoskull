@@ -612,6 +612,15 @@ def _spotify_poller_loop():
         time.sleep(4.0)
 
 
+def _said_any(text: str, phrases) -> bool:
+    """Whole-word/phrase match, so "now" or "know" don't read as "no".
+
+    Module-level on purpose: main() has local `import re` statements, which make
+    `re` a local of main() and break closures defined inside it that use `re`.
+    """
+    return any(re.search(rf"\b{re.escape(p)}\b", text) for p in phrases)
+
+
 def _briefing_offer_text() -> str:
     if config.PERSONALITY.get("eye_animation") == "dog":
         return (
@@ -1337,13 +1346,9 @@ def main():
                     "nevermind", "never mind", "pass", "maybe later", "not yet",
                     "nope", "nah", "not ready", "i'm not", "i am not", "don't", "do not")
 
-            # Whole-word/phrase matching, so "now" or "know" don't read as "no".
-            def _said(phrases) -> bool:
-                return any(re.search(rf"\b{re.escape(p)}\b", _t) for p in phrases)
-
             # Declines are checked first so "I am not ready" isn't taken as a yes.
-            _declined = _briefing_awaiting_response and _said(_NO)
-            if not _declined and (_said(_YES) or any(bk in _t for bk in _BRIEFING_KEYS)):
+            _declined = _briefing_awaiting_response and _said_any(_t, _NO)
+            if not _declined and (_said_any(_t, _YES) or any(bk in _t for bk in _BRIEFING_KEYS)):
                 _briefing_awaiting_response = False
                 print("[skull] User confirmed/requested morning briefing/update. Generating...")
                 try:
