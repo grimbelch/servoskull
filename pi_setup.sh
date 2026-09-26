@@ -211,6 +211,18 @@ for i in range(pa.get_device_count()):
 pa.terminate()
 "
 
+# ── Echo cancellation ──────────────────────────────────────────────────────
+# PipeWire's WebRTC echo canceller removes the skull's own voice from the mic, so
+# barge-in ("Servitor…" while it is talking) is heard cleanly. It creates
+# echo_cancel.source / echo_cancel.sink, which become the defaults the app uses.
+echo "[AEC] Installing PipeWire echo cancellation..."
+mkdir -p "$HOME/.config/pipewire/pipewire.conf.d"
+cp "$HOME/Servoskull/pipewire-echo-cancel.conf" "$HOME/.config/pipewire/pipewire.conf.d/echo-cancel.conf"
+systemctl --user restart pipewire pipewire-pulse wireplumber || true
+sleep 3
+pactl set-default-sink echo_cancel.sink || echo "    (echo_cancel.sink not found — check the USB sound card names in the config)"
+pactl set-default-source echo_cancel.source || true
+
 # ── SD-card resilience ─────────────────────────────────────────────────────
 # Brown-outs corrupt files that are mid-write, and every write wears the card.
 # Keep logs across reboots (for crash forensics) but cap them, and let ext4 batch

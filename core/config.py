@@ -461,6 +461,8 @@ def set_silence_duration(seconds: float) -> str:
 # Speaker identification GMM score threshold to reject untrained/unknown voices.
 # Since training samples average -52.0 to -53.0 on 13-dim MFCCs, a default of -60.0
 # provides a secure margin for clean matches while successfully rejecting noise/strangers.
+# Only used if no background model could be trained; normally speaker_id calibrates
+# a likelihood-ratio threshold against the background model when it trains.
 SPEAKER_ID_THRESHOLD = float(_cfg("SPEAKER_ID_THRESHOLD", "-60.0"))
 
 

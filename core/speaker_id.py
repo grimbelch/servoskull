@@ -22,12 +22,25 @@ MODEL_PATH = VOICES_DIR / "speaker_model.pkl"
 # meaningless, so load_model() retrains from the stored recordings instead.
 #   1 (unversioned): native-rate framing, frames cropped to 512 samples at 48 kHz
 #   2: resampled to 16 kHz, stride-trick framing, continuous mel filters
-FEATURE_VERSION = 2
+#   3: + background model (UBM) and a calibrated likelihood-ratio threshold
+FEATURE_VERSION = 3
 FEATURE_RATE = 16000  # 25 ms = 400 samples, fits the 512-point FFT
 
-# Active GMM profiles
+REPO_DIR = pathlib.Path(__file__).resolve().parent.parent
+
+# Active GMM profiles, plus the universal background model (UBM) they are scored
+# against. A raw GMM log-likelihood with one enrolled speaker accepts almost any
+# sound; the ratio "this speaker vs. sound in general" is what discriminates.
 _speaker_models: dict[str, GaussianMixture] = {}
+_ubm: GaussianMixture | None = None
+_llr_threshold = 0.0
 _retrain_attempted = False  # only try the one-off feature-version migration once per process
+
+# Decision tuning. LLRs are per-frame averages of log p(speaker) - log p(background).
+_MIN_SPEECH_FRAMES = 80        # 0.8 s of voiced frames needed to judge at all
+_AMBIGUITY_BAND = 0.25         # below threshold but within this band = "not sure"
+_CONTINUITY_SECS = 600.0       # a confident ID carries over unsure turns for 10 minutes
+_last_confident: tuple[str, float] | None = None
 
 def load_model() -> bool:
     """Load the trained GMM models from disk. Returns True on success.
@@ -47,10 +60,14 @@ def load_model() -> bool:
         _speaker_models = {}
         return False
 
+    global _ubm, _llr_threshold
     version = saved.get("feature_version") if isinstance(saved, dict) else None
     if version == FEATURE_VERSION and isinstance(saved.get("models"), dict):
         _speaker_models = saved["models"]
-        print(f"[speaker_id] Loaded {len(_speaker_models)} voice profile(s): {list(_speaker_models.keys())}")
+        _ubm = saved.get("ubm")
+        _llr_threshold = float(saved.get("llr_threshold", 0.0))
+        print(f"[speaker_id] Loaded {len(_speaker_models)} voice profile(s): {list(_speaker_models.keys())} "
+              f"(LLR threshold {_llr_threshold:.2f})")
         return True
 
     # Stale features (pre-versioning models are a bare {name: GMM} dict).
@@ -79,8 +96,8 @@ def _mel_filterbank(nfilt: int, nfft: int, samplerate: int) -> np.ndarray:
 
 _fbank_cache: dict[tuple, np.ndarray] = {}
 
-def extract_mfcc(signal: np.ndarray, samplerate: int, num_cepstrals: int = 13) -> np.ndarray:
-    """Compute MFCC features from a raw 1D audio signal."""
+def extract_mfcc(signal: np.ndarray, samplerate: int, num_cepstrals: int = 13, return_energy: bool = False):
+    """Compute MFCC features from a raw 1D audio signal (and optionally per-frame dB energy)."""
     # Resample to 16 kHz so a 25 ms frame (400 samples) fits the 512-point FFT
     # whatever the mic's native rate (at 48 kHz frames were cropped to 512 of 1200).
     if samplerate != FEATURE_RATE:
@@ -91,7 +108,8 @@ def extract_mfcc(signal: np.ndarray, samplerate: int, num_cepstrals: int = 13) -
         samplerate = FEATURE_RATE
     signal = np.asarray(signal, dtype=np.float32)
     if signal.size == 0:
-        return np.zeros((0, num_cepstrals))
+        empty = np.zeros((0, num_cepstrals))
+        return (empty, np.zeros(0)) if return_energy else empty
 
     # Pre-emphasis
     pre_emphasis = 0.97
@@ -143,96 +161,213 @@ def extract_mfcc(signal: np.ndarray, samplerate: int, num_cepstrals: int = 13) -
     
     # Mean normalization
     mfcc -= (np.mean(mfcc, axis=0) + 1e-8)
-    
+
+    if return_energy:
+        energy_db = 10 * np.log10(np.maximum(pow_frames.sum(axis=1), np.finfo(float).eps))
+        return mfcc, energy_db
     return mfcc
 
+
+def _voiced(mfcc: np.ndarray, energy_db: np.ndarray) -> np.ndarray:
+    """Keep frames loud enough to be speech: silence and hum say nothing about who spoke."""
+    if len(energy_db) == 0:
+        return mfcc
+    floor = max(np.percentile(energy_db, 95) - 25.0, np.percentile(energy_db, 20) + 6.0)
+    return mfcc[energy_db > floor]
+
+
+def _read_signal(src) -> tuple[np.ndarray, int]:
+    sr, data = wavfile.read(io.BytesIO(src) if isinstance(src, (bytes, bytearray)) else str(src))
+    if len(data.shape) > 1:
+        data = data[:, 0]
+    if data.dtype == np.int16:
+        data = data.astype(np.float32) / 32768.0
+    return np.asarray(data, dtype=np.float32), sr
+
+
+def _voiced_features(src) -> np.ndarray:
+    signal, sr = _read_signal(src)
+    mfcc, energy = extract_mfcc(signal, sr, return_energy=True)
+    return _voiced(mfcc, energy)
+
+
+def _fit_gmm(features: np.ndarray, max_components: int = 16) -> GaussianMixture:
+    n_components = min(max_components, max(2, len(features) // 50))
+    gmm = GaussianMixture(n_components=n_components, covariance_type="diag", max_iter=200, random_state=42)
+    gmm.fit(features)
+    return gmm
+
+
+def _map_adapt(ubm: GaussianMixture, features: np.ndarray, relevance: float = 16.0) -> GaussianMixture:
+    """Speaker model by MAP-adapting the background model's means to the speaker's
+    frames (classic GMM-UBM). With only seconds of enrollment speech this generalises
+    far better than a GMM trained from scratch, and scores are directly comparable
+    with the background model."""
+    import copy
+    resp = ubm.predict_proba(features)                    # frames x components
+    n_k = resp.sum(axis=0) + 1e-10
+    e_k = (resp.T @ features) / n_k[:, None]
+    alpha = (n_k / (n_k + relevance))[:, None]
+    adapted = copy.deepcopy(ubm)
+    adapted.means_ = alpha * e_k + (1.0 - alpha) * ubm.means_
+    return adapted
+
+
+def _background_files() -> list[pathlib.Path]:
+    """Non-owner sound for the background model: the skull's own voice (training
+    corpus and cached phrases) and its sound effects. It contains no other human
+    speakers, so enrolling other household members still improves discrimination."""
+    import random
+    rng = random.Random(42)
+    corpus = sorted((REPO_DIR / "voice_training" / "wavs").glob("*.wav"))
+    phrases = sorted((REPO_DIR / "models" / "phrase_cache").glob("*/*.wav"))
+    effects = sorted((REPO_DIR / "sounds" / "SystemSounds").glob("*.wav")) + \
+        sorted((REPO_DIR / "personalities").glob("*/sounds/*.wav"))
+    return (rng.sample(corpus, min(120, len(corpus))) + rng.sample(phrases, min(60, len(phrases)))
+            + effects)
+
 def train_speaker_model() -> str:
-    """Train GMM models for each speaker directory in VOICES_DIR."""
-    global _speaker_models
+    """Train a GMM per speaker directory in VOICES_DIR, a background model, and a
+    calibrated likelihood-ratio threshold."""
+    global _speaker_models, _ubm, _llr_threshold
     if not VOICES_DIR.exists():
         VOICES_DIR.mkdir(parents=True, exist_ok=True)
-        
-    models: dict[str, GaussianMixture] = {}
-    
+
+    per_speaker: dict[str, list[np.ndarray]] = {}
     for name in sorted(os.listdir(VOICES_DIR)):
         dir_path = VOICES_DIR / name
         if not dir_path.is_dir() or name == "debug_faces":
             continue
-            
-        features_list = []
-        for file in os.listdir(dir_path):
+        feats = []
+        for file in sorted(os.listdir(dir_path)):
             if file.lower().endswith(".wav"):
                 try:
-                    sr, data = wavfile.read(str(dir_path / file))
-                    # Handle stereo
-                    if len(data.shape) > 1:
-                        data = data[:, 0]
-                    # Normalize
-                    signal = data.astype(np.float32) / 32768.0
-                    mfccs = extract_mfcc(signal, sr)
-                    if len(mfccs) > 0:
-                        features_list.append(mfccs)
+                    f = _voiced_features(dir_path / file)
+                    if len(f) > 0:
+                        feats.append(f)
                 except Exception as e:
                     print(f"[speaker_id] Error reading {file}: {e}")
-                    
-        if features_list:
-            all_features = np.vstack(features_list)
-            # Train GMM. Adjust components based on feature count
-            n_components = min(16, max(2, len(all_features) // 50))
-            gmm = GaussianMixture(n_components=n_components, covariance_type='diag', max_iter=200, random_state=42)
-            try:
-                gmm.fit(all_features)
-                models[name] = gmm
-                print(f"[speaker_id] Trained GMM for {name} with {n_components} components on {len(all_features)} frames.")
-            except Exception as e:
-                print(f"[speaker_id] Failed to train GMM for {name}: {e}")
-                
-    if not models:
+        if feats:
+            per_speaker[name] = feats
+    if not per_speaker:
         return "No speaker voice directories or WAV samples found. Training aborted."
-        
+
+    # Background model on half the background audio; the other half calibrates.
+    bg = []
+    for path in _background_files():
+        try:
+            f = _voiced_features(path)
+            if len(f) >= 20:
+                bg.append(f)
+        except Exception:
+            continue
+    ubm, held_out = None, []
+    if len(bg) >= 10:
+        ubm = _fit_gmm(np.vstack(bg[0::2]), max_components=32)
+        held_out = bg[1::2]
+
+    def _speaker_model(feats: list[np.ndarray]) -> GaussianMixture:
+        x = np.vstack(feats)
+        return _map_adapt(ubm, x) if ubm is not None else _fit_gmm(x)
+
+    models: dict[str, GaussianMixture] = {}
+    for name, feats in per_speaker.items():
+        try:
+            models[name] = _speaker_model(feats)
+            print(f"[speaker_id] Trained voice model for {name} on {sum(len(f) for f in feats)} voiced frames.")
+        except Exception as e:
+            print(f"[speaker_id] Failed to train voice model for {name}: {e}")
+
+    threshold, calib = 0.0, {}
+    if ubm is not None and models:
+        # Genuine scores: each enrollment file against a model trained on the others.
+        genuine = []
+        for name, feats in per_speaker.items():
+            for i in range(len(feats)):
+                rest = [f for j, f in enumerate(feats) if j != i]
+                if not rest or len(feats[i]) < 20:
+                    continue
+                try:
+                    g = _speaker_model(rest)
+                    genuine.append(g.score(feats[i]) - ubm.score(feats[i]))
+                except Exception:
+                    continue
+        impostor = [max(m.score(f) for m in models.values()) - ubm.score(f)
+                    for f in held_out if len(f) >= _MIN_SPEECH_FRAMES]
+        if impostor:
+            worst_impostor = float(max(impostor))
+            if genuine and min(genuine) > worst_impostor:
+                threshold = (min(genuine) + worst_impostor) / 2
+            else:
+                # Overlap (or too little enrollment audio): reject all known non-owner
+                # sound; unsure owner turns fall back on conversational continuity.
+                threshold = worst_impostor + 0.1
+        calib = {"genuine": [round(float(g), 3) for g in genuine],
+                 "impostor_max": round(float(max(impostor)), 3) if impostor else None,
+                 "impostor_count": len(impostor)}
+        print(f"[speaker_id] Calibration: genuine LLRs {calib['genuine']}, worst impostor "
+              f"{calib['impostor_max']} over {len(impostor)} clips -> threshold {threshold:.2f}")
+        if genuine and min(genuine) < threshold:
+            print("[speaker_id] Some enrollment clips score below the threshold — re-register with "
+                  "longer answers for more reliable recognition.")
+    else:
+        print("[speaker_id] Not enough background audio for a background model — using raw scores.")
+
     try:
         MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
         with MODEL_PATH.open("wb") as f:
-            pickle.dump({"feature_version": FEATURE_VERSION, "models": models}, f)
-        _speaker_models = models
+            pickle.dump({"feature_version": FEATURE_VERSION, "models": models, "ubm": ubm,
+                         "llr_threshold": threshold, "calibration": calib}, f)
+        _speaker_models, _ubm, _llr_threshold = models, ubm, threshold
         return f"Successfully trained voice biometrics with profiles: {list(models.keys())}"
     except Exception as e:
         return f"Failed to save voice model: {e}"
 
+
 def identify_speaker(wav_bytes: bytes) -> str | None:
-    """Identify the speaker of the WAV audio bytes. Returns name or None."""
-    global _speaker_models
+    """Identify the speaker of the WAV audio bytes. Returns name or None.
+
+    Scores voiced frames as a likelihood ratio against the background model. Clear
+    matches are accepted; clearly different sound is rejected; too little speech or
+    a borderline score keeps the speaker confidently identified in the last
+    _CONTINUITY_SECS (so "yes" mid-conversation doesn't make the skull ask who you are)."""
+    global _last_confident
     if not _speaker_models:
         if not load_model():
             return None
-            
+
+    def _carry_over(reason: str) -> str | None:
+        if _last_confident and time.time() - _last_confident[1] < _CONTINUITY_SECS:
+            print(f"[speaker_id] {reason} — keeping recent speaker '{_last_confident[0]}'")
+            return _last_confident[0]
+        print(f"[speaker_id] {reason} — speaker unknown")
+        return None
+
     try:
-        sr, data = wavfile.read(io.BytesIO(wav_bytes))
-        if len(data.shape) > 1:
-            data = data[:, 0]
-        signal = data.astype(np.float32) / 32768.0
-        mfccs = extract_mfcc(signal, sr)
-        if len(mfccs) == 0:
-            return None
-            
-        best_name = None
-        best_score = -np.inf
-        
-        for name, gmm in _speaker_models.items():
-            score = float(gmm.score(mfccs))
-            print(f"[speaker_id] Speaker score for '{name}': {score:.3f}")
-            if score > best_score:
-                best_score = score
-                best_name = name
-                
-        # Threshold to reject background noise / untrained voices
-        threshold = config.SPEAKER_ID_THRESHOLD
-        if best_score < threshold:
-            print(f"[speaker_id] Best match '{best_name}' score {best_score:.3f} below threshold {threshold}")
-            return None
-            
-        print(f"[speaker_id] Identified speaker: {best_name} (score {best_score:.3f})")
-        return best_name
+        voiced = _voiced_features(wav_bytes)
+        if len(voiced) < _MIN_SPEECH_FRAMES:
+            return _carry_over(f"Only {len(voiced) / 100:.1f}s of speech")
+
+        if _ubm is None:  # no background model: legacy absolute threshold
+            name, score = max(((n, float(g.score(voiced))) for n, g in _speaker_models.items()),
+                              key=lambda t: t[1])
+            if score < config.SPEAKER_ID_THRESHOLD:
+                return None
+            _last_confident = (name, time.time())
+            return name
+
+        background = float(_ubm.score(voiced))
+        name, llr = max(((n, float(g.score(voiced)) - background) for n, g in _speaker_models.items()),
+                        key=lambda t: t[1])
+        print(f"[speaker_id] Best match '{name}' LLR {llr:.2f} (threshold {_llr_threshold:.2f})")
+        if llr >= _llr_threshold:
+            _last_confident = (name, time.time())
+            print(f"[speaker_id] Identified speaker: {name}")
+            return name
+        if llr >= _llr_threshold - _AMBIGUITY_BAND:
+            return _carry_over("Borderline match")
+        _last_confident = None  # clearly not an enrolled voice
+        return None
     except Exception as e:
         print(f"[speaker_id] Speaker identification error: {e}")
         return None
