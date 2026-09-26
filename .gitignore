@@ -81,3 +81,7 @@ skull/web_server.py
 # games/wfrp/extract/foundry_export.cjs, so only the extractor is tracked.
 games/wfrp/rules/modules/
 *.foundry-export.json
+
+# Biometric data (face photos, trained face/voice models) must never be committed
+**/faces/
+*.pkl
