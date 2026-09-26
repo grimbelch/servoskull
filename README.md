@@ -28,7 +28,7 @@ Simply speak the wake phrase — **"Servitor"** — and it wakes, ignites its to
 | :--- | :--- |
 | **🗣️ In-Character Voice AI** | Wakes to *"Servitor"*, processing queries with Anthropic Claude and speaking aloud via local Piper or ElevenLabs text-to-speech. Formal, archaic, and devoted to the Emperor. |
 | **👁️ Computer Vision & Biometrics** | Arducam IMX708 autofocus camera for scene description (*"What do you see?"*), SFace facial recognition, and GMM voice profile identification. |
-| **💡 Physical Eye HUD & Candle LEDs** | GC9A01 1.28" circular IPS panel "machine-spirit eye" with 6 dynamic HUD animation states, 30 screensavers, and **Live Visual UP Alignment Mode (`▲`)** for precision rotation. Transistor-switched flame LEDs ignite on wake and extinguish on sleep. |
+| **💡 Physical Eye HUD & Candle LEDs** | GC9A01 1.28" circular IPS panel "machine-spirit eye" with 6 dynamic HUD animation states, 44 screensavers, and **Live Visual UP Alignment Mode (`▲`)** for precision rotation. Transistor-switched flame LEDs ignite on wake and extinguish on sleep. |
 | **📖 Offline Tabletop Rules Engine** | Instant lookup for **Warhammer 40,000 (11th ed.)**, **Necromunda**, **NetEpic**, and **Net Epic Armageddon** datasheets, stratagems, weapon traits, skills, and points. |
 | **🎲 Tabletop Dice Simulator** | Intercepts dice requests (standard, firepower, injury, scatter, order, save) with sound effects and projects vector-drawn alphanumeric outcomes directly onto the eye HUD. |
 | **🖨️ Bambu Lab 3D Printer Telemetry** | Secure local MQTT client monitoring active print progress, nozzle/bed temperatures, and vocalizing diagnostic HMS fault warnings. Includes **Step-by-Step Voice Pairing** (*"Connect to a new 3D printer"*). |
@@ -52,7 +52,7 @@ Omega-7 hosts a responsive, green-phosphor CRT tactical display accessible secur
 - **Secure Audio Capture**: Capture and stream browser microphone audio (WAV PCM 16kHz) securely over the network.
 - **2-Column Telemetry Panel**: Live system monitor detailing CPU load, Core Temperature, RAM, Storage, Printer status, Master, Silent Mode, and Active Game in a clean dual-column grid.
 - **Vox Log Channel**: Live streaming transcript of all verbal interactions between the Master and Omega-7.
-- **Remote Commands & Visual Emulation**: Inject direct text commands or trigger any of the 30 visual screensavers on demand.
+- **Remote Commands & Visual Emulation**: Inject direct text commands or trigger any of the 44 visual screensavers on demand.
 
 ---
 
@@ -121,7 +121,7 @@ The circular GC9A01 IPS panel serves as Omega-7's main visual feedback element, 
 <summary><b>🖥️ Visual Screensavers & Artwork Projection</b></summary>
 
 - **Trigger Screensaver**: *"Play the [screensaver_name] screensaver"*
-  - *Available*: `canticle_rain`, `pong`, `starfield`, `oscilloscope`, `game_of_life`, `radar`, `warp_core`, `mandala`, `rune_wheel`, `glitch`, `dna_helix`, `neural_net`, `hex_grid`, `void_shield`, `particle_burst`, and more.
+  - *Available*: `titan_duel`, `space_hulk_auspex`, `gothic_broadside`, `warp_translation`, `tyranid_swarm`, `necron_awakening`, `inquisitorial_dossier`, `battlezone`, `asteroids`, `canticle_rain`, `warp_core`, `cogitator_terminal`, and more (44 in total).
 - **Project Artwork**: *"Display artwork of [Space Marine / Gang Name]"*
 </details>
 
