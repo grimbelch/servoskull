@@ -2706,6 +2706,15 @@ _RENDERERS = {
     "battlezone": _render_battlezone_frame
 }
 
+# Lore screensavers (personalities/omega7/lore/) — larger, simulation-driven animations.
+try:
+    from .lore import RENDERERS as _LORE_RENDERERS
+except Exception as e:
+    print(f"[screensavers] Lore screensavers unavailable: {e}")
+    _LORE_RENDERERS = {}
+_RENDERERS.update(_LORE_RENDERERS)
+SCREENSAVER_ANIMS.extend(n for n in _LORE_RENDERERS if n not in SCREENSAVER_ANIMS)
+
 
 def render_screensaver_frame(anim_name: str, bezel, mask, now: float) -> Image.Image:
     """Render a single frame for the requested screensaver animation name ($O(1)$ dispatch)."""
