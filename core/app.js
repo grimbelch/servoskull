@@ -183,6 +183,24 @@
                 if (tempValEl && data.temperature) tempValEl.innerText = String(data.temperature);
                 if (tempPie) tempPie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, tempFloat))}, 100`);
 
+                // Power supply health (under-voltage causes brown-out crashes)
+                const pwrEl = document.getElementById('power-status');
+                const pwr = data.power || {};
+                if (pwrEl && pwr.available) {
+                    const v = (typeof pwr.volts === 'number') ? ` ${pwr.volts.toFixed(2)}V` : '';
+                    pwrEl.style.display = '';
+                    if (pwr.under_voltage_now) {
+                        pwrEl.textContent = `⚡ LOW VOLTAGE${v}`;
+                        pwrEl.style.color = '#ff4030';
+                    } else if (pwr.under_voltage_since_boot) {
+                        pwrEl.textContent = `⚡ BROWN-OUT SINCE BOOT${v}`;
+                        pwrEl.style.color = '#ffb428';
+                    } else {
+                        pwrEl.textContent = `PWR OK${v}`;
+                        pwrEl.style.color = '';
+                    }
+                }
+
                 // Update RAM pie & label
                 const ramFloat = parseFloat(data.ram) || 0;
                 const ramPie = document.getElementById('ram-pie');

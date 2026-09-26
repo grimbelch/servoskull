@@ -424,6 +424,14 @@ TEMP_CLEAR_THRESHOLD = float(os.getenv("TEMP_CLEAR_THRESHOLD", "72"))  # °C —
 TEMP_CHECK_INTERVAL = int(os.getenv("TEMP_CHECK_INTERVAL", "30"))      # seconds between readings
 TEMP_WARN_COOLDOWN = int(os.getenv("TEMP_WARN_COOLDOWN", "300"))       # min seconds between repeat warnings
 
+# ── Power-supply monitor (Raspberry Pi) ──────────────────────────────────────────
+# Polls the firmware's under-voltage flag (vcgencmd get_throttled). Brown-outs crash
+# the Pi and corrupt files mid-write, so every event is logged and the skull warns
+# aloud (outside sleep hours, at most once per cooldown). No-op off the Pi.
+POWER_MONITOR_ENABLED = os.getenv("POWER_MONITOR_ENABLED", "true").lower() == "true"
+POWER_CHECK_INTERVAL = float(os.getenv("POWER_CHECK_INTERVAL", "5"))        # seconds between checks
+POWER_WARN_COOLDOWN = int(os.getenv("POWER_WARN_COOLDOWN", "3600"))         # min seconds between spoken warnings
+
 # ── Conversation history ─────────────────────────────────────────────────────────
 # Stored inside USER_DATA_DIR. HISTORY_FILE may be a bare filename or an absolute path.
 HISTORY_FILE = os.getenv("HISTORY_FILE", f"history_{get_personality_key()}.json")

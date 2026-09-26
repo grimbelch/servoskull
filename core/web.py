@@ -30,6 +30,80 @@ _latest_audio_id: int = 0
 _audio_lock = threading.Lock()
 
 
+# ── Web remote access control ─────────────────────────────────────────────────────
+# Every page, API route and stream requires the access code, except while the unit
+# is still unconfigured (the first-run setup wizard). The code lives only on the
+# device (USER_DATA_DIR/web_access_code, 0600) and is shown on the eye on request.
+# A browser logs in once at /login (or via a link ending ?code=...) and keeps an
+# HttpOnly cookie; scripts can send "Authorization: Bearer <code>".
+_AUTH_COOKIE = "omega7_auth"
+_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O or 1/I lookalikes
+_auth_lock = threading.Lock()
+_access_code: str | None = None
+_login_failures: collections.deque = collections.deque()
+_LOGIN_FAILURE_WINDOW = 300.0
+_LOGIN_FAILURE_LIMIT = 10
+_https_enabled = False
+
+
+def _normalize_code(code: str) -> str:
+    return "".join(ch for ch in (code or "").upper() if ch.isalnum())
+
+
+def get_access_code() -> str:
+    """The web remote access code, created on first use (16 chars, ~80 bits)."""
+    global _access_code
+    import secrets
+    with _auth_lock:
+        if _access_code:
+            return _access_code
+        path = config.data_path("web_access_code")
+        try:
+            existing = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            existing = ""
+        if len(_normalize_code(existing)) >= 16:
+            _access_code = existing
+        else:
+            raw = "".join(secrets.choice(_CODE_ALPHABET) for _ in range(16))
+            _access_code = "-".join(raw[i:i + 4] for i in range(0, 16, 4))
+            config.atomic_write(path, _access_code + "\n", mode=0o600)
+            print("[web] Generated a new web remote access code (ask the skull to show it).")
+        return _access_code
+
+
+def _code_matches(candidate: str) -> bool:
+    import hmac
+    return hmac.compare_digest(_normalize_code(candidate), _normalize_code(get_access_code()))
+
+
+def _login_locked_out() -> bool:
+    now = time.time()
+    with _auth_lock:
+        while _login_failures and now - _login_failures[0] > _LOGIN_FAILURE_WINDOW:
+            _login_failures.popleft()
+        return len(_login_failures) >= _LOGIN_FAILURE_LIMIT
+
+
+def _record_login_failure() -> None:
+    with _auth_lock:
+        _login_failures.append(time.time())
+
+
+_LOGIN_PAGE = """<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Omega-7 Access</title>
+<style>body{background:#000a04;color:#28e664;font-family:monospace;display:flex;min-height:100vh;
+align-items:center;justify-content:center;margin:0}form{border:1px solid #145028;padding:28px;max-width:340px;
+width:90%}h1{font-size:18px;letter-spacing:2px}input{width:100%;box-sizing:border-box;background:#001a08;
+color:#aaffbe;border:1px solid #28e664;padding:10px;font:16px monospace;letter-spacing:2px;margin:12px 0}
+button{background:#28e664;color:#000;border:0;padding:10px 16px;font:bold 14px monospace;cursor:pointer}
+.err{color:#ff4030}.hint{color:#148c3c;font-size:12px}</style></head><body>
+<form method="post" action="/login"><h1>OMEGA-7 // ACCESS</h1>__MESSAGE__
+<input name="code" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="current-password" autofocus>
+<input type="hidden" name="next" value="__NEXT__"><button type="submit">AUTHENTICATE</button>
+<p class="hint">Ask the skull: "show the web access code".</p></form></body></html>"""
+
+
 def publish_web_audio(wav_bytes: bytes) -> None:
     global _latest_audio_bytes, _latest_audio_id
     if not wav_bytes:
@@ -393,23 +467,123 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
+    # ── access control ────────────────────────────────────────────────────────
+    def _is_authenticated(self) -> bool:
+        if not config.is_configured():
+            return True  # first-run setup wizard must work before anyone has the code
+        from http.cookies import SimpleCookie
+        try:
+            cookie = SimpleCookie(self.headers.get("Cookie", ""))
+            if _AUTH_COOKIE in cookie and _code_matches(cookie[_AUTH_COOKIE].value):
+                return True
+        except Exception:
+            pass
+        auth = self.headers.get("Authorization", "")
+        return auth.startswith("Bearer ") and _code_matches(auth[7:].strip())
+
+    def _is_cross_site(self) -> bool:
+        """True for requests another website caused the browser to send."""
+        if self.headers.get("Sec-Fetch-Site", "") == "cross-site":
+            return True
+        origin = self.headers.get("Origin")
+        if origin and origin != "null":
+            from urllib.parse import urlparse
+            return urlparse(origin).netloc.lower() != (self.headers.get("Host") or "").lower()
+        return False
+
+    def _set_auth_cookie_and_redirect(self, location: str) -> None:
+        cookie = f"{_AUTH_COOKIE}={_normalize_code(get_access_code())}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax"
+        if _https_enabled:
+            cookie += "; Secure"
+        self.send_response(303)
+        self.send_header("Set-Cookie", cookie)
+        self.send_header("Location", location if location.startswith("/") and not location.startswith("//") else "/")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def _send_login_page(self, status: int = 200, message: str = "", next_path: str = "/") -> None:
+        import html
+        body = (_LOGIN_PAGE.replace("__MESSAGE__", f'<p class="err">{html.escape(message)}</p>' if message else "")
+                .replace("__NEXT__", html.escape(next_path, quote=True))).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _attempt_login(self, code: str, next_path: str) -> None:
+        if _login_locked_out():
+            self._send_login_page(429, "Too many attempts. Wait a few minutes.", next_path)
+            return
+        if code and _code_matches(code):
+            print("[web] Web remote login succeeded.")
+            self._set_auth_cookie_and_redirect(next_path)
+        else:
+            _record_login_failure()
+            print("[web] Web remote login failed.")
+            self._send_login_page(401, "Access denied.", next_path)
+
+    def _guard(self, method: str) -> bool:
+        """Run access control. Returns True if the request was fully handled here."""
+        from urllib.parse import urlsplit, parse_qs
+        parts = urlsplit(self.path)
+        path = parts.path.rstrip("/") or "/"
+        query = parse_qs(parts.query)
+
+        if method != "GET" and self._is_cross_site():
+            self._send_json({"error": "cross-site request refused"}, 403)
+            return True
+        if path == "/logout":
+            self.send_response(303)
+            self.send_header("Set-Cookie", f"{_AUTH_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax")
+            self.send_header("Location", "/login")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return True
+        if path == "/login":
+            if method == "POST":
+                from urllib.parse import parse_qs as _pq
+                length = max(0, min(int(self.headers.get("Content-Length", 0) or 0), 4096))
+                form = _pq(self.rfile.read(length).decode("utf-8", "replace"))
+                self._attempt_login(form.get("code", [""])[0], form.get("next", ["/"])[0])
+            elif "code" in query:
+                self._attempt_login(query["code"][0], query.get("next", ["/"])[0])
+            else:
+                self._send_login_page(next_path=query.get("next", ["/"])[0])
+            return True
+        if "code" in query and method == "GET":
+            # Login link, e.g. https://omega7:8080/?code=XXXX-XXXX-XXXX-XXXX
+            self._attempt_login(query["code"][0], path)
+            return True
+        if self._is_authenticated():
+            return False
+        if method == "GET" and not (path.startswith("/api/") or path.startswith("/static/")
+                                    or path.startswith("/asset/") or "." in path.rsplit("/", 1)[-1]):
+            from urllib.parse import quote
+            self.send_response(303)
+            self.send_header("Location", f"/login?next={quote(path)}")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+        else:
+            self._send_json({"error": "login required"}, 401)
+        return True
+
     def _send_json(self, data: dict, status_code: int = 200) -> None:
         try:
             body = json.dumps(data, default=str).encode("utf-8")
             self.send_response(status_code)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(body)
         except Exception as e:
             print(f"[web] send_json error: {e}")
 
     def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        # The remote is same-origin only: no CORS grants to other websites.
+        self.send_response(204)
+        self.send_header("Content-Length", "0")
         self.end_headers()
 
     def _handle_root(self) -> None:
@@ -621,6 +795,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             "skull_name": config.SKULL_NAME,
             "display": disp_state if isinstance(disp_state, dict) else {},
             "temperature": temp or "Unavailable",
+            "power": temperature.power_status(),
             "cpu": get_cpu_usage(),
             "ram": get_ram_usage(),
             "ram_total": get_ram_total(),
@@ -988,6 +1163,8 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         global _web_client_connected
+        if self._guard("GET"):
+            return
         _web_client_connected = True
 
         path_clean = self.path.split("?")[0].rstrip("/")
@@ -1221,6 +1398,8 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             self._send_json({"status": "error", "message": str(e)}, 500)
 
     def do_POST(self) -> None:
+        if self._guard("POST"):
+            return
         path_clean = self.path.split("?")[0].rstrip("/")
 
         if web_campaign.dispatch_request(self, self.path, "POST"):
@@ -1292,6 +1471,8 @@ def _run_server(port: int) -> None:
             context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             context.load_cert_chain(certfile=cert_file, keyfile=key_file)
             server.socket = context.wrap_socket(server.socket, server_side=True)
+            global _https_enabled
+            _https_enabled = True
             print(f"[web] Servoskull Web Remote Server running SECURELY on HTTPS port {port}")
         else:
             print(f"[web] Servoskull Web Remote Server running on HTTP port {port} (insecure context - microphone disabled by browser)")
@@ -2271,6 +2452,7 @@ HTML_CLIENT = """<!DOCTYPE html>
                                 </svg>
                                 <span id="temp-val" class="gauge-val">0°C</span>
                             </div>
+                            <span id="power-status" class="gauge-label" style="display:none"></span>
                         </div>
                         <div class="pie-gauge-item">
                             <span class="gauge-label" id="ram-label">RAM</span>

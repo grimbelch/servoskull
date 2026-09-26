@@ -684,6 +684,27 @@ def _run_maintenance(action: str, on_wake) -> None:
     _execute_pending_system_command()
 
 
+# Update/reboot/shutdown requested by Claude's tools. Nothing runs until the user
+# confirms aloud: the main loop picks the request up after the reply and asks.
+_maintenance_requested: str | None = None
+
+
+def request_maintenance(action: str) -> str:
+    """Tool callback for self_update / reboot_system / shutdown_system."""
+    global _maintenance_requested
+    _maintenance_requested = action
+    print(f"[skull] Claude requested {action} — will ask the user to confirm aloud.")
+    return (f"{_MAINT_LABELS[action].capitalize()} has NOT been started. It needs the user's spoken "
+            "confirmation, which the system will ask for immediately after your reply. Reply with one "
+            "short sentence at most, and do not say that it is happening.")
+
+
+def _take_maintenance_request() -> str | None:
+    global _maintenance_requested
+    action, _maintenance_requested = _maintenance_requested, None
+    return action
+
+
 def _briefing_offer_text() -> str:
     if config.PERSONALITY.get("eye_animation") == "dog":
         return (
@@ -863,9 +884,10 @@ def _start_setup_announcement_repeater(interval_sec: float = 120.0) -> None:
 
 def main():
     brain.register_reload_cb(refresh_voice_cache)
-    brain.register_update_cb(self_update)
-    brain.register_reboot_cb(reboot_system)
-    brain.register_shutdown_cb(shutdown_system)
+    # Claude's tools only request these; they run after a spoken yes (see request_maintenance).
+    brain.register_update_cb(lambda: request_maintenance("update"))
+    brain.register_reboot_cb(lambda: request_maintenance("reboot"))
+    brain.register_shutdown_cb(lambda: request_maintenance("shutdown"))
     brain.register_switch_personality_cb(switch_personality)
 
     # Set default output volume to 50% on boot
@@ -885,6 +907,7 @@ def main():
     proximity.start()
     camera.start()
     temperature.start()
+    temperature.start_power_monitor()
     bambu_ctrl.init(_speak_bambu_notification)
     bambu_ctrl.get_monitor().start()
     threading.Thread(target=_spotify_poller_loop, daemon=True).start()
@@ -1713,6 +1736,19 @@ def main():
                 skip_ack = True
                 continue
 
+            # Show the web remote access code on the eye (never spoken aloud or logged).
+            if re.search(r"\b(web|remote)\b.*\b(access )?(code|password|pass ?code)\b|\baccess code\b", _t):
+                print("[skull] Local web-access-code intent detected — showing code on the eye.")
+                try:
+                    display.show_text("WEB REMOTE CODE\n\n" + web.get_access_code() + "\n\nhttps://omega7:8080/login", 45.0)
+                    eyes.on()
+                    _speak_interruptible(tts.synthesize(
+                        "The access code is displayed on my ocular, Master." if config.PERSONALITY.get("eye_animation") != "dog"
+                        else "The code is on my eye screen! Quick, copy it down!"), on_wake)
+                except Exception as e:
+                    print(f"[skull] Access code display error: {e}")
+                continue
+
             if _RE_REFRESH.search(_t):
                 print("[skull] Local voice cache refresh intent detected.")
                 refresh_voice_cache()
@@ -1924,6 +1960,19 @@ def main():
                         print(f"[skull] Briefing offer failed: {e}")
                         _briefing_awaiting_response = False
                         set_speech_active(False)
+
+            # ── 7b. Ask to confirm an update/reboot/shutdown that Claude requested ─────
+            _requested = _take_maintenance_request()
+            if _requested:
+                _pending_maintenance = (_requested, time.time() + _MAINT_CONFIRM_SECS)
+                try:
+                    set_speech_active(True)
+                    eyes.on()
+                    _speak_interruptible(tts.synthesize(_maintenance_prompt(_requested)), on_wake)
+                except Exception:
+                    set_speech_active(False)
+                skip_wake_word = True  # listen straight away for the yes/no
+                skip_ack = True
 
             # ── 8. Execute pending system commands (reboot/shutdown/switch) ───────────
             _execute_pending_system_command()
