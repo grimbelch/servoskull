@@ -211,6 +211,34 @@ for i in range(pa.get_device_count()):
 pa.terminate()
 "
 
+# ── SD-card resilience ─────────────────────────────────────────────────────
+# Brown-outs corrupt files that are mid-write, and every write wears the card.
+# Keep logs across reboots (for crash forensics) but cap them, and let ext4 batch
+# metadata writes (commit=60). Data that must survive a power cut is fsync'd by
+# the app itself, so the longer commit interval only affects unimportant writes.
+echo "[SD] Configuring persistent, size-capped logs and batched filesystem writes..."
+sudo mkdir -p /etc/systemd/journald.conf.d
+sudo tee /etc/systemd/journald.conf.d/99-omega7-persistent.conf >/dev/null <<'JOURNALD'
+[Journal]
+Storage=persistent
+SystemMaxUse=64M
+SystemMaxFileSize=8M
+MaxRetentionSec=2week
+MaxLevelStore=info
+JOURNALD
+sudo systemctl restart systemd-journald
+if ! grep -qE '^[^#]+[[:space:]]/[[:space:]]+ext4[[:space:]]+[^[:space:]]*commit=' /etc/fstab; then
+    sudo cp /etc/fstab /etc/fstab.bak
+    sudo sed -i -E 's#^([^#][^[:space:]]*[[:space:]]+/[[:space:]]+ext4[[:space:]]+)([^[:space:]]+)#\1\2,commit=60#' /etc/fstab
+    if sudo findmnt --verify --tab-file /etc/fstab >/dev/null 2>&1; then
+        sudo systemctl daemon-reload
+        sudo mount -o remount,commit=60 / || true
+    else
+        echo "    fstab check failed — restoring backup."
+        sudo cp /etc/fstab.bak /etc/fstab
+    fi
+fi
+
 echo ""
 echo "=== Setup complete ==="
 echo ""
