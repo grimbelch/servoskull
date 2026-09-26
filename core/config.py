@@ -393,6 +393,15 @@ DISPLAY_BL_PIN = int(os.getenv("DISPLAY_BL_PIN", "12"))        # GPIO 12 (pin 32
 DISPLAY_ROTATION = int(os.getenv("DISPLAY_ROTATION", "0"))     # 0/90/180/270
 DISPLAY_FINE_ROTATION = float(_cfg("DISPLAY_FINE_ROTATION", "18.0"))  # software rotation offset (degrees, positive = clockwise)
 DISPLAY_IDLE_TIMEOUT = float(_cfg("DISPLAY_IDLE_TIMEOUT", "300.0"))  # seconds before showing idle animations (default: 5 minutes)
+# Power saving (the Pi's supply is marginal): during sleep hours an idle panel is put
+# to sleep (SLPIN + backlight off) instead of running screensavers all night; when
+# the rangefinder has seen nobody move for DISPLAY_PRESENCE_TIMEOUT, idle/screensaver
+# rendering drops to DISPLAY_IDLE_FPS; static screens (text, images, update progress)
+# refresh at DISPLAY_STATIC_FPS and are only re-sent over SPI when they change.
+DISPLAY_SLEEP_IN_QUIET_HOURS = _cfg("DISPLAY_SLEEP_IN_QUIET_HOURS", "true").lower() == "true"
+DISPLAY_PRESENCE_TIMEOUT = float(_cfg("DISPLAY_PRESENCE_TIMEOUT", "1200.0"))  # seconds without rangefinder change
+DISPLAY_IDLE_FPS = float(_cfg("DISPLAY_IDLE_FPS", "10.0"))      # screensaver rate when nobody is around
+DISPLAY_STATIC_FPS = float(_cfg("DISPLAY_STATIC_FPS", "2.0"))   # refresh rate for static screens
 
 
 def set_display_rotation(degrees: float, relative: bool = False) -> str:
@@ -490,7 +499,9 @@ ACK_PHRASES = PERSONALITY.get("ack_phrases", [])
 SILENCE_PHRASES = PERSONALITY.get("silence_phrases", [])
 
 # ── Display and Animation Settings ──────────────────────────────────────────
-DISPLAY_FPS = 30.0
+# The render loop now paces accurately; the old loop only achieved ~14-15 fps, so
+# 15 keeps the same look without doubling CPU/SPI load (raise for smoother motion).
+DISPLAY_FPS = float(_cfg("DISPLAY_FPS", "15"))
 DISPLAY_MOOD_COLORS = {
     "neutral": (0, 100, 255),
     "thinking": (200, 50, 255),

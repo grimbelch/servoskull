@@ -69,6 +69,7 @@ def start_alignment_display(duration: float = 60.0):
     global _showing_alignment, _alignment_until
     _alignment_until = time.monotonic() + duration
     _showing_alignment = True
+    _poke()
 
 def stop_alignment_display():
     global _showing_alignment, _alignment_until
@@ -88,6 +89,7 @@ _omnissiah_duration = 0.0
 _showing_custom_image = False
 _custom_image = None
 _custom_image_expiry = 0.0
+_custom_image_seq = 0      # bumped per new custom image, so an unchanged one isn't re-sent
 
 # Autonomous game display — set while a games.bardstale agent is running
 _showing_game = False
@@ -117,6 +119,7 @@ _EYE_R = 73   # radius of the cog's central aperture; the iris lives inside this
 
 # GC9A01 command set (subset).
 _SWRESET = 0x01
+_SLPIN = 0x10
 _SLPOUT = 0x11
 _DISPON = 0x29
 _CASET = 0x2A
@@ -272,40 +275,151 @@ def _set_window(x0: int, y0: int, x1: int, y1: int) -> None:
 _current_frame_image = None
 _current_frame_seq = 0          # bumped on every blit
 _frame_jpeg_cache = (-1, None)  # (seq, jpeg bytes) — one encode shared by all web viewers
-_frame_lock = threading.Lock()
+_frame_lock = threading.Lock()   # guards the in-memory frame (shared with the web mirror)
+_spi_lock = threading.Lock()     # serialises panel I/O; held for the SPI transfer only
+_last_blit_key = None            # key of the static frame last sent to the panel, else None
+_writebytes2_ok = True           # cleared if spidev's buffer API is missing or fails
 
 
-def _blit(img) -> None:
+def _push_frame(buf: bytes) -> None:
+    """Send one full-screen RGB565 frame; the caller holds _spi_lock."""
+    global _writebytes2_ok
+    _set_window(0, 0, W - 1, H - 1)
+    _GPIO.output(config.DISPLAY_DC_PIN, 1)
+    if _writebytes2_ok:
+        try:
+            _spi.writebytes2(buf)  # buffer API: spidev chunks to bufsiz internally
+            return
+        except Exception as e:
+            _writebytes2_ok = False
+            print(f"[display] spidev writebytes2 unavailable ({e}); using chunked writes.")
+            _set_window(0, 0, W - 1, H - 1)
+            _GPIO.output(config.DISPLAY_DC_PIN, 1)
+    # spidev caps a single transfer at its bufsiz (commonly 4096 bytes); chunk.
+    step = 4096
+    for i in range(0, len(buf), step):
+        _spi.writebytes(buf[i:i + step])
+
+
+def _blit(img, key=None) -> None:
     """Push a 240x240 PIL RGB image to the panel as big-endian RGB565.
 
     The latest frame is kept in memory for the web remote's ocular mirror. It is
     deliberately never written to disk: at 30 fps that was millions of SD-card
     rewrites a day and a corruption risk on power loss.
+
+    `key` identifies a static screen's content (see _blit_static); animated
+    frames pass none.
     """
-    global _current_frame_image, _current_frame_seq
+    global _current_frame_image, _current_frame_seq, _last_blit_key
+    _last_blit_key = None  # set once this frame is actually on the panel
+
     with _frame_lock:
         _current_frame_image = img.copy()
         _current_frame_seq += 1
 
-    with _frame_lock:
-        if not _available or _spi is None:
-            return
+    if not _available or _spi is None:
+        _last_blit_key = key
+        return
 
-        if config.DISPLAY_FINE_ROTATION != 0.0:
-            # PIL rotate is counter-clockwise. Pass -angle to rotate clockwise.
-            img = img.rotate(-config.DISPLAY_FINE_ROTATION, resample=Image.BICUBIC)
-        arr = np.asarray(img, dtype=np.uint16)
-        r = (arr[..., 0] & 0xF8) << 8
-        g = (arr[..., 1] & 0xFC) << 3
-        b = (arr[..., 2] & 0xF8) >> 3
-        rgb565 = (r | g | b).astype(">u2")  # big-endian: MSB first on the wire
-        buf = rgb565.tobytes()
-        _set_window(0, 0, W - 1, H - 1)
-        _GPIO.output(config.DISPLAY_DC_PIN, 1)
-        # spidev caps a single transfer at its bufsiz (commonly 4096 bytes); chunk.
-        step = 4096
-        for i in range(0, len(buf), step):
-            _spi.writebytes(buf[i:i + step])
+    if config.DISPLAY_FINE_ROTATION != 0.0:
+        # PIL rotate is counter-clockwise. Pass -angle to rotate clockwise.
+        img = img.rotate(-config.DISPLAY_FINE_ROTATION, resample=Image.BICUBIC)
+    arr = np.asarray(img, dtype=np.uint16)
+    r = (arr[..., 0] & 0xF8) << 8
+    g = (arr[..., 1] & 0xFC) << 3
+    b = (arr[..., 2] & 0xF8) >> 3
+    rgb565 = (r | g | b).astype(">u2")  # big-endian: MSB first on the wire
+    with _spi_lock:
+        _push_frame(rgb565.tobytes())
+    _last_blit_key = key
+
+
+def _blit_static(key, make) -> None:
+    """Blit a static screen only if it isn't already on the panel: `make()` builds
+    the image, and both it and the 115 KB SPI transfer are skipped when `key`
+    matches the last frame sent."""
+    key = (key, config.DISPLAY_FINE_ROTATION)
+    if key != _last_blit_key:
+        _blit(make(), key)
+
+
+# ── panel power saving ────────────────────────────────────────────────────────────
+# During sleep hours an idle panel is blanked and put into GC9A01 sleep with the
+# backlight off, and the render thread blocks on _wake_event instead of rendering.
+# Every entry point that gives the eye something to show calls _poke(), which wakes
+# the thread at once (and, when asleep, the panel).
+
+_wake_event = threading.Event()  # set by _poke()/cleanup() to cut a render wait short
+_PRESENCE_DELTA_CM = 15.0        # rangefinder change that counts as someone moving nearby
+_panel_asleep = False
+_panel_slept_at = 0.0
+
+
+def _poke(activity: bool = True) -> None:
+    """Note display activity and wake the render thread (and panel) immediately."""
+    global _last_activity_time
+    if activity:
+        _last_activity_time = time.monotonic()
+    _wake_event.set()
+
+
+def _panel_sleep() -> None:
+    """Blank the panel, switch the backlight off and send SLPIN."""
+    global _panel_asleep, _panel_slept_at
+    _blit_static("blank", lambda: Image.new("RGB", (W, H), (0, 0, 0)))
+    if _available and _spi is not None:
+        with _spi_lock:
+            if config.DISPLAY_BL_PIN >= 0:
+                _GPIO.output(config.DISPLAY_BL_PIN, 0)
+            _cmd(_SLPIN)
+    _panel_asleep = True
+    _panel_slept_at = time.monotonic()
+    print("[display] Quiet hours and idle — panel asleep, rendering paused.")
+
+
+def _panel_wake(reason: str) -> None:
+    """SLPOUT, wait for the panel to come out of sleep, then backlight on."""
+    global _panel_asleep
+    if _available and _spi is not None:
+        with _spi_lock:
+            # Datasheet: 120 ms after SLPIN before SLPOUT, and 120 ms after SLPOUT
+            # before the next command.
+            time.sleep(max(0.0, _panel_slept_at + 0.12 - time.monotonic()))
+            _cmd(_SLPOUT)
+            time.sleep(0.12)
+            _cmd(_DISPON)
+            if config.DISPLAY_BL_PIN >= 0:
+                _GPIO.output(config.DISPLAY_BL_PIN, 1)
+    _panel_asleep = False
+    print(f"[display] Panel awake ({reason}).")
+
+
+_sleep_hours_cache = (-1e9, False)  # (checked_at, value) — quiet state lives in SQLite
+
+
+def _in_sleep_hours(now: float) -> bool:
+    global _sleep_hours_cache
+    checked_at, value = _sleep_hours_cache
+    if now - checked_at >= 5.0:
+        try:
+            from core import quiet
+            value = quiet.is_in_sleep_hours()
+        except Exception:
+            value = False
+        _sleep_hours_cache = (now, value)
+    return value
+
+
+def _read_distance():
+    """(available, latest rangefinder distance in cm or None)."""
+    try:
+        from core import proximity
+        if not proximity.available():
+            return False, None
+        return True, proximity.get_latest_distance_cm()
+    except Exception:
+        return False, None
 
 
 # ── frame composition ─────────────────────────────────────────────────────────────
@@ -1043,7 +1157,39 @@ def _render_loop():
     target_look_x = 0.0
     target_look_y = 0.0
     next_gaze_time = t0 + random.uniform(2.0, 5.0)
+
+    # Power saving: presence = display activity, or the rangefinder reading moving
+    # more than _PRESENCE_DELTA_CM (or a target appearing/vanishing) since the quiet
+    # period began. Idle rendering drops to DISPLAY_IDLE_FPS once nobody has been
+    # around for DISPLAY_PRESENCE_TIMEOUT.
+    presence_at = t0
+    presence_cm = None
+    low_power = False
+    game_frame = None      # last game frame shown (held so its identity stays unique)
+    game_frame_seq = 0
+    next_frame = t0        # frame deadline; pacing is measured against this
+
+    def pace(fps: float) -> None:
+        """Wait out the rest of this frame's slot. Timed from a deadline so render
+        and SPI time don't stretch the period; reduced-rate waits end early on
+        _poke() so activity gets the full frame rate at once."""
+        nonlocal next_frame
+        period = 1.0 / fps
+        now = time.monotonic()
+        next_frame += period
+        if next_frame < now - period:  # fell well behind (slow frame, wake-up): resync
+            next_frame = now
+        delay = next_frame - now
+        if delay <= 0:
+            return
+        if fps < config.DISPLAY_FPS:
+            if _wake_event.wait(delay):
+                next_frame = time.monotonic()
+        else:
+            _stop.wait(delay)
+
     while not _stop.is_set():
+        _wake_event.clear()  # a _poke() from here on cuts this frame's wait short
         now = time.monotonic()
         dt, last = now - last, now
 
@@ -1072,14 +1218,41 @@ def _render_loop():
         if is_active:
             _last_activity_time = now
             _active_idle_anim = None
-        else:
+        idle_due = not is_active and now - _last_activity_time >= config.DISPLAY_IDLE_TIMEOUT
+        idle_requested = now < _custom_idle_expiry
+
+        # Quiet hours with nothing to show: park the panel instead of running
+        # screensavers all night. _poke() or the end of sleep hours wakes it.
+        if (idle_due and not idle_requested and config.DISPLAY_SLEEP_IN_QUIET_HOURS
+                and _in_sleep_hours(now)):
+            if not _panel_asleep:
+                _panel_sleep()
+            _wake_event.wait(5.0)
+            continue
+        if _panel_asleep:
+            _panel_wake("sleep hours over" if idle_due and not idle_requested else "activity")
+            next_frame = last = time.monotonic()
+
+        prox_ok, dist = _read_distance()
+        if (not prox_ok or _last_activity_time > presence_at
+                or (dist is None) != (presence_cm is None)
+                or (dist is not None and abs(dist - presence_cm) > _PRESENCE_DELTA_CM)):
+            presence_at, presence_cm = now, dist
+        nobody_around = (prox_ok and idle_due and not idle_requested
+                         and now - presence_at >= config.DISPLAY_PRESENCE_TIMEOUT)
+        if nobody_around != low_power:
+            low_power = nobody_around
+            print(f"[display] Nobody around — idle rendering at {config.DISPLAY_IDLE_FPS:g} fps."
+                  if low_power else f"[display] Presence — back to {config.DISPLAY_FPS:g} fps.")
+
+        if not is_active:
             if now >= _custom_idle_expiry:
                 if _requested_idle_anim is not None:
                     _requested_idle_anim = None
                     _active_idle_anim = None
 
             # If idle and timeout reached or forced, run screensaver animation
-            if (now - _last_activity_time >= config.DISPLAY_IDLE_TIMEOUT) or (now < _custom_idle_expiry):
+            if idle_due or idle_requested:
                 # Cycle to a new screensaver every 5 minutes (300 seconds) if not explicitly locked to a requested animation
                 if _active_idle_anim is not None and (now - idle_anim_start_time >= 300.0) and (_requested_idle_anim is None):
                     _active_idle_anim = None
@@ -1101,14 +1274,15 @@ def _render_loop():
                         _blit(_screensavers.render_screensaver_frame(_active_idle_anim, bezel, mask, now))
                 except Exception as e:
                     _render_error(f"screensaver render ({_active_idle_anim})", e)
-                time.sleep(1 / config.DISPLAY_FPS)
+                pace(config.DISPLAY_IDLE_FPS if low_power else config.DISPLAY_FPS)
                 continue
         if _showing_update_progress:
             try:
-                _blit(_render_update_progress_frame(bezel, mask, now))
+                _blit_static(("update", _update_progress_percent, _update_stage_text),
+                             lambda: _render_update_progress_frame(bezel, mask, now))
             except Exception as e:
                 _render_error("update progress render", e)
-            time.sleep(1 / config.DISPLAY_FPS)
+            pace(config.DISPLAY_STATIC_FPS)
             continue
 
         if _showing_omnissiah_glyph:
@@ -1120,7 +1294,7 @@ def _render_loop():
                     _blit(_render_omnissiah_frame(bezel, mask, now))
                 except Exception as e:
                     _render_error("omnissiah render", e)
-                time.sleep(1 / config.DISPLAY_FPS)
+                pace(config.DISPLAY_FPS)
                 continue
 
         if _rolling_die:
@@ -1132,7 +1306,7 @@ def _render_loop():
                     _blit(_render_die_frame(bezel, mask, roll_elapsed, _die_result))
                 except Exception as e:
                     _render_error("die render", e)
-                time.sleep(1 / config.DISPLAY_FPS)
+                pace(config.DISPLAY_FPS)
                 continue
 
         if _scanning_auspex:
@@ -1140,7 +1314,7 @@ def _render_loop():
                 _blit(_render_auspex_frame(bezel, mask, now))
             except Exception as e:
                 _render_error("auspex render", e)
-            time.sleep(1 / config.DISPLAY_FPS)
+            pace(config.DISPLAY_FPS)
             continue
 
         if _scanning_noosphere:
@@ -1148,7 +1322,7 @@ def _render_loop():
                 _blit(_render_noosphere_frame(bezel, mask, now))
             except Exception as e:
                 _render_error("noosphere render", e)
-            time.sleep(1 / config.DISPLAY_FPS)
+            pace(config.DISPLAY_FPS)
             continue
 
         if searching_web_active:
@@ -1156,7 +1330,7 @@ def _render_loop():
                 _blit(_render_web_search_frame(bezel, mask, now))
             except Exception as e:
                 _render_error("web search render", e)
-            time.sleep(1 / config.DISPLAY_FPS)
+            pace(config.DISPLAY_FPS)
             continue
 
         if rules_lookup_active:
@@ -1164,7 +1338,7 @@ def _render_loop():
                 _blit(_render_rules_lookup_frame(bezel, mask, now))
             except Exception as e:
                 _render_error("rules lookup render", e)
-            time.sleep(1 / config.DISPLAY_FPS)
+            pace(config.DISPLAY_FPS)
             continue
 
         if news_fetch_active:
@@ -1172,7 +1346,7 @@ def _render_loop():
                 _blit(_render_news_fetch_frame(bezel, mask, now))
             except Exception as e:
                 _render_error("news fetch render", e)
-            time.sleep(1 / config.DISPLAY_FPS)
+            pace(config.DISPLAY_FPS)
             continue
 
         if image_retrieval_active:
@@ -1180,7 +1354,7 @@ def _render_loop():
                 _blit(_render_image_retrieval_frame(bezel, mask, now))
             except Exception as e:
                 _render_error("image retrieval render", e)
-            time.sleep(1 / config.DISPLAY_FPS)
+            pace(config.DISPLAY_FPS)
             continue
 
         if _showing_alignment:
@@ -1191,7 +1365,7 @@ def _render_loop():
                     _blit(_render_alignment_frame(bezel, mask, now))
                 except Exception as e:
                     _render_error("alignment render", e)
-                time.sleep(1 / config.DISPLAY_FPS)
+                pace(config.DISPLAY_FPS)
                 continue
 
         if _targeting:
@@ -1199,7 +1373,7 @@ def _render_loop():
                 _blit(_render_targeting_frame(bezel, mask, now))
             except Exception as e:
                 _render_error("targeting render", e)
-            time.sleep(1 / config.DISPLAY_FPS)
+            pace(config.DISPLAY_FPS)
             continue
 
         if _visualizing_music and not _speaking and not _thinking:
@@ -1207,7 +1381,7 @@ def _render_loop():
                 _blit(_render_music_frame(bezel, mask, now))
             except Exception as e:
                 _render_error("music render", e)
-            time.sleep(1 / config.DISPLAY_FPS)
+            pace(config.DISPLAY_FPS)
             continue
 
         if _showing_game:
@@ -1215,10 +1389,12 @@ def _render_loop():
                 from games.bardstale import agent as _bt_agent
                 gf = _bt_agent.get_latest_frame()
                 if gf is not None:
-                    _blit(gf)
+                    if gf is not game_frame:  # a new capture; resend only then
+                        game_frame, game_frame_seq = gf, game_frame_seq + 1
+                    _blit_static(("game", game_frame_seq), lambda: gf)
             except Exception as e:
                 _render_error("game frame", e)
-            time.sleep(1 / config.DISPLAY_FPS)
+            pace(config.DISPLAY_FPS)
             continue
 
         if _showing_custom_image:
@@ -1227,10 +1403,10 @@ def _render_loop():
                 _custom_image = None
             else:
                 try:
-                    _blit(_custom_image)
+                    _blit_static(("custom", _custom_image_seq), lambda: _custom_image)
                 except Exception as e:
                     _render_error("custom image render", e)
-                time.sleep(1 / config.DISPLAY_FPS)
+                pace(config.DISPLAY_STATIC_FPS)
                 continue
 
         if _speaking:
@@ -1285,7 +1461,7 @@ def _render_loop():
             _blit(_render_frame(bezel, mask, max(0.0, min(1.0, shown)), angle, blink, look_x, look_y))
         except Exception as e:
             _render_error("render", e)  # back off and keep going; never exit the thread
-        time.sleep(1 / config.DISPLAY_FPS)
+        pace(config.DISPLAY_FPS)
 
 
 def start_die_roll(result: int | str) -> None:
@@ -1295,6 +1471,7 @@ def start_die_roll(result: int | str) -> None:
     _die_result = str(result)
     _die_start_time = time.monotonic()
     _rolling_die = True
+    _poke()
 
 
 def start_update_progress() -> None:
@@ -1304,12 +1481,14 @@ def start_update_progress() -> None:
     _update_progress_percent = 0.0
     _update_stage_text = "INITIATING..."
     _showing_update_progress = True
+    _poke()
 
 def set_update_progress(percent: float, text: str) -> None:
     global _update_progress_percent, _update_stage_text, _showing_update_progress
     _update_progress_percent = max(0.0, min(100.0, percent))
     _update_stage_text = text
     _showing_update_progress = True
+    _poke()
 
 
 def stop_update_progress() -> None:
@@ -1325,10 +1504,11 @@ def start_omnissiah_glyph(duration: float = 4.0) -> None:
     _omnissiah_duration = duration
     _omnissiah_start_time = time.monotonic()
     _showing_omnissiah_glyph = True
+    _poke()
 
 
 def display_pil_image(pil_img, duration: float = 10.0) -> None:
-    global _showing_custom_image, _custom_image, _custom_image_expiry
+    global _showing_custom_image, _custom_image, _custom_image_expiry, _custom_image_seq
     if not _available:
         return
     try:
@@ -1343,8 +1523,10 @@ def display_pil_image(pil_img, duration: float = 10.0) -> None:
         resized = cropped.resize((240, 240), resample=Image.BICUBIC)
         
         _custom_image = resized
+        _custom_image_seq += 1
         _custom_image_expiry = time.monotonic() + duration
         _showing_custom_image = True
+        _poke()
     except Exception as e:
         print(f"[display] display_pil_image error: {e}")
 
@@ -1429,6 +1611,7 @@ def trigger_idle_animation(duration: float = 60.0, animation_name: str | None = 
         _requested_idle_anim = animation_name
     else:
         _requested_idle_anim = None
+    _poke(activity=False)  # wake the loop without undoing the forced idle above
 
 
 # ── public API (mirrors eyes.py) ─────────────────────────────────────────────────
@@ -1478,6 +1661,7 @@ def set_amplitude(amp: float) -> None:
     _target_amp = max(0.0, min(1.0, amp))
     _speaking = True
     _thinking = False  # speech has begun; stop spinning the cog
+    _poke()
 
 
 def set_mood(mood: str) -> None:
@@ -1497,6 +1681,8 @@ def think(active: bool = True) -> None:
     if not _available:
         return
     _thinking = active
+    if active:
+        _poke()
 
 
 def on() -> None:
@@ -1507,6 +1693,7 @@ def on() -> None:
     _target_amp = 1.0
     _speaking = True
     _thinking = False
+    _poke()
 
 
 def idle() -> None:
@@ -1526,6 +1713,7 @@ off = idle
 def start_auspex_scan() -> None:
     global _scanning_auspex
     _scanning_auspex = True
+    _poke()
 
 
 def stop_auspex_scan() -> None:
@@ -1536,6 +1724,7 @@ def stop_auspex_scan() -> None:
 def start_noosphere_scan() -> None:
     global _scanning_noosphere
     _scanning_noosphere = True
+    _poke()
 
 
 def stop_noosphere_scan() -> None:
@@ -1547,6 +1736,7 @@ def start_web_search(min_duration: float = 3.0) -> None:
     global _searching_web, _web_search_until
     _web_search_until = time.monotonic() + min_duration
     _searching_web = True
+    _poke()
 
 
 def stop_web_search() -> None:
@@ -1558,6 +1748,7 @@ def start_rules_lookup(min_duration: float = 3.5) -> None:
     global _looking_up_rules, _rules_lookup_until
     _rules_lookup_until = time.monotonic() + min_duration
     _looking_up_rules = True
+    _poke()
 
 
 def stop_rules_lookup() -> None:
@@ -1569,6 +1760,7 @@ def start_news_fetch(min_duration: float = 3.0) -> None:
     global _fetching_news, _news_fetch_until
     _news_fetch_until = time.monotonic() + min_duration
     _fetching_news = True
+    _poke()
 
 
 def stop_news_fetch() -> None:
@@ -1580,6 +1772,7 @@ def start_image_retrieval(min_duration: float = 3.0) -> None:
     global _retrieving_image, _image_retrieval_until
     _image_retrieval_until = time.monotonic() + min_duration
     _retrieving_image = True
+    _poke()
 
 
 def stop_image_retrieval() -> None:
@@ -1590,16 +1783,21 @@ def stop_image_retrieval() -> None:
 def set_targeting(active: bool) -> None:
     global _targeting
     _targeting = active
+    if active:
+        _poke()
 
 
 def set_music_playing(active: bool) -> None:
     global _visualizing_music
     _visualizing_music = active
+    if active:
+        _poke()
 
 
 def cleanup() -> None:
     global _available
     _stop.set()
+    _wake_event.set()
     if _render_thread is not None:
         _render_thread.join(timeout=1.0)
     if not _available:
@@ -1618,6 +1816,7 @@ def start_game_display() -> None:
     """Tell the display loop to show live Bard's Tale game frames."""
     global _showing_game
     _showing_game = True
+    _poke()
 
 
 def stop_game_display() -> None:
