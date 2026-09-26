@@ -85,3 +85,11 @@ games/wfrp/rules/modules/
 # Biometric data (face photos, trained face/voice models) must never be committed
 **/faces/
 *.pkl
+
+# Games Workshop / Cubicle 7 rulebook text and artwork is copyrighted. It is built
+# locally (games/ingest_pdf.py, games/wfrp/extract) from books you own and stays on
+# the device; never commit it. Our own LLM rules summaries are the exception.
+games/warhammer40k/rules/
+games/necromunda/rules/
+games/wfrp/rules/*
+!games/wfrp/rules/llm_*.md

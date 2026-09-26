@@ -177,6 +177,18 @@ omega7.service         systemd service descriptor
 
 ---
 
+## 📚 Rules Library (not included)
+
+The offline rules lookups read Markdown pages built from rulebooks **you own**. Games Workshop and Cubicle 7 text is copyrighted, so it is not in this repository: build it locally and keep it on the device (the paths are git-ignored).
+
+| Game | Build from your PDFs into |
+| :--- | :--- |
+| Warhammer 40,000 | `python games/ingest_pdf.py warhammer40k "/path/to/40k PDFs"` → `games/warhammer40k/rules/` |
+| Necromunda | `python games/ingest_pdf.py necromunda "/path/to/Necromunda PDFs"` → `games/necromunda/rules/` |
+| WFRP 4e | `games/wfrp/extract` (see its README) → `games/wfrp/rules/` |
+
+The fan-made NetEpic and NetEA rules are included. Run the ingest on a desktop (it needs `pymupdf4llm`), then copy the folders to the Pi.
+
 ## 📜 Requirements & Licensing
 
 - **Hardware:** Raspberry Pi 5 (4 GB) + components listed in [`Shopping list.md`](<Shopping list.md>).
