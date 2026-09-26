@@ -1778,20 +1778,48 @@ _bz_mountains = []
 _bz_score = 0
 _bz_last_shot = 0.0
 
+_bz_last_frame = 0.0
+
+_BZ_SPAWN_ARC = 0.6        # half-angle (rad) ahead of the player where new tanks appear
+_BZ_ENGAGE_DIST = 70.0     # tanks close to this range, then circle the player
+_BZ_RECYCLE_DIST = 300.0   # tanks farther than this (or well behind) respawn ahead
+
+
+def _bz_relative(tank):
+    """Tank position in the player's view frame: (rx right, rz forward)."""
+    dx = tank["x"] - _bz_player["x"]
+    dz = tank["z"] - _bz_player["z"]
+    h = _bz_player["heading"]
+    return dx * math.cos(h) - dz * math.sin(h), dx * math.sin(h) + dz * math.cos(h)
+
+
+def _bz_turn_toward(current, target, max_step):
+    diff = (target - current + math.pi) % (2 * math.pi) - math.pi
+    return current + max(-max_step, min(max_step, diff))
+
+
+def _bz_new_tank(ahead=True):
+    """Spawn a tank in front of the player (or anywhere) heading roughly at them."""
+    p = _bz_player
+    spread = _BZ_SPAWN_ARC if ahead else math.pi
+    ang = p["heading"] + random.uniform(-spread, spread)
+    dist = random.uniform(110, 200)
+    x = p["x"] + dist * math.sin(ang)
+    z = p["z"] + dist * math.cos(ang)
+    return {
+        "x": x,
+        "z": z,
+        "heading": math.atan2(p["x"] - x, p["z"] - z) + random.uniform(-0.8, 0.8),
+        "speed": random.uniform(0.3, 0.6),
+        "turret_angle": random.uniform(0, math.pi * 2),
+        "orbit": random.choice((-1, 1)),
+    }
+
+
 def _init_battlezone():
     global _bz_player, _bz_tanks, _bz_shells, _bz_explosions, _bz_mountains, _bz_score, _bz_last_shot
-    _bz_player = {"x": 0.0, "z": 0.0, "heading": 0.0, "speed": 1.4}
-    _bz_tanks = []
-    for _ in range(3):
-        angle = random.uniform(0, math.pi * 2)
-        dist = random.uniform(90, 220)
-        _bz_tanks.append({
-            "x": dist * math.sin(angle),
-            "z": dist * math.cos(angle),
-            "heading": random.uniform(0, math.pi * 2),
-            "speed": random.uniform(0.4, 0.9),
-            "turret_angle": random.uniform(0, math.pi * 2)
-        })
+    _bz_player = {"x": 0.0, "z": 0.0, "heading": 0.0, "speed": 0.5}
+    _bz_tanks = [_bz_new_tank(), _bz_new_tank(), _bz_new_tank(ahead=False)]
     _bz_shells = []
     _bz_explosions = []
     _bz_score = 0
@@ -1807,16 +1835,25 @@ def _init_battlezone():
 
 def _render_battlezone_frame(bezel, mask, now):
     """Vector Arcade Battlezone Periscope Simulator – Adeptus Mechanicus edition."""
-    global _bz_player, _bz_tanks, _bz_shells, _bz_explosions, _bz_score, _bz_last_shot, _bz_mountains
+    global _bz_player, _bz_tanks, _bz_shells, _bz_explosions, _bz_score, _bz_last_shot, _bz_mountains, _bz_last_frame
 
-    if _bz_player is None or not _bz_mountains:
+    # Fresh battle each time the screensaver comes up, not wherever the last one drifted to.
+    if _bz_player is None or not _bz_mountains or now - _bz_last_frame > 2.0:
         _init_battlezone()
+    _bz_last_frame = now
 
     img = Image.new("RGB", (240, 240), (0, 8, 3))
     d = ImageDraw.Draw(img)
 
-    # 1. Update Player position & orientation
-    _bz_player["heading"] += math.sin(now * 0.3) * 0.015
+    # 1. Update Player position & orientation — sweep the periscope toward the nearest tank
+    if _bz_tanks:
+        nearest = min(_bz_tanks, key=lambda t: math.hypot(t["x"] - _bz_player["x"], t["z"] - _bz_player["z"]))
+        bearing = math.atan2(nearest["x"] - _bz_player["x"], nearest["z"] - _bz_player["z"])
+        _bz_player["heading"] = _bz_turn_toward(_bz_player["heading"], bearing, 0.012)
+        # Halt and fight once a tank is in engagement range instead of ramming it.
+        near_dist = math.hypot(nearest["x"] - _bz_player["x"], nearest["z"] - _bz_player["z"])
+        _bz_player["speed"] = 0.5 if near_dist > _BZ_ENGAGE_DIST + 20 else 0.0
+    _bz_player["heading"] += math.sin(now * 0.3) * 0.004
     _bz_player["x"] += math.sin(_bz_player["heading"]) * _bz_player["speed"]
     _bz_player["z"] += math.cos(_bz_player["heading"]) * _bz_player["speed"]
 
@@ -1854,15 +1891,25 @@ def _render_battlezone_frame(bezel, mask, now):
     # 4. Process & Project 3D Wireframe Enemy Tanks
     target_in_reticle = False
 
-    for tank in _bz_tanks:
+    for i, tank in enumerate(_bz_tanks):
+        # Hunt the player: close to engagement range, then circle while the turret tracks.
+        to_player = math.atan2(_bz_player["x"] - tank["x"], _bz_player["z"] - tank["z"])
+        dist = math.hypot(_bz_player["x"] - tank["x"], _bz_player["z"] - tank["z"])
+        if dist > _BZ_ENGAGE_DIST:
+            desired = to_player
+        elif dist > _BZ_ENGAGE_DIST * 0.6:
+            desired = to_player + tank["orbit"] * math.pi / 2
+        else:
+            desired = to_player + math.pi  # too close — back off
+        tank["heading"] = _bz_turn_toward(tank["heading"], desired, 0.02)
+        tank["turret_angle"] = _bz_turn_toward(tank["turret_angle"], to_player, 0.03)
         tank["x"] += math.sin(tank["heading"]) * tank["speed"]
         tank["z"] += math.cos(tank["heading"]) * tank["speed"]
 
-        dx = tank["x"] - _bz_player["x"]
-        dz = tank["z"] - _bz_player["z"]
-
-        rx = dx * math.cos(_bz_player["heading"]) - dz * math.sin(_bz_player["heading"])
-        rz = dx * math.sin(_bz_player["heading"]) + dz * math.cos(_bz_player["heading"])
+        rx, rz = _bz_relative(tank)
+        if dist > _BZ_RECYCLE_DIST or rz < -40.0:
+            _bz_tanks[i] = tank = _bz_new_tank()
+            rx, rz = _bz_relative(tank)
 
         if rz > 5.0:
             scale = 160.0 / rz
@@ -1888,7 +1935,7 @@ def _render_battlezone_frame(bezel, mask, now):
                     target_in_reticle = True
 
     # 5. Cannon Shells & Explosions
-    if (target_in_reticle or random.random() < 0.04) and (now - _bz_last_shot > 0.8):
+    if (target_in_reticle or random.random() < 0.01) and (now - _bz_last_shot > 3.0):
         _bz_last_shot = now
         _bz_shells.append({"x": 0.0, "z": 10.0, "speed": 12.0})
 
@@ -1901,10 +1948,7 @@ def _render_battlezone_frame(bezel, mask, now):
 
         hit = False
         for tank in list(_bz_tanks):
-            dx = tank["x"] - _bz_player["x"]
-            dz = tank["z"] - _bz_player["z"]
-            rx = dx * math.cos(_bz_player["heading"]) - dz * math.sin(_bz_player["heading"])
-            rz = dx * math.sin(_bz_player["heading"]) + dz * math.cos(_bz_player["heading"])
+            rx, rz = _bz_relative(tank)
             if rz > 5.0 and math.hypot(sh["z"] - rz, rx) < 18.0:
                 hit = True
                 _bz_score += 1500
@@ -1917,15 +1961,7 @@ def _render_battlezone_frame(bezel, mask, now):
                         "life": 1.0
                     })
                 _bz_tanks.remove(tank)
-                ang = random.uniform(0, math.pi * 2)
-                d_new = random.uniform(150, 260)
-                _bz_tanks.append({
-                    "x": _bz_player["x"] + d_new * math.sin(ang),
-                    "z": _bz_player["z"] + d_new * math.cos(ang),
-                    "heading": random.uniform(0, math.pi * 2),
-                    "speed": random.uniform(0.4, 0.9),
-                    "turret_angle": random.uniform(0, math.pi * 2)
-                })
+                _bz_tanks.append(_bz_new_tank())
                 break
 
         if not hit and sh["z"] < 250.0:
@@ -1952,10 +1988,7 @@ def _render_battlezone_frame(bezel, mask, now):
     d.line([(120, 8), (120, 58)], fill=(0, 60, 20), width=1)
     d.line([(95, 33), (145, 33)], fill=(0, 60, 20), width=1)
     for tank in _bz_tanks:
-        dx = tank["x"] - _bz_player["x"]
-        dz = tank["z"] - _bz_player["z"]
-        rx = dx * math.cos(_bz_player["heading"]) - dz * math.sin(_bz_player["heading"])
-        rz = dx * math.sin(_bz_player["heading"]) + dz * math.cos(_bz_player["heading"])
+        rx, rz = _bz_relative(tank)
         blip_x = 120 + max(-20, min(20, rx * 0.15))
         blip_y = 33 - max(-20, min(20, rz * 0.15))
         d.ellipse([blip_x - 1, blip_y - 1, blip_x + 1, blip_y + 1], fill=(0, 255, 100))
