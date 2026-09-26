@@ -140,9 +140,9 @@
                     const gameName = data.active_game ? String(data.active_game).toUpperCase() : 'WFRP 4E CAMPAIGN';
                     
                     if (gameName.includes('WFRP') || gameName.includes('WARHAMMER FANTASY')) {
-                        elGame.innerHTML = `<a href="/campaign" style="color: var(--bright-green); font-weight: bold; text-decoration: underline; cursor: pointer;" title="Open Roleplaying Campaign Page">${gameName} 🎲</a>`;
+                        elGame.innerHTML = `<a href="/campaign" style="color: var(--bright-green); font-weight: bold; text-decoration: underline; cursor: pointer;" title="Open Roleplaying Campaign Page">${escapeHtml(gameName)} 🎲</a>`;
                     } else {
-                        elGame.innerHTML = `<span style="color: var(--bright-green); font-weight: bold;">${gameName}</span>`;
+                        elGame.innerHTML = `<span style="color: var(--bright-green); font-weight: bold;">${escapeHtml(gameName)}</span>`;
                     }
                 }
 
@@ -865,8 +865,8 @@ function renderBasicSkillsGrid(c) {
             <div style="font-weight: bold; color: #1c130b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px;" title="${sk.name}">${sk.name} <span style="font-weight:normal; color:#7a1717;">(${sk.stat})</span></div>
             <div style="display: flex; align-items: center; gap: 5px;">
                 <span style="color:#4a1212; font-weight:bold; font-size:11px;">Adv:</span>
-                <input type="number" id="m-bsk-adv-${idx}" value="${adv}" oninput="updateBasicSkillTotal(${idx}, '${sk.stat}')" style="width: 32px; text-align: center; border: 1.5px solid #8b7961; background: #fff; font-size: 12px; font-weight: bold; color: #1c130b; padding: 2px;">
-                <span style="font-weight: bold; color: #7a1717; min-width: 24px; text-align: right; font-size: 14px;" id="m-bsk-tot-${idx}">${totSkill}</span>
+                <input type="number" id="m-bsk-adv-${idx}" value="${escapeHtml(adv)}" oninput="updateBasicSkillTotal(${idx}, '${sk.stat}')" style="width: 32px; text-align: center; border: 1.5px solid #8b7961; background: #fff; font-size: 12px; font-weight: bold; color: #1c130b; padding: 2px;">
+                <span style="font-weight: bold; color: #7a1717; min-width: 24px; text-align: right; font-size: 14px;" id="m-bsk-tot-${idx}">${escapeHtml(totSkill)}</span>
             </div>
         `;
         grid.appendChild(item);
@@ -1625,7 +1625,7 @@ function renderCampaignDashboard(c) {
                     val = charStats[st];
                 }
             }
-            return `<div style="text-align:center; border-right:1px solid #b8ab97;"><div style="font-size:11px; font-weight:bold; color:#f7efe2; background:#7a1717; padding:2px 0;">${st}</div><div style="font-size:15px; font-weight:bold; color:#1c130b; background:#fffbf4; padding:4px 0;">${val}</div></div>`;
+            return `<div style="text-align:center; border-right:1px solid #b8ab97;"><div style="font-size:11px; font-weight:bold; color:#f7efe2; background:#7a1717; padding:2px 0;">${st}</div><div style="font-size:15px; font-weight:bold; color:#1c130b; background:#fffbf4; padding:4px 0;">${escapeHtml(val)}</div></div>`;
         }).join('');
 
         const fateVal = typeof char.fate === 'object' ? (char.fate.total || 3) : (char.fate || 3);
@@ -1635,17 +1635,17 @@ function renderCampaignDashboard(c) {
             <div>
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; border-bottom: 2px solid #7a1717; padding-bottom: 8px;">
                     <div>
-                        <h3 style="font-family: var(--font-title); font-size: 20px; font-weight: bold; color: #7a1717; margin: 0 0 2px 0;">${char.name || 'Unnamed Agent'}</h3>
-                        <div style="font-size: 13px; color: #4a3c30; font-weight: bold;">${char.race || 'Human'} ${char.career || 'Career'} • ${formatCareerLevel(char.career_level)}</div>
+                        <h3 style="font-family: var(--font-title); font-size: 20px; font-weight: bold; color: #7a1717; margin: 0 0 2px 0;">${escapeHtml(char.name || 'Unnamed Agent')}</h3>
+                        <div style="font-size: 13px; color: #4a3c30; font-weight: bold;">${escapeHtml(char.race || 'Human')} ${escapeHtml(char.career || 'Career')} • ${escapeHtml(formatCareerLevel(char.career_level))}</div>
                     </div>
-                    <span style="font-size: 11px; background: #7a1717; color: #f7efe2; padding: 3px 8px; border-radius: 3px; font-weight: bold; font-family: var(--font-title);">${char.status || 'Tier I'}</span>
+                    <span style="font-size: 11px; background: #7a1717; color: #f7efe2; padding: 3px 8px; border-radius: 3px; font-weight: bold; font-family: var(--font-title);">${escapeHtml(char.status || 'Tier I')}</span>
                 </div>
 
                 <!-- Wounds Bar -->
                 <div style="margin-bottom: 14px;">
                     <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; color: #4a3c30; margin-bottom: 4px;">
                         <span style="font-family: var(--font-title); color: #7a1717;">WOUNDS:</span>
-                        <span>${currW} / ${maxW}</span>
+                        <span>${escapeHtml(currW)} / ${escapeHtml(maxW)}</span>
                     </div>
                     <div style="height: 10px; background: #dcd0bc; border: 1.5px solid #6c5d4f; border-radius: 3px; overflow: hidden;">
                         <div style="width: ${wPct}%; height: 100%; background: ${wPct < 30 ? '#c62828' : '#2e7d32'};"></div>
@@ -1658,8 +1658,8 @@ function renderCampaignDashboard(c) {
                 </div>
 
                 <div style="font-size: 13px; line-height: 1.5; color: #1c130b; margin-bottom: 14px; background: #fffbf4; border: 1px solid #b8ab97; padding: 10px; border-radius: 3px;">
-                    <div><strong style="color: #7a1717; font-family: var(--font-title);">Fate / Fortune:</strong> ${fateVal} / ${fortuneVal}</div>
-                    <div><strong style="color: #7a1717; font-family: var(--font-title);">Trappings:</strong> ${(char.trappings || []).slice(0, 5).map(t => typeof t === 'object' && t !== null ? t.name : String(t)).filter(Boolean).join(', ') || 'Basic gear'}</div>
+                    <div><strong style="color: #7a1717; font-family: var(--font-title);">Fate / Fortune:</strong> ${escapeHtml(fateVal)} / ${escapeHtml(fortuneVal)}</div>
+                    <div><strong style="color: #7a1717; font-family: var(--font-title);">Trappings:</strong> ${escapeHtml((char.trappings || []).slice(0, 5).map(t => typeof t === 'object' && t !== null ? t.name : String(t)).filter(Boolean).join(', ') || 'Basic gear')}</div>
                 </div>
             </div>
 
@@ -2235,15 +2235,14 @@ function checkWizardOrTrappingChoices() {
         const row = document.createElement('div');
         row.style.cssText = 'display:flex; align-items:center; justify-content:space-between; background:#fff; padding:6px 10px; border:1px solid #856404; border-radius:3px; font-size:12px;';
 
-        const safeStr = choiceStr.replace(/'/g, "\\'");
         let optsHtml = `<option value="">-- Choose Trapping --</option>`;
         options.forEach(opt => {
-            optsHtml += `<option value="${opt.replace(/"/g, '&quot;')}">${opt}</option>`;
+            optsHtml += `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`;
         });
 
         row.innerHTML = `
-            <span style="font-weight:bold; color:#7a1717;">Option for '${choiceStr}':</span>
-            <select onchange="resolveWizardOrChoice('${safeStr}', this.value)" style="border:1.5px solid #8b7961; padding:4px 8px; font-weight:bold; font-size:12px; background:#fff8ee; border-radius:3px;">
+            <span style="font-weight:bold; color:#7a1717;">Option for '${escapeHtml(choiceStr)}':</span>
+            <select data-choice="${escapeHtml(choiceStr)}" onchange="resolveWizardOrChoice(this.dataset.choice, this.value)" style="border:1.5px solid #8b7961; padding:4px 8px; font-weight:bold; font-size:12px; background:#fff8ee; border-radius:3px;">
                 ${optsHtml}
             </select>
         `;
@@ -2332,12 +2331,12 @@ function renderWizardSummary() {
 
     const statsList = ['WS','BS','S','T','I','Ag','Dex','Int','WP','Fel'].map(s => {
         const val = getVal(`cc-stat-${s}`, '30');
-        return `<strong>${s}:</strong> ${val}`;
+        return `<strong>${s}:</strong> ${escapeHtml(val)}`;
     }).join(' | ');
 
     summaryDiv.innerHTML = `
-        <div style="font-size: 16px; font-weight: bold; color: #7a1717; margin-bottom: 6px;">⚜ ${name} (${species} ${career})</div>
-        <div style="margin-bottom: 10px;"><strong>Class:</strong> ${className} | <strong>Status:</strong> ${statusTier} | <strong>Starting XP Bonus:</strong> <span style="color:#2e7d32; font-weight:bold;">+${totalXP} XP</span></div>
+        <div style="font-size: 16px; font-weight: bold; color: #7a1717; margin-bottom: 6px;">⚜ ${escapeHtml(name)} (${escapeHtml(species)} ${escapeHtml(career)})</div>
+        <div style="margin-bottom: 10px;"><strong>Class:</strong> ${escapeHtml(className)} | <strong>Status:</strong> ${escapeHtml(statusTier)} | <strong>Starting XP Bonus:</strong> <span style="color:#2e7d32; font-weight:bold;">+${escapeHtml(totalXP)} XP</span></div>
         <div style="background: #fff; border: 1.5px solid #8b7961; padding: 10px; border-radius: 4px; font-size: 12px; margin-bottom: 12px;">
             ${statsList}
         </div>
@@ -2621,7 +2620,7 @@ function renderModulesList(modules) {
         div.style.border = '1px solid #c9bda5';
         div.style.borderRadius = '3px';
         div.style.cursor = 'pointer';
-        div.innerHTML = `<div style="font-weight: bold; color: #5c4732;">${mod.title}</div>`;
+        div.innerHTML = `<div style="font-weight: bold; color: #5c4732;">${escapeHtml(mod.title)}</div>`;
         div.onclick = () => loadModuleDetails(mod.slug);
         list.appendChild(div);
     });
@@ -2643,25 +2642,25 @@ function renderModuleDetails(mod) {
     const detail = document.getElementById('comp-modules-detail');
     if (!detail) return;
     
-    let html = `<h2 style="font-family: var(--font-title); color: #7a1717; margin-top: 0;">${mod.title}</h2>`;
-    html += `<p style="color: #5c4732; font-size: 14px; margin-bottom: 20px;">${mod.description}</p>`;
+    let html = `<h2 style="font-family: var(--font-title); color: #7a1717; margin-top: 0;">${escapeHtml(mod.title)}</h2>`;
+    html += `<p style="color: #5c4732; font-size: 14px; margin-bottom: 20px;">${escapeHtml(mod.description)}</p>`;
     
     if (mod.cover_image_path) {
-        html += `<img src="${mod.cover_image_path}" style="max-width: 100%; border: 1.5px solid #8b7961; border-radius: 4px; margin-bottom: 20px;">`;
+        html += `<img src="${escapeHtml(safeUrl(mod.cover_image_path))}" style="max-width: 100%; border: 1.5px solid #8b7961; border-radius: 4px; margin-bottom: 20px;">`;
     }
     
-    html += `<button onclick="window.open('/module/${mod.slug}', '_blank')" style="background: #7a1717; color: #fffbf4; border: 1px solid #5c4732; padding: 8px 16px; font-family: var(--font-title); font-size: 16px; cursor: pointer; border-radius: 4px; margin-bottom: 20px;">View Full Module</button>`;
+    html += `<button data-slug="${escapeHtml(mod.slug)}" onclick="window.open('/module/' + encodeURIComponent(this.dataset.slug), '_blank')" style="background: #7a1717; color: #fffbf4; border: 1px solid #5c4732; padding: 8px 16px; font-family: var(--font-title); font-size: 16px; cursor: pointer; border-radius: 4px; margin-bottom: 20px;">View Full Module</button>`;
     
     html += `<h3 style="font-family: var(--font-title); color: #7a1717; margin-bottom: 10px; border-bottom: 1px solid #c9bda5; padding-bottom: 4px;">Chapters</h3>`;
     mod.chapters.forEach(chap => {
         html += `<div style="margin-bottom: 16px;">`;
-        html += `<div style="font-weight: bold; color: #5c4732; font-size: 15px;">Chapter ${chap.chapter_number}: ${chap.title}</div>`;
-        html += `<div style="font-size: 13px; color: #8b7961; margin-bottom: 8px;">Location: ${chap.location_name}</div>`;
+        html += `<div style="font-weight: bold; color: #5c4732; font-size: 15px;">Chapter ${escapeHtml(chap.chapter_number)}: ${escapeHtml(chap.title)}</div>`;
+        html += `<div style="font-size: 13px; color: #8b7961; margin-bottom: 8px;">Location: ${escapeHtml(chap.location_name)}</div>`;
         
         if (chap.events && chap.events.length > 0) {
             html += `<div style="margin-left: 15px;">`;
             chap.events.forEach(ev => {
-                html += `<div style="font-size: 13px; color: #1c130b; margin-bottom: 4px;"><strong>${ev.time_label}:</strong> ${ev.description || ''}</div>`;
+                html += `<div style="font-size: 13px; color: #1c130b; margin-bottom: 4px;"><strong>${escapeHtml(ev.time_label)}:</strong> ${escapeHtml(ev.description || '')}</div>`;
             });
             html += `</div>`;
         }
@@ -2674,9 +2673,9 @@ function renderModuleDetails(mod) {
         mod.npcs.forEach(npc => {
             html += `<div style="border: 1px solid #c9bda5; padding: 10px; border-radius: 4px; background: #e9e0d0; width: calc(50% - 5px); box-sizing: border-box;">`;
             if (npc.image_path) {
-                html += `<img src="${npc.image_path}" style="width: 100%; height: auto; border: 1px solid #8b7961; border-radius: 2px; margin-bottom: 8px;">`;
+                html += `<img src="${escapeHtml(safeUrl(npc.image_path))}" style="width: 100%; height: auto; border: 1px solid #8b7961; border-radius: 2px; margin-bottom: 8px;">`;
             }
-            html += `<div style="font-weight: bold; color: #5c4732;">${npc.name}</div>`;
+            html += `<div style="font-weight: bold; color: #5c4732;">${escapeHtml(npc.name)}</div>`;
             html += `</div>`;
         });
         html += `</div>`;
@@ -2705,18 +2704,19 @@ function renderCompendiumData(c) {
                     <div>
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; border-bottom: 1.5px solid #7a1717; padding-bottom: 6px;">
                             <div>
-                                <h3 style="font-family: var(--font-title); font-size: 18px; font-weight: bold; color: #7a1717; margin: 0;">${n.name}</h3>
-                                <div style="font-size: 12px; color: #4a3c30; font-weight: bold;">${n.role_career || 'NPC'} (${n.species || 'Human'})</div>
+                                <h3 style="font-family: var(--font-title); font-size: 18px; font-weight: bold; color: #7a1717; margin: 0;">${escapeHtml(n.name)}</h3>
+                                <div style="font-size: 12px; color: #4a3c30; font-weight: bold;">${escapeHtml(n.role_career || 'NPC')} (${escapeHtml(n.species || 'Human')})</div>
                             </div>
-                            <span style="font-size: 11px; background: ${dispColor}; color: #fff; padding: 2px 6px; border-radius: 3px; font-weight: bold;">${n.disposition || 'Neutral'}</span>
+                            <span style="font-size: 11px; background: ${dispColor}; color: #fff; padding: 2px 6px; border-radius: 3px; font-weight: bold;">${escapeHtml(n.disposition || 'Neutral')}</span>
                         </div>
                         <div style="font-size: 13px; line-height: 1.4; color: #1c130b; margin-bottom: 10px;">
-                            <div><strong>Notes:</strong> ${(n.notes || 'No public notes').slice(0, 90)}...</div>
+                            <div><strong>Notes:</strong> ${escapeHtml((n.notes || 'No public notes').slice(0, 90))}...</div>
                             ${n.secrets_lore ? '<div style="font-size: 11px; color: #7a1717; font-weight: bold; margin-top: 4px;">🔒 Includes Secret GM Lore</div>' : ''}
                         </div>
                     </div>
-                    <button onclick='openCompendiumReadout("npc", ${JSON.stringify(n).replace(/'/g, "&#39;")})' style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 6px 12px; font-family: var(--font-title); font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 3px;">📜 FULL READOUT & GM SECRETS</button>
+                    <button class="comp-readout-btn" style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 6px 12px; font-family: var(--font-title); font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 3px;">📜 FULL READOUT & GM SECRETS</button>
                 `;
+                card.querySelector('.comp-readout-btn').addEventListener('click', () => openCompendiumReadout("npc", JSON.parse(JSON.stringify(n))));
                 npcGrid.appendChild(card);
             });
         }
@@ -2737,17 +2737,18 @@ function renderCompendiumData(c) {
                     <div>
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; border-bottom: 1.5px solid #7a1717; padding-bottom: 6px;">
                             <div>
-                                <h3 style="font-family: var(--font-title); font-size: 18px; font-weight: bold; color: #7a1717; margin: 0;">${l.name}</h3>
-                                <div style="font-size: 12px; color: #4a3c30; font-weight: bold;">${l.type || 'Site'} (${l.region || 'Reikland'})</div>
+                                <h3 style="font-family: var(--font-title); font-size: 18px; font-weight: bold; color: #7a1717; margin: 0;">${escapeHtml(l.name)}</h3>
+                                <div style="font-size: 12px; color: #4a3c30; font-weight: bold;">${escapeHtml(l.type || 'Site')} (${escapeHtml(l.region || 'Reikland')})</div>
                             </div>
-                            <span style="font-size: 11px; background: #3d2f23; color: #f7efe2; padding: 2px 6px; border-radius: 3px; font-weight: bold;">${l.danger_level || 'Low'} Danger</span>
+                            <span style="font-size: 11px; background: #3d2f23; color: #f7efe2; padding: 2px 6px; border-radius: 3px; font-weight: bold;">${escapeHtml(l.danger_level || 'Low')} Danger</span>
                         </div>
                         <div style="font-size: 13px; line-height: 1.4; color: #1c130b; margin-bottom: 10px;">
-                            <div>${(l.description || 'No description').slice(0, 90)}...</div>
+                            <div>${escapeHtml((l.description || 'No description').slice(0, 90))}...</div>
                         </div>
                     </div>
-                    <button onclick='openCompendiumReadout("location", ${JSON.stringify(l).replace(/'/g, "&#39;")})' style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 6px 12px; font-family: var(--font-title); font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 3px;">📜 FULL READOUT & GM SECRETS</button>
+                    <button class="comp-readout-btn" style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 6px 12px; font-family: var(--font-title); font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 3px;">📜 FULL READOUT & GM SECRETS</button>
                 `;
+                card.querySelector('.comp-readout-btn').addEventListener('click', () => openCompendiumReadout("location", JSON.parse(JSON.stringify(l))));
                 locGrid.appendChild(card);
             });
         }
@@ -2768,17 +2769,18 @@ function renderCompendiumData(c) {
                     <div>
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; border-bottom: 1.5px solid #7a1717; padding-bottom: 6px;">
                             <div>
-                                <h3 style="font-family: var(--font-title); font-size: 18px; font-weight: bold; color: #7a1717; margin: 0;">${q.title}</h3>
-                                <div style="font-size: 12px; color: #4a3c30; font-weight: bold;">${q.type || 'Main Quest'}</div>
+                                <h3 style="font-family: var(--font-title); font-size: 18px; font-weight: bold; color: #7a1717; margin: 0;">${escapeHtml(q.title)}</h3>
+                                <div style="font-size: 12px; color: #4a3c30; font-weight: bold;">${escapeHtml(q.type || 'Main Quest')}</div>
                             </div>
-                            <span style="font-size: 11px; background: #7a1717; color: #fff; padding: 2px 6px; border-radius: 3px; font-weight: bold;">${q.status || 'Active'}</span>
+                            <span style="font-size: 11px; background: #7a1717; color: #fff; padding: 2px 6px; border-radius: 3px; font-weight: bold;">${escapeHtml(q.status || 'Active')}</span>
                         </div>
                         <div style="font-size: 13px; line-height: 1.4; color: #1c130b; margin-bottom: 10px;">
-                            <div><strong>Objective:</strong> ${q.objective || 'No details'}</div>
+                            <div><strong>Objective:</strong> ${escapeHtml(q.objective || 'No details')}</div>
                         </div>
                     </div>
-                    <button onclick='openCompendiumReadout("quest", ${JSON.stringify(q).replace(/'/g, "&#39;")})' style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 6px 12px; font-family: var(--font-title); font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 3px;">📜 FULL READOUT & GM SECRETS</button>
+                    <button class="comp-readout-btn" style="background: #7a1717; color: #f7efe2; border: 1.5px solid #4a0e0e; padding: 6px 12px; font-family: var(--font-title); font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 3px;">📜 FULL READOUT & GM SECRETS</button>
                 `;
+                card.querySelector('.comp-readout-btn').addEventListener('click', () => openCompendiumReadout("quest", JSON.parse(JSON.stringify(q))));
                 questGrid.appendChild(card);
             });
         }
@@ -2797,10 +2799,10 @@ function renderCompendiumData(c) {
                 item.style.cssText = 'background: #fffbf4; border: 1.5px solid #6c5d4f; border-left: 4px solid #7a1717; border-radius: 4px; padding: 12px; color: #1c130b;';
                 item.innerHTML = `
                     <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; color: #7a1717; margin-bottom: 4px;">
-                        <span>IMPERIAL DATE: ${t.in_game_date || '2502 IC'}</span>
-                        <span>SESSION ${t.session_num || 1}</span>
+                        <span>IMPERIAL DATE: ${escapeHtml(t.in_game_date || '2502 IC')}</span>
+                        <span>SESSION ${escapeHtml(t.session_num || 1)}</span>
                     </div>
-                    <div style="font-size: 14px; line-height: 1.4; color: #1c130b;">${t.event_summary}</div>
+                    <div style="font-size: 14px; line-height: 1.4; color: #1c130b;">${escapeHtml(t.event_summary)}</div>
                 `;
                 timeList.appendChild(item);
             });
@@ -2937,25 +2939,25 @@ function addWeaponRow(data = {}) {
 
     tr.innerHTML = `
         <td style="padding: 4px; border: 1px solid #8b7961;">
-            <input type="text" class="w-name" value="${name}" readonly title="Derived Base Type (Read-Only)" style="width:100%; border:1px solid #c9b49a; background:#f5ebd9; font-size:12px; font-weight:bold; color:#7a1717; cursor:not-allowed; padding:2px;">
+            <input type="text" class="w-name" value="${escapeHtml(name)}" readonly title="Derived Base Type (Read-Only)" style="width:100%; border:1px solid #c9b49a; background:#f5ebd9; font-size:12px; font-weight:bold; color:#7a1717; cursor:not-allowed; padding:2px;">
         </td>
         <td style="padding: 4px; border: 1px solid #8b7961;">
-            <input type="text" class="w-type" list="weapons-list" value="${specType}" placeholder="User Specific Name (e.g. Short Sword)" oninput="autoFillWeapon(this)" style="width:100%; border:1.5px solid #8b7961; background:#fff; font-size:12px; font-weight:bold; color:#1c130b; padding:2px;">
+            <input type="text" class="w-type" list="weapons-list" value="${escapeHtml(specType)}" placeholder="User Specific Name (e.g. Short Sword)" oninput="autoFillWeapon(this)" style="width:100%; border:1.5px solid #8b7961; background:#fff; font-size:12px; font-weight:bold; color:#1c130b; padding:2px;">
         </td>
         <td style="padding: 4px; border: 1px solid #8b7961;">
-            <input type="text" class="w-group" value="${group}" style="width:100%; border:none; background:transparent; font-size:12px; color:#1c130b;">
+            <input type="text" class="w-group" value="${escapeHtml(group)}" style="width:100%; border:none; background:transparent; font-size:12px; color:#1c130b;">
         </td>
         <td style="padding: 4px; border: 1px solid #8b7961; text-align:center;">
-            <input type="number" class="w-enc" value="${enc}" oninput="calcArmourAndEncSummary()" style="width:38px; text-align:center; border:none; background:transparent; font-size:12px; font-weight:bold; color:#1c130b;">
+            <input type="number" class="w-enc" value="${escapeHtml(enc)}" oninput="calcArmourAndEncSummary()" style="width:38px; text-align:center; border:none; background:transparent; font-size:12px; font-weight:bold; color:#1c130b;">
         </td>
         <td style="padding: 4px; border: 1px solid #8b7961;">
-            <input type="text" class="w-range" value="${range}" style="width:100%; border:none; background:transparent; font-size:12px; color:#1c130b;">
+            <input type="text" class="w-range" value="${escapeHtml(range)}" style="width:100%; border:none; background:transparent; font-size:12px; color:#1c130b;">
         </td>
         <td style="padding: 4px; border: 1px solid #8b7961;">
-            <input type="text" class="w-damage" value="${damage}" style="width:100%; border:none; background:transparent; font-size:12px; font-weight:bold; color:#7a1717;">
+            <input type="text" class="w-damage" value="${escapeHtml(damage)}" style="width:100%; border:none; background:transparent; font-size:12px; font-weight:bold; color:#7a1717;">
         </td>
         <td style="padding: 4px; border: 1px solid #8b7961; display:flex; gap:4px; align-items:center;">
-            <input type="text" class="w-qualities" value="${qualities}" placeholder="Qualities/Flaws" style="flex:1; border:none; background:transparent; font-size:11px; color:#1c130b;">
+            <input type="text" class="w-qualities" value="${escapeHtml(qualities)}" placeholder="Qualities/Flaws" style="flex:1; border:none; background:transparent; font-size:11px; color:#1c130b;">
             <button type="button" onclick="openQualitiesModal(this.previousElementSibling)" style="background:#3d2f23; color:#f7efe2; border:none; font-size:10px; font-weight:bold; padding:2px 5px; cursor:pointer; border-radius:2px;">⚙️</button>
         </td>
         <td style="padding: 4px; border: 1px solid #8b7961; text-align:center;">
@@ -2996,12 +2998,12 @@ function addSpellRow(data = {}) {
     const tr = document.createElement('tr');
     tr.style.background = '#fffbf4';
     tr.innerHTML = `
-        <td style="padding: 4px; border: 1px solid #8b7961;"><input type="text" class="s-name" value="${data.name || ''}" placeholder="Spell / Prayer Name" style="width:100%; border:none; background:transparent; font-size:13px; font-weight:bold; color:#1c130b;"></td>
-        <td style="padding: 4px; border: 1px solid #8b7961; text-align:center;"><input type="text" class="s-tn" value="${data.tn || '0'}" style="width:40px; text-align:center; border:none; background:transparent; font-size:13px; font-weight:bold; color:#7a1717;"></td>
-        <td style="padding: 4px; border: 1px solid #8b7961;"><input type="text" class="s-range" value="${data.range || 'Touch'}" style="width:100%; border:none; background:transparent; font-size:12px; color:#1c130b;"></td>
-        <td style="padding: 4px; border: 1px solid #8b7961;"><input type="text" class="s-target" value="${data.target || '1'}" style="width:100%; border:none; background:transparent; font-size:12px; color:#1c130b;"></td>
-        <td style="padding: 4px; border: 1px solid #8b7961;"><input type="text" class="s-duration" value="${data.duration || 'Instant'}" style="width:100%; border:none; background:transparent; font-size:12px; color:#1c130b;"></td>
-        <td style="padding: 4px; border: 1px solid #8b7961;"><input type="text" class="s-effect" value="${data.effect || ''}" placeholder="Spell Effect" style="width:100%; border:none; background:transparent; font-size:12px; color:#1c130b;"></td>
+        <td style="padding: 4px; border: 1px solid #8b7961;"><input type="text" class="s-name" value="${escapeHtml(data.name || '')}" placeholder="Spell / Prayer Name" style="width:100%; border:none; background:transparent; font-size:13px; font-weight:bold; color:#1c130b;"></td>
+        <td style="padding: 4px; border: 1px solid #8b7961; text-align:center;"><input type="text" class="s-tn" value="${escapeHtml(data.tn || '0')}" style="width:40px; text-align:center; border:none; background:transparent; font-size:13px; font-weight:bold; color:#7a1717;"></td>
+        <td style="padding: 4px; border: 1px solid #8b7961;"><input type="text" class="s-range" value="${escapeHtml(data.range || 'Touch')}" style="width:100%; border:none; background:transparent; font-size:12px; color:#1c130b;"></td>
+        <td style="padding: 4px; border: 1px solid #8b7961;"><input type="text" class="s-target" value="${escapeHtml(data.target || '1')}" style="width:100%; border:none; background:transparent; font-size:12px; color:#1c130b;"></td>
+        <td style="padding: 4px; border: 1px solid #8b7961;"><input type="text" class="s-duration" value="${escapeHtml(data.duration || 'Instant')}" style="width:100%; border:none; background:transparent; font-size:12px; color:#1c130b;"></td>
+        <td style="padding: 4px; border: 1px solid #8b7961;"><input type="text" class="s-effect" value="${escapeHtml(data.effect || '')}" placeholder="Spell Effect" style="width:100%; border:none; background:transparent; font-size:12px; color:#1c130b;"></td>
         <td style="padding: 4px; border: 1px solid #8b7961; text-align:center;"><button type="button" onclick="this.closest('tr').remove();" style="background:#7a1717; color:#fff; border:none; font-size:10px; padding:2px 6px; cursor:pointer; border-radius:2px;">✖</button></td>
     `;
     tbody.appendChild(tr);
@@ -3084,13 +3086,13 @@ function addTrappingRow(data = {}) {
             <input type="checkbox" class="t-eq" ${isEq ? 'checked' : ''} onchange="autoDetectArmour(this)" style="width: 16px; height: 16px; cursor: pointer; accent-color: #7a1717;">
         </td>
         <td style="padding: 4px; border: 1px solid #8b7961;">
-            <input type="text" class="t-name" list="trappings-list" value="${name}" placeholder="Trapping Name" oninput="autoDetectArmour(this)" style="width:100%; border:none; background:transparent; font-size:13px; font-weight:bold; color:#1c130b;">
+            <input type="text" class="t-name" list="trappings-list" value="${escapeHtml(name)}" placeholder="Trapping Name" oninput="autoDetectArmour(this)" style="width:100%; border:none; background:transparent; font-size:13px; font-weight:bold; color:#1c130b;">
         </td>
         <td style="padding: 4px; border: 1px solid #8b7961; text-align:center;">
-            <input type="number" class="t-enc" value="${enc}" oninput="calcArmourAndEncSummary()" style="width:45px; text-align:center; border:none; background:transparent; font-size:13px; font-weight:bold; color:#1c130b;">
+            <input type="number" class="t-enc" value="${escapeHtml(enc)}" oninput="calcArmourAndEncSummary()" style="width:45px; text-align:center; border:none; background:transparent; font-size:13px; font-weight:bold; color:#1c130b;">
         </td>
         <td style="padding: 4px; border: 1px solid #8b7961;">
-            <input type="text" class="t-ap-desc" value="${apDesc}" readonly placeholder="--" style="width:100%; border:none; background:transparent; font-size:11px; font-weight:bold; color:#7a1717;">
+            <input type="text" class="t-ap-desc" value="${escapeHtml(apDesc)}" readonly placeholder="--" style="width:100%; border:none; background:transparent; font-size:11px; font-weight:bold; color:#7a1717;">
         </td>
         <td style="padding: 4px; border: 1px solid #8b7961; text-align:center;">
             <button type="button" onclick="this.closest('tr').remove(); calcArmourAndEncSummary();" style="background:#7a1717; color:#fff; border:none; font-size:10px; padding:2px 6px; cursor:pointer; border-radius:2px;">✖</button>
@@ -3112,13 +3114,13 @@ function addHirelingRow(data = {}) {
 
     tr.innerHTML = `
         <td style="padding: 4px; border: 1px solid #8b7961;">
-            <input type="text" class="h-name" list="hirelings-list" value="${name}" placeholder="Hireling Role" oninput="autoDetectHireling(this)" style="width:100%; border:none; background:transparent; font-size:13px; font-weight:bold; color:#1c130b;">
+            <input type="text" class="h-name" list="hirelings-list" value="${escapeHtml(name)}" placeholder="Hireling Role" oninput="autoDetectHireling(this)" style="width:100%; border:none; background:transparent; font-size:13px; font-weight:bold; color:#1c130b;">
         </td>
         <td style="padding: 4px; border: 1px solid #8b7961; text-align:center;">
-            <input type="text" class="h-daily" value="${dailyCost}" placeholder="--" style="width:100%; text-align:center; border:none; background:transparent; font-size:13px; font-weight:bold; color:#1c130b;">
+            <input type="text" class="h-daily" value="${escapeHtml(dailyCost)}" placeholder="--" style="width:100%; text-align:center; border:none; background:transparent; font-size:13px; font-weight:bold; color:#1c130b;">
         </td>
         <td style="padding: 4px; border: 1px solid #8b7961;">
-            <input type="text" class="h-notes" value="${notes}" placeholder="--" style="width:100%; border:none; background:transparent; font-size:11px; font-weight:bold; color:#7a1717;">
+            <input type="text" class="h-notes" value="${escapeHtml(notes)}" placeholder="--" style="width:100%; border:none; background:transparent; font-size:11px; font-weight:bold; color:#7a1717;">
         </td>
         <td style="padding: 4px; border: 1px solid #8b7961; text-align:center;">
             <button type="button" onclick="this.closest('tr').remove();" style="background:#7a1717; color:#fff; border:none; font-size:10px; padding:2px 6px; cursor:pointer; border-radius:2px;">✖</button>
@@ -3746,7 +3748,7 @@ function renderMemories() {
                     <span id="lt-text-${idx}" style="font-size: 12px; flex: 1; word-break: break-word;">${escapeHtml(fact)}</span>
                     <div id="lt-actions-${idx}" style="display: flex; gap: 6px;">
                         <button onclick="editMemoryItem(${idx}, true)" style="background: #003314; color: var(--bright-green, #00ff66); border: 1px solid var(--border-color, #00441b); padding: 3px 8px; font-size: 11px; cursor: pointer; border-radius: 3px;">✏️ EDIT</button>
-                        <button onclick="deleteMemoryFact('${escapeJsString(fact)}', true)" style="background: #330000; color: #ff6666; border: 1px solid #660000; padding: 3px 8px; font-size: 11px; cursor: pointer; border-radius: 3px;">🗑️ DELETE</button>
+                        <button onclick="deleteMemoryFactAt(${idx}, true)" style="background: #330000; color: #ff6666; border: 1px solid #660000; padding: 3px 8px; font-size: 11px; cursor: pointer; border-radius: 3px;">🗑️ DELETE</button>
                     </div>
                 </div>
             `).join('');
@@ -3762,7 +3764,7 @@ function renderMemories() {
                     <span id="st-text-${idx}" style="font-size: 12px; flex: 1; word-break: break-word; color: #b3ecff;">${escapeHtml(fact)}</span>
                     <div id="st-actions-${idx}" style="display: flex; gap: 6px;">
                         <button onclick="editMemoryItem(${idx}, false)" style="background: #002233; color: #00ccff; border: 1px solid #005577; padding: 3px 8px; font-size: 11px; cursor: pointer; border-radius: 3px;">✏️ EDIT</button>
-                        <button onclick="deleteMemoryFact('${escapeJsString(fact)}', false)" style="background: #330000; color: #ff6666; border: 1px solid #660000; padding: 3px 8px; font-size: 11px; cursor: pointer; border-radius: 3px;">🗑️ DELETE</button>
+                        <button onclick="deleteMemoryFactAt(${idx}, false)" style="background: #330000; color: #ff6666; border: 1px solid #660000; padding: 3px 8px; font-size: 11px; cursor: pointer; border-radius: 3px;">🗑️ DELETE</button>
                     </div>
                 </div>
             `).join('');
@@ -3770,12 +3772,28 @@ function renderMemories() {
     }
 }
 
+// Escape text for safe interpolation into HTML element content or quoted attributes.
 function escapeHtml(str) {
-    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
-function escapeJsString(str) {
-    return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+// Allow only http(s):, data:image/ and scheme-less (relative / absolute-path) URLs.
+// Anything else (javascript:, vbscript:, data:text/html, ...) becomes ''.
+// The result still needs escapeHtml() when placed in an attribute.
+function safeUrl(url) {
+    if (url === null || url === undefined) return '';
+    const s = String(url).trim();
+    // Browsers ignore ASCII whitespace/control chars inside the scheme, so strip them for the check.
+    const probe = s.replace(/[\u0000-\u0020\u007f]/g, '').toLowerCase();
+    if (/^https?:/.test(probe) || /^data:image\//.test(probe)) return s;
+    if (/^[a-z][a-z0-9+.\-]*:/.test(probe)) return '';
+    return s;
 }
 
 async function addMemoryFact() {
@@ -3809,9 +3827,9 @@ function editMemoryItem(idx, isLongterm) {
     if (!textEl || !actionsEl) return;
 
     const currentFact = isLongterm ? _memoryData.longterm[idx] : _memoryData.shortterm[idx];
-    textEl.innerHTML = `<input type="text" id="${prefix}-edit-input-${idx}" value="${escapeHtml(currentFact)}" style="width: 100%; background: #001206; border: 1px solid var(--border-color, #00441b); color: #fff; padding: 4px 8px; font-family: monospace; font-size: 12px; border-radius: 3px;" onkeydown="if(event.key==='Enter') saveMemoryItemEdit(${idx}, ${isLongterm})">`;
+    textEl.innerHTML = `<input type="text" id="${prefix}-edit-input-${idx}" value="${escapeHtml(currentFact)}" style="width: 100%; background: #001206; border: 1px solid var(--border-color, #00441b); color: #fff; padding: 4px 8px; font-family: monospace; font-size: 12px; border-radius: 3px;" onkeydown="if(event.key==='Enter') saveMemoryItemEdit(${idx}, ${!!isLongterm})">`;
     actionsEl.innerHTML = `
-        <button onclick="saveMemoryItemEdit(${idx}, ${isLongterm})" style="background: var(--bright-green, #00ff66); color: #000; border: none; padding: 3px 8px; font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 3px;">💾 SAVE</button>
+        <button onclick="saveMemoryItemEdit(${idx}, ${!!isLongterm})" style="background: var(--bright-green, #00ff66); color: #000; border: none; padding: 3px 8px; font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 3px;">💾 SAVE</button>
         <button onclick="renderMemories()" style="background: #333; color: #ccc; border: none; padding: 3px 8px; font-size: 11px; cursor: pointer; border-radius: 3px;">CANCEL</button>
     `;
 }
@@ -3842,6 +3860,12 @@ async function saveMemoryItemEdit(idx, isLongterm) {
     } catch(e) {
         console.error("saveMemoryItemEdit exception:", e);
     }
+}
+
+function deleteMemoryFactAt(idx, isLongterm) {
+    const list = isLongterm ? _memoryData.longterm : _memoryData.shortterm;
+    if (!list || idx < 0 || idx >= list.length) return;
+    return deleteMemoryFact(list[idx], isLongterm);
 }
 
 async function deleteMemoryFact(fact, isLongterm) {

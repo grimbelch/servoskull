@@ -50,7 +50,9 @@
     return String(text === null || text === undefined ? "" : text)
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 
   /* Assets are stored in the database as repository-relative paths so the
@@ -149,10 +151,17 @@
   var PALETTE = ["#7a1717", "#1f4f3f", "#2f3f6b", "#6b4416", "#4a2b57",
                  "#1c5158", "#6b2340", "#3f4a1c"];
 
+  /* Accents land in a style attribute; accept only plain colour values so a
+   * crafted accent cannot smuggle extra CSS declarations. */
+  function safeColor(value) {
+    return typeof value === "string" &&
+      /^\s*(#[0-9a-f]{3,8}|[a-z]+|(rgb|hsl)a?\([0-9\s.,%\/]+\))\s*$/i.test(value);
+  }
+
   function accentOf(section) {
     var root = section && rootOf[section.id];
-    if (section && section.accent) return section.accent;
-    if (root && root.accent) return root.accent;
+    if (section && safeColor(section.accent)) return section.accent;
+    if (root && safeColor(root.accent)) return root.accent;
     var at = roots.indexOf(root || section);
     return at >= 0 ? PALETTE[at % PALETTE.length] : PALETTE[0];
   }
@@ -192,12 +201,16 @@
   }
 
   function highlight(text) {
-    var safe = esc(text);
-    if (view !== "search" || !query) return safe;
+    var raw = String(text === null || text === undefined ? "" : text);
+    if (view !== "search" || !query) return esc(raw);
     try {
       var re = new RegExp("(" + query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "ig");
-      return safe.replace(re, "<mark>$1</mark>");
-    } catch (e) { return safe; }
+      /* Match against the raw text and escape each piece, so the query can
+       * never land inside (or split) an HTML entity. Odd pieces are matches. */
+      return raw.split(re).map(function (part, i) {
+        return i % 2 ? "<mark>" + esc(part) + "</mark>" : esc(part);
+      }).join("");
+    } catch (e) { return esc(raw); }
   }
 
   // --------------------------------------------------------- stat  blocks ---
