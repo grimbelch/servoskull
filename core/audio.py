@@ -149,6 +149,20 @@ def record(seconds: float, device_index: int = -1, silence_threshold: int = 180,
                 return np.zeros(0, dtype=np.int16)
             return np.concatenate(chunks)[:, 0]
 
+    def _tail(n: int) -> np.ndarray:
+        """The last n samples, joining only the newest chunks (re-joining the whole
+        recording every 0.25 s was quadratic: ~170 MB copied over a 30 s answer)."""
+        with chunks_lock:
+            picked, have = [], 0
+            for c in reversed(chunks):
+                picked.append(c)
+                have += len(c)
+                if have >= n:
+                    break
+        if have < n:
+            return np.zeros(0, dtype=np.int16)
+        return np.concatenate(picked[::-1])[-n:, 0]
+
     stream = sd.InputStream(samplerate=native, channels=1, dtype="int16",
                             device=dev, callback=_cb)
     t_start = time.monotonic()
@@ -166,10 +180,9 @@ def record(seconds: float, device_index: int = -1, silence_threshold: int = 180,
                 break
             if now - t_start < lead_in_secs:
                 continue
-            data = _collected()
-            if len(data) < analysis_frames:
+            window = _tail(analysis_frames)
+            if len(window) < analysis_frames:
                 continue
-            window = data[-analysis_frames:]
             rms = float(np.sqrt(np.mean(window.astype(np.float32) ** 2)))
             from core import config as _cfg
             if _cfg.AUDIO_DEBUG:

@@ -148,6 +148,10 @@ def _apply_rotation(frame):
     return frame
 
 
+_CAMERA_IDLE_STOP_SECS = 30.0  # stop the sensor after this long without a capture
+_CAMERA_WARMUP_FRAMES = 6      # frames discarded after restarting, for auto-exposure
+
+
 def _open_backend():
     """Set up a frame source and return (read, close).
 
@@ -179,25 +183,55 @@ def _open_backend():
         print(f"[camera] picamera2 initialization failed: {e} — falling back to cv2")
         return _open_cv2_backend()
 
+    # Keep the Picamera2 object (re-acquiring the camera is what corrupts libcamera's
+    # state), but stop the sensor/ISP when idle: frames are only needed occasionally,
+    # and streaming 24/7 kept the sensor, ISP and 3A threads busy for nothing.
+    cam = {"running": True, "last_use": time.monotonic(), "closed": False}
+    cam_lock = threading.Lock()
+
+    def _idle_stopper():
+        while not cam["closed"]:
+            time.sleep(5.0)
+            with cam_lock:
+                if cam["running"] and time.monotonic() - cam["last_use"] > _CAMERA_IDLE_STOP_SECS:
+                    try:
+                        picam2.stop()
+                        cam["running"] = False
+                        print("[camera] Idle — sensor stopped until the next capture.")
+                    except Exception as e:
+                        print(f"[camera] Could not stop idle sensor: {e}")
+
+    threading.Thread(target=_idle_stopper, daemon=True, name="camera-idle").start()
+
     def read():
-        try:
-            arr = picam2.capture_array()
-            if arr is None:
+        with cam_lock:
+            try:
+                if not cam["running"]:
+                    picam2.start()
+                    cam["running"] = True
+                    # Let auto-exposure / white balance settle before using a frame.
+                    for _ in range(_CAMERA_WARMUP_FRAMES):
+                        picam2.capture_array()
+                arr = picam2.capture_array()
+                cam["last_use"] = time.monotonic()
+                if arr is None:
+                    return None
+                return _apply_rotation(arr)
+            except Exception as e:
+                print(f"[camera] Read error: {e}")
                 return None
-            return _apply_rotation(arr)
-        except Exception as e:
-            print(f"[camera] Read error: {e}")
-            return None
 
     def close():
-        try:
-            picam2.stop()
-        except Exception:
-            pass
-        try:
-            picam2.close()
-        except Exception:
-            pass
+        cam["closed"] = True
+        with cam_lock:
+            try:
+                picam2.stop()
+            except Exception:
+                pass
+            try:
+                picam2.close()
+            except Exception:
+                pass
 
     return read, close
 

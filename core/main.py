@@ -605,14 +605,23 @@ def _speak_interruptible(wav_bytes: bytes, on_wake) -> bool:
 
 
 def _spotify_poller_loop():
+    """Keep the eye's music indicator in sync with Spotify. Each check is a web API
+    call, so poll quickly only while music is playing: 5 s when playing, 30 s when
+    not, 5 min during sleep hours with nothing playing (was every 4 s, all night)."""
     while True:
+        playing = False
         try:
             if spotify_ctrl.is_configured():
                 playing = spotify_ctrl.is_playing()
                 display.set_music_playing(playing)
         except Exception as e:
             print(f"[main] Spotify status check failed: {e}")
-        time.sleep(4.0)
+        if playing:
+            time.sleep(5.0)
+        elif quiet.is_in_sleep_hours():
+            time.sleep(300.0)
+        else:
+            time.sleep(30.0)
 
 
 def _said_any(text: str, phrases) -> bool:
@@ -1385,12 +1394,12 @@ def main():
                 threading.Thread(target=_do_record, daemon=True).start()
                 print("[skull] Recording... (speak now)")
                 if not _rec_done.wait(timeout=rec_secs + 15.0):
-                    print("[skull] Recording hung — forcing recovery")
-                    try:
-                        import sounddevice as _sd_recovery
-                        _sd_recovery.stop()
-                    except Exception:
-                        pass
+                    # record() enforces its own hard deadline and closes its stream
+                    # from its own thread; sd.stop() here never touched that stream and
+                    # cross-thread PortAudio calls are what used to crash (double free).
+                    # Just abandon the (daemon) recorder thread and go back to listening.
+                    print("[skull] Recording hung — abandoning this recording")
+                    set_speech_active(False)
                     eyes.off()
                     continue
 

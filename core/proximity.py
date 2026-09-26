@@ -25,19 +25,85 @@ _readings_buffer = collections.deque(maxlen=10)
 _poll_lock = threading.Lock()
 
 
+# Read-error handling: log the first error and then at most once a minute, and
+# after sustained failures close and re-open the sensor (with backoff) instead of
+# printing an error 5 times a second forever.
+_ERROR_LOG_INTERVAL = 60.0
+_REOPEN_AFTER_FAILURES = 25          # ~5 s of consecutive failed polls
+_consecutive_failures = 0
+_suppressed_errors = 0
+_last_error_log = 0.0
+_next_reopen = 0.0
+_reopen_backoff = 10.0
+
+
+def _open_sensor():
+    """Open the VL53L1X and start ranging; returns the device or raises."""
+    try:
+        import VL53L1X
+    except ImportError:
+        import vl53l1x as VL53L1X
+    tof = VL53L1X.VL53L1X(
+        i2c_bus=config.PROXIMITY_I2C_BUS,
+        i2c_address=config.PROXIMITY_I2C_ADDR,
+    )
+    tof.open()
+    if not getattr(tof, "_dev", True):
+        raise RuntimeError("Sensor not responding on I2C bus")
+    tof.start_ranging(config.PROXIMITY_RANGE_MODE)
+    return tof
+
+
+def _try_reopen() -> None:
+    global _tof, _next_reopen, _reopen_backoff, _consecutive_failures
+    now = time.monotonic()
+    if now < _next_reopen:
+        return
+    with _lock:
+        old = _tof
+        _tof = None
+        for fn in ("stop_ranging", "close"):
+            try:
+                getattr(old, fn)()
+            except Exception:
+                pass
+        try:
+            _tof = _open_sensor()
+            _consecutive_failures = 0
+            _reopen_backoff = 10.0
+            print("[proximity] Sensor re-opened after read errors.")
+        except Exception as e:
+            _next_reopen = now + _reopen_backoff
+            print(f"[proximity] Re-open failed ({e}); retrying in {_reopen_backoff:.0f}s.")
+            _reopen_backoff = min(_reopen_backoff * 2, 60.0)
+
+
 def _raw_read_cm() -> float | None:
     """Read a single raw measurement from hardware in cm."""
-    global _available
-    if not _available or _tof is None:
+    global _consecutive_failures, _suppressed_errors, _last_error_log
+    if not _available:
+        return None
+    if _tof is None:
+        _try_reopen()
         return None
 
     try:
         with _lock:
             mm = _tof.get_distance()
     except Exception as e:
-        print(f"[proximity] Error reading sensor: {e}.")
+        _consecutive_failures += 1
+        now = time.monotonic()
+        if now - _last_error_log >= _ERROR_LOG_INTERVAL:
+            extra = f" ({_suppressed_errors} more since last report)" if _suppressed_errors else ""
+            print(f"[proximity] Error reading sensor: {e}{extra}")
+            _last_error_log, _suppressed_errors = now, 0
+        else:
+            _suppressed_errors += 1
+        if _consecutive_failures >= _REOPEN_AFTER_FAILURES:
+            _try_reopen()
         return None
 
+    _consecutive_failures = 0
     if mm is None or mm <= 0:
         return None
     return mm / 10.0
@@ -83,19 +149,7 @@ def start() -> bool:
         if _available and _tof is not None and _polling_active:
             return True
         try:
-            try:
-                import VL53L1X
-            except ImportError:
-                import vl53l1x as VL53L1X
-            tof = VL53L1X.VL53L1X(
-                i2c_bus=config.PROXIMITY_I2C_BUS,
-                i2c_address=config.PROXIMITY_I2C_ADDR,
-            )
-            tof.open()
-            if not getattr(tof, "_dev", True):
-                raise RuntimeError("Sensor not responding on I2C bus")
-            tof.start_ranging(config.PROXIMITY_RANGE_MODE)
-            _tof = tof
+            _tof = _open_sensor()
             _available = True
 
             # Start continuous background polling thread

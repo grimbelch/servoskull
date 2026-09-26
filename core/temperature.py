@@ -83,12 +83,20 @@ def _monitor() -> None:
     cooldown = config.TEMP_WARN_COOLDOWN
     interval = config.TEMP_CHECK_INTERVAL
 
+    failures = 0
     while True:
         time.sleep(interval)
         temp = read_temp_c()
         if temp is None:
-            print("[temp] Sensor became unavailable — stopping monitor.")
-            return
+            # A transient read failure must not end monitoring for good; log once
+            # when it starts failing and keep trying.
+            failures += 1
+            if failures == 1:
+                print("[temp] Temperature read failed — will keep retrying.")
+            continue
+        if failures:
+            print(f"[temp] Temperature readings recovered after {failures} failed attempt(s).")
+            failures = 0
         if config.AUDIO_DEBUG:
             print(f"[temp] {temp:.1f}°C (warn≥{warn}, clear≤{clear}, armed={_armed})")
         now = time.monotonic()
