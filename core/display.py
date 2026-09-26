@@ -1314,6 +1314,31 @@ def display_pil_image(pil_img, duration: float = 10.0) -> None:
         print(f"[display] display_pil_image error: {e}")
 
 
+def show_access_code(code: str, duration: float = 60.0) -> None:
+    """Show a short sign-in code in large digits, centred on the round eye."""
+    try:
+        from PIL import Image, ImageDraw
+        img = Image.new("RGB", (240, 240), (0, 0, 0))
+        d = ImageDraw.Draw(img)
+        d.ellipse([6, 6, 233, 233], outline=(0, 90, 35), width=2)
+        label_font = _get_font(15)
+        for text, y in (("WEB REMOTE", 52), ("SIGN-IN CODE", 170)):
+            w = d.textlength(text, font=label_font)
+            d.text(((240 - w) / 2, y), text, fill=(0, 170, 70), font=label_font)
+        size = 84
+        font = _get_font(size)
+        while d.textlength(code, font=font) > 196 and size > 30:
+            size -= 4
+            font = _get_font(size)
+        box = d.textbbox((0, 0), code, font=font)
+        x = (240 - (box[2] - box[0])) / 2 - box[0]
+        y = (240 - (box[3] - box[1])) / 2 - box[1]
+        d.text((x, y), code, fill=(120, 255, 160), font=font)
+        display_pil_image(img, duration=duration)
+    except Exception as e:
+        print(f"[display] show_access_code error: {e}")
+
+
 def show_text(text: str, duration: float = 10.0) -> None:
     """Renders text onto a 240x240 image and displays it on the panel."""
     try:

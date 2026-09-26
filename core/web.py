@@ -31,50 +31,100 @@ _audio_lock = threading.Lock()
 
 
 # ── Web remote access control ─────────────────────────────────────────────────────
-# Every page, API route and stream requires the access code, except while the unit
-# is still unconfigured (the first-run setup wizard). The code lives only on the
-# device (USER_DATA_DIR/web_access_code, 0600) and is shown on the eye on request.
-# A browser logs in once at /login (or via a link ending ?code=...) and keeps an
-# HttpOnly cookie; scripts can send "Authorization: Bearer <code>".
-_AUTH_COOKIE = "omega7_auth"
-_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O or 1/I lookalikes
+# Every page, API route and stream requires a login, except while the unit is still
+# unconfigured (the first-run setup wizard).
+#
+# Logging in takes a 4-digit code that only exists while someone near the skull has
+# asked for it ("show the web access code"): it is shown large on the eye, never
+# spoken or logged, is fresh each time, expires after ACCESS_CODE_TTL seconds and is
+# destroyed after ACCESS_CODE_MAX_TRIES wrong guesses. A successful login gives the
+# browser its own random session key (HttpOnly cookie, valid a year), so the short
+# code is only ever used to sign in. Scripts can send "Authorization: Bearer <key>".
+_AUTH_COOKIE = "omega7_session"
+ACCESS_CODE_TTL = 600.0
+ACCESS_CODE_MAX_TRIES = 5
+_SESSION_MAX_AGE = 365 * 24 * 3600
+_MAX_SESSIONS = 50
 _auth_lock = threading.Lock()
 _access_code: str | None = None
+_access_code_expires = 0.0
+_access_code_failures = 0
+_sessions: dict[str, float] | None = None   # sha256(session key) -> created (epoch s)
 _login_failures: collections.deque = collections.deque()
 _LOGIN_FAILURE_WINDOW = 300.0
 _LOGIN_FAILURE_LIMIT = 10
 _https_enabled = False
 
 
-def _normalize_code(code: str) -> str:
-    return "".join(ch for ch in (code or "").upper() if ch.isalnum())
-
-
-def get_access_code() -> str:
-    """The web remote access code, created on first use (16 chars, ~80 bits)."""
-    global _access_code
+def issue_access_code() -> str:
+    """Create a fresh 4-digit sign-in code (replacing any previous one) and return it."""
+    global _access_code, _access_code_expires, _access_code_failures
     import secrets
     with _auth_lock:
-        if _access_code:
-            return _access_code
-        path = config.data_path("web_access_code")
-        try:
-            existing = path.read_text(encoding="utf-8").strip()
-        except OSError:
-            existing = ""
-        if len(_normalize_code(existing)) >= 16:
-            _access_code = existing
-        else:
-            raw = "".join(secrets.choice(_CODE_ALPHABET) for _ in range(16))
-            _access_code = "-".join(raw[i:i + 4] for i in range(0, 16, 4))
-            config.atomic_write(path, _access_code + "\n", mode=0o600)
-            print("[web] Generated a new web remote access code (ask the skull to show it).")
-        return _access_code
+        _access_code = f"{secrets.randbelow(10000):04d}"
+        _access_code_expires = time.time() + ACCESS_CODE_TTL
+        _access_code_failures = 0
+    print("[web] Issued a web remote sign-in code (shown on the eye).")
+    return _access_code
 
 
-def _code_matches(candidate: str) -> bool:
+def _check_access_code(candidate: str) -> bool:
+    """True if `candidate` is the live code. Wrong guesses count toward destroying it."""
+    global _access_code, _access_code_failures
     import hmac
-    return hmac.compare_digest(_normalize_code(candidate), _normalize_code(get_access_code()))
+    digits = "".join(ch for ch in (candidate or "") if ch.isdigit())
+    with _auth_lock:
+        if _access_code is None or time.time() > _access_code_expires:
+            _access_code = None
+            return False
+        if hmac.compare_digest(digits, _access_code):
+            _access_code = None  # single use
+            return True
+        _access_code_failures += 1
+        if _access_code_failures >= ACCESS_CODE_MAX_TRIES:
+            _access_code = None
+            print("[web] Too many wrong sign-in codes — code destroyed; ask the skull for a new one.")
+        return False
+
+
+def _session_hash(key: str) -> str:
+    import hashlib
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()
+
+
+def _load_sessions() -> dict[str, float]:
+    global _sessions
+    if _sessions is None:
+        try:
+            data = json.loads(config.data_path("web_sessions.json").read_text(encoding="utf-8"))
+            _sessions = {k: float(v) for k, v in data.items()} if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            _sessions = {}
+    return _sessions
+
+
+def _new_session() -> str:
+    """Create and persist a session; only its hash is stored on disk."""
+    import secrets
+    key = secrets.token_urlsafe(32)
+    with _auth_lock:
+        sessions = _load_sessions()
+        now = time.time()
+        for h in [h for h, t in sessions.items() if now - t > _SESSION_MAX_AGE]:
+            del sessions[h]
+        sessions[_session_hash(key)] = now
+        for h, _ in sorted(sessions.items(), key=lambda kv: kv[1])[:-_MAX_SESSIONS]:
+            del sessions[h]
+        config.atomic_write(config.data_path("web_sessions.json"), json.dumps(sessions), mode=0o600)
+    return key
+
+
+def _session_valid(key: str) -> bool:
+    if not key:
+        return False
+    with _auth_lock:
+        created = _load_sessions().get(_session_hash(key))
+    return created is not None and time.time() - created <= _SESSION_MAX_AGE
 
 
 def _login_locked_out() -> bool:
@@ -99,9 +149,9 @@ color:#aaffbe;border:1px solid #28e664;padding:10px;font:16px monospace;letter-s
 button{background:#28e664;color:#000;border:0;padding:10px 16px;font:bold 14px monospace;cursor:pointer}
 .err{color:#ff4030}.hint{color:#148c3c;font-size:12px}</style></head><body>
 <form method="post" action="/login"><h1>OMEGA-7 // ACCESS</h1>__MESSAGE__
-<input name="code" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="current-password" autofocus>
+<input name="code" placeholder="0000" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" autofocus>
 <input type="hidden" name="next" value="__NEXT__"><button type="submit">AUTHENTICATE</button>
-<p class="hint">Ask the skull: "show the web access code".</p></form></body></html>"""
+<p class="hint">Ask the skull: "show the web access code". The code lasts 10 minutes.</p></form></body></html>"""
 
 
 def publish_web_audio(wav_bytes: bytes) -> None:
@@ -474,12 +524,12 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         from http.cookies import SimpleCookie
         try:
             cookie = SimpleCookie(self.headers.get("Cookie", ""))
-            if _AUTH_COOKIE in cookie and _code_matches(cookie[_AUTH_COOKIE].value):
+            if _AUTH_COOKIE in cookie and _session_valid(cookie[_AUTH_COOKIE].value):
                 return True
         except Exception:
             pass
         auth = self.headers.get("Authorization", "")
-        return auth.startswith("Bearer ") and _code_matches(auth[7:].strip())
+        return auth.startswith("Bearer ") and _session_valid(auth[7:].strip())
 
     def _is_cross_site(self) -> bool:
         """True for requests another website caused the browser to send."""
@@ -492,7 +542,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         return False
 
     def _set_auth_cookie_and_redirect(self, location: str) -> None:
-        cookie = f"{_AUTH_COOKIE}={_normalize_code(get_access_code())}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax"
+        cookie = f"{_AUTH_COOKIE}={_new_session()}; Path=/; Max-Age={_SESSION_MAX_AGE}; HttpOnly; SameSite=Lax"
         if _https_enabled:
             cookie += "; Secure"
         self.send_response(303)
@@ -516,7 +566,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         if _login_locked_out():
             self._send_login_page(429, "Too many attempts. Wait a few minutes.", next_path)
             return
-        if code and _code_matches(code):
+        if code and _check_access_code(code):
             print("[web] Web remote login succeeded.")
             self._set_auth_cookie_and_redirect(next_path)
         else:

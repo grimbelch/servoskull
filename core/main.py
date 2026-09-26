@@ -1768,7 +1768,7 @@ def main():
             if re.search(r"\b(web|remote)\b.*\b(access )?(code|password|pass ?code)\b|\baccess code\b", _t):
                 print("[skull] Local web-access-code intent detected — showing code on the eye.")
                 try:
-                    display.show_text("WEB REMOTE CODE\n\n" + web.get_access_code() + "\n\nhttps://omega7:8080/login", 45.0)
+                    display.show_access_code(web.issue_access_code(), 60.0)
                     eyes.on()
                     _speak_interruptible(tts.synthesize(
                         "The access code is displayed on my ocular, Master." if config.PERSONALITY.get("eye_animation") != "dog"
