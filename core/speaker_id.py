@@ -18,27 +18,81 @@ from core import config
 VOICES_DIR = pathlib.Path(config.data_path("voices"))
 MODEL_PATH = VOICES_DIR / "speaker_model.pkl"
 
+# Bump whenever extract_mfcc's output changes: a model trained on other features is
+# meaningless, so load_model() retrains from the stored recordings instead.
+#   1 (unversioned): native-rate framing, frames cropped to 512 samples at 48 kHz
+#   2: resampled to 16 kHz, stride-trick framing, continuous mel filters
+FEATURE_VERSION = 2
+FEATURE_RATE = 16000  # 25 ms = 400 samples, fits the 512-point FFT
+
 # Active GMM profiles
 _speaker_models: dict[str, GaussianMixture] = {}
+_retrain_attempted = False  # only try the one-off feature-version migration once per process
 
 def load_model() -> bool:
-    """Load the trained GMM models from disk. Returns True on success."""
-    global _speaker_models
+    """Load the trained GMM models from disk. Returns True on success.
+
+    A model saved with an older (or no) FEATURE_VERSION is retrained from the WAV
+    recordings in VOICES_DIR, so feature changes never force a re-enrollment.
+    """
+    global _speaker_models, _retrain_attempted
     if not MODEL_PATH.exists():
         _speaker_models = {}
         return False
     try:
         with MODEL_PATH.open("rb") as f:
-            _speaker_models = pickle.load(f)
-        print(f"[speaker_id] Loaded {len(_speaker_models)} voice profile(s): {list(_speaker_models.keys())}")
-        return True
+            saved = pickle.load(f)
     except Exception as e:
         print(f"[speaker_id] Failed to load speaker model: {e}")
         _speaker_models = {}
         return False
 
+    version = saved.get("feature_version") if isinstance(saved, dict) else None
+    if version == FEATURE_VERSION and isinstance(saved.get("models"), dict):
+        _speaker_models = saved["models"]
+        print(f"[speaker_id] Loaded {len(_speaker_models)} voice profile(s): {list(_speaker_models.keys())}")
+        return True
+
+    # Stale features (pre-versioning models are a bare {name: GMM} dict).
+    _speaker_models = {}
+    if _retrain_attempted:
+        return False
+    _retrain_attempted = True
+    print(f"[speaker_id] Speaker model uses feature version {version or 1}, need {FEATURE_VERSION} — retraining from stored recordings")
+    print(f"[speaker_id] {train_speaker_model()}")
+    return bool(_speaker_models)
+
+def _mel_filterbank(nfilt: int, nfft: int, samplerate: int) -> np.ndarray:
+    """Triangular mel filters evaluated at each FFT bin's centre frequency.
+
+    Using the continuous mel edges (rather than flooring them to FFT bins) keeps
+    every filter non-empty: even the narrowest low filter spans ~2 bins at 16 kHz.
+    """
+    max_freq = min(samplerate / 2.0, 8000.0)
+    mel_points = np.linspace(0.0, 2595 * np.log10(1 + max_freq / 700.0), nfilt + 2)
+    hz_points = 700 * (10 ** (mel_points / 2595.0) - 1)
+    bin_hz = np.fft.rfftfreq(nfft, 1.0 / samplerate)
+    lower, centre, upper = hz_points[:-2, None], hz_points[1:-1, None], hz_points[2:, None]
+    rising = (bin_hz - lower) / (centre - lower)
+    falling = (upper - bin_hz) / (upper - centre)
+    return np.maximum(0.0, np.minimum(rising, falling))
+
+_fbank_cache: dict[tuple, np.ndarray] = {}
+
 def extract_mfcc(signal: np.ndarray, samplerate: int, num_cepstrals: int = 13) -> np.ndarray:
     """Compute MFCC features from a raw 1D audio signal."""
+    # Resample to 16 kHz so a 25 ms frame (400 samples) fits the 512-point FFT
+    # whatever the mic's native rate (at 48 kHz frames were cropped to 512 of 1200).
+    if samplerate != FEATURE_RATE:
+        from math import gcd
+        from scipy.signal import resample_poly
+        g = gcd(FEATURE_RATE, int(samplerate))
+        signal = resample_poly(signal, FEATURE_RATE // g, int(samplerate) // g)
+        samplerate = FEATURE_RATE
+    signal = np.asarray(signal, dtype=np.float32)
+    if signal.size == 0:
+        return np.zeros((0, num_cepstrals))
+
     # Pre-emphasis
     pre_emphasis = 0.97
     emphasized_signal = np.append(signal[0], signal[1:] - pre_emphasis * signal[:-1])
@@ -59,16 +113,14 @@ def extract_mfcc(signal: np.ndarray, samplerate: int, num_cepstrals: int = 13) -
     
     # Padding
     pad_signal_length = num_frames * frame_step + frame_length
-    z = np.zeros((pad_signal_length - signal_length))
+    z = np.zeros((pad_signal_length - signal_length), dtype=np.float32)
     pad_signal = np.append(emphasized_signal, z)
     
-    # Frame indices
-    indices = np.tile(np.arange(0, frame_length), (num_frames, 1)) + \
-              np.tile(np.arange(0, num_frames * frame_step, frame_step), (frame_length, 1)).T
-    frames = pad_signal[indices.astype(np.int32, copy=False)]
+    # Overlapping frames as a strided view (no index matrix); windowing makes the one copy
+    frames = np.lib.stride_tricks.sliding_window_view(pad_signal, frame_length)[::frame_step][:num_frames]
     
     # Windowing (Hamming)
-    frames *= np.hamming(frame_length)
+    frames = frames * np.hamming(frame_length).astype(np.float32)
     
     # FFT and Power Spectrum
     NFFT = 512
@@ -77,26 +129,10 @@ def extract_mfcc(signal: np.ndarray, samplerate: int, num_cepstrals: int = 13) -
     
     # Mel Filterbanks (limit to 8000Hz for speech range)
     nfilt = 40
-    low_freq_mel = 0
-    max_freq = min(samplerate / 2.0, 8000.0)
-    high_freq_mel = (2595 * np.log10(1 + max_freq / 700.0))
-    mel_points = np.linspace(low_freq_mel, high_freq_mel, nfilt + 2)
-    hz_points = (700 * (10**(mel_points / 2595.0) - 1))
-    bin = np.floor((NFFT + 1) * hz_points / samplerate)
-    
-    fbank = np.zeros((nfilt, int(np.floor(NFFT / 2 + 1))))
-    for m in range(1, nfilt + 1):
-        f_m_minus = int(bin[m - 1])
-        f_m = int(bin[m])
-        f_m_plus = int(bin[m + 1])
-        
-        # Guard against indices out of bounds
-        for k in range(f_m_minus, f_m):
-            if k < fbank.shape[1]:
-                fbank[m - 1, k] = (k - bin[m - 1]) / (bin[m] - bin[m - 1])
-        for k in range(f_m, f_m_plus):
-            if k < fbank.shape[1]:
-                fbank[m - 1, k] = (bin[m + 1] - k) / (bin[m + 1] - bin[m])
+    key = (nfilt, NFFT, samplerate)
+    fbank = _fbank_cache.get(key)
+    if fbank is None:
+        fbank = _fbank_cache[key] = _mel_filterbank(nfilt, NFFT, samplerate)
             
     filter_banks = np.dot(pow_frames, fbank.T)
     filter_banks = np.where(filter_banks == 0, np.finfo(float).eps, filter_banks)
@@ -157,7 +193,7 @@ def train_speaker_model() -> str:
     try:
         MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
         with MODEL_PATH.open("wb") as f:
-            pickle.dump(models, f)
+            pickle.dump({"feature_version": FEATURE_VERSION, "models": models}, f)
         _speaker_models = models
         return f"Successfully trained voice biometrics with profiles: {list(models.keys())}"
     except Exception as e:

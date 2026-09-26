@@ -289,8 +289,10 @@ def _route_audio(mac: str, local_device_idx: int = None) -> None:
 
     - Sets the BT device as the PulseAudio default sink so Spotify/system audio
       plays through it automatically.
-    - Pins config.VOICE_OUTPUT_DEVICE to the local hardware output device so TTS/SFX
-      stay on Omega-7's own speaker by default.
+    - Pins config.VOICE_OUTPUT_DEVICE to the local speaker so TTS/SFX stay on
+      Omega-7's own speaker by default. That's the echo-cancel sink when present
+      (not the raw USB sink), so the AEC keeps its reference and the skull can't
+      hear/wake itself.
     """
     time.sleep(1)  # give the sink a moment to register
 
@@ -319,7 +321,7 @@ def _route_audio(mac: str, local_device_idx: int = None) -> None:
     except Exception as e:
         print(f"[bluetooth] Audio routing error: {e}")
 
-    # Pin voice output explicitly to Omega-7's local hardware speaker
+    # Pin voice output explicitly to Omega-7's local speaker (echo-cancel sink if loaded)
     from core import config, audio
     int_sink = audio.get_internal_speaker_sink()
     config.VOICE_OUTPUT_DEVICE = int_sink
@@ -327,23 +329,22 @@ def _route_audio(mac: str, local_device_idx: int = None) -> None:
 
 
 def _restore_local_audio() -> None:
-    """Restore default PulseAudio/PipeWire sink to local hardware audio card."""
+    """Restore default PulseAudio/PipeWire sink to Omega-7's local speaker.
+
+    Prefers the echo-cancel sink over the raw USB/ALSA card: restoring the raw sink
+    as the default would bypass the AEC, so the skull's voice would reach the mic
+    uncancelled and could trigger its own wake word.
+    """
+    from core import config, audio
     try:
-        sinks = subprocess.run(
-            ["pactl", "list", "short", "sinks"],
-            capture_output=True, text=True, timeout=5
-        ).stdout
-        for line in sinks.splitlines():
-            parts = line.split()
-            if len(parts) >= 2:
-                s_name = parts[1]
-                if ("usb" in s_name.lower() or "alsa" in s_name.lower()) and "bluez" not in s_name.lower():
-                    subprocess.run(["pactl", "set-default-sink", s_name], capture_output=True, timeout=5)
-                    print(f"[bluetooth] Restored system default sink → {s_name}")
-                    break
+        s_name = audio.get_pulseaudio_sinks().get("internal")
+        if s_name:
+            subprocess.run(["pactl", "set-default-sink", s_name], capture_output=True, timeout=5)
+            print(f"[bluetooth] Restored system default sink → {s_name}")
+        else:
+            print("[bluetooth] No local sink found — PulseAudio default unchanged")
     except Exception as e:
         print(f"[bluetooth] Restore audio error: {e}")
 
-    from core import config
     config.VOICE_OUTPUT_DEVICE = None
 

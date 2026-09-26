@@ -371,8 +371,20 @@ def play_wav_bytes(
         print(f"[audio] System playback fallback error: {fb_err}")
 
 
+def _is_echo_cancel_sink(name_lower: str) -> bool:
+    """PipeWire's echo-cancel sink ('echo_cancel.sink', or 'effect_input.echo_cancel' on newer PipeWire)."""
+    return "echo_cancel" in name_lower or "echo-cancel" in name_lower
+
+
 def get_pulseaudio_sinks() -> dict[str, str]:
-    """Returns a dict mapping sink type ('internal' or 'bluetooth') to PulseAudio sink name."""
+    """Returns a dict mapping sink type ('internal' or 'bluetooth') to PulseAudio sink name.
+
+    'internal' is the echo-cancel sink when PipeWire's AEC is loaded (see
+    pipewire-echo-cancel.conf): playing the skull's voice there is what feeds the AEC
+    its reference signal, so the mic can cancel it and the skull can't wake itself.
+    The raw USB/ALSA sink (also returned as 'raw_internal') bypasses the AEC, so it is
+    only used as 'internal' when echo-cancel isn't present.
+    """
     sinks = {}
     try:
         out = subprocess.run(["pactl", "list", "short", "sinks"], capture_output=True, text=True, timeout=5).stdout
@@ -381,12 +393,17 @@ def get_pulseaudio_sinks() -> dict[str, str]:
             if len(parts) >= 2:
                 name = parts[1]
                 name_lower = name.lower()
-                if "bluez" in name_lower or "bt" in name_lower:
+                if _is_echo_cancel_sink(name_lower):
+                    sinks["echo_cancel"] = name
+                elif "bluez" in name_lower or "bt" in name_lower:
                     sinks["bluetooth"] = name
                 elif "usb" in name_lower or "alsa" in name_lower:
-                    sinks["internal"] = name
+                    sinks["raw_internal"] = name
     except Exception as e:
         print(f"[audio] Error listing PulseAudio sinks: {e}")
+    internal = sinks.get("echo_cancel") or sinks.get("raw_internal")
+    if internal:
+        sinks["internal"] = internal
     return sinks
 
 

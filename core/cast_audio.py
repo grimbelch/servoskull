@@ -9,9 +9,7 @@ and replayed locally in sync with the remote cast playback.
 from __future__ import annotations
 import http.server
 import io
-import os
 import socket
-import tempfile
 import threading
 import time
 
@@ -44,22 +42,32 @@ def amplitude_timeline(wav_bytes: bytes, chunk_ms: int = 40) -> list[float]:
 # ── Temp HTTP server to serve the WAV to the cast device ───────────────────────
 
 class _AudioServer:
+    """Serves the WAV straight from memory — nothing is written to the SD card."""
+
     def __init__(self, wav_bytes: bytes):
-        self._dir = tempfile.mkdtemp()
-        path = os.path.join(self._dir, "audio.wav")
-        with open(path, "wb") as f:
-            f.write(wav_bytes)
+        class _Handler(http.server.BaseHTTPRequestHandler):
+            timeout = 10  # never let a stalled client wedge shutdown()
 
-        with socket.socket() as s:
-            s.bind(("", 0))
-            self.port = s.getsockname()[1]
+            def do_HEAD(self):
+                self._send(body=False)
 
-        self._server = http.server.HTTPServer(
-            ("", self.port),
-            lambda *a, **k: http.server.SimpleHTTPRequestHandler(
-                *a, directory=self._dir, **k
-            ),
-        )
+            def do_GET(self):
+                self._send(body=True)
+
+            def _send(self, body: bool):
+                if self.path.split("?", 1)[0] != "/audio.wav":
+                    self.send_error(404)
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "audio/wav")
+                self.send_header("Content-Length", str(len(wav_bytes)))
+                self.end_headers()
+                if body:
+                    self.wfile.write(wav_bytes)
+
+        # Bind port 0 directly so the OS picks a free port (no probe-then-rebind race).
+        self._server = http.server.HTTPServer(("", 0), _Handler)
+        self.port = self._server.server_address[1]
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
         self._thread.start()
 
@@ -67,7 +75,10 @@ class _AudioServer:
         return f"http://{_local_ip()}:{self.port}/audio.wav"
 
     def stop(self) -> None:
-        self._server.shutdown()
+        try:
+            self._server.shutdown()
+        finally:
+            self._server.server_close()  # release the listening socket
 
 
 def _local_ip() -> str:
@@ -133,6 +144,7 @@ def play(wav_bytes: bytes, amplitude_fn_setter=None, stop_event: threading.Event
 
     timeline = amplitude_timeline(wav_bytes)
     chunk_sec = 0.040
+    duration = len(timeline) * chunk_sec
 
     server = _AudioServer(wav_bytes)
     url = server.url()
@@ -156,9 +168,16 @@ def play(wav_bytes: bytes, amplitude_fn_setter=None, stop_event: threading.Event
         mc.block_until_active(timeout=10)
         eye_thread.start()
 
-        # Poll until playback finishes — or until barge-in sets stop_event.
+        # Poll until playback finishes — or until barge-in sets stop_event. The
+        # caller holds the speech lock, so a device stuck in UNKNOWN/BUFFERING must
+        # not spin forever: give up once the clip should long since have ended.
+        deadline = time.monotonic() + duration + 10.0
         while mc.status.player_state in ("PLAYING", "BUFFERING", "UNKNOWN"):
-            if stop_event and stop_event.is_set():
+            stopping = stop_event and stop_event.is_set()
+            if not stopping and time.monotonic() >= deadline:
+                print(f"[cast] Playback still '{mc.status.player_state}' after {duration + 10.0:.1f}s — abandoning")
+                stopping = True
+            if stopping:
                 try:
                     mc.stop()  # halt remote playback on the Google Home
                 except Exception as e:
@@ -169,5 +188,6 @@ def play(wav_bytes: bytes, amplitude_fn_setter=None, stop_event: threading.Event
     except Exception as e:
         print(f"[cast] Playback error: {e}")
     finally:
-        eye_thread.join(timeout=1.0)
+        if eye_thread.is_alive():  # never started if play_media() raised
+            eye_thread.join(timeout=1.0)
         server.stop()

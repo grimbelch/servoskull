@@ -985,7 +985,43 @@ def _render_update_progress_frame(bezel, mask, now: float) -> 'Image.Image':
     
     return frame
 
+# Render-error handling. A failing frame must never kill the render thread (that
+# freezes the eye for good), and must not print 30 lines/s into the persistent
+# journal either (SD-card writes): each distinct error is logged at most once per
+# _RENDER_ERROR_LOG_INTERVAL, with a count of the repeats suppressed in between.
+_RENDER_ERROR_LOG_INTERVAL = 60.0  # seconds between repeats of the same error message
+_RENDER_ERROR_BACKOFF = 0.5        # seconds to pause after a failed frame
+_render_error_log: dict[str, list] = {}  # message -> [last_logged_monotonic, suppressed_count]
+
+
+def _render_error(what: str, e: Exception) -> None:
+    """Rate-limited log of a per-frame render error, then back off briefly."""
+    key = f"[display] {what} error: {e}"
+    now = time.monotonic()
+    entry = _render_error_log.get(key)
+    if entry is None or now - entry[0] >= _RENDER_ERROR_LOG_INTERVAL:
+        suppressed = entry[1] if entry else 0
+        print(key + (f" (repeated {suppressed}x since last logged)" if suppressed else ""))
+        if entry is None and len(_render_error_log) >= 64:
+            _render_error_log.clear()  # bound memory if error text keeps varying
+        _render_error_log[key] = [now, 0]
+    else:
+        entry[1] += 1
+    _stop.wait(_RENDER_ERROR_BACKOFF)
+
+
 def _loop():
+    """Supervise the render loop: restart it after any unexpected error, never exit
+    until stop() is called."""
+    while not _stop.is_set():
+        try:
+            _render_loop()
+        except Exception as e:
+            _render_error("render loop", e)
+            _stop.wait(1.0)
+
+
+def _render_loop():
     global _rolling_die, _showing_omnissiah_glyph, _showing_custom_image, _custom_image, _custom_image_expiry
     global _showing_alignment, _alignment_until
     global _last_activity_time, _active_idle_anim, _custom_idle_expiry, _requested_idle_anim
@@ -1064,14 +1100,14 @@ def _loop():
                     if _active_idle_anim and _screensavers:
                         _blit(_screensavers.render_screensaver_frame(_active_idle_anim, bezel, mask, now))
                 except Exception as e:
-                    print(f"[display] screensaver render error ({_active_idle_anim}): {e}")
+                    _render_error(f"screensaver render ({_active_idle_anim})", e)
                 time.sleep(1 / config.DISPLAY_FPS)
                 continue
         if _showing_update_progress:
             try:
                 _blit(_render_update_progress_frame(bezel, mask, now))
             except Exception as e:
-                print(f"[display] update progress render error: {e}")
+                _render_error("update progress render", e)
             time.sleep(1 / config.DISPLAY_FPS)
             continue
 
@@ -1083,7 +1119,7 @@ def _loop():
                 try:
                     _blit(_render_omnissiah_frame(bezel, mask, now))
                 except Exception as e:
-                    print(f"[display] omnissiah render error: {e}")
+                    _render_error("omnissiah render", e)
                 time.sleep(1 / config.DISPLAY_FPS)
                 continue
 
@@ -1095,7 +1131,7 @@ def _loop():
                 try:
                     _blit(_render_die_frame(bezel, mask, roll_elapsed, _die_result))
                 except Exception as e:
-                    print(f"[display] die render error: {e}")
+                    _render_error("die render", e)
                 time.sleep(1 / config.DISPLAY_FPS)
                 continue
 
@@ -1103,7 +1139,7 @@ def _loop():
             try:
                 _blit(_render_auspex_frame(bezel, mask, now))
             except Exception as e:
-                print(f"[display] auspex render error: {e}")
+                _render_error("auspex render", e)
             time.sleep(1 / config.DISPLAY_FPS)
             continue
 
@@ -1111,7 +1147,7 @@ def _loop():
             try:
                 _blit(_render_noosphere_frame(bezel, mask, now))
             except Exception as e:
-                print(f"[display] noosphere render error: {e}")
+                _render_error("noosphere render", e)
             time.sleep(1 / config.DISPLAY_FPS)
             continue
 
@@ -1119,7 +1155,7 @@ def _loop():
             try:
                 _blit(_render_web_search_frame(bezel, mask, now))
             except Exception as e:
-                print(f"[display] web search render error: {e}")
+                _render_error("web search render", e)
             time.sleep(1 / config.DISPLAY_FPS)
             continue
 
@@ -1127,7 +1163,7 @@ def _loop():
             try:
                 _blit(_render_rules_lookup_frame(bezel, mask, now))
             except Exception as e:
-                print(f"[display] rules lookup render error: {e}")
+                _render_error("rules lookup render", e)
             time.sleep(1 / config.DISPLAY_FPS)
             continue
 
@@ -1135,7 +1171,7 @@ def _loop():
             try:
                 _blit(_render_news_fetch_frame(bezel, mask, now))
             except Exception as e:
-                print(f"[display] news fetch render error: {e}")
+                _render_error("news fetch render", e)
             time.sleep(1 / config.DISPLAY_FPS)
             continue
 
@@ -1143,7 +1179,7 @@ def _loop():
             try:
                 _blit(_render_image_retrieval_frame(bezel, mask, now))
             except Exception as e:
-                print(f"[display] image retrieval render error: {e}")
+                _render_error("image retrieval render", e)
             time.sleep(1 / config.DISPLAY_FPS)
             continue
 
@@ -1154,7 +1190,7 @@ def _loop():
                 try:
                     _blit(_render_alignment_frame(bezel, mask, now))
                 except Exception as e:
-                    print(f"[display] alignment render error: {e}")
+                    _render_error("alignment render", e)
                 time.sleep(1 / config.DISPLAY_FPS)
                 continue
 
@@ -1162,7 +1198,7 @@ def _loop():
             try:
                 _blit(_render_targeting_frame(bezel, mask, now))
             except Exception as e:
-                print(f"[display] targeting render error: {e}")
+                _render_error("targeting render", e)
             time.sleep(1 / config.DISPLAY_FPS)
             continue
 
@@ -1170,7 +1206,7 @@ def _loop():
             try:
                 _blit(_render_music_frame(bezel, mask, now))
             except Exception as e:
-                print(f"[display] music render error: {e}")
+                _render_error("music render", e)
             time.sleep(1 / config.DISPLAY_FPS)
             continue
 
@@ -1181,7 +1217,7 @@ def _loop():
                 if gf is not None:
                     _blit(gf)
             except Exception as e:
-                print(f"[display] game frame error: {e}")
+                _render_error("game frame", e)
             time.sleep(1 / config.DISPLAY_FPS)
             continue
 
@@ -1193,7 +1229,7 @@ def _loop():
                 try:
                     _blit(_custom_image)
                 except Exception as e:
-                    print(f"[display] custom image render error: {e}")
+                    _render_error("custom image render", e)
                 time.sleep(1 / config.DISPLAY_FPS)
                 continue
 
@@ -1248,8 +1284,7 @@ def _loop():
         try:
             _blit(_render_frame(bezel, mask, max(0.0, min(1.0, shown)), angle, blink, look_x, look_y))
         except Exception as e:
-            print(f"[display] render error: {e}")
-            return
+            _render_error("render", e)  # back off and keep going; never exit the thread
         time.sleep(1 / config.DISPLAY_FPS)
 
 
