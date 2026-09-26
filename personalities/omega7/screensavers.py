@@ -1,8 +1,8 @@
 """skull/screensavers.py – Cogitator Visual Emulation (Screensaver Animations).
 
 Contains all Adeptus Mechanicus themed screensavers for the GC9A01 circular HUD,
-including vector arcade emulation (Asteroids), plasma, lissajous, canticle rain,
-starfield, warp core, voronoi, data stream, mandala, rune wheel, etc.
+including vector arcade emulation (Asteroids, Battlezone), canticle rain, warp core,
+data stream and more. Larger simulation-driven screensavers live in lore/.
 """
 
 import math
@@ -13,21 +13,18 @@ from PIL import Image, ImageDraw, ImageFont
 
 # Master list of all available screensaver animations
 SCREENSAVER_ANIMS = [
-    "pong", "canticle_rain", "starfield", "oscilloscope", "game_of_life", "radar",
-    "warp_core", "circuit_maze", "double_helix", "spinning_rings", "wireframe_cube",
-    "bouncing_cog", "fractal_tree", "hud_status", "orbitals", "spectrum_bars",
-    "plasma", "data_stream", "glitch", "neural_net", "void_shield", "hex_grid", "asteroids", "battlezone", "cogitator_terminal", "astronomican_pulse", "exterminatus_targeting", "astropathic_choir", "bio_magos_sequencer", "golden_throne_ekg"
-,
-    "noosphere_tether", "titan_manifold", "stc_recompilation", "servitor_lobotomy", "fabricator_matrix", "linguis_technis", "lexmechanic_ledger",
-    "nurgle_scrapcode", "archeotech_vault", "electro_priest_meter", "magos_biologis", "machine_spirit_ritual"]
+    "pong", "canticle_rain", "oscilloscope", "game_of_life", "radar", "warp_core",
+    "double_helix", "hud_status", "orbitals", "spectrum_bars", "data_stream", "glitch",
+    "neural_net", "hex_grid", "asteroids", "battlezone", "cogitator_terminal", "astronomican_pulse",
+    "exterminatus_targeting", "bio_magos_sequencer", "golden_throne_ekg", "noosphere_tether", "titan_manifold", "fabricator_matrix",
+    "linguis_technis", "lexmechanic_ledger", "archeotech_vault", "magos_biologis",
+]
 
 
 def get_screensaver_names() -> list[str]:
     """Return authoritative list of screensaver animation names."""
     return list(SCREENSAVER_ANIMS)
 
-
-# ── Global State Variables for Screensavers ───────────────────────────────────
 
 # Pong
 _pong_ball_x = 120.0
@@ -42,8 +39,6 @@ _pong_score_r = 0
 # Canticle Rain
 _rain_cols = []
 
-# Starfield
-_starfield_stars = []
 
 # Game of Life
 _gol_grid = None
@@ -52,16 +47,6 @@ _gol_last_grids = []
 # Radar
 _radar_blips = []
 
-# Circuit Maze
-_maze_grid = []
-_maze_last_flip = 0.0
-
-# Bouncing Cog
-_bc_x = 120.0
-_bc_y = 120.0
-_bc_dx = 1.8
-_bc_dy = 1.3
-_bc_angle = 0.0
 
 # Orbitals
 _orbital_particles = []
@@ -104,7 +89,6 @@ _ast_score = 0
 _ast_last_shot = 0.0
 
 
-
 # Cogitator Terminal
 _ct_lines = []
 
@@ -124,7 +108,6 @@ _ekg_history = [120.0] * 240
 _ekg_souls = []
 
 
-
 # 1. Noosphere Tether
 _noosphere_nodes = []
 
@@ -139,12 +122,6 @@ def _init_titan_manifold():
     global _titan_layers
     _titan_layers = [0.0, 0.0, 0.0]
 
-# 3. STC Recompilation
-_stc_nodes = []
-
-def _init_stc_recompilation():
-    global _stc_nodes
-    _stc_nodes = [{"x": random.uniform(-50, 50), "y": random.uniform(-50, 50), "z": random.uniform(-50, 50)} for _ in range(12)]
 
 # 4. Omnissian Cog Loom
 _cog_loom_angles = [0.0, 0.0, 0.0]
@@ -153,12 +130,6 @@ def _init_omnissian_cog_loom():
     global _cog_loom_angles
     _cog_loom_angles = [0.0, 0.0, 0.0]
 
-# 5. Servitor Lobotomy
-_lobotomy_paths = []
-
-def _init_servitor_lobotomy():
-    global _lobotomy_paths
-    _lobotomy_paths = [{"progress": 0.0, "x": 120, "y": 120, "angle": random.uniform(0, 6.28)} for _ in range(5)]
 
 # 6. Gellar Field
 _gellar_sparks = []
@@ -196,7 +167,6 @@ def _init_lexmechanic_ledger():
     _lex_scroll = 0.0
 
 
-
 # 11. Cyber Mastiff Vision
 _mastiff_scan_y = 0.0
 
@@ -225,12 +195,6 @@ def _init_mechadendrite_calibration():
     global _mecha_arms
     _mecha_arms = [0.0, 0.0, 0.0, 0.0]
 
-# 15. Nurgle Scrapcode
-_nurgle_spots = []
-
-def _init_nurgle_scrapcode():
-    global _nurgle_spots
-    _nurgle_spots = []
 
 # 16. Archeotech Vault
 _vault_rings = []
@@ -239,12 +203,6 @@ def _init_archeotech_vault():
     global _vault_rings
     _vault_rings = [0.0, 0.0, 0.0, 0.0]
 
-# 17. Electro Priest Meter
-_electro_arcs = []
-
-def _init_electro_priest_meter():
-    global _electro_arcs
-    _electro_arcs = []
 
 # 18. Magos Biologis
 _dna_strands = []
@@ -260,15 +218,6 @@ def _init_macrocannon_loader():
     global _macro_loader_y
     _macro_loader_y = 240.0
 
-# 20. Machine Spirit Ritual
-_ritual_drops = []
-
-def _init_machine_spirit_ritual():
-    global _ritual_drops
-    _ritual_drops = []
-
-
-# ── Initializers ─────────────────────────────────────────────────────────────
 
 def _init_canticle_rain():
     global _rain_cols
@@ -279,18 +228,6 @@ def _init_canticle_rain():
             "y": random.uniform(-100, 240),
             "speed": random.uniform(2.0, 5.0),
             "chars": [random.choice(["0", "1"]) for _ in range(12)]
-        })
-
-
-def _init_starfield():
-    global _starfield_stars
-    _starfield_stars = []
-    for _ in range(60):
-        _starfield_stars.append({
-            "x": random.uniform(-120, 120),
-            "y": random.uniform(-120, 120),
-            "z": random.uniform(1.0, 120.0),
-            "speed": random.uniform(1.5, 3.5)
         })
 
 
@@ -312,21 +249,6 @@ def _init_radar():
             "brightness": 0.0,
             "angle": angle
         })
-
-
-def _init_circuit_maze():
-    global _maze_grid, _maze_last_flip
-    _maze_grid = [[random.choice([0, 1]) for _ in range(24)] for _ in range(24)]
-    _maze_last_flip = 0.0
-
-
-def _init_bouncing_cog():
-    global _bc_x, _bc_y, _bc_dx, _bc_dy, _bc_angle
-    _bc_x = 120.0
-    _bc_y = 120.0
-    _bc_dx = random.choice([-1.8, 1.8])
-    _bc_dy = random.uniform(-1.5, 1.5)
-    _bc_angle = 0.0
 
 
 def _init_orbitals():
@@ -434,7 +356,6 @@ def _init_asteroids():
     _ast_last_shot = 0.0
 
 
-
 def _init_cogitator_terminal():
     global _ct_lines
     _ct_lines = []
@@ -460,8 +381,6 @@ def _init_golden_throne_ekg():
     _ekg_history = [120.0] * 240
     _ekg_souls = []
 
-
-# ── Renderers ────────────────────────────────────────────────────────────────
 
 def _render_pong_frame(bezel, mask, now):
     global _pong_ball_x, _pong_ball_y, _pong_ball_dx, _pong_ball_dy
@@ -561,33 +480,6 @@ def _render_canticle_rain_frame(bezel, mask, now):
             if random.random() < 0.05:
                 col["chars"][idx] = random.choice(["0", "1"])
                 
-    return img
-
-
-def _render_starfield_frame(bezel, mask, now):
-    global _starfield_stars
-    if not _starfield_stars:
-        _init_starfield()
-        
-    img = Image.new("RGB", (240, 240), (0, 5, 2))
-    d = ImageDraw.Draw(img)
-    
-    for star in _starfield_stars:
-        star["z"] -= star["speed"]
-        if star["z"] <= 1.0:
-            star["x"] = random.uniform(-120, 120)
-            star["y"] = random.uniform(-120, 120)
-            star["z"] = 120.0
-            
-        k = 100.0 / star["z"]
-        px = int(120.0 + star["x"] * k)
-        py = int(120.0 + star["y"] * k)
-        
-        if 0 <= px < 240 and 0 <= py < 240:
-            size = max(1, int(3 * (1.0 - star["z"] / 120.0)))
-            brightness = int(255 * (1.0 - star["z"] / 120.0))
-            d.ellipse([px - size, py - size, px + size, py + size], fill=(0, brightness, int(brightness * 0.4)))
-            
     return img
 
 
@@ -728,35 +620,6 @@ def _render_warp_core_frame(bezel, mask, now):
     return img
 
 
-def _render_circuit_maze_frame(bezel, mask, now):
-    global _maze_grid, _maze_last_flip
-    if not _maze_grid or len(_maze_grid) != 24:
-        _init_circuit_maze()
-        
-    if now - _maze_last_flip > 0.2:
-        _maze_last_flip = now
-        for _ in range(2):
-            r = random.randint(0, 23)
-            c = random.randint(0, 23)
-            _maze_grid[r][c] = 1 - _maze_grid[r][c]
-        
-    img = Image.new("RGB", (240, 240), (0, 10, 4))
-    d = ImageDraw.Draw(img)
-    
-    for r in range(24):
-        for c in range(24):
-            x1 = c * 10
-            y1 = r * 10
-            x2 = x1 + 10
-            y2 = y1 + 10
-            if _maze_grid[r][c] == 0:
-                d.line([(x1, y1), (x2, y2)], fill=(0, 180, 60), width=1)
-            else:
-                d.line([(x2, y1), (x1, y2)], fill=(0, 180, 60), width=1)
-                
-    return img
-
-
 def _render_double_helix_frame(bezel, mask, now):
     img = Image.new("RGB", (240, 240), (0, 8, 3))
     d = ImageDraw.Draw(img)
@@ -783,134 +646,6 @@ def _render_double_helix_frame(bezel, mask, now):
         d.ellipse([x1 - 3, y - 3, x1 + 3, y + 3], fill=(0, b1, int(b1 * 0.4)))
         d.ellipse([x2 - 3, y - 3, x2 + 3, y + 3], fill=(0, b2, int(b2 * 0.4)))
         
-    return img
-
-
-def _render_spinning_rings_frame(bezel, mask, now):
-    img = Image.new("RGB", (240, 240), (0, 8, 3))
-    d = ImageDraw.Draw(img)
-    
-    for ring, (r, speed, col) in enumerate([
-        (35, 1.2, (0, 200, 70)),
-        (65, -0.8, (0, 160, 50)),
-        (95, 0.5, (0, 240, 80))
-    ]):
-        a = (now * speed) % (math.pi * 2)
-        d.ellipse([120 - r, 120 - r, 120 + r, 120 + r], outline=col, width=1)
-        
-        dot_x = 120 + r * math.cos(a)
-        dot_y = 120 + r * math.sin(a)
-        d.ellipse([dot_x - 4, dot_y - 4, dot_x + 4, dot_y + 4], fill=(0, 255, 120))
-        
-    return img
-
-
-def _render_wireframe_cube_frame(bezel, mask, now):
-    img = Image.new("RGB", (240, 240), (0, 8, 3))
-    d = ImageDraw.Draw(img)
-    
-    ax = now * 0.7
-    ay = now * 1.1
-    az = now * 0.4
-    
-    nodes = [
-        (-40, -40, -40), (40, -40, -40), (40, 40, -40), (-40, 40, -40),
-        (-40, -40, 40), (40, -40, 40), (40, 40, 40), (-40, 40, 40)
-    ]
-    edges = [
-        (0, 1), (1, 2), (2, 3), (3, 0),
-        (4, 5), (5, 6), (6, 7), (7, 4),
-        (0, 4), (1, 5), (2, 6), (3, 7)
-    ]
-    
-    proj = []
-    for x, y, z in nodes:
-        # Rotate X
-        y1 = y * math.cos(ax) - z * math.sin(ax)
-        z1 = y * math.sin(ax) + z * math.cos(ax)
-        # Rotate Y
-        x2 = x * math.cos(ay) + z1 * math.sin(ay)
-        z2 = -x * math.sin(ay) + z1 * math.cos(ay)
-        # Rotate Z
-        x3 = x2 * math.cos(az) - y1 * math.sin(az)
-        y3 = x2 * math.sin(az) + y1 * math.cos(az)
-        
-        fov = 180.0
-        distance = 180.0
-        f = fov / (distance + z2)
-        px = 120 + x3 * f
-        py = 120 + y3 * f
-        proj.append((px, py))
-        
-    for i, j in edges:
-        d.line([proj[i], proj[j]], fill=(0, 200, 70), width=2)
-    for px, py in proj:
-        d.ellipse([px - 3, py - 3, px + 3, py + 3], fill=(0, 255, 120))
-        
-    return img
-
-
-def _render_bouncing_cog_frame(bezel, mask, now):
-    global _bc_x, _bc_y, _bc_dx, _bc_dy, _bc_angle
-    
-    _bc_x += _bc_dx
-    _bc_y += _bc_dy
-    _bc_angle = (_bc_angle + 3.0) % 360.0
-    
-    r_cog = 32.0
-    dist_sq = (_bc_x - 120.0) ** 2 + (_bc_y - 120.0) ** 2
-    if dist_sq >= (110.0 - r_cog) ** 2:
-        nx = (_bc_x - 120.0) / (math.sqrt(dist_sq) or 1.0)
-        ny = (_bc_y - 120.0) / (math.sqrt(dist_sq) or 1.0)
-        dot = _bc_dx * nx + _bc_dy * ny
-        _bc_dx -= 2.0 * dot * nx
-        _bc_dy -= 2.0 * dot * ny
-        _bc_x = 120.0 + nx * (108.0 - r_cog)
-        _bc_y = 120.0 + ny * (108.0 - r_cog)
-        
-    img = Image.new("RGB", (240, 240), (0, 8, 3))
-    d = ImageDraw.Draw(img)
-    
-    cx, cy = int(_bc_x), int(_bc_y)
-    rad_rad = math.radians(_bc_angle)
-    
-    # Outer ring
-    d.ellipse([cx - 28, cy - 28, cx + 28, cy + 28], outline=(0, 220, 80), width=2)
-    d.ellipse([cx - 14, cy - 14, cx + 14, cy + 14], outline=(0, 220, 80), width=1)
-    
-    # Teeth
-    for t_idx in range(8):
-        a = rad_rad + t_idx * (math.pi / 4.0)
-        tx1 = cx + 28 * math.cos(a - 0.15)
-        ty1 = cy + 28 * math.sin(a - 0.15)
-        tx2 = cx + 35 * math.cos(a)
-        ty2 = cy + 35 * math.sin(a)
-        tx3 = cx + 28 * math.cos(a + 0.15)
-        ty3 = cy + 28 * math.sin(a + 0.15)
-        d.polygon([(tx1, ty1), (tx2, ty2), (tx3, ty3)], fill=(0, 220, 80))
-        
-    return img
-
-
-def _render_fractal_tree_frame(bezel, mask, now):
-    img = Image.new("RGB", (240, 240), (0, 8, 3))
-    d = ImageDraw.Draw(img)
-    
-    wind = 0.15 * math.sin(now * 1.5)
-    
-    def _draw_branch(x, y, angle, length, depth):
-        if depth <= 0 or length < 2:
-            return
-        x2 = x + length * math.cos(angle)
-        y2 = y + length * math.sin(angle)
-        
-        green_val = int(80 + 175 * (depth / 6.0))
-        d.line([(x, y), (x2, y2)], fill=(0, green_val, 40), width=max(1, depth // 2))
-        
-        _draw_branch(x2, y2, angle - 0.45 + wind, length * 0.72, depth - 1)
-        _draw_branch(x2, y2, angle + 0.45 + wind, length * 0.72, depth - 1)
-        
-    _draw_branch(120, 220, -math.pi / 2.0, 52.0, 6)
     return img
 
 
@@ -1006,23 +741,6 @@ def _render_spectrum_bars_frame(bezel, mask, now):
             d.rectangle([bx1, sy - 4, bx2, sy], fill=(0, 230, 80))
             
     return img
-
-
-def _render_plasma_frame(bezel, mask, now):
-    """Sine-wave interference plasma – subdued phosphor green & amber waves."""
-    x = np.linspace(0, 2 * math.pi, 240)
-    y = np.linspace(0, 2 * math.pi, 240)
-    xx, yy = np.meshgrid(x, y)
-    t = now * 1.2
-    v = (np.sin(xx + t) + np.sin(yy + t * 0.7)
-         + np.sin((xx + yy) * 0.5 + t * 0.9)
-         + np.sin(np.sqrt(xx**2 + yy**2) + t)) / 4.0
-    v = (v + 1.0) / 2.0
-    r = (v * 40).clip(0, 255).astype(np.uint8)
-    g = (v * 210 + 20).clip(0, 255).astype(np.uint8)
-    b = (v * 50).clip(0, 255).astype(np.uint8)
-    arr = np.stack([r, g, b], axis=-1)
-    return Image.fromarray(arr, mode="RGB")
 
 
 def _render_lissajous_frame(bezel, mask, now):
@@ -1224,19 +942,6 @@ def _render_gravity_well_frame(bezel, mask, now):
     for rr in [12, 8, 4, 2]:
         alpha = int(255 * (1 - rr / 12))
         d.ellipse([120-rr, 120-rr, 120+rr, 120+rr], fill=(alpha, int(alpha*0.5), 0))
-    return img
-
-
-def _render_void_shield_frame(bezel, mask, now):
-    """Pulsing forcefield concentric barrier – subdued green & amber."""
-    img = Image.new("RGB", (240, 240), (0, 8, 3))
-    d = ImageDraw.Draw(img)
-    pulse = math.sin(now * 3.0) * 8
-    for r in [40, 70, 100]:
-        radius = r + pulse
-        intensity = int(160 + 90 * math.sin(now * 2.0 + r * 0.1))
-        d.ellipse([120 - radius, 120 - radius, 120 + radius, 120 + radius],
-                  outline=(0, intensity, int(intensity * 0.3)), width=2)
     return img
 
 
@@ -1500,9 +1205,6 @@ def _render_asteroids_frame(bezel, mask, now):
         d.text((150, 16), f"{_ast_score:05d}", fill=(220, 140, 20), font=font)
 
     return img
-
-
-
 
 
 # Trench Run Arcade State
@@ -2011,9 +1713,6 @@ def _render_battlezone_frame(bezel, mask, now):
     return img
 
 
-# ── Dispatcher Registry ──────────────────────────────────────────────────────
-
-
 def _render_cogitator_terminal_frame(bezel, mask, now):
     global _ct_lines
     if not _ct_lines:
@@ -2192,27 +1891,6 @@ def _render_servo_skull_pict_frame(bezel, mask, now):
         
     return img
 
-def _render_astropathic_choir_frame(bezel, mask, now):
-    img = Image.new("RGB", (240, 240), (0, 10, 5))
-    d = ImageDraw.Draw(img)
-    
-    for i in range(12):
-        freq_x = 2.0 + i * 0.5
-        freq_y = 3.0 + i * 0.3
-        phase = now * (1.5 + i * 0.2)
-        
-        pts = []
-        for t in range(0, 100):
-            a = t * (math.pi * 2 / 100)
-            x = 120 + (80 + 20 * math.sin(phase + a)) * math.sin(freq_x * a + now)
-            y = 120 + (80 + 20 * math.cos(phase + a)) * math.cos(freq_y * a - now)
-            pts.append((x, y))
-            
-        g_val = int(150 + 100 * math.sin(now + i))
-        b_val = int(50 + 25 * math.cos(now * 1.3 + i))
-        d.polygon(pts, outline=(0, g_val, b_val), width=1)
-        
-    return img
 
 def _render_bio_magos_sequencer_frame(bezel, mask, now):
     global _bio_growths
@@ -2298,7 +1976,6 @@ def _render_golden_throne_ekg_frame(bezel, mask, now):
     return img
 
 
-
 def _render_noosphere_tether_frame(bezel, mask, now):
     global _noosphere_nodes
     if not _noosphere_nodes: _init_noosphere_tether()
@@ -2341,36 +2018,6 @@ def _render_titan_manifold_frame(bezel, mask, now):
     except: pass
     return img
 
-def _render_stc_recompilation_frame(bezel, mask, now):
-    global _stc_nodes
-    if not _stc_nodes: _init_stc_recompilation()
-    img = Image.new("RGB", (240, 240), (0, 0, 15))
-    d = ImageDraw.Draw(img)
-    ax, ay = now * 1.5, now * 2.0
-    proj = []
-    for n in _stc_nodes:
-        x, y, z = n["x"], n["y"], n["z"]
-        # rotate
-        y1 = y*math.cos(ax) - z*math.sin(ax)
-        z1 = y*math.sin(ax) + z*math.cos(ax)
-        x2 = x*math.cos(ay) + z1*math.sin(ay)
-        z2 = -x*math.sin(ay) + z1*math.cos(ay)
-        f = 150.0 / (150.0 + z2)
-        px, py = 120 + x2*f, 120 + y1*f
-        proj.append((px, py))
-    # Draw connections randomly (glitching)
-    for i in range(len(proj)-1):
-        if random.random() < 0.7:
-            d.line([proj[i], proj[i+1]], fill=(0, 150, 255), width=1)
-    # Glitch effect
-    if random.random() < 0.1:
-        _init_stc_recompilation() # Reset STC
-        d.rectangle([0,0,240,240], fill=(255,255,255))
-    try:
-        font = ImageFont.load_default()
-        d.text((10, 110), "STC FRAGMENT CORRUPT", fill=(0, 200, 255), font=font)
-    except: pass
-    return img
 
 def _render_omnissian_cog_loom_frame(bezel, mask, now):
     img = Image.new("RGB", (240, 240), (20, 10, 5))
@@ -2389,30 +2036,6 @@ def _render_omnissian_cog_loom_frame(bezel, mask, now):
         d.ellipse([tx-2, ty-2, tx+2, ty+2], fill=(200, 200, 200))
     return img
 
-def _render_servitor_lobotomy_frame(bezel, mask, now):
-    global _lobotomy_paths
-    if not _lobotomy_paths: _init_servitor_lobotomy()
-    img = Image.new("RGB", (240, 240), (0, 0, 0))
-    d = ImageDraw.Draw(img)
-    # Brain outline
-    d.ellipse([60, 60, 180, 180], outline=(100, 0, 0), width=2)
-    # Nodes overriding
-    for p in _lobotomy_paths:
-        p["progress"] = min(1.0, p["progress"] + 0.01)
-        length = p["progress"] * 60
-        ex = 120 + length * math.cos(p["angle"])
-        ey = 120 + length * math.sin(p["angle"])
-        d.line([(120, 120), (ex, ey)], fill=(0, 255, 100), width=3)
-        d.ellipse([ex-4, ey-4, ex+4, ey+4], fill=(255, 255, 255))
-        if p["progress"] >= 1.0:
-            if random.random() < 0.02:
-                p["progress"] = 0.0
-                p["angle"] = random.uniform(0, 6.28)
-    try:
-        font = ImageFont.load_default()
-        d.text((50, 200), "CORTEX OVERRIDE", fill=(0, 255, 0), font=font)
-    except: pass
-    return img
 
 def _render_gellar_field_frame(bezel, mask, now):
     img = Image.new("RGB", (240, 240), (20, 0, 30))
@@ -2565,20 +2188,6 @@ def _render_mechadendrite_calibration_frame(bezel, mask, now):
             d.line([(tx, ty), (tx+random.randint(-10,10), ty+random.randint(-10,10))], fill=(200, 255, 255), width=1)
     return img
 
-def _render_nurgle_scrapcode_frame(bezel, mask, now):
-    global _nurgle_spots
-    img = Image.new("RGB", (240, 240), (0, 20, 0))
-    d = ImageDraw.Draw(img)
-    for x in range(0, 240, 20): d.line([(x,0), (x,240)], fill=(0, 100, 0))
-    if random.random() < 0.1:
-        _nurgle_spots.append({"x": random.randint(20,220), "y": random.randint(20,220), "r": 0})
-    for s in _nurgle_spots:
-        s["r"] += 1
-        d.ellipse([s["x"]-s["r"], s["y"]-s["r"], s["x"]+s["r"], s["y"]+s["r"]], fill=(50, 50, 0), outline=(100, 100, 0))
-    if len(_nurgle_spots) > 15:
-        d.rectangle([0,0,240,240], fill=(255, 100, 0)) # Purge
-        _nurgle_spots = []
-    return img
 
 def _render_archeotech_vault_frame(bezel, mask, now):
     img = Image.new("RGB", (240, 240), (10, 5, 0))
@@ -2595,18 +2204,6 @@ def _render_archeotech_vault_frame(bezel, mask, now):
     d.ellipse([110, 110, 130, 130], fill=(255, 100, 0))
     return img
 
-def _render_electro_priest_meter_frame(bezel, mask, now):
-    img = Image.new("RGB", (240, 240), (0, 0, 10))
-    d = ImageDraw.Draw(img)
-    d.ellipse([20, 20, 220, 220], outline=(50, 50, 100), width=2)
-    for i in range(8):
-        rad = math.radians(i*45 + now*10)
-        px = 120 + 100 * math.cos(rad)
-        py = 120 + 100 * math.sin(rad)
-        d.ellipse([px-6, py-6, px+6, py+6], fill=(0, 100, 255))
-        d.line([(120, 120), (px + random.randint(-10,10), py + random.randint(-10,10))], fill=(150, 200, 255), width=2)
-    d.ellipse([110, 110, 130, 130], fill=(255, 255, 255))
-    return img
 
 def _render_magos_biologis_frame(bezel, mask, now):
     img = Image.new("RGB", (240, 240), (0, 15, 5))
@@ -2643,32 +2240,14 @@ def _render_macrocannon_loader_frame(bezel, mask, now):
     d.ellipse([20, 20, 40, 40], fill=col)
     return img
 
-def _render_machine_spirit_ritual_frame(bezel, mask, now):
-    img = Image.new("RGB", (240, 240), (20, 10, 0))
-    d = ImageDraw.Draw(img)
-    # Cog
-    for i in range(8):
-        rad = math.radians(i*45 + now*20)
-        d.line([(120, 120), (120+60*math.cos(rad), 120+60*math.sin(rad))], fill=(150, 100, 0), width=4)
-    d.ellipse([60, 60, 180, 180], outline=(150, 100, 0), width=6)
-    d.ellipse([100, 100, 140, 140], fill=(255, 200, 100))
-    # Holy oil drops
-    for _ in range(5):
-        dx, dy = 120 + random.randint(-80, 80), random.randint(0, 240)
-        d.line([(dx, dy), (dx, dy+10)], fill=(255, 200, 50), width=2)
-    return img
 
 _RENDERERS = {
-    "nurgle_scrapcode": _render_nurgle_scrapcode_frame,
     "archeotech_vault": _render_archeotech_vault_frame,
-    "electro_priest_meter": _render_electro_priest_meter_frame,
     "magos_biologis": _render_magos_biologis_frame,
 
 
     "noosphere_tether": _render_noosphere_tether_frame,
     "titan_manifold": _render_titan_manifold_frame,
-    "stc_recompilation": _render_stc_recompilation_frame,
-    "servitor_lobotomy": _render_servitor_lobotomy_frame,
     "fabricator_matrix": _render_fabricator_matrix_frame,
     "linguis_technis": _render_linguis_technis_frame,
     "lexmechanic_ledger": _render_lexmechanic_ledger_frame,
@@ -2676,34 +2255,25 @@ _RENDERERS = {
     "cogitator_terminal": _render_cogitator_terminal_frame,
     "astronomican_pulse": _render_astronomican_pulse_frame,
         "exterminatus_targeting": _render_exterminatus_targeting_frame,
-        "astropathic_choir": _render_astropathic_choir_frame,
     "bio_magos_sequencer": _render_bio_magos_sequencer_frame,
     "golden_throne_ekg": _render_golden_throne_ekg_frame,
 
     "pong": _render_pong_frame,
     "canticle_rain": _render_canticle_rain_frame,
-    "starfield": _render_starfield_frame,
     "oscilloscope": _render_oscilloscope_frame,
     "game_of_life": _render_game_of_life_frame,
     "radar": _render_radar_frame,
     "warp_core": _render_warp_core_frame,
-    "circuit_maze": _render_circuit_maze_frame,
     "double_helix": _render_double_helix_frame,
-    "spinning_rings": _render_spinning_rings_frame,
-    "wireframe_cube": _render_wireframe_cube_frame,
-    "bouncing_cog": _render_bouncing_cog_frame,
-    "fractal_tree": _render_fractal_tree_frame,
     "hud_status": _render_hud_status_frame,
     "orbitals": _render_orbitals_frame,
     "spectrum_bars": _render_spectrum_bars_frame,
-    "plasma": _render_plasma_frame,
             "data_stream": _render_data_stream_frame,
             "glitch": _render_glitch_frame,
     "neural_net": _render_neural_net_frame,
-    "void_shield": _render_void_shield_frame,
     "hex_grid": _render_hex_grid_frame,
             "asteroids": _render_asteroids_frame,
-    "battlezone": _render_battlezone_frame
+    "battlezone": _render_battlezone_frame,
 }
 
 # Lore screensavers (personalities/omega7/lore/) — larger, simulation-driven animations.
@@ -2716,10 +2286,25 @@ _RENDERERS.update(_LORE_RENDERERS)
 SCREENSAVER_ANIMS.extend(n for n in _LORE_RENDERERS if n not in SCREENSAVER_ANIMS)
 
 
+_reported_failures: set[str] = set()
+
+
 def render_screensaver_frame(anim_name: str, bezel, mask, now: float) -> Image.Image:
-    """Render a single frame for the requested screensaver animation name ($O(1)$ dispatch)."""
-    handler = _RENDERERS.get(anim_name, _render_starfield_frame)
+    """Render a single frame for the requested screensaver animation name ($O(1)$ dispatch).
+
+    Unknown or failing screensavers fall back to canticle rain; each failure is
+    logged once so a broken screensaver doesn't silently disappear.
+    """
+    handler = _RENDERERS.get(anim_name)
+    if handler is None:
+        if anim_name not in _reported_failures:
+            _reported_failures.add(anim_name)
+            print(f"[screensavers] Unknown screensaver '{anim_name}', showing canticle_rain.")
+        return _render_canticle_rain_frame(bezel, mask, now)
     try:
         return handler(bezel, mask, now)
-    except Exception:
-        return _render_starfield_frame(bezel, mask, now)
+    except Exception as e:
+        if anim_name not in _reported_failures:
+            _reported_failures.add(anim_name)
+            print(f"[screensavers] '{anim_name}' failed ({type(e).__name__}: {e}), showing canticle_rain.")
+        return _render_canticle_rain_frame(bezel, mask, now)
