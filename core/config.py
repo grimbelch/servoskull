@@ -3,6 +3,7 @@ import os
 import pathlib
 import sys
 
+import stat
 import tempfile
 import threading
 from dotenv import load_dotenv
@@ -28,31 +29,71 @@ _REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 USER_DATA_DIR = pathlib.Path(os.getenv("OMEGA7_DATA_DIR", "~/.config/omega7")).expanduser()
 USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+def atomic_write(path, data, mode: int | None = None) -> None:
+    """Write a file so that a power cut leaves either the old or the new contents,
+    never a truncated file: write a temp file beside it, fsync, rename over the
+    target, then fsync the directory. `mode` defaults to the existing file's mode
+    (or 0o644 for a new file); the temp file gets it before it is renamed in, so
+    secrets are never briefly world-readable."""
+    path = pathlib.Path(path)
+    payload = data.encode("utf-8") if isinstance(data, str) else data
+    if mode is None:
+        mode = stat.S_IMODE(path.stat().st_mode) if path.exists() else 0o644
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.tmp")
+    try:
+        os.fchmod(fd, mode)
+        with os.fdopen(fd, "wb") as f:
+            f.write(payload)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+    try:
+        dir_fd = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+    except OSError:
+        pass
+
+
 _env_lock = threading.Lock()
+
+
+def env_file() -> pathlib.Path:
+    """The .env the service loads: the repo copy if present, else the user-data one."""
+    repo_env = pathlib.Path(__file__).resolve().parent.parent / ".env"
+    return repo_env if repo_env.exists() else pathlib.Path("~/.config/omega7/.env").expanduser()
+
+
+def set_env_vars(values: dict, drop_prefixes: tuple = (), create: bool = True) -> None:
+    """Set KEY=value lines in .env (replacing any existing ones for those keys and
+    any line starting with a prefix in `drop_prefixes`), atomically and under the
+    env lock so concurrent updates can't lose each other's changes."""
+    env_path = env_file()
+    with _env_lock:
+        if not env_path.exists() and not create:
+            return
+        content = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
+        drop = tuple(f"{k}=" for k in values) + tuple(drop_prefixes)
+        lines = [l for l in content.splitlines() if not l.startswith(drop)]
+        lines += [f"{k}={v}" for k, v in values.items()]
+        atomic_write(env_path, "\n".join(lines) + "\n", mode=None if env_path.exists() else 0o600)
+
 
 def _update_env_var(key: str, value: str) -> None:
     """Thread-safe, atomic update of a variable in the .env file."""
-    env_path = pathlib.Path(__file__).parent.parent / ".env"
-    with _env_lock:
-        if not env_path.exists():
-            return
-        try:
-            content = env_path.read_text(encoding="utf-8")
-            import re
-            if f"{key}=" in content:
-                content = re.sub(rf"^{key}=.*$", f"{key}={value}", content, flags=re.M)
-            else:
-                if not content.endswith("\n"):
-                    content += "\n"
-                content += f"{key}={value}\n"
-            
-            # Atomic write
-            fd, temp_path = tempfile.mkstemp(dir=env_path.parent, prefix=".env.tmp")
-            with os.fdopen(fd, 'w', encoding="utf-8") as f:
-                f.write(content)
-            os.replace(temp_path, env_path)
-        except Exception as e:
-            print(f"[config] Failed to update .env with {key}: {e}")
+    try:
+        set_env_vars({key: value}, create=False)
+    except Exception as e:
+        print(f"[config] Failed to update .env with {key}: {e}")
 
 
 def data_path(name: str) -> pathlib.Path:
@@ -99,8 +140,7 @@ def save_settings(new_settings: dict) -> None:
     current.update(new_settings)
     current["configured"] = True
     
-    p.write_text(json.dumps(current, indent=2), encoding="utf-8")
-    os.chmod(p, 0o600)
+    atomic_write(p, json.dumps(current, indent=2), mode=0o600)
     _SETTINGS = current
     
     # Update active globals
@@ -120,7 +160,7 @@ def save_owner_profile(data: dict) -> None:
     """Save updated owner profile data to USER_DATA_DIR/owner.json."""
     global _OWNER_PROFILE
     p = USER_DATA_DIR / "owner.json"
-    p.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    atomic_write(p, json.dumps(data, indent=2), mode=0o600)
     _OWNER_PROFILE = data
 
 

@@ -62,16 +62,6 @@ def _continuous_poll_loop() -> None:
                 elif now_time - _last_poll_time > 2.0:
                     _last_cm = None
                     _readings_buffer.clear()
-            try:
-                from core import db
-                db.kv_set("telemetry_proximity", {
-                    "enabled": config.PROXIMITY_ENABLED,
-                    "available": _available,
-                    "distance_cm": round(_last_cm, 1) if _last_cm is not None else None,
-                    "timestamp": time.time()
-                })
-            except Exception:
-                pass
         except Exception as e:
             print(f"[proximity] Error in continuous poll loop: {e}")
         if _stop_event.wait(config.PROXIMITY_POLL_INTERVAL):

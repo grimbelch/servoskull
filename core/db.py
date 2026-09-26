@@ -17,6 +17,9 @@ def _get_conn():
         _local.conn.row_factory = sqlite3.Row
         # WAL mode is better for concurrency
         _local.conn.execute("PRAGMA journal_mode=WAL")
+        # With WAL, NORMAL stays consistent after power loss (at worst the last
+        # commits roll back) and avoids an fsync on every commit.
+        _local.conn.execute("PRAGMA synchronous=NORMAL")
     return _local.conn
 
 def _current_personality(personality: Optional[str] = None) -> str:
@@ -200,11 +203,16 @@ def _run_migrations():
 
 # ── History API ─────────────────────────────────────────────────────────────
 
+EMPTY_TURN_NOTE = "(no spoken reply)"
+
+
 def append_history(role: str, content, personality: Optional[str] = None):
     conn = _get_conn()
     p = _current_personality(personality)
     if isinstance(content, (list, dict)):
         content = json.dumps(content)
+    elif not str(content or "").strip():
+        content = EMPTY_TURN_NOTE
     with conn:
         conn.execute("INSERT INTO history (personality, role, content) VALUES (?, ?, ?)", (p, role, content))
         
@@ -229,6 +237,10 @@ def get_history(personality: Optional[str] = None) -> list[dict]:
                 content = content_str
         except json.JSONDecodeError:
             content = content_str
+        if isinstance(content, str) and not content.strip():
+            # The Messages API rejects empty turns; an empty row would make every
+            # later request fail. Keep the turn (roles must alternate) with a note.
+            content = EMPTY_TURN_NOTE
         res.append({"role": row['role'], "content": content})
     return res
 

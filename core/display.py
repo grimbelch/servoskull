@@ -270,20 +270,22 @@ def _set_window(x0: int, y0: int, x1: int, y1: int) -> None:
 
 
 _current_frame_image = None
+_current_frame_seq = 0          # bumped on every blit
+_frame_jpeg_cache = (-1, None)  # (seq, jpeg bytes) — one encode shared by all web viewers
 _frame_lock = threading.Lock()
 
 
 def _blit(img) -> None:
-    """Push a 240x240 PIL RGB image to the panel as big-endian RGB565."""
-    global _current_frame_image
-    try:
-        with _frame_lock:
-            _current_frame_image = img.copy()
-            o_file = config.data_path("ocular_frame.jpg")
-            o_file.parent.mkdir(parents=True, exist_ok=True)
-            img.save(o_file, format="JPEG", quality=70)
-    except Exception:
-        pass
+    """Push a 240x240 PIL RGB image to the panel as big-endian RGB565.
+
+    The latest frame is kept in memory for the web remote's ocular mirror. It is
+    deliberately never written to disk: at 30 fps that was millions of SD-card
+    rewrites a day and a corruption risk on power loss.
+    """
+    global _current_frame_image, _current_frame_seq
+    with _frame_lock:
+        _current_frame_image = img.copy()
+        _current_frame_seq += 1
 
     with _frame_lock:
         if not _available or _spi is None:
@@ -1174,7 +1176,7 @@ def _loop():
 
         if _showing_game:
             try:
-                from games.video.bardstale import agent as _bt_agent
+                from games.bardstale import agent as _bt_agent
                 gf = _bt_agent.get_latest_frame()
                 if gf is not None:
                     _blit(gf)
@@ -1578,20 +1580,20 @@ def get_custom_image_bytes() -> bytes | None:
 
 
 def get_ocular_frame_bytes() -> bytes | None:
-    global _current_frame_image
+    """JPEG of the latest displayed frame, encoded lazily and only when asked for."""
+    global _frame_jpeg_cache
     with _frame_lock:
-        if _current_frame_image is not None:
-            try:
-                import io
-                buf = io.BytesIO()
-                _current_frame_image.save(buf, format="JPEG", quality=70)
-                return buf.getvalue()
-            except Exception as e:
-                print(f"[display] Failed to get ocular frame bytes: {e}")
-    try:
-        o_file = config.data_path("ocular_frame.jpg")
-        if o_file.exists():
-            return o_file.read_bytes()
-    except Exception:
-        pass
-    return None
+        if _current_frame_image is None:
+            return None
+        seq, cached = _frame_jpeg_cache
+        if seq == _current_frame_seq and cached is not None:
+            return cached
+        try:
+            import io
+            buf = io.BytesIO()
+            _current_frame_image.save(buf, format="JPEG", quality=70)
+            _frame_jpeg_cache = (_current_frame_seq, buf.getvalue())
+            return _frame_jpeg_cache[1]
+        except Exception as e:
+            print(f"[display] Failed to get ocular frame bytes: {e}")
+            return None

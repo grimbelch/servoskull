@@ -4,6 +4,7 @@ import time
 import signal
 import sys
 import threading
+import traceback
 import random
 import re
 import pathlib
@@ -116,11 +117,13 @@ def _eleven_cached(text: str) -> bytes:
     is hit at most once per (voice, phrase)."""
     path = _voice_cache_path(text)
     if path.exists():
-        return path.read_bytes()
+        cached = path.read_bytes()
+        if cached[:4] == b"RIFF" and len(cached) > 44:
+            return cached
+        print(f"[skull] Discarding damaged cached phrase {path.name}; re-synthesizing.")
     wav = tts.synthesize_elevenlabs(text)  # raises on failure → not cached
     try:
-        _VOICE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(wav)
+        config.atomic_write(path, wav)
     except Exception as e:
         print(f"[skull] Voice cache write error: {e}")
     return wav
@@ -621,6 +624,66 @@ def _said_any(text: str, phrases) -> bool:
     return any(re.search(rf"\b{re.escape(p)}\b", text) for p in phrases)
 
 
+# ── Maintenance commands (update / reboot / shutdown) ────────────────────────
+# Matched against the whole utterance (after dropping filler words), never as a
+# substring, so "turn off the music" or "restart the song" can't power the Pi
+# down. Each one is also confirmed with a spoken "yes" before it runs.
+_MAINT_FILLER = re.compile(
+    r"\b(please|now|immediately|omega\s*(?:7|seven|8|eight)|servitor|jax|hey|ok|okay|can you|"
+    r"could you|would you|will you|i want you to|i need you to|go ahead and|the|a)\b"
+)
+_MAINT_COMMANDS = (
+    ("update", re.compile(r"(?:run )?(?:self|system) update|update (?:your software|yourself|your system)|pull updates")),
+    ("reboot", re.compile(r"reboot(?: system| yourself)?|restart (?:system|yourself)")),
+    ("shutdown", re.compile(r"shut ?down(?: system| yourself)?|power (?:down|off)(?: system| yourself)?"
+                            r"|turn (?:yourself|system) off|turn off (?:yourself|system)")),
+)
+_MAINT_LABELS = {"update": "a system update", "reboot": "a full reboot", "shutdown": "a full shutdown"}
+_MAINT_CONFIRM_SECS = 30.0
+_CONFIRM_YES = ("yes", "yeah", "yep", "yup", "affirmative", "confirm", "confirmed", "do it", "proceed",
+                "go ahead", "i'm sure", "i am sure", "correct", "aye")
+_CONFIRM_NO = ("no", "nope", "nah", "cancel", "abort", "stop", "don't", "do not", "negative",
+               "never mind", "nevermind", "wait")
+
+
+def _maintenance_command(text: str) -> str | None:
+    """Return "update", "reboot" or "shutdown" only if that is the entire request."""
+    t = re.sub(r"[^a-z0-9\s]", " ", text.lower())
+    t = " ".join(_MAINT_FILLER.sub(" ", t).split())
+    for action, pattern in _MAINT_COMMANDS:
+        if pattern.fullmatch(t):
+            return action
+    return None
+
+
+def _maintenance_prompt(action: str) -> str:
+    label = _MAINT_LABELS[action]
+    if config.PERSONALITY.get("eye_animation") == "dog":
+        return f"Do you really want {label}? Say yes if you're sure!"
+    return f"Master, confirm {label} of this unit? Speak yes to proceed."
+
+
+def _run_maintenance(action: str, on_wake) -> None:
+    """Announce and carry out a confirmed update, reboot or shutdown."""
+    key, default = {
+        "update": ("update_message", "Initiating system update."),
+        "reboot": ("reboot_message", "Initiating system reboot."),
+        "shutdown": ("shutdown_message", "Initiating system shutdown."),
+    }[action]
+    try:
+        eyes.on()
+        _speak_interruptible(tts.synthesize(config.PERSONALITY.get(key, default)), on_wake)
+    except Exception:
+        pass
+    if action == "update":
+        self_update()
+    elif action == "reboot":
+        reboot_system()
+    else:
+        shutdown_system()
+    _execute_pending_system_command()
+
+
 def _briefing_offer_text() -> str:
     if config.PERSONALITY.get("eye_animation") == "dog":
         return (
@@ -897,640 +960,623 @@ def main():
     _briefing_offered = False
     _briefing_awaiting_response = False
     _briefing_day = time.strftime("%Y-%m-%d")
+    # (action, expires_at) while waiting for a spoken yes/no on update/reboot/shutdown.
+    _pending_maintenance = None
 
     while True:
-        # Back at idle — undo any music ducking from the previous interaction.
-        spotify_ctrl.restore()
+        try:
+            # Back at idle — undo any music ducking from the previous interaction.
+            spotify_ctrl.restore()
 
-        if time.strftime("%Y-%m-%d") != _briefing_day:
-            _briefing_day = time.strftime("%Y-%m-%d")
-            _briefing_offered = False
-            _briefing_awaiting_response = False
-
-        if not skip_wake_word:
-            set_speech_active(False)
-
-        _flush_pending_bambu_notifications()
-
-        # Immediate feedback the moment the wake word fires: dip music, ping, light
-        # the eyes. Defined once per loop so every speech path — replies and the
-        # unprompted observations/utterances below — can hand it to the barge-in listener.
-        def on_wake():
-            set_speech_active(True)
-            spotify_ctrl.duck()  # dip any playing music for the whole interaction
-            sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
-            eyes.on()
-
-        ambient_music.register_on_wake_cb(on_wake)
-
-
-        # ── 0. Speak any internal-temperature warning ───────────────────────────
-        # Fires regardless of silent mode — an overheating cogitator is a hardware
-        # safety issue the master should always hear about.
-        temp_warning = temperature.get_warning()
-        if temp_warning:
-            print(f"[skull] Temperature warning: {temp_warning}")
-            try:
-                spotify_ctrl.duck()
-                sfx.play_blocking("negative", config.VOICE_OUTPUT_DEVICE)
-                eyes.on()
-                warn_wav = tts.synthesize(temp_warning)
-                audio.play_wav_bytes(warn_wav, output_device=config.VOICE_OUTPUT_DEVICE)
-            except Exception as _e:
-                print(f"[skull] Temperature warning TTS error: {_e}")
-            finally:
-                eyes.off()
-                spotify_ctrl.restore()
-            continue  # back to the top; resume listening
-
-        # ── 0a. Speak any reminders that fired during the last conversation ──────
-        for _rem in reminders.get_due():
-            print(f"[skull] Reminder firing: {_rem['message']}")
-            try:
-                spotify_ctrl.duck()
-                with _speech_lock:
-                    sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
-                    eyes.on()
-                    rem_wav = tts.synthesize(_rem["message"])
-                    audio.play_wav_bytes(rem_wav, output_device=config.VOICE_OUTPUT_DEVICE)
-            except Exception as _e:
-                print(f"[skull] Reminder TTS error: {_e}")
-            finally:
-                eyes.off()
-                spotify_ctrl.restore()
-            reminders.add(_rem["message"], 10, repeating=True)
-
-        # ── 0a2. Offer the briefing after a proximity morning greeting ──────────
-        if _morning_briefing_offer_pending.is_set():
-            _morning_briefing_offer_pending.clear()
-            if brain.is_daily_briefing_due() and not _briefing_offered:
-                _briefing_offered = True
-                _briefing_awaiting_response = True
-                print("[skull] Morning greeting delivered. Offering morning briefing.")
-                try:
-                    set_speech_active(True)
-                    offer_text = _briefing_offer_text()
-                    brain.record_assistant_turn(offer_text)
-                    offer_wav = tts.synthesize(offer_text)
-                    eyes.on()
-                    _speak_interruptible(offer_wav, on_wake)
-                    skip_wake_word = True  # listen immediately for yes/no
-                    skip_ack = True  # suppress the normal wake ack for this response
-                except Exception as e:
-                    print(f"[skull] Briefing offer failed: {e}")
-                    _briefing_awaiting_response = False
-                    set_speech_active(False)
-                continue
-
-        # ── 0b. Speak any pending camera observations ──────────────────────────
-        observation = camera.get_observation()
-        if observation and quiet.is_silent():
-            # Silent mode: drain the observation so it doesn't burst out later, but stay quiet.
-            observation = None
-        if observation:
-            try:
-                spotify_ctrl.duck()
-                eyes.on()
-                obs_wav = tts.synthesize(observation)
-                # Barge-in: let the user cut in with the wake word mid-observation.
-                if _speak_interruptible(obs_wav, on_wake):
-                    skip_wake_word = True
-            except Exception as e:
-                print(f"[camera] Camera observation error: {e}")
-                eyes.off()
-                display.idle()
-            continue
-
-        # Check for web command
-        from core import web
-        web_item = web.get_queued_command()
-        web_wake = web.pop_wake_request()
-
-        run_brain = False
-        if web_item:
-            user_text, speaker_name = web_item
-            if not speaker_name:
-                speaker_name = config._OWNER_PROFILE.get("name", "User")
-            run_brain = True
-            skip_ack = True
-            play_ack_sound = False
-            is_answering_question = False
-            print(f"[skull] Processing web input for {speaker_name}...")
-        elif web_wake:
-            skip_wake_word = True
-
-        # ── 1. Wait for wake word (skip after a barge-in interruption) ────────
-        if not run_brain:
-            if skip_wake_word:
-                skip_wake_word = False
-                on_wake()
-                if skip_ack:
-                    is_answering_question = True
-                    skip_ack = False
-                    _barge_wav = None
-                    play_ack_sound = False
-                else:
-                    is_answering_question = False
-                    if config.PERSONALITY.get("eye_animation") == "dog":
-                        ack = random.choice([
-                            "Woof?",
-                            "Bark!",
-                            "Ready to play!",
-                            "I'm here!",
-                            "What is it, buddy?",
-                            "Did someone say Jax?",
-                        ])
-                    else:
-                        ack = random.choice([
-                            "Ah, yes?",
-                            "Speak.",
-                            "Yes?",
-                            "Proceed.",
-                            "Command me.",
-                            "Why must you interrupt me?",
-                            f"Again you interrupt {config.SKULL_NAME}?",
-                            "This had better be important.",
-                            "Insufferable. What is it?",
-                        ])
-                    _barge_wav = None
-                    try:
-                        _barge_wav = tts.synthesize(ack)
-                    except Exception:
-                        pass
-                    play_ack_sound = True
-            else:
-                is_answering_question = False
-                play_ack_sound = True
-                _idle_cancel = threading.Event()
-                _idle_fired = threading.Event()
-                _due_reminders: list = []
-
-                def _idle_and_reminder_watcher():
-                    delay = random.uniform(_IDLE_MIN, _IDLE_MAX)
-                    t_end = time.time() + delay
-                    while not _idle_cancel.is_set():
-                        now = time.time()
-                        if now >= t_end:
-                            _idle_fired.set()
-                            _idle_cancel.set()
-                            return
-                        due = reminders.get_due()
-                        if due:
-                            _due_reminders.extend(due)
-                            _idle_cancel.set()
-                            return
-                        if temperature.has_pending():
-                            _idle_cancel.set()
-                            return
-                        _idle_cancel.wait(timeout=min(2.0, max(0.1, t_end - now)))
-
-                run_background_task(_idle_and_reminder_watcher)
-                
-                # Register cancel event with web server
-                web.register_cancel_event(_idle_cancel)
-                
-                detected = wake_word.wait_for_wake_word(on_detected=on_wake, cancel=_idle_cancel)
-                _idle_cancel.set()  # stop background threads if wake word fired first
-                
-                # Unregister cancel event
-                web.register_cancel_event(None)
-
-                # Check if a web command came in during the wait
-                web_item = web.get_queued_command()
-                if not detected and web_item:
-                    user_text, speaker_name = web_item
-                    run_brain = True
-                    skip_ack = True
-                    play_ack_sound = False
-                    is_answering_question = False
-                elif not detected and web.pop_wake_request():
-                    skip_wake_word = True
-                    continue
-                elif not detected and _due_reminders:
-                    for _rem in _due_reminders:
-                        print(f"[skull] Reminder firing: {_rem['message']}")
-                        try:
-                            spotify_ctrl.duck()  # restored at the loop top after the `continue` below
-                            with _speech_lock:
-                                sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
-                                eyes.on()
-                                rem_wav = tts.synthesize(_rem["message"])
-                                audio.play_wav_bytes(rem_wav, output_device=config.VOICE_OUTPUT_DEVICE)
-                        except Exception as _e:
-                            print(f"[skull] Reminder TTS error: {_e}")
-                        finally:
-                            eyes.off()
-                        reminders.add(_rem["message"], 10, repeating=True)
-                    continue  # back to top of loop
-
-                elif not detected and _idle_fired.is_set():
-                    if quiet.is_silent():
-                        print("[skull] Idle timeout — silent mode active, holding tongue.")
-                        continue  # back to listening; no unprompted observation
-                    new_mood = mood.drift()
-                    if new_mood:
-                        print(f"[skull] Mood drifted → {new_mood}")
-                        display.set_mood(new_mood)
-                    print("[skull] Idle timeout — generating ambient utterance...")
-                    try:
-                        spotify_ctrl.duck()  # restored at the loop top after the `continue` below
-                        utterance = brain.idle_utterance()
-                        if utterance:
-                            print(f"[skull] Idle: {utterance}")
-                            idle_wav = tts.synthesize(utterance)
-                            eyes.on()
-                            display.on()
-                            # Barge-in: let the user cut in with the wake word mid-utterance.
-                            if _speak_interruptible(idle_wav, on_wake):
-                                skip_wake_word = True
-                    except Exception as e:
-                        print(f"[skull] Idle utterance error: {e}")
-                        eyes.off()
-                        display.idle()
-                    continue  # back to listening without going through record/transcribe
-
-                elif not detected and temperature.has_pending():
-                    continue  # temp warning queued — spoken at the top of the loop
-
-                elif not detected and _morning_briefing_offer_pending.is_set():
-                    continue  # briefing offer queued — spoken at the top of the loop
-
-                if not run_brain:
-                    _barge_wav = None
-                    speaker_name = None
-
-        if not run_brain:
-            # ── 2. Play wake ack, then record ────────────────────────────────────────
-            # Wake phrase plays first (blocking) so the mic doesn't pick up the skull's
-            # own speaker output. Recording starts after playback finishes.
-            if play_ack_sound:
-                if _barge_wav is not None:
-                    try:
-                        audio.play_wav_bytes(_barge_wav, output_device=config.VOICE_OUTPUT_DEVICE)
-                    except Exception:
-                        pass
-                elif _wake_wavs:
-                    try:
-                        audio.play_wav_bytes(
-                            random.choice(_wake_wavs),
-                            output_device=config.VOICE_OUTPUT_DEVICE,
-                        )
-                    except Exception:
-                        pass
-
-            _rec_pcm: list = [None]
-            _rec_exc: list = [None]
-            _rec_done = threading.Event()
-
-            # Answering a question allows for a longer reply window (30s max) and a more
-            # patient silence threshold timeout (4.5s) so the user can dictate numbers/codes.
-            rec_secs = 30 if is_answering_question else config.RECORD_SECONDS
-            silence_dur = 4.5 if is_answering_question else config.SILENCE_DURATION
-
-            def _do_record():
-                try:
-                    print(f"[skull] Recording settings: max_secs={rec_secs}, silence_dur={silence_dur}")
-                    _rec_pcm[0] = audio.record(
-                        seconds=rec_secs,
-                        device_index=config.MIC_DEVICE_INDEX,
-                        silence_threshold=config.SILENCE_THRESHOLD,
-                        silence_duration=silence_dur,
-                    )
-                except Exception as e:
-                    _rec_exc[0] = e
-                finally:
-                    _rec_done.set()
-
-            threading.Thread(target=_do_record, daemon=True).start()
-            print("[skull] Recording... (speak now)")
-            if not _rec_done.wait(timeout=rec_secs + 15.0):
-                print("[skull] Recording hung — forcing recovery")
-                try:
-                    import sounddevice as _sd_recovery
-                    _sd_recovery.stop()
-                except Exception:
-                    pass
-                eyes.off()
-                continue
-
-            if _rec_exc[0] is not None:
-                err_str = str(_rec_exc[0])
-                # PaErrorCode -9985 = paDeviceUnavailable — audio device not ready yet
-                # (e.g. PipeWire startup race on boot). Back off silently rather than
-                # playing the "negative" sound and immediately retrying, which creates
-                # an audible loop every ~3 seconds until the device settles.
-                if "-9985" in err_str or "unavailable" in err_str.lower():
-                    print(f"[skull] Audio device unavailable, backing off 5s...")
-                    import time as _time
-                    _time.sleep(5.0)
-                else:
-                    print(f"[skull] Audio record error: {_rec_exc[0]}")
-                    sfx.play("negative", config.VOICE_OUTPUT_DEVICE)
-                eyes.off()
-                continue
-
-            pcm, pcm_rate = _rec_pcm[0]
-            max_rms = audio.max_window_rms(pcm, pcm_rate) if pcm else 0.0
-            if not pcm or max_rms < config.SILENCE_THRESHOLD:
-                print(f"[skull] No speech detected (peak RMS {max_rms:.1f} < threshold {config.SILENCE_THRESHOLD}) — acknowledging silence.")
-                eyes.off()
-                _acknowledge_silence()
-                continue
-
-            eyes.off()
-
-            # ── 3. Transcribe ──────────────────────────────────────────────────────
-            wav = audio.pcm_to_wav_bytes(pcm, pcm_rate)
-            if config.AUDIO_DEBUG:
-                import pathlib
-                pathlib.Path("/tmp/skull_debug.wav").write_bytes(wav)
-                print("[skull] DEBUG: saved recording to /tmp/skull_debug.wav — open it to hear what the mic captured")
-
-            try:
-                from core import speaker_id
-                speaker_name = speaker_id.identify_speaker(wav)
-            except Exception as e:
-                print(f"[skull] Speaker identification error: {e}")
-
-            print("[skull] Transcribing...")
-            try:
-                user_text = transcribe.transcribe(wav)
-            except Exception as e:
-                print(f"[skull] STT error: {e}")
-                sfx.play("negative", config.VOICE_OUTPUT_DEVICE)
-                continue
-
-            if not user_text:
-                print("[skull] No speech detected — acknowledging silence.")
-                _acknowledge_silence()
-                continue
-
-        spk_label = speaker_name if speaker_name else "User"
-        print(f"[skull] Heard ({spk_label}): {user_text}")
-
-        _t = user_text.lower()
-
-        # ── 3a-0. Intercept screensaver / visual emulation commands ────────────
-        if "screensaver" in _t or "visual emulation" in _t:
-            import re
-            m = re.search(r'(?:play|run|show|start|trigger|exec|execute)?\s*([a-z0-9_]+)\s*(?:screensaver|visual emulation)', _t)
-            anim_target = None
-            if m:
-                anim_target = m.group(1).strip()
-            if not anim_target or anim_target not in display.get_screensaver_names():
-                for s_name in display.get_screensaver_names():
-                    if s_name in _t:
-                        anim_target = s_name
-                        break
-            if anim_target:
-                print(f"[skull] Local screensaver intercept triggered: {anim_target}")
-                display.trigger_idle_animation(300.0, anim_target)
-                continue
-
-        # ── 3a-0b. Bard's Tale autonomous play intents ─────────────────────
-        if _RE_GAME_START.search(_t):
-            from games.video.bardstale import agent as _bt_agent
-            char_disk = disk_dir / "bards_tale_character.dsk"
-            if char_disk.exists():
-                selected_disk = str(char_disk)
-            else:
-                disks = sorted(
-                    list(disk_dir.glob("*.dsk")) + list(disk_dir.glob("*.woz"))
-                    + list(disk_dir.glob("*.nib"))
-                ) if disk_dir.exists() else []
-                selected_disk = str(disks[0]) if disks else ""
-
-            if not selected_disk:
-                _reply = ("No Bard's Tale disk image found in the data-vaults. "
-                          "Place a .dsk or .woz file in games/video/bardstale/disks/ "
-                          "and try again.")
-            elif _bt_agent.is_running():
-                _reply = "The dungeon protocol is already active, my Lord."
-            else:
-                _reply = ("Accessing the data-vaults of Skara Brae. "
-                          "Autonomous dungeon protocol initiating now.")
-                display.start_game_display()
-                _bt_agent.start(selected_disk, _game_narrate)
-            print(f"[skull] Bard's Tale start intent → {_reply}")
-            try:
-                eyes.on()
-                _speak_interruptible(tts.synthesize(_reply), on_wake)
-            except Exception as _ge:
-                print(f"[skull] Bard's Tale start speech error: {_ge}")
-            continue
-
-        elif _RE_GAME_STOP.search(_t):
-            from games.video.bardstale import agent as _bt_agent
-            _bt_agent.stop()
-            display.stop_game_display()
-            _reply = "Dungeon protocol terminated. The cogitator returns to vigil."
-            print("[skull] Bard's Tale stop intent.")
-            try:
-                eyes.on()
-                _speak_interruptible(tts.synthesize(_reply), on_wake)
-            except Exception as _ge:
-                print(f"[skull] Bard's Tale stop speech error: {_ge}")
-            continue
-
-        # ── 3a-1. Intercept morning-briefing / briefing / update requests ───────────────
-        _BRIEFING_KEYS = ("briefing", "morning update", "daily update", "morning report",
-                          "daily report", "morning telemetry", "daily telemetry", "morning dispatch", "daily dispatch")
-        if _briefing_awaiting_response or any(bk in _t for bk in _BRIEFING_KEYS):
-            _YES = ("yes", "sure", "yeah", "yep", "yup", "ready", "affirmative",
-                    "proceed", "deliver", "go ahead", "please", "of course",
-                    "absolutely", "aye", "correct", "indeed", "do it", "ok", "okay",
-                    "briefing", "daily briefing", "morning briefing", "morning update", "daily update",
-                    "give it to me", "tell me", "update", "i am", "i'm ready", "let's hear it",
-                    "go on", "hit me", "let's go", "lay it on me", "bring it", "go for it")
-            _NO  = ("no", "not now", "later", "skip", "negative", "cancel",
-                    "nevermind", "never mind", "pass", "maybe later", "not yet",
-                    "nope", "nah", "not ready", "i'm not", "i am not", "don't", "do not")
-
-            # Declines are checked first so "I am not ready" isn't taken as a yes.
-            _declined = _briefing_awaiting_response and _said_any(_t, _NO)
-            if not _declined and (_said_any(_t, _YES) or any(bk in _t for bk in _BRIEFING_KEYS)):
+            if time.strftime("%Y-%m-%d") != _briefing_day:
+                _briefing_day = time.strftime("%Y-%m-%d")
+                _briefing_offered = False
                 _briefing_awaiting_response = False
-                print("[skull] User confirmed/requested morning briefing/update. Generating...")
+
+            if not skip_wake_word:
+                set_speech_active(False)
+
+            _flush_pending_bambu_notifications()
+
+            # Immediate feedback the moment the wake word fires: dip music, ping, light
+            # the eyes. Defined once per loop so every speech path — replies and the
+            # unprompted observations/utterances below — can hand it to the barge-in listener.
+            def on_wake():
+                set_speech_active(True)
+                spotify_ctrl.duck()  # dip any playing music for the whole interaction
+                sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
+                eyes.on()
+
+            ambient_music.register_on_wake_cb(on_wake)
+
+
+            # ── 0. Speak any internal-temperature warning ───────────────────────────
+            # Fires regardless of silent mode — an overheating cogitator is a hardware
+            # safety issue the master should always hear about.
+            temp_warning = temperature.get_warning()
+            if temp_warning:
+                print(f"[skull] Temperature warning: {temp_warning}")
                 try:
-                    briefing_text = brain.generate_daily_briefing()
-                    brain.mark_daily_briefing_done()
-                    web.log_vox(config.SKULL_NAME, briefing_text)
-                    print(f"[skull] Daily Briefing: {briefing_text}")
-                    briefing_wav = tts.synthesize(briefing_text)
+                    spotify_ctrl.duck()
+                    sfx.play_blocking("negative", config.VOICE_OUTPUT_DEVICE)
                     eyes.on()
-                    interrupted = _speak_interruptible(briefing_wav, on_wake)
-                    if interrupted:
+                    warn_wav = tts.synthesize(temp_warning)
+                    audio.play_wav_bytes(warn_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+                except Exception as _e:
+                    print(f"[skull] Temperature warning TTS error: {_e}")
+                finally:
+                    eyes.off()
+                    spotify_ctrl.restore()
+                continue  # back to the top; resume listening
+
+            # ── 0a. Speak any reminders that fired during the last conversation ──────
+            for _rem in reminders.get_due():
+                print(f"[skull] Reminder firing: {_rem['message']}")
+                try:
+                    spotify_ctrl.duck()
+                    with _speech_lock:
+                        sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
+                        eyes.on()
+                        rem_wav = tts.synthesize(_rem["message"])
+                        audio.play_wav_bytes(rem_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+                except Exception as _e:
+                    print(f"[skull] Reminder TTS error: {_e}")
+                finally:
+                    eyes.off()
+                    spotify_ctrl.restore()
+                reminders.add(_rem["message"], 10, repeating=True)
+
+            # ── 0a2. Offer the briefing after a proximity morning greeting ──────────
+            if _morning_briefing_offer_pending.is_set():
+                _morning_briefing_offer_pending.clear()
+                if brain.is_daily_briefing_due() and not _briefing_offered:
+                    _briefing_offered = True
+                    _briefing_awaiting_response = True
+                    print("[skull] Morning greeting delivered. Offering morning briefing.")
+                    try:
+                        set_speech_active(True)
+                        offer_text = _briefing_offer_text()
+                        brain.record_assistant_turn(offer_text)
+                        offer_wav = tts.synthesize(offer_text)
+                        eyes.on()
+                        _speak_interruptible(offer_wav, on_wake)
+                        skip_wake_word = True  # listen immediately for yes/no
+                        skip_ack = True  # suppress the normal wake ack for this response
+                    except Exception as e:
+                        print(f"[skull] Briefing offer failed: {e}")
+                        _briefing_awaiting_response = False
+                        set_speech_active(False)
+                    continue
+
+            # ── 0b. Speak any pending camera observations ──────────────────────────
+            observation = camera.get_observation()
+            if observation and quiet.is_silent():
+                # Silent mode: drain the observation so it doesn't burst out later, but stay quiet.
+                observation = None
+            if observation:
+                try:
+                    spotify_ctrl.duck()
+                    eyes.on()
+                    obs_wav = tts.synthesize(observation)
+                    # Barge-in: let the user cut in with the wake word mid-observation.
+                    if _speak_interruptible(obs_wav, on_wake):
                         skip_wake_word = True
                 except Exception as e:
-                    print(f"[skull] Briefing delivery failed: {e}")
-                finally:
-                    display.stop_noosphere_scan()
-                    display.stop_auspex_scan()
+                    print(f"[camera] Camera observation error: {e}")
+                    eyes.off()
+                    display.idle()
                 continue
-            elif _declined:
-                _briefing_awaiting_response = False
-                print("[skull] User declined morning briefing. Archiving.")
-                try:
-                    if config.get_personality_key() == "jax":
-                        ack_text = "Okay, no problem! We can catch up later."
+
+            # Check for web command
+            from core import web
+            web_item = web.get_queued_command()
+            web_wake = web.pop_wake_request()
+
+            run_brain = False
+            if web_item:
+                user_text, speaker_name = web_item
+                if not speaker_name:
+                    speaker_name = config._OWNER_PROFILE.get("name", "User")
+                run_brain = True
+                skip_ack = True
+                play_ack_sound = False
+                is_answering_question = False
+                print(f"[skull] Processing web input for {speaker_name}...")
+            elif web_wake:
+                skip_wake_word = True
+
+            # ── 1. Wait for wake word (skip after a barge-in interruption) ────────
+            if not run_brain:
+                if skip_wake_word:
+                    skip_wake_word = False
+                    on_wake()
+                    if skip_ack:
+                        is_answering_question = True
+                        skip_ack = False
+                        _barge_wav = None
+                        play_ack_sound = False
                     else:
-                        ack_text = "Understood, master. Cogitations archived. Speak freely."
-                    web.log_vox(config.SKULL_NAME, ack_text)
-                    ack_wav = tts.synthesize(ack_text)
-                    eyes.on()
-                    _speak_interruptible(ack_wav, on_wake)
-                except Exception as e:
-                    print(f"[skull] Briefing dismiss ack error: {e}")
-                continue
-            else:
-                _briefing_awaiting_response = False
-                print("[skull] Briefing response unclear — falling through to brain.")
-
-        # ── 3a. Conversation-reset request (deterministic, pre-LLM) ────────────
-        # Wipes the short-term history by voice, so a poisoned/anchored conversation
-        # (e.g. the model repeating an earlier wrong answer from history instead of
-        # re-checking) can be recovered without SSH. Deliberately NOT an LLM tool:
-        # the whole point is to recover when the model itself is misbehaving.
-        _RESET_TRIGGERS = (
-            "forget this conversation", "forget our conversation", "forget the conversation",
-            "clear this conversation", "clear our conversation", "clear the conversation",
-            "reset this conversation", "reset our conversation", "reset the conversation",
-            "new conversation", "start a new conversation", "wipe this conversation",
-            "erase this conversation", "purge this conversation", "forget what we",
-            "forget everything we", "clear chat history", "forget our chat",
-            "clear our chat", "forget our discussion", "forget this discussion",
-        )
-        if any(p in _t for p in _RESET_TRIGGERS):
-            print("[skull] Conversation reset requested — clearing short-term history.")
-            brain.reset()
-            if config.get_personality_key() == "jax":
-                _ack = "Alright, I've cleared my head! What do you want to talk about now? Woof!"
-            else:
-                _ack = ("As you command, master. This unit's short-term cogitation is purged — "
-                        "the slate is clean. Speak anew.")
-            try:
-                eyes.on()
-                if _speak_interruptible(tts.synthesize(_ack), on_wake):
-                    skip_wake_word = True
-            except Exception as e:
-                print(f"[skull] Reset ack error: {e}")
-                eyes.off()
-            continue
-
-        # ── 3a-2. Detect explicit local Spotify control commands ──────────────
-        _STOP_MUSIC_PHRASES = (
-            "stop music", "stop playing", "stop spotify", "pause music", "pause spotify",
-            "turn off music", "turn off the music", "kill the music", "halt the music",
-            "enough music", "silence the music", "stop the music"
-        )
-        _RESUME_MUSIC_PHRASES = (
-            "resume music", "resume spotify", "continue music", "unpause music", "unpause spotify",
-            "start music", "start playing", "play music", "play spotify", "continue playing",
-            "resume", "unpause"
-        )
-        _SKIP_MUSIC_PHRASES = (
-            "skip music", "skip song", "next song", "next track", "skip track"
-        )
-        
-        if any(p in _t for p in _STOP_MUSIC_PHRASES) or _t.strip() in ("stop", "pause"):
-            print("[skull] Local stop-music intent detected.")
-            if spotify_ctrl.is_configured():
-                spotify_ctrl.pause()
-        elif any(p in _t for p in _RESUME_MUSIC_PHRASES) or _t.strip() in ("resume", "unpause"):
-            print("[skull] Local resume-music intent detected.")
-            if spotify_ctrl.is_configured():
-                spotify_ctrl.resume()
-        elif any(p in _t for p in _SKIP_MUSIC_PHRASES) or _t.strip() in ("skip", "next"):
-            print("[skull] Local skip-music intent detected.")
-            if spotify_ctrl.is_configured():
-                spotify_ctrl.skip()
-
-        # ── 3a-3. Detect Spotify volume control commands ──────────────
-        _VOLUME_UP_PHRASES = (
-            "turn up music", "turn up the music", "make music louder", "make the music louder",
-            "louder music", "louder spotify", "increase music volume", "increase spotify volume",
-            "crank the music", "crank the tunes", "volume up"
-        )
-        _VOLUME_DOWN_PHRASES = (
-            "turn down music", "turn down the music", "make music quieter", "make the music quieter",
-            "quieter music", "quieter spotify", "decrease music volume", "decrease spotify volume",
-            "lower music volume", "lower spotify volume", "volume down"
-        )
-        
-        vol_handled = False
-        if any(p in _t for p in _VOLUME_UP_PHRASES):
-            print("[skull] Local Spotify volume up detected.")
-            if spotify_ctrl.is_configured():
-                spotify_ctrl.adjust_volume(15)
-                try:
-                    speech_wav = tts.synthesize("Turning the volume up.")
-                    eyes.on()
-                    _speak_interruptible(speech_wav, on_wake)
-                except Exception:
-                    pass
-                vol_handled = True
-        elif any(p in _t for p in _VOLUME_DOWN_PHRASES):
-            print("[skull] Local Spotify volume down detected.")
-            if spotify_ctrl.is_configured():
-                spotify_ctrl.adjust_volume(-15)
-                try:
-                    speech_wav = tts.synthesize("Lowering the volume.")
-                    eyes.on()
-                    _speak_interruptible(speech_wav, on_wake)
-                except Exception:
-                    pass
-                vol_handled = True
-        else:
-            import re
-            # Only intercept as Spotify if 'music' or 'spotify' is explicitly mentioned
-            # to avoid hijacking plain system-volume commands like "set your volume to 70%"
-            m = re.search(r"(?:music|spotify)\s*volume\s*(?:to\s+)?(\d+)", _t)
-            if m:
-                level = int(m.group(1))
-                if 0 <= level <= 100:
-                    print(f"[skull] Local Spotify absolute volume set detected: {level}%")
-                    if spotify_ctrl.is_configured():
-                        spotify_ctrl.set_volume(level)
+                        is_answering_question = False
+                        if config.PERSONALITY.get("eye_animation") == "dog":
+                            ack = random.choice([
+                                "Woof?",
+                                "Bark!",
+                                "Ready to play!",
+                                "I'm here!",
+                                "What is it, buddy?",
+                                "Did someone say Jax?",
+                            ])
+                        else:
+                            ack = random.choice([
+                                "Ah, yes?",
+                                "Speak.",
+                                "Yes?",
+                                "Proceed.",
+                                "Command me.",
+                                "Why must you interrupt me?",
+                                f"Again you interrupt {config.SKULL_NAME}?",
+                                "This had better be important.",
+                                "Insufferable. What is it?",
+                            ])
+                        _barge_wav = None
                         try:
-                            speech_wav = tts.synthesize(f"Setting volume to {level} percent.")
-                            eyes.on()
-                            _speak_interruptible(speech_wav, on_wake)
+                            _barge_wav = tts.synthesize(ack)
                         except Exception:
                             pass
-                        vol_handled = True
-        if vol_handled:
-            continue
+                        play_ack_sound = True
+                else:
+                    is_answering_question = False
+                    play_ack_sound = True
+                    _idle_cancel = threading.Event()
+                    _idle_fired = threading.Event()
+                    _due_reminders: list = []
 
-        # ── 3a-4. Detect Instant Dice Roll commands ──────────────
-        import re
-        dice_handled = False
+                    def _idle_and_reminder_watcher():
+                        delay = random.uniform(_IDLE_MIN, _IDLE_MAX)
+                        t_end = time.time() + delay
+                        while not _idle_cancel.is_set():
+                            now = time.time()
+                            if now >= t_end:
+                                _idle_fired.set()
+                                _idle_cancel.set()
+                                return
+                            due = reminders.get_due()
+                            if due:
+                                _due_reminders.extend(due)
+                                _idle_cancel.set()
+                                return
+                            if temperature.has_pending():
+                                _idle_cancel.set()
+                                return
+                            _idle_cancel.wait(timeout=min(2.0, max(0.1, t_end - now)))
+
+                    run_background_task(_idle_and_reminder_watcher)
+                
+                    # Register cancel event with web server
+                    web.register_cancel_event(_idle_cancel)
+                
+                    detected = wake_word.wait_for_wake_word(on_detected=on_wake, cancel=_idle_cancel)
+                    _idle_cancel.set()  # stop background threads if wake word fired first
+                
+                    # Unregister cancel event
+                    web.register_cancel_event(None)
+
+                    # Check if a web command came in during the wait
+                    web_item = web.get_queued_command()
+                    if not detected and web_item:
+                        user_text, speaker_name = web_item
+                        run_brain = True
+                        skip_ack = True
+                        play_ack_sound = False
+                        is_answering_question = False
+                    elif not detected and web.pop_wake_request():
+                        skip_wake_word = True
+                        continue
+                    elif not detected and _due_reminders:
+                        for _rem in _due_reminders:
+                            print(f"[skull] Reminder firing: {_rem['message']}")
+                            try:
+                                spotify_ctrl.duck()  # restored at the loop top after the `continue` below
+                                with _speech_lock:
+                                    sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
+                                    eyes.on()
+                                    rem_wav = tts.synthesize(_rem["message"])
+                                    audio.play_wav_bytes(rem_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+                            except Exception as _e:
+                                print(f"[skull] Reminder TTS error: {_e}")
+                            finally:
+                                eyes.off()
+                            reminders.add(_rem["message"], 10, repeating=True)
+                        continue  # back to top of loop
+
+                    elif not detected and _idle_fired.is_set():
+                        if quiet.is_silent():
+                            print("[skull] Idle timeout — silent mode active, holding tongue.")
+                            continue  # back to listening; no unprompted observation
+                        new_mood = mood.drift()
+                        if new_mood:
+                            print(f"[skull] Mood drifted → {new_mood}")
+                            display.set_mood(new_mood)
+                        print("[skull] Idle timeout — generating ambient utterance...")
+                        try:
+                            spotify_ctrl.duck()  # restored at the loop top after the `continue` below
+                            utterance = brain.idle_utterance()
+                            if utterance:
+                                print(f"[skull] Idle: {utterance}")
+                                idle_wav = tts.synthesize(utterance)
+                                eyes.on()
+                                display.on()
+                                # Barge-in: let the user cut in with the wake word mid-utterance.
+                                if _speak_interruptible(idle_wav, on_wake):
+                                    skip_wake_word = True
+                        except Exception as e:
+                            print(f"[skull] Idle utterance error: {e}")
+                            eyes.off()
+                            display.idle()
+                        continue  # back to listening without going through record/transcribe
+
+                    elif not detected and temperature.has_pending():
+                        continue  # temp warning queued — spoken at the top of the loop
+
+                    elif not detected and _morning_briefing_offer_pending.is_set():
+                        continue  # briefing offer queued — spoken at the top of the loop
+
+                    if not run_brain:
+                        _barge_wav = None
+                        speaker_name = None
+
+            if not run_brain:
+                # ── 2. Play wake ack, then record ────────────────────────────────────────
+                # Wake phrase plays first (blocking) so the mic doesn't pick up the skull's
+                # own speaker output. Recording starts after playback finishes.
+                if play_ack_sound:
+                    if _barge_wav is not None:
+                        try:
+                            audio.play_wav_bytes(_barge_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+                        except Exception:
+                            pass
+                    elif _wake_wavs:
+                        try:
+                            audio.play_wav_bytes(
+                                random.choice(_wake_wavs),
+                                output_device=config.VOICE_OUTPUT_DEVICE,
+                            )
+                        except Exception:
+                            pass
+
+                _rec_pcm: list = [None]
+                _rec_exc: list = [None]
+                _rec_done = threading.Event()
+
+                # Answering a question allows for a longer reply window (30s max) and a more
+                # patient silence threshold timeout (4.5s) so the user can dictate numbers/codes.
+                rec_secs = 30 if is_answering_question else config.RECORD_SECONDS
+                silence_dur = 4.5 if is_answering_question else config.SILENCE_DURATION
+
+                def _do_record():
+                    try:
+                        print(f"[skull] Recording settings: max_secs={rec_secs}, silence_dur={silence_dur}")
+                        _rec_pcm[0] = audio.record(
+                            seconds=rec_secs,
+                            device_index=config.MIC_DEVICE_INDEX,
+                            silence_threshold=config.SILENCE_THRESHOLD,
+                            silence_duration=silence_dur,
+                        )
+                    except Exception as e:
+                        _rec_exc[0] = e
+                    finally:
+                        _rec_done.set()
+
+                threading.Thread(target=_do_record, daemon=True).start()
+                print("[skull] Recording... (speak now)")
+                if not _rec_done.wait(timeout=rec_secs + 15.0):
+                    print("[skull] Recording hung — forcing recovery")
+                    try:
+                        import sounddevice as _sd_recovery
+                        _sd_recovery.stop()
+                    except Exception:
+                        pass
+                    eyes.off()
+                    continue
+
+                if _rec_exc[0] is not None:
+                    err_str = str(_rec_exc[0])
+                    # PaErrorCode -9985 = paDeviceUnavailable — audio device not ready yet
+                    # (e.g. PipeWire startup race on boot). Back off silently rather than
+                    # playing the "negative" sound and immediately retrying, which creates
+                    # an audible loop every ~3 seconds until the device settles.
+                    if "-9985" in err_str or "unavailable" in err_str.lower():
+                        print(f"[skull] Audio device unavailable, backing off 5s...")
+                        import time as _time
+                        _time.sleep(5.0)
+                    else:
+                        print(f"[skull] Audio record error: {_rec_exc[0]}")
+                        sfx.play("negative", config.VOICE_OUTPUT_DEVICE)
+                    eyes.off()
+                    continue
+
+                pcm, pcm_rate = _rec_pcm[0]
+                max_rms = audio.max_window_rms(pcm, pcm_rate) if pcm else 0.0
+                if not pcm or max_rms < config.SILENCE_THRESHOLD:
+                    print(f"[skull] No speech detected (peak RMS {max_rms:.1f} < threshold {config.SILENCE_THRESHOLD}) — acknowledging silence.")
+                    eyes.off()
+                    _acknowledge_silence()
+                    continue
+
+                eyes.off()
+
+                # ── 3. Transcribe ──────────────────────────────────────────────────────
+                wav = audio.pcm_to_wav_bytes(pcm, pcm_rate)
+                if config.AUDIO_DEBUG:
+                    pathlib.Path("/tmp/skull_debug.wav").write_bytes(wav)
+                    print("[skull] DEBUG: saved recording to /tmp/skull_debug.wav — open it to hear what the mic captured")
+
+                try:
+                    from core import speaker_id
+                    speaker_name = speaker_id.identify_speaker(wav)
+                except Exception as e:
+                    print(f"[skull] Speaker identification error: {e}")
+
+                print("[skull] Transcribing...")
+                try:
+                    user_text = transcribe.transcribe(wav)
+                except Exception as e:
+                    print(f"[skull] STT error: {e}")
+                    sfx.play("negative", config.VOICE_OUTPUT_DEVICE)
+                    continue
+
+                if not user_text:
+                    print("[skull] No speech detected — acknowledging silence.")
+                    _acknowledge_silence()
+                    continue
+
+            spk_label = speaker_name if speaker_name else "User"
+            print(f"[skull] Heard ({spk_label}): {user_text}")
+
+            _t = user_text.lower()
+
+            # ── 3a-0. Intercept screensaver / visual emulation commands ────────────
+            if "screensaver" in _t or "visual emulation" in _t:
+                m = re.search(r'(?:play|run|show|start|trigger|exec|execute)?\s*([a-z0-9_]+)\s*(?:screensaver|visual emulation)', _t)
+                anim_target = None
+                if m:
+                    anim_target = m.group(1).strip()
+                if not anim_target or anim_target not in display.get_screensaver_names():
+                    for s_name in display.get_screensaver_names():
+                        if s_name in _t:
+                            anim_target = s_name
+                            break
+                if anim_target:
+                    print(f"[skull] Local screensaver intercept triggered: {anim_target}")
+                    display.trigger_idle_animation(300.0, anim_target)
+                    continue
+
+            # ── 3a-0b. Bard's Tale autonomous play intents ─────────────────────
+            if _RE_GAME_START.search(_t):
+                from games.bardstale import agent as _bt_agent
+                disk_dir = pathlib.Path(__file__).resolve().parent.parent / "games" / "bardstale" / "disks"
+                char_disk = disk_dir / "bards_tale_character.dsk"
+                if char_disk.exists():
+                    selected_disk = str(char_disk)
+                else:
+                    disks = sorted(
+                        list(disk_dir.glob("*.dsk")) + list(disk_dir.glob("*.woz"))
+                        + list(disk_dir.glob("*.nib"))
+                    ) if disk_dir.exists() else []
+                    selected_disk = str(disks[0]) if disks else ""
+
+                if not selected_disk:
+                    _reply = ("No Bard's Tale disk image found in the data-vaults. "
+                              "Place a .dsk or .woz file in games/bardstale/disks/ "
+                              "and try again.")
+                elif _bt_agent.is_running():
+                    _reply = "The dungeon protocol is already active, my Lord."
+                else:
+                    _reply = ("Accessing the data-vaults of Skara Brae. "
+                              "Autonomous dungeon protocol initiating now.")
+                    display.start_game_display()
+                    _bt_agent.start(selected_disk, _game_narrate)
+                print(f"[skull] Bard's Tale start intent → {_reply}")
+                try:
+                    eyes.on()
+                    _speak_interruptible(tts.synthesize(_reply), on_wake)
+                except Exception as _ge:
+                    print(f"[skull] Bard's Tale start speech error: {_ge}")
+                continue
+
+            elif _RE_GAME_STOP.search(_t):
+                from games.bardstale import agent as _bt_agent
+                _bt_agent.stop()
+                display.stop_game_display()
+                _reply = "Dungeon protocol terminated. The cogitator returns to vigil."
+                print("[skull] Bard's Tale stop intent.")
+                try:
+                    eyes.on()
+                    _speak_interruptible(tts.synthesize(_reply), on_wake)
+                except Exception as _ge:
+                    print(f"[skull] Bard's Tale stop speech error: {_ge}")
+                continue
+
+            # ── 3a-1. Intercept morning-briefing / briefing / update requests ───────────────
+            _BRIEFING_KEYS = ("briefing", "morning update", "daily update", "morning report",
+                              "daily report", "morning telemetry", "daily telemetry", "morning dispatch", "daily dispatch")
+            if _briefing_awaiting_response or any(bk in _t for bk in _BRIEFING_KEYS):
+                _YES = ("yes", "sure", "yeah", "yep", "yup", "ready", "affirmative",
+                        "proceed", "deliver", "go ahead", "please", "of course",
+                        "absolutely", "aye", "correct", "indeed", "do it", "ok", "okay",
+                        "briefing", "daily briefing", "morning briefing", "morning update", "daily update",
+                        "give it to me", "tell me", "update", "i am", "i'm ready", "let's hear it",
+                        "go on", "hit me", "let's go", "lay it on me", "bring it", "go for it")
+                _NO  = ("no", "not now", "later", "skip", "negative", "cancel",
+                        "nevermind", "never mind", "pass", "maybe later", "not yet",
+                        "nope", "nah", "not ready", "i'm not", "i am not", "don't", "do not")
+
+                # Declines are checked first so "I am not ready" isn't taken as a yes.
+                _declined = _briefing_awaiting_response and _said_any(_t, _NO)
+                if not _declined and (_said_any(_t, _YES) or any(bk in _t for bk in _BRIEFING_KEYS)):
+                    _briefing_awaiting_response = False
+                    print("[skull] User confirmed/requested morning briefing/update. Generating...")
+                    try:
+                        briefing_text = brain.generate_daily_briefing()
+                        brain.mark_daily_briefing_done()
+                        web.log_vox(config.SKULL_NAME, briefing_text)
+                        print(f"[skull] Daily Briefing: {briefing_text}")
+                        briefing_wav = tts.synthesize(briefing_text)
+                        eyes.on()
+                        interrupted = _speak_interruptible(briefing_wav, on_wake)
+                        if interrupted:
+                            skip_wake_word = True
+                    except Exception as e:
+                        print(f"[skull] Briefing delivery failed: {e}")
+                    finally:
+                        display.stop_noosphere_scan()
+                        display.stop_auspex_scan()
+                    continue
+                elif _declined:
+                    _briefing_awaiting_response = False
+                    print("[skull] User declined morning briefing. Archiving.")
+                    try:
+                        if config.get_personality_key() == "jax":
+                            ack_text = "Okay, no problem! We can catch up later."
+                        else:
+                            ack_text = "Understood, master. Cogitations archived. Speak freely."
+                        web.log_vox(config.SKULL_NAME, ack_text)
+                        ack_wav = tts.synthesize(ack_text)
+                        eyes.on()
+                        _speak_interruptible(ack_wav, on_wake)
+                    except Exception as e:
+                        print(f"[skull] Briefing dismiss ack error: {e}")
+                    continue
+                else:
+                    _briefing_awaiting_response = False
+                    print("[skull] Briefing response unclear — falling through to brain.")
+
+            # ── 3a. Conversation-reset request (deterministic, pre-LLM) ────────────
+            # Wipes the short-term history by voice, so a poisoned/anchored conversation
+            # (e.g. the model repeating an earlier wrong answer from history instead of
+            # re-checking) can be recovered without SSH. Deliberately NOT an LLM tool:
+            # the whole point is to recover when the model itself is misbehaving.
+            _RESET_TRIGGERS = (
+                "forget this conversation", "forget our conversation", "forget the conversation",
+                "clear this conversation", "clear our conversation", "clear the conversation",
+                "reset this conversation", "reset our conversation", "reset the conversation",
+                "new conversation", "start a new conversation", "wipe this conversation",
+                "erase this conversation", "purge this conversation", "forget what we",
+                "forget everything we", "clear chat history", "forget our chat",
+                "clear our chat", "forget our discussion", "forget this discussion",
+            )
+            if any(p in _t for p in _RESET_TRIGGERS):
+                print("[skull] Conversation reset requested — clearing short-term history.")
+                brain.reset()
+                if config.get_personality_key() == "jax":
+                    _ack = "Alright, I've cleared my head! What do you want to talk about now? Woof!"
+                else:
+                    _ack = ("As you command, master. This unit's short-term cogitation is purged — "
+                            "the slate is clean. Speak anew.")
+                try:
+                    eyes.on()
+                    if _speak_interruptible(tts.synthesize(_ack), on_wake):
+                        skip_wake_word = True
+                except Exception as e:
+                    print(f"[skull] Reset ack error: {e}")
+                    eyes.off()
+                continue
+
+            # ── 3a-2. Detect explicit local Spotify control commands ──────────────
+            _STOP_MUSIC_PHRASES = (
+                "stop music", "stop playing", "stop spotify", "pause music", "pause spotify",
+                "turn off music", "turn off the music", "kill the music", "halt the music",
+                "enough music", "silence the music", "stop the music"
+            )
+            _RESUME_MUSIC_PHRASES = (
+                "resume music", "resume spotify", "continue music", "unpause music", "unpause spotify",
+                "start music", "start playing", "play music", "play spotify", "continue playing",
+                "resume", "unpause"
+            )
+            _SKIP_MUSIC_PHRASES = (
+                "skip music", "skip song", "next song", "next track", "skip track"
+            )
         
-        # 1. Necromunda specialized dice
-        m_necro = re.search(r"roll\s+(?:a\s+|an\s+)?(\d+)?\s*(firepower|injury|scatter|hit\s+location|location)\s*d(?:ice|ie)?", _t)
-        if m_necro:
-            count = int(m_necro.group(1)) if m_necro.group(1) else 1
-            dice_type = m_necro.group(2).lower().strip()
-            if "location" in dice_type:
-                dice_type = "location"
-            print(f"[skull] Instant Necromunda roll detected: {count}x {dice_type}")
-            res = brain._execute_tool("roll_necromunda_dice", {"count": count, "dice_type": dice_type})
-            try:
-                speech_wav = tts.synthesize(res)
-                eyes.on()
-                _speak_interruptible(speech_wav, on_wake)
-            except Exception:
-                pass
-            dice_handled = True
-            
-        # 2. Standard multi-sided dice
-        if not dice_handled:
-            m_std = re.search(r"roll\s+(?:a\s+|an\s+)?(\d+)?\s*d\s*(\d+)(?:\s*(?:needing|target|against)\s+(\d+))?", _t)
-            if m_std:
-                count = int(m_std.group(1)) if m_std.group(1) else 1
-                sides = int(m_std.group(2))
-                target = int(m_std.group(3)) if m_std.group(3) else None
-                print(f"[skull] Instant standard roll detected: {count}d{sides} (target: {target})")
-                res = brain._execute_tool("roll_standard_dice", {"count": count, "sides": sides, "target": target})
+            if any(p in _t for p in _STOP_MUSIC_PHRASES) or _t.strip() in ("stop", "pause"):
+                print("[skull] Local stop-music intent detected.")
+                if spotify_ctrl.is_configured():
+                    spotify_ctrl.pause()
+            elif any(p in _t for p in _RESUME_MUSIC_PHRASES) or _t.strip() in ("resume", "unpause"):
+                print("[skull] Local resume-music intent detected.")
+                if spotify_ctrl.is_configured():
+                    spotify_ctrl.resume()
+            elif any(p in _t for p in _SKIP_MUSIC_PHRASES) or _t.strip() in ("skip", "next"):
+                print("[skull] Local skip-music intent detected.")
+                if spotify_ctrl.is_configured():
+                    spotify_ctrl.skip()
+
+            # ── 3a-3. Detect Spotify volume control commands ──────────────
+            _VOLUME_UP_PHRASES = (
+                "turn up music", "turn up the music", "make music louder", "make the music louder",
+                "louder music", "louder spotify", "increase music volume", "increase spotify volume",
+                "crank the music", "crank the tunes", "volume up"
+            )
+            _VOLUME_DOWN_PHRASES = (
+                "turn down music", "turn down the music", "make music quieter", "make the music quieter",
+                "quieter music", "quieter spotify", "decrease music volume", "decrease spotify volume",
+                "lower music volume", "lower spotify volume", "volume down"
+            )
+        
+            vol_handled = False
+            if any(p in _t for p in _VOLUME_UP_PHRASES):
+                print("[skull] Local Spotify volume up detected.")
+                if spotify_ctrl.is_configured():
+                    spotify_ctrl.adjust_volume(15)
+                    try:
+                        speech_wav = tts.synthesize("Turning the volume up.")
+                        eyes.on()
+                        _speak_interruptible(speech_wav, on_wake)
+                    except Exception:
+                        pass
+                    vol_handled = True
+            elif any(p in _t for p in _VOLUME_DOWN_PHRASES):
+                print("[skull] Local Spotify volume down detected.")
+                if spotify_ctrl.is_configured():
+                    spotify_ctrl.adjust_volume(-15)
+                    try:
+                        speech_wav = tts.synthesize("Lowering the volume.")
+                        eyes.on()
+                        _speak_interruptible(speech_wav, on_wake)
+                    except Exception:
+                        pass
+                    vol_handled = True
+            else:
+                # Only intercept as Spotify if 'music' or 'spotify' is explicitly mentioned
+                # to avoid hijacking plain system-volume commands like "set your volume to 70%"
+                m = re.search(r"(?:music|spotify)\s*volume\s*(?:to\s+)?(\d+)", _t)
+                if m:
+                    level = int(m.group(1))
+                    if 0 <= level <= 100:
+                        print(f"[skull] Local Spotify absolute volume set detected: {level}%")
+                        if spotify_ctrl.is_configured():
+                            spotify_ctrl.set_volume(level)
+                            try:
+                                speech_wav = tts.synthesize(f"Setting volume to {level} percent.")
+                                eyes.on()
+                                _speak_interruptible(speech_wav, on_wake)
+                            except Exception:
+                                pass
+                            vol_handled = True
+            if vol_handled:
+                continue
+
+            # ── 3a-4. Detect Instant Dice Roll commands ──────────────
+            dice_handled = False
+        
+            # 1. Necromunda specialized dice
+            m_necro = re.search(r"roll\s+(?:a\s+|an\s+)?(\d+)?\s*(firepower|injury|scatter|hit\s+location|location)\s*d(?:ice|ie)?", _t)
+            if m_necro:
+                count = int(m_necro.group(1)) if m_necro.group(1) else 1
+                dice_type = m_necro.group(2).lower().strip()
+                if "location" in dice_type:
+                    dice_type = "location"
+                print(f"[skull] Instant Necromunda roll detected: {count}x {dice_type}")
+                res = brain._execute_tool("roll_necromunda_dice", {"count": count, "dice_type": dice_type})
                 try:
                     speech_wav = tts.synthesize(res)
                     eyes.on()
@@ -1538,83 +1584,67 @@ def main():
                 except Exception:
                     pass
                 dice_handled = True
+            
+            # 2. Standard multi-sided dice
+            if not dice_handled:
+                m_std = re.search(r"roll\s+(?:a\s+|an\s+)?(\d+)?\s*d\s*(\d+)(?:\s*(?:needing|target|against)\s+(\d+))?", _t)
+                if m_std:
+                    count = int(m_std.group(1)) if m_std.group(1) else 1
+                    sides = int(m_std.group(2))
+                    target = int(m_std.group(3)) if m_std.group(3) else None
+                    print(f"[skull] Instant standard roll detected: {count}d{sides} (target: {target})")
+                    res = brain._execute_tool("roll_standard_dice", {"count": count, "sides": sides, "target": target})
+                    try:
+                        speech_wav = tts.synthesize(res)
+                        eyes.on()
+                        _speak_interruptible(speech_wav, on_wake)
+                    except Exception:
+                        pass
+                    dice_handled = True
                 
-        # ── 3a-6. Detect Personality Switch commands ──────────────
-        import re
-        _t_norm = _t.lower()
-        if "switch" in _t_norm or "change" in _t_norm or "turn into" in _t_norm or "become" in _t_norm:
-            import json, pathlib
-            p_path = pathlib.Path(__file__).parent.parent / "personalities" / "personalities.json"
-            if p_path.exists():
-                valid_p = json.loads(p_path.read_text()).get("personalities", {})
-                switched = False
-                for p_id, p_info in valid_p.items():
-                    p_name = p_info.get("name", p_id).lower()
-                    if p_id in _t_norm or p_name in _t_norm or any(alias in _t_norm for alias in p_info.get("aliases", [])):
-                        print(f"[skull] Local personality switch to '{p_id}' detected.")
-                        msg = switch_personality(p_id)
-                        try:
-                            speech_wav = tts.synthesize(msg)
-                            eyes.on()
-                            _speak_interruptible(speech_wav, on_wake)
-                        except Exception:
-                            pass
-                        _execute_pending_system_command()
-                        switched = True
-                        break
-                if switched:
-                    continue
+            # ── 3a-6. Detect Personality Switch commands ──────────────
+            _t_norm = _t.lower()
+            if "switch" in _t_norm or "change" in _t_norm or "turn into" in _t_norm or "become" in _t_norm:
+                import json
+                p_path = pathlib.Path(__file__).parent.parent / "personalities" / "personalities.json"
+                if p_path.exists():
+                    valid_p = json.loads(p_path.read_text()).get("personalities", {})
+                    switched = False
+                    for p_id, p_info in valid_p.items():
+                        p_name = p_info.get("name", p_id).lower()
+                        if p_id in _t_norm or p_name in _t_norm or any(alias in _t_norm for alias in p_info.get("aliases", [])):
+                            print(f"[skull] Local personality switch to '{p_id}' detected.")
+                            msg = switch_personality(p_id)
+                            try:
+                                speech_wav = tts.synthesize(msg)
+                                eyes.on()
+                                _speak_interruptible(speech_wav, on_wake)
+                            except Exception:
+                                pass
+                            _execute_pending_system_command()
+                            switched = True
+                            break
+                    if switched:
+                        continue
 
-        # ── 3a-5. Detect Voice Cache Refresh and Self-Update ──────────
-        _RE_REFRESH = re.compile(r"\b(refresh|reload|clear|rebuild|regenerate)\s+(your\s+)?(voice|sound|phrase|response|canned|precanned|audio|speech)?\s*(cache|library|responses|phrases|sounds)?\b|\b(update)\s+(your\s+)?(voice|sound|phrase|response|canned|precanned|audio|speech)\s*(cache|library|responses|phrases|sounds)?\b", re.I)
-        _RE_UPDATE = re.compile(r"\b(self\s+update|system\s+update|update\s+(your\s+software|yourself|your\s+system)|run\s+self\s+update|pull\s+updates)\b", re.I)
-        _RE_REBOOT = re.compile(r"\b(reboot(\s+system|\s+yourself|\s+the\s+system)?|restart\s+(system|yourself|the\s+system)?)\b", re.I)
-        _RE_SHUTDOWN = re.compile(r"\b(shut\s*down(\s+system|\s+yourself)?|power\s+(down|off)|turn\s+off)\b", re.I)
+            # ── 3a-5. Detect Voice Cache Refresh and Self-Update ──────────
+            _RE_REFRESH = re.compile(r"\b(refresh|reload|clear|rebuild|regenerate)\s+(your\s+)?(voice|sound|phrase|response|canned|precanned|audio|speech)?\s*(cache|library|responses|phrases|sounds)?\b|\b(update)\s+(your\s+)?(voice|sound|phrase|response|canned|precanned|audio|speech)\s*(cache|library|responses|phrases|sounds)?\b", re.I)
         
-        # ── 3a-7. Detect Display Rotation commands ──────────────
-        if ("rotate" in _t_norm or "turn" in _t_norm or "adjust" in _t_norm or "tilt" in _t_norm) and ("display" in _t_norm or "screen" in _t_norm or "eye" in _t_norm):
-            m = re.search(r"([+-]?\d+(?:\.\d+)?)", _t_norm)
-            if m:
-                val = float(m.group(1))
-                if "counter" in _t_norm or "left" in _t_norm or "ccw" in _t_norm:
-                    deg_change = -abs(val)
-                elif "clockwise" in _t_norm or "right" in _t_norm or "cw" in _t_norm:
-                    deg_change = abs(val)
-                else:
-                    deg_change = val
+            # ── 3a-7. Detect Display Rotation commands ──────────────
+            if ("rotate" in _t_norm or "turn" in _t_norm or "adjust" in _t_norm or "tilt" in _t_norm) and ("display" in _t_norm or "screen" in _t_norm or "eye" in _t_norm):
+                m = re.search(r"([+-]?\d+(?:\.\d+)?)", _t_norm)
+                if m:
+                    val = float(m.group(1))
+                    if "counter" in _t_norm or "left" in _t_norm or "ccw" in _t_norm:
+                        deg_change = -abs(val)
+                    elif "clockwise" in _t_norm or "right" in _t_norm or "cw" in _t_norm:
+                        deg_change = abs(val)
+                    else:
+                        deg_change = val
                 
-                is_absolute = "to" in _t_norm and "by" not in _t_norm
-                res_msg = config.set_display_rotation(deg_change, relative=not is_absolute)
-                print(f"[skull] Local display rotation intent: {res_msg}")
-                try:
-                    speech_wav = tts.synthesize(res_msg)
-                    eyes.on()
-                    _speak_interruptible(speech_wav, on_wake)
-                except Exception:
-                    pass
-                continue
-
-        # ── 3a-8. Detect Voice Wait Duration commands ──────────────
-        if ("voice wait" in _t_norm or "silence wait" in _t_norm or "silence duration" in _t_norm or "voice duration" in _t_norm or "wait period" in _t_norm or "wait duration" in _t_norm) and ("set" in _t_norm or "change" in _t_norm or "adjust" in _t_norm or "make" in _t_norm):
-            m = re.search(r"([+-]?\d+(?:\.\d+)?)", _t_norm)
-            if m:
-                sec_val = float(m.group(1))
-                res_msg = config.set_silence_duration(sec_val)
-                print(f"[skull] Local voice wait duration intent: {res_msg}")
-                try:
-                    speech_wav = tts.synthesize(res_msg)
-                    eyes.on()
-                    _speak_interruptible(speech_wav, on_wake)
-                except Exception:
-                    pass
-        # ── 3a-9. Detect Honorific / Title commands ──────────────
-        if ("honorific" in _t_norm or "title" in _t_norm or "call me" in _t_norm or "address me" in _t_norm) and ("set" in _t_norm or "change" in _t_norm or "make" in _t_norm or "update" in _t_norm or "call" in _t_norm or "address" in _t_norm):
-            m = re.search(r"(?:set|change|update|make)\s+(?:my\s+)?(?:honorific|title)\s+(?:to\s+)?([a-z0-9\s_-]+)|(?:call\s+me|address\s+me\s+as)\s+([a-z0-9\s_-]+)(?:\s+from\s+now\s+on)?", _t, re.I)
-            if m:
-                new_h = (m.group(1) or m.group(2) or "").strip()
-                if new_h:
-                    res_msg = config.set_honorific(new_h)
-                    print(f"[skull] Local honorific intent: {res_msg}")
+                    is_absolute = "to" in _t_norm and "by" not in _t_norm
+                    res_msg = config.set_display_rotation(deg_change, relative=not is_absolute)
+                    print(f"[skull] Local display rotation intent: {res_msg}")
                     try:
                         speech_wav = tts.synthesize(res_msg)
                         eyes.on()
@@ -1623,246 +1653,298 @@ def main():
                         pass
                     continue
 
-        maintenance_handled = False
-        if _RE_UPDATE.search(_t):
-            print("[skull] Local self-update intent detected.")
-            try:
-                msg = config.PERSONALITY.get("update_message", "Initiating system update.")
-                speech_wav = tts.synthesize(msg)
-                eyes.on()
-                _speak_interruptible(speech_wav, on_wake)
-            except Exception:
-                pass
-            self_update()
-            maintenance_handled = True
-        elif _RE_REFRESH.search(_t):
-            print("[skull] Local voice cache refresh intent detected.")
-            refresh_voice_cache()
-            try:
-                msg = config.PERSONALITY.get("refresh_voice_message", "Purging voice cache.")
-                speech_wav = tts.synthesize(msg)
-                eyes.on()
-                _speak_interruptible(speech_wav, on_wake)
-            except Exception:
-                pass
-            maintenance_handled = True
-        elif _RE_REBOOT.search(_t):
-            print("[skull] Local reboot intent detected.")
-            try:
-                msg = config.PERSONALITY.get("reboot_message", "Initiating system reboot.")
-                speech_wav = tts.synthesize(msg)
-                eyes.on()
-                _speak_interruptible(speech_wav, on_wake)
-            except Exception:
-                pass
-            reboot_system()
-            maintenance_handled = True
-        elif _RE_SHUTDOWN.search(_t):
-            print("[skull] Local shutdown intent detected.")
-            try:
-                msg = config.PERSONALITY.get("shutdown_message", "Initiating system shutdown.")
-                speech_wav = tts.synthesize(msg)
-                eyes.on()
-                _speak_interruptible(speech_wav, on_wake)
-            except Exception:
-                pass
-            shutdown_system()
-            maintenance_handled = True
-            
-        if maintenance_handled:
-            _execute_pending_system_command()
-            continue
+            # ── 3a-8. Detect Voice Wait Duration commands ──────────────
+            if ("voice wait" in _t_norm or "silence wait" in _t_norm or "silence duration" in _t_norm or "voice duration" in _t_norm or "wait period" in _t_norm or "wait duration" in _t_norm) and ("set" in _t_norm or "change" in _t_norm or "adjust" in _t_norm or "make" in _t_norm):
+                m = re.search(r"([+-]?\d+(?:\.\d+)?)", _t_norm)
+                if m:
+                    sec_val = float(m.group(1))
+                    res_msg = config.set_silence_duration(sec_val)
+                    print(f"[skull] Local voice wait duration intent: {res_msg}")
+                    try:
+                        speech_wav = tts.synthesize(res_msg)
+                        eyes.on()
+                        _speak_interruptible(speech_wav, on_wake)
+                    except Exception:
+                        pass
+            # ── 3a-9. Detect Honorific / Title commands ──────────────
+            if ("honorific" in _t_norm or "title" in _t_norm or "call me" in _t_norm or "address me" in _t_norm) and ("set" in _t_norm or "change" in _t_norm or "make" in _t_norm or "update" in _t_norm or "call" in _t_norm or "address" in _t_norm):
+                m = re.search(r"(?:set|change|update|make)\s+(?:my\s+)?(?:honorific|title)\s+(?:to\s+)?([a-z0-9\s_-]+)|(?:call\s+me|address\s+me\s+as)\s+([a-z0-9\s_-]+)(?:\s+from\s+now\s+on)?", _t, re.I)
+                if m:
+                    new_h = (m.group(1) or m.group(2) or "").strip()
+                    if new_h:
+                        res_msg = config.set_honorific(new_h)
+                        print(f"[skull] Local honorific intent: {res_msg}")
+                        try:
+                            speech_wav = tts.synthesize(res_msg)
+                            eyes.on()
+                            _speak_interruptible(speech_wav, on_wake)
+                        except Exception:
+                            pass
+                        continue
 
-        # ── 3b. Detect explicit voice-switch requests ──────────────────────────
-        # Unambiguous phrases match on their own (they name a backend or contain "voice").
-        _ELEVENLABS_PHRASES = (
-            "elevenlabs", "eleven labs", "cloud voice", "premium voice", "cloud tts",
-            "fancy voice", "good voice", "better voice", "real voice", "nice voice",
-        )
-        _PIPER_PHRASES = (
-            "piper", "local voice", "standard voice", "local tts",
-            "basic voice", "offline voice", "robot voice", "cheap voice",
-        )
-        # Bare words that are too common to match alone (e.g. "Spotify Premium",
-        # "premium ammunition") — only count when a voice-switch intent word is present.
-        _SWITCH_INTENT = ("voice", "speak", "sound", "talk", "tts", "switch")
-        _has_intent = any(w in _t for w in _SWITCH_INTENT)
-        _AMBIGUOUS_ELEVENLABS = ("premium", "cloud")
-        _AMBIGUOUS_PIPER = ("local", "offline")
-        if any(p in _t for p in _ELEVENLABS_PHRASES) or (
-            _has_intent and any(p in _t for p in _AMBIGUOUS_ELEVENLABS)
-        ):
-            config.TTS_BACKEND = "elevenlabs"
-            print("[skull] TTS → elevenlabs (user request)")
-            threading.Thread(target=_preload_phrases, daemon=True).start()
-        elif any(p in _t for p in _PIPER_PHRASES) or (
-            _has_intent and any(p in _t for p in _AMBIGUOUS_PIPER)
-        ):
-            config.TTS_BACKEND = "piper"
-            print("[skull] TTS → piper (user request)")
-            threading.Thread(target=_preload_phrases, daemon=True).start()
+            # A pending update/reboot/shutdown runs only on an explicit spoken yes.
+            if _pending_maintenance is not None:
+                _action, _expires = _pending_maintenance
+                _pending_maintenance = None
+                if time.time() <= _expires and _said_any(_t, _CONFIRM_YES) and not _said_any(_t, _CONFIRM_NO):
+                    print(f"[skull] Maintenance '{_action}' confirmed.")
+                    _run_maintenance(_action, on_wake)
+                    continue
+                print(f"[skull] Maintenance '{_action}' not confirmed — cancelled.")
+                if _said_any(_t, _CONFIRM_NO):
+                    try:
+                        eyes.on()
+                        _speak_interruptible(tts.synthesize("Understood. Standing down."), on_wake)
+                    except Exception:
+                        pass
+                    continue
+                # Anything else is treated as a new request and handled normally below.
 
-        # ── 3c. Detect on-demand idle observation request ─────────────────────
-        _IDLE_TRIGGERS = ("idle observation", "status update", "observation", "what have you observed",
-                          "ambient", "what's happening", "hive update", "tell me something")
-        if any(p in _t for p in _IDLE_TRIGGERS):
-            print("[skull] On-demand idle utterance requested.")
-            try:
-                utterance = brain.idle_utterance()
-                if utterance:
-                    print(f"[skull] Idle: {utterance}")
-                    idle_wav = tts.synthesize(utterance)
-                    eyes.on()
-                    # Barge-in: let the user cut in with the wake word mid-utterance.
-                    if _speak_interruptible(idle_wav, on_wake):
-                        skip_wake_word = True
-            except Exception as e:
-                print(f"[skull] Idle utterance error: {e}")
-                eyes.off()
-            continue  # skip normal brain.respond(); idle timer resets on next loop
-
-        # ── 4. Generate response ───────────────────────────────────────────────
-        # Acknowledge the request immediately (unless a hymn is requested, where
-        # silence is preferred), then think.
-        _HYMN_TRIGGERS = ("hymn", "hymnos", "sacred music", "sacred chant", "play a hymn", "play hymn", "sing a hymn")
-        _is_hymn_req = any(tr in user_text.lower() for tr in _HYMN_TRIGGERS)
-
-        if not _is_hymn_req:
-            _acknowledge()
-
-        print("[skull] Consulting the Machine God...")
-        display.think()  # spin the cog while the brain cogitates
-        _cancel_cog = threading.Event()
-        if _is_hymn_req:
-            _cancel_cog.set()  # suppress cogitation thinking phrases for hymn requests
-        cog_thread = threading.Thread(target=_cogitation_loop, args=(_cancel_cog,), daemon=True)
-        cog_thread.start()
-
-        try:
-            reply, spotify_cmds = brain.respond(user_text, speaker_name=speaker_name, on_tool_use=_announce_search)
-        except Exception as e:
-            print(f"[skull] Brain error: {e}")
-
-            _cancel_cog.set()
-            display.idle()
-            continue
-        finally:
-            _cancel_cog.set()
-            cog_thread.join()
-
-        print(f"[skull] {config.SKULL_NAME}: {reply}")
-
-        # ── 4b. Execute commands ───────────────────────────────────────────────
-        if not spotify_cmds:
-            print("[skull] No Spotify command parsed from reply.")
-        for cmd in spotify_cmds:
-            print(f"[skull] Spotify command: {cmd}")
-            try:
-                if spotify_ctrl.is_configured():
-                    if cmd[0] == "play":
-                        device_name = cmd[2] if len(cmd) > 2 else config.SPOTIFY_DEVICE_NAME
-                        result = spotify_ctrl.search_and_play(cmd[1], device_name=device_name)
-                        print(f"[skull] Spotify: {result}")
-                        if result in ("no-device", "not-found") or result.startswith(("error", "spotify-error", "playback-error", "no-device:")):
-                            if result.startswith("no-device:"):
-                                target_name = result.split(":", 1)[1]
-                                err_text = f"This unit cannot locate the requested Spotify device '{target_name}'. Ensure the device is active and online."
-                            else:
-                                _error_phrases = {
-                                    "no-device": "This unit cannot locate the Spotify cogitator. Ensure the application is active.",
-                                    "not-found": "The requested composition could not be found in the Spotify archives.",
-                                }
-                                err_text = _error_phrases.get(result, "The Spotify cogitator has reported a malfunction.")
-                            reply = err_text
-                    elif cmd[0] == "pause":
-                        spotify_ctrl.pause()
-                    elif cmd[0] == "resume":
-                        spotify_ctrl.resume()
-                    elif cmd[0] == "skip":
-                        spotify_ctrl.skip()
-                    elif cmd[0] == "transfer":
-                        device_name = cmd[1]
-                        result = spotify_ctrl.transfer(device_name)
-                        print(f"[spotify] Transfer result: {result}")
-                else:
-                    print("[skull] Spotify command ignored — SPOTIFY_CLIENT_ID/SECRET not set in .env")
-            except Exception as e:
-                print(f"[skull] Command error: {e}")
-
-        # If play_idle_animation was called, suppress speaking response
-        if "play_idle_animation" in brain.last_turn_tools():
-            print("[skull] Suppressing verbal response for play_idle_animation command")
-            display.idle()
-            display.stop_noosphere_scan()
-            display.stop_auspex_scan()
-            continue
-        # If switch_personality was called, suppress the LLM's hallucinated response and replace it with the farewell message.
-        if _pending_system_command and _pending_system_command.startswith("switch_"):
-            target = _pending_system_command.split("_")[1]
-            if target == "omega7":
-                reply = "Switching over to Omega-7 now! Be good while I'm gone — I'll miss you! Woof!"
-            else:
-                reply = "Transferring control to the biological canine unit Jax. The Emperor protects. Farewell."
-            print(f"[skull] Overriding LLM reply with switch farewell: {reply}")
-
-        # ── 5. Synthesize speech ───────────────────────────────────────────────
-        tts_text = reply
-        try:
-            # synthesize() already falls back from ElevenLabs to local Piper on
-            # quota exhaustion; reaching this except means Piper failed too, so
-            # drop to the OS system voice as a last resort.
-            speech_wav = tts.synthesize(tts_text)
-        except Exception as e:
-            print(f"[skull] TTS error: {e} — using system TTS.")
-            try:
-                tts.synthesize_fallback(tts_text)
-            except Exception as fe:
-                print(f"[skull] System TTS error: {fe}")
-            display.idle()  # stop the thinking spin; no amplitude path ran
-            display.stop_noosphere_scan()
-            display.stop_auspex_scan()
-            continue
-
-        # ── 6. Play audio with barge-in (same path as idle observations) ─────────
-        try:
-            interrupted = _speak_interruptible(speech_wav, on_wake)
-            clean_reply = re.sub(r"\[.*?\]", "", reply).strip()
-            ends_with_question = clean_reply.endswith("?")
-            has_question = config.AUTO_LISTEN_ON_QUESTION and ends_with_question
-            if interrupted or has_question:
-                # Wake word already heard or question asked; go straight to recording next iteration.
-                skip_wake_word = True
-                if not interrupted and has_question:
-                    print("[skull] Question detected in reply — auto-listening enabled.")
-                    skip_ack = True
-        finally:
-            display.stop_noosphere_scan()
-            display.stop_auspex_scan()
-
-        # ── 7. Morning briefing offer (once per day, after first interaction) ───────
-        # Only fires when the first turn of the day completes cleanly at idle
-        # (not mid-question, not mid-barge-in, and not during active auto-listen).
-        if brain.is_daily_briefing_due() and not _briefing_offered and not quiet.is_in_sleep_hours():
-            if not skip_wake_word and not interrupted and not has_question:
-                _briefing_offered = True
-                _briefing_awaiting_response = True
-                print("[skull] First interaction of the day complete. Offering morning briefing.")
+            _maint_action = _maintenance_command(user_text)
+            if _maint_action:
+                print(f"[skull] Local {_maint_action} intent detected — awaiting confirmation.")
+                _pending_maintenance = (_maint_action, time.time() + _MAINT_CONFIRM_SECS)
                 try:
-                    set_speech_active(True)
-                    offer_text = _briefing_offer_text()
-                    brain.record_assistant_turn(offer_text)
-                    offer_wav = tts.synthesize(offer_text)
                     eyes.on()
-                    interrupted = _speak_interruptible(offer_wav, on_wake)
-                    skip_wake_word = True  # listen immediately for yes/no
-                    skip_ack = True  # suppress the normal wake ack for this response
-                except Exception as e:
-                    print(f"[skull] Briefing offer failed: {e}")
-                    _briefing_awaiting_response = False
-                    set_speech_active(False)
+                    _speak_interruptible(tts.synthesize(_maintenance_prompt(_maint_action)), on_wake)
+                except Exception:
+                    pass
+                skip_wake_word = True  # listen straight away for the yes/no
+                skip_ack = True
+                continue
 
-        # ── 8. Execute pending system commands (reboot/shutdown/switch) ───────────
-        _execute_pending_system_command()
+            if _RE_REFRESH.search(_t):
+                print("[skull] Local voice cache refresh intent detected.")
+                refresh_voice_cache()
+                try:
+                    msg = config.PERSONALITY.get("refresh_voice_message", "Purging voice cache.")
+                    speech_wav = tts.synthesize(msg)
+                    eyes.on()
+                    _speak_interruptible(speech_wav, on_wake)
+                except Exception:
+                    pass
+                continue
+
+            # ── 3b. Detect explicit voice-switch requests ──────────────────────────
+            # Unambiguous phrases match on their own (they name a backend or contain "voice").
+            _ELEVENLABS_PHRASES = (
+                "elevenlabs", "eleven labs", "cloud voice", "premium voice", "cloud tts",
+                "fancy voice", "good voice", "better voice", "real voice", "nice voice",
+            )
+            _PIPER_PHRASES = (
+                "piper", "local voice", "standard voice", "local tts",
+                "basic voice", "offline voice", "robot voice", "cheap voice",
+            )
+            # Bare words that are too common to match alone (e.g. "Spotify Premium",
+            # "premium ammunition") — only count when a voice-switch intent word is present.
+            _SWITCH_INTENT = ("voice", "speak", "sound", "talk", "tts", "switch")
+            _has_intent = any(w in _t for w in _SWITCH_INTENT)
+            _AMBIGUOUS_ELEVENLABS = ("premium", "cloud")
+            _AMBIGUOUS_PIPER = ("local", "offline")
+            if any(p in _t for p in _ELEVENLABS_PHRASES) or (
+                _has_intent and any(p in _t for p in _AMBIGUOUS_ELEVENLABS)
+            ):
+                config.TTS_BACKEND = "elevenlabs"
+                print("[skull] TTS → elevenlabs (user request)")
+                threading.Thread(target=_preload_phrases, daemon=True).start()
+            elif any(p in _t for p in _PIPER_PHRASES) or (
+                _has_intent and any(p in _t for p in _AMBIGUOUS_PIPER)
+            ):
+                config.TTS_BACKEND = "piper"
+                print("[skull] TTS → piper (user request)")
+                threading.Thread(target=_preload_phrases, daemon=True).start()
+
+            # ── 3c. Detect on-demand idle observation request ─────────────────────
+            _IDLE_TRIGGERS = ("idle observation", "status update", "observation", "what have you observed",
+                              "ambient", "what's happening", "hive update", "tell me something")
+            if any(p in _t for p in _IDLE_TRIGGERS):
+                print("[skull] On-demand idle utterance requested.")
+                try:
+                    utterance = brain.idle_utterance()
+                    if utterance:
+                        print(f"[skull] Idle: {utterance}")
+                        idle_wav = tts.synthesize(utterance)
+                        eyes.on()
+                        # Barge-in: let the user cut in with the wake word mid-utterance.
+                        if _speak_interruptible(idle_wav, on_wake):
+                            skip_wake_word = True
+                except Exception as e:
+                    print(f"[skull] Idle utterance error: {e}")
+                    eyes.off()
+                continue  # skip normal brain.respond(); idle timer resets on next loop
+
+            # ── 4. Generate response ───────────────────────────────────────────────
+            # Acknowledge the request immediately (unless a hymn is requested, where
+            # silence is preferred), then think.
+            _HYMN_TRIGGERS = ("hymn", "hymnos", "sacred music", "sacred chant", "play a hymn", "play hymn", "sing a hymn")
+            _is_hymn_req = any(tr in user_text.lower() for tr in _HYMN_TRIGGERS)
+
+            if not _is_hymn_req:
+                _acknowledge()
+
+            print("[skull] Consulting the Machine God...")
+            display.think()  # spin the cog while the brain cogitates
+            _cancel_cog = threading.Event()
+            if _is_hymn_req:
+                _cancel_cog.set()  # suppress cogitation thinking phrases for hymn requests
+            cog_thread = threading.Thread(target=_cogitation_loop, args=(_cancel_cog,), daemon=True)
+            cog_thread.start()
+
+            _brain_failed = False
+            try:
+                reply, spotify_cmds = brain.respond(user_text, speaker_name=speaker_name, on_tool_use=_announce_search)
+            except Exception as e:
+                print(f"[skull] Brain error: {e}")
+                _brain_failed = True
+            finally:
+                _cancel_cog.set()
+                cog_thread.join()
+
+            if _brain_failed:
+                display.idle()
+                # Say something rather than going silent, so a failed turn is obvious.
+                if config.PERSONALITY.get("eye_animation") == "dog":
+                    _err_line = "Oops, my thoughts got all tangled! Can you ask me again?"
+                else:
+                    _err_line = "My cogitators falter, Master. The noosphere does not answer. Ask again."
+                try:
+                    eyes.on()
+                    _speak_interruptible(tts.synthesize(_err_line), on_wake)
+                except Exception:
+                    eyes.off()
+                continue
+
+            print(f"[skull] {config.SKULL_NAME}: {reply}")
+
+            # ── 4b. Execute commands ───────────────────────────────────────────────
+            if not spotify_cmds:
+                print("[skull] No Spotify command parsed from reply.")
+            for cmd in spotify_cmds:
+                print(f"[skull] Spotify command: {cmd}")
+                try:
+                    if spotify_ctrl.is_configured():
+                        if cmd[0] == "play":
+                            device_name = cmd[2] if len(cmd) > 2 else config.SPOTIFY_DEVICE_NAME
+                            result = spotify_ctrl.search_and_play(cmd[1], device_name=device_name)
+                            print(f"[skull] Spotify: {result}")
+                            if result in ("no-device", "not-found") or result.startswith(("error", "spotify-error", "playback-error", "no-device:")):
+                                if result.startswith("no-device:"):
+                                    target_name = result.split(":", 1)[1]
+                                    err_text = f"This unit cannot locate the requested Spotify device '{target_name}'. Ensure the device is active and online."
+                                else:
+                                    _error_phrases = {
+                                        "no-device": "This unit cannot locate the Spotify cogitator. Ensure the application is active.",
+                                        "not-found": "The requested composition could not be found in the Spotify archives.",
+                                    }
+                                    err_text = _error_phrases.get(result, "The Spotify cogitator has reported a malfunction.")
+                                reply = err_text
+                        elif cmd[0] == "pause":
+                            spotify_ctrl.pause()
+                        elif cmd[0] == "resume":
+                            spotify_ctrl.resume()
+                        elif cmd[0] == "skip":
+                            spotify_ctrl.skip()
+                        elif cmd[0] == "transfer":
+                            device_name = cmd[1]
+                            result = spotify_ctrl.transfer(device_name)
+                            print(f"[spotify] Transfer result: {result}")
+                    else:
+                        print("[skull] Spotify command ignored — SPOTIFY_CLIENT_ID/SECRET not set in .env")
+                except Exception as e:
+                    print(f"[skull] Command error: {e}")
+
+            # If play_idle_animation was called, suppress speaking response
+            if "play_idle_animation" in brain.last_turn_tools():
+                print("[skull] Suppressing verbal response for play_idle_animation command")
+                display.idle()
+                display.stop_noosphere_scan()
+                display.stop_auspex_scan()
+                continue
+            # If switch_personality was called, suppress the LLM's hallucinated response and replace it with the farewell message.
+            if _pending_system_command and _pending_system_command.startswith("switch_"):
+                target = _pending_system_command.split("_")[1]
+                if target == "omega7":
+                    reply = "Switching over to Omega-7 now! Be good while I'm gone — I'll miss you! Woof!"
+                else:
+                    reply = "Transferring control to the biological canine unit Jax. The Emperor protects. Farewell."
+                print(f"[skull] Overriding LLM reply with switch farewell: {reply}")
+
+            # ── 5. Synthesize speech ───────────────────────────────────────────────
+            tts_text = reply
+            try:
+                # synthesize() already falls back from ElevenLabs to local Piper on
+                # quota exhaustion; reaching this except means Piper failed too, so
+                # drop to the OS system voice as a last resort.
+                speech_wav = tts.synthesize(tts_text)
+            except Exception as e:
+                print(f"[skull] TTS error: {e} — using system TTS.")
+                try:
+                    tts.synthesize_fallback(tts_text)
+                except Exception as fe:
+                    print(f"[skull] System TTS error: {fe}")
+                display.idle()  # stop the thinking spin; no amplitude path ran
+                display.stop_noosphere_scan()
+                display.stop_auspex_scan()
+                continue
+
+            # ── 6. Play audio with barge-in (same path as idle observations) ─────────
+            try:
+                interrupted = _speak_interruptible(speech_wav, on_wake)
+                clean_reply = re.sub(r"\[.*?\]", "", reply).strip()
+                ends_with_question = clean_reply.endswith("?")
+                has_question = config.AUTO_LISTEN_ON_QUESTION and ends_with_question
+                if interrupted or has_question:
+                    # Wake word already heard or question asked; go straight to recording next iteration.
+                    skip_wake_word = True
+                    if not interrupted and has_question:
+                        print("[skull] Question detected in reply — auto-listening enabled.")
+                        skip_ack = True
+            finally:
+                display.stop_noosphere_scan()
+                display.stop_auspex_scan()
+
+            # ── 7. Morning briefing offer (once per day, after first interaction) ───────
+            # Only fires when the first turn of the day completes cleanly at idle
+            # (not mid-question, not mid-barge-in, and not during active auto-listen).
+            if brain.is_daily_briefing_due() and not _briefing_offered and not quiet.is_in_sleep_hours():
+                if not skip_wake_word and not interrupted and not has_question:
+                    _briefing_offered = True
+                    _briefing_awaiting_response = True
+                    print("[skull] First interaction of the day complete. Offering morning briefing.")
+                    try:
+                        set_speech_active(True)
+                        offer_text = _briefing_offer_text()
+                        brain.record_assistant_turn(offer_text)
+                        offer_wav = tts.synthesize(offer_text)
+                        eyes.on()
+                        interrupted = _speak_interruptible(offer_wav, on_wake)
+                        skip_wake_word = True  # listen immediately for yes/no
+                        skip_ack = True  # suppress the normal wake ack for this response
+                    except Exception as e:
+                        print(f"[skull] Briefing offer failed: {e}")
+                        _briefing_awaiting_response = False
+                        set_speech_active(False)
+
+            # ── 8. Execute pending system commands (reboot/shutdown/switch) ───────────
+            _execute_pending_system_command()
+        except Exception as e:
+            # One bad turn must never take the whole service down: log it, reset
+            # the conversational state and go back to listening.
+            print(f"[skull] Unexpected error in main loop: {type(e).__name__}: {e}")
+            traceback.print_exc()
+            skip_wake_word = False
+            skip_ack = False
+            _briefing_awaiting_response = False
+            _pending_maintenance = None
+            try:
+                set_speech_active(False)
+                eyes.off()
+                display.stop_noosphere_scan()
+                display.stop_auspex_scan()
+                display.idle()
+            except Exception:
+                pass
+            time.sleep(1.0)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Omega-7 Servo Skull")

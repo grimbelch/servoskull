@@ -609,18 +609,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             active_game = "None"
 
         def get_proximity():
-            try:
-                from core import db
-                data = db.kv_get("telemetry_proximity")
-                if isinstance(data, dict):
-                    return {
-                        "enabled": config.PROXIMITY_ENABLED,
-                        "available": data.get("available", True),
-                        "distance_cm": data.get("distance_cm"),
-                        "summary": f"{data.get('distance_cm')} cm" if data.get("distance_cm") is not None else "Out of Range"
-                    }
-            except Exception:
-                pass
+            # Read the live in-memory reading; it is no longer mirrored to SQLite.
             return {
                 "enabled": config.PROXIMITY_ENABLED,
                 "available": proximity.available(),
@@ -726,7 +715,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
     def _handle_game_status(self) -> None:
         """GET /api/game/status — returns current Bard's Tale agent state."""
         try:
-            from games.video.bardstale import agent as _bt_agent
+            from games.bardstale import agent as _bt_agent
             self._send_json(_bt_agent.get_status())
         except Exception as e:
             self._send_json({"running": False, "turn": 0, "last_action": "", "error": str(e)})
@@ -755,9 +744,9 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                     ) if disk_dir.exists() else []
                     disk_path = str(disks[0]) if disks else ""
             if not disk_path:
-                self._send_json({"ok": False, "error": "No disk image found in games/video/bardstale/disks/"}, 400)
+                self._send_json({"ok": False, "error": "No disk image found in games/bardstale/disks/"}, 400)
                 return
-            from games.video.bardstale import agent as _bt_agent
+            from games.bardstale import agent as _bt_agent
             if _bt_agent.is_running():
                 self._send_json({"ok": False, "error": "Game already running"})
                 return
@@ -774,7 +763,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
     def _handle_game_stop(self) -> None:
         """POST /api/game/stop — stop the Bard's Tale agent."""
         try:
-            from games.video.bardstale import agent as _bt_agent
+            from games.bardstale import agent as _bt_agent
             from core import display as _disp
             _bt_agent.stop()
             _disp.stop_game_display()

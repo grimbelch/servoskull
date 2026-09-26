@@ -220,7 +220,7 @@ def _run_auspex_scan() -> str:
     else:
         report.append("Cognitive core temperature: Sensor offline / Virtual environment emulation")
 
-    report.append(f"Logic-engine (CPU) load: {cpu_load_pct:.1f}% ({cpu_count} active cores)")
+    report.append(f"Logic-engine (CPU) load: {cpu_load_pct:.1f}% ({os.cpu_count() or 1} active cores)")
     report.append(f"Memory-coils (RAM): {mem_used_gb:.2f} GB / {mem_total_gb:.2f} GB ({mem_pct:.1f}% allocated)")
     report.append(f"Data-vaults (Disk): {disk_used_gb:.1f} GB / {disk_total_gb:.1f} GB ({disk_pct:.1f}% capacity)")
 
@@ -437,8 +437,7 @@ def get_active_tools_for_game(game_name: str) -> list[dict]:
 def set_current_game(game: str) -> None:
     path = config.data_path("current_game.json")
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"game": game}))
+        config.atomic_write(path, json.dumps({"game": game}))
     except Exception as e:
         print(f"[brain] Error saving current game: {e}")
 
@@ -1308,16 +1307,7 @@ def _tool_connect_bambu_printer(i):
 
     # Save to disk .env file
     try:
-        env_path = pathlib.Path(__file__).resolve().parent.parent / ".env"
-        if not env_path.exists():
-            env_path = pathlib.Path("~/.config/omega7/.env").expanduser()
-
-        content = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
-        lines = [l for l in content.splitlines() if not l.startswith("BAMBU_PRINTER_")]
-        lines.append(f"BAMBU_PRINTER_IP={ip}")
-        lines.append(f"BAMBU_PRINTER_SERIAL={serial}")
-        lines.append(f"BAMBU_PRINTER_ACCESS_CODE={access_code}")
-        env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        config.set_env_vars({"BAMBU_PRINTER_IP": f"{ip}", "BAMBU_PRINTER_SERIAL": f"{serial}", "BAMBU_PRINTER_ACCESS_CODE": f"{access_code}"}, drop_prefixes=("BAMBU_PRINTER_",))
     except Exception as e:
         print(f"[brain] Warning: could not write printer config to .env: {e}")
 
@@ -1369,15 +1359,7 @@ def _tool_set_display_rotation(i):
 
     # Save to .env
     try:
-        env_path = pathlib.Path(__file__).resolve().parent.parent / ".env"
-        if not env_path.exists():
-            env_path = pathlib.Path("~/.config/omega7/.env").expanduser()
-
-        content = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
-        lines = [l for l in content.splitlines() if not (l.startswith("DISPLAY_FINE_ROTATION=") or l.startswith("DISPLAY_ROTATION="))]
-        lines.append(f"DISPLAY_FINE_ROTATION={new_fine:.1f}")
-        lines.append(f"DISPLAY_ROTATION={new_rot}")
-        env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        config.set_env_vars({"DISPLAY_FINE_ROTATION": f"{new_fine:.1f}", "DISPLAY_ROTATION": f"{new_rot}"})
     except Exception as e:
         print(f"[brain] Warning: could not write display config to .env: {e}")
 
@@ -1424,14 +1406,7 @@ def _tool_set_audio_sensitivity(i):
 
     # Save to .env
     try:
-        env_path = pathlib.Path(__file__).resolve().parent.parent / ".env"
-        if not env_path.exists():
-            env_path = pathlib.Path("~/.config/omega7/.env").expanduser()
-
-        content = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
-        lines = [l for l in content.splitlines() if not l.startswith("SILENCE_THRESHOLD=")]
-        lines.append(f"SILENCE_THRESHOLD={new_rms}")
-        env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        config.set_env_vars({"SILENCE_THRESHOLD": f"{new_rms}"})
     except Exception as e:
         print(f"[brain] Warning: could not write SILENCE_THRESHOLD to .env: {e}")
 
@@ -1464,14 +1439,7 @@ def _tool_set_wake_word_sensitivity(i):
 
     # Save to .env
     try:
-        env_path = pathlib.Path(__file__).resolve().parent.parent / ".env"
-        if not env_path.exists():
-            env_path = pathlib.Path("~/.config/omega7/.env").expanduser()
-
-        content = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
-        lines = [l for l in content.splitlines() if not l.startswith("WAKE_WORD_THRESHOLD=")]
-        lines.append(f"WAKE_WORD_THRESHOLD={new_wake:.2f}")
-        env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        config.set_env_vars({"WAKE_WORD_THRESHOLD": f"{new_wake:.2f}"})
     except Exception as e:
         print(f"[brain] Warning: could not write WAKE_WORD_THRESHOLD to .env: {e}")
 
@@ -1494,15 +1462,7 @@ def _tool_set_cast_target(i):
 
     # Save to .env
     try:
-        env_path = pathlib.Path(__file__).resolve().parent.parent / ".env"
-        if not env_path.exists():
-            env_path = pathlib.Path("~/.config/omega7/.env").expanduser()
-
-        content = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
-        lines = [l for l in content.splitlines() if not (l.startswith("GOOGLE_HOME_DEVICE=") or l.startswith("CAST_ENABLED="))]
-        lines.append(f"GOOGLE_HOME_DEVICE='{new_device}'")
-        lines.append(f"CAST_ENABLED={'true' if new_enabled else 'false'}")
-        env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        config.set_env_vars({"GOOGLE_HOME_DEVICE": f"'{new_device}'", "CAST_ENABLED": f"{'true' if new_enabled else 'false'}"})
     except Exception as e:
         print(f"[brain] Warning: could not write cast config to .env: {e}")
 
@@ -1570,7 +1530,6 @@ def _tool_set_sleep_schedule(i):
     _, _, summary = _quiet.set_sleep_schedule(start_hour, end_hour, enabled)
     return summary
 
-_last_hymn_success = False
 
 
 
@@ -2050,10 +2009,13 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
 
     # Record which tools fired so we can reconcile silent mode afterwards.
     tools_called: list[str] = []
+    tool_results: dict[str, str] = {}
 
     def _exec(name: str, tool_input: dict) -> str:
         tools_called.append(name)
-        return _execute_tool(name, tool_input)
+        result = _execute_tool(name, tool_input)
+        tool_results[name] = result
+        return result
 
     speaker_label = speaker_name if speaker_name else "Unknown"
     formatted_user_text = f"[{speaker_label}]: {user_text}"
@@ -2102,20 +2064,33 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
 
     _HYMN_INTENT_RE = re.compile(r"\b(?:hymn|hymnos|sacred music|sacred chant|binary chant)\b", re.I)
 
-    if "play_ambient_hymn" not in tools_called and _HYMN_INTENT_RE.search(user_text):
+    hymn_allowed = (
+        "play_ambient_hymn" in _TOOL_REGISTRY
+        and "play_ambient_hymn" not in config.PERSONALITY.get("forbidden_tools", [])
+    )
+    if hymn_allowed and "play_ambient_hymn" not in tools_called and _HYMN_INTENT_RE.search(user_text):
         print(f"[brain] Hymn request detected but model skipped tool — triggering play_ambient_hymn fallback.")
         cmds[:] = [c for c in cmds if not (c[0] == "play" and c[1] and _HYMN_INTENT_RE.search(str(c[1])))]
-        _tool_play_ambient_hymn({"track_name": user_text})
-        tools_called.add("play_ambient_hymn")
+        _exec("play_ambient_hymn", {"track_name": user_text})
 
-    if "play_ambient_hymn" in tools_called and _last_hymn_success:
+    if tool_results.get("play_ambient_hymn", "").startswith("[SUCCESS]"):
         print("[brain] Hymn played successfully — silencing assistant spoken response as requested.")
         spoken = ""
 
 
     # Store only the clean conversational turns in history
     db.append_history("user", formatted_user_text)
-    db.append_history("assistant", spoken)
+    # Never store an empty turn: the Messages API rejects it, which would break
+    # every later request. Music- or hymn-only replies are noted instead.
+    history_text = spoken
+    if not history_text.strip():
+        if tool_results.get("play_ambient_hymn", "").startswith("[SUCCESS]"):
+            history_text = "(played a sacred hymn)"
+        elif cmds:
+            history_text = "(carried out the music command)"
+        else:
+            history_text = db.EMPTY_TURN_NOTE
+    db.append_history("assistant", history_text)
     _load_history()
 
     # Extract and persist any memorable facts in the background
@@ -2280,8 +2255,7 @@ def mark_daily_briefing_done() -> None:
     try:
         path = config.data_path("last_briefing.json")
         today = datetime.now().date().isoformat()
-        with path.open("w") as f:
-            json.dump({"date": today}, f)
+        config.atomic_write(path, json.dumps({"date": today}))
     except Exception as e:
         print(f"[brain] Error saving last_briefing: {e}")
 
