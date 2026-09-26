@@ -201,6 +201,21 @@ def max_window_rms(pcm: bytes, sample_rate: int, window_secs: float = 0.25) -> f
     return peak
 
 
+SPEECH_RATE = 16000  # Whisper works at 16 kHz; anything higher is wasted upload
+
+
+def to_speech_rate(pcm: bytes, sample_rate: int) -> tuple[bytes, int]:
+    """Resample mono int16 PCM to 16 kHz for speech-to-text (a 3x smaller upload at 48 kHz)."""
+    if sample_rate == SPEECH_RATE or not pcm:
+        return pcm, sample_rate
+    from math import gcd
+    from scipy.signal import resample_poly
+    g = gcd(SPEECH_RATE, sample_rate)
+    samples = np.frombuffer(pcm, dtype=np.int16).astype(np.float32)
+    out = resample_poly(samples, SPEECH_RATE // g, sample_rate // g)
+    return np.clip(out, -32768, 32767).astype(np.int16).tobytes(), SPEECH_RATE
+
+
 def pcm_to_wav_bytes(pcm: bytes, sample_rate: int) -> bytes:
     """Wrap raw PCM in a WAV container at the given sample rate."""
     buf = io.BytesIO()

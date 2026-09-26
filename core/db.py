@@ -204,6 +204,7 @@ def _run_migrations():
 # ── History API ─────────────────────────────────────────────────────────────
 
 EMPTY_TURN_NOTE = "(no spoken reply)"
+HISTORY_TRIM_SLACK = 20
 
 
 def append_history(role: str, content, personality: Optional[str] = None):
@@ -216,12 +217,16 @@ def append_history(role: str, content, personality: Optional[str] = None):
     with conn:
         conn.execute("INSERT INTO history (personality, role, content) VALUES (?, ?, ?)", (p, role, content))
         
-        # Enforce history limit per personality
+        # Enforce the history limit in chunks: trimming a turn or two on every append
+        # would change the start of the conversation each time and defeat prompt
+        # caching, so let it grow by HISTORY_TRIM_SLACK rows, then cut back to the limit.
         limit = config.HISTORY_LIMIT
-        conn.execute(
-            f"DELETE FROM history WHERE personality = ? AND id NOT IN (SELECT id FROM history WHERE personality = ? ORDER BY id DESC LIMIT {limit})",
-            (p, p)
-        )
+        count = conn.execute("SELECT COUNT(*) FROM history WHERE personality = ?", (p,)).fetchone()[0]
+        if count > limit + HISTORY_TRIM_SLACK:
+            conn.execute(
+                f"DELETE FROM history WHERE personality = ? AND id NOT IN (SELECT id FROM history WHERE personality = ? ORDER BY id DESC LIMIT {limit})",
+                (p, p)
+            )
 
 def get_history(personality: Optional[str] = None) -> list[dict]:
     conn = _get_conn()

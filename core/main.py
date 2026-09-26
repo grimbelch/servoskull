@@ -705,6 +705,23 @@ def _take_maintenance_request() -> str | None:
     return action
 
 
+def _split_for_pipelining(text: str, min_first: int = 25, min_total: int = 90) -> tuple[str, str]:
+    """Split a reply into (first sentence, rest) so the first can be spoken while the
+    rest is still being synthesized. Short or single-sentence replies aren't split."""
+    clean = (text or "").strip()
+    if len(clean) < min_total:
+        return clean, ""
+    parts = re.split(r"(?<=[.!?])\s+", clean)
+    if len(parts) < 2:
+        return clean, ""
+    first, i = parts[0], 1
+    while len(first) < min_first and i < len(parts) - 1:
+        first += " " + parts[i]
+        i += 1
+    rest = " ".join(parts[i:]).strip()
+    return (first, rest) if rest else (clean, "")
+
+
 def _briefing_offer_text() -> str:
     if config.PERSONALITY.get("eye_animation") == "dog":
         return (
@@ -1334,15 +1351,26 @@ def main():
                     pathlib.Path("/tmp/skull_debug.wav").write_bytes(wav)
                     print("[skull] DEBUG: saved recording to /tmp/skull_debug.wav — open it to hear what the mic captured")
 
-                try:
-                    from core import speaker_id
-                    speaker_name = speaker_id.identify_speaker(wav)
-                except Exception as e:
-                    print(f"[skull] Speaker identification error: {e}")
+                # Speaker ID (local, full-rate audio) runs alongside the Whisper upload,
+                # which only needs 16 kHz audio (3x smaller than the mic's native rate).
+                _spk_result = [None]
+
+                def _identify_speaker():
+                    try:
+                        from core import speaker_id
+                        _spk_result[0] = speaker_id.identify_speaker(wav)
+                    except Exception as e:
+                        print(f"[skull] Speaker identification error: {e}")
+
+                _spk_thread = threading.Thread(target=_identify_speaker, daemon=True)
+                _spk_thread.start()
 
                 print("[skull] Transcribing...")
                 try:
-                    user_text = transcribe.transcribe(wav)
+                    _stt_wav = audio.pcm_to_wav_bytes(*audio.to_speech_rate(pcm, pcm_rate))
+                    user_text = transcribe.transcribe(_stt_wav)
+                    _spk_thread.join(timeout=10.0)
+                    speaker_name = _spk_result[0]
                 except Exception as e:
                     print(f"[skull] STT error: {e}")
                     sfx.play("negative", config.VOICE_OUTPUT_DEVICE)
@@ -1906,12 +1934,28 @@ def main():
                 print(f"[skull] Overriding LLM reply with switch farewell: {reply}")
 
             # ── 5. Synthesize speech ───────────────────────────────────────────────
+            # Pipelined: synthesize the first sentence and start speaking it while the
+            # rest of the reply is synthesized in the background, so a long reply starts
+            # playing after one sentence's synthesis instead of the whole reply's.
             tts_text = reply
+            _first_text, _rest_text = _split_for_pipelining(tts_text)
+            _rest_wav = [None]
+            _rest_ready = threading.Event()
+            if _rest_text:
+                def _synth_rest():
+                    try:
+                        _rest_wav[0] = tts.synthesize(_rest_text)
+                    except Exception as e:
+                        print(f"[skull] TTS error on reply remainder: {e}")
+                    finally:
+                        _rest_ready.set()
+
+                threading.Thread(target=_synth_rest, daemon=True).start()
             try:
                 # synthesize() already falls back from ElevenLabs to local Piper on
                 # quota exhaustion; reaching this except means Piper failed too, so
                 # drop to the OS system voice as a last resort.
-                speech_wav = tts.synthesize(tts_text)
+                speech_wav = tts.synthesize(_first_text)
             except Exception as e:
                 print(f"[skull] TTS error: {e} — using system TTS.")
                 try:
@@ -1926,6 +1970,11 @@ def main():
             # ── 6. Play audio with barge-in (same path as idle observations) ─────────
             try:
                 interrupted = _speak_interruptible(speech_wav, on_wake)
+                if _rest_text and not interrupted:
+                    _rest_ready.wait(timeout=30.0)
+                    if _rest_wav[0]:
+                        eyes.on()
+                        interrupted = _speak_interruptible(_rest_wav[0], on_wake)
                 clean_reply = re.sub(r"\[.*?\]", "", reply).strip()
                 ends_with_question = clean_reply.endswith("?")
                 has_question = config.AUTO_LISTEN_ON_QUESTION and ends_with_question

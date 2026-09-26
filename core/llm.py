@@ -28,9 +28,9 @@ def run_conversation(*, system: str, history: list[dict], user_text: str,
     execute_tool(name, input_dict) -> str        runs one tool, returns its result
     on_tool_use(slow_names: list[str])            called once per turn before slow tools run
     slow_tools                                    names that should trigger on_tool_use
-    system_suffix                                 volatile system text (date/memory/mood) kept
-                                                  AFTER the prompt-cache breakpoint so it doesn't
-                                                  invalidate the cached `tools + system` prefix
+    system_suffix                                 volatile per-turn context (date/speaker/facts/mood).
+                                                  Sent with the new user turn, not in the system
+                                                  prompt, so tools + system + history stay cacheable
     """
     return _provider().run_conversation(
         system=system, system_suffix=system_suffix, history=history, user_text=user_text,
@@ -51,44 +51,50 @@ def vision(system: str, jpeg_bytes: bytes, prompt: str, max_tokens: int = 150) -
 
 # ── Prompt caching helpers ────────────────────────────────────────────────────
 # Caching is a prefix match (tools → system → messages); any byte change before a
-# cache_control breakpoint invalidates everything after it. We cache the big stable
-# prefix (tools + the frozen SYSTEM_PROMPT) and keep volatile text — the current
-# date, recalled facts, mood — in `system_suffix`, AFTER the breakpoint, so it
-# never busts the cache. See https://docs.claude.com prompt-caching guidance.
+# cache_control breakpoint invalidates everything after it. Breakpoints used:
+#   1. end of the stable system prompt        (tools + system)
+#   2. end of the stored conversation history (reused by the next turn)
+#   3. the latest message in the tool loop    (reused by the next loop iteration)
+# Volatile per-turn context (clock, speaker, facts, mood) rides in the NEW user turn,
+# after all of them, so it never invalidates the cached history.
 
 _EPHEMERAL = {"type": "ephemeral"}
 
+# Per-request timeout (seconds) and SDK retries for connection errors, 429s and 5xx.
+_REQUEST_TIMEOUT = 45.0
+_MAX_RETRIES = 2
+# Tool-use rounds per turn before the model must answer in plain text.
+_MAX_TOOL_ROUNDS = 8
+# Tool output longer than this is never spoken as a fallback reply.
+_MAX_FALLBACK_TOOL_TEXT = 300
 
-def _system_blocks(system: str, system_suffix: str | None) -> list[dict]:
-    """System as content blocks: a cached stable block, then an uncached volatile block."""
-    blocks: list[dict] = [{"type": "text", "text": system, "cache_control": _EPHEMERAL}]
-    if system_suffix:
-        blocks.append({"type": "text", "text": system_suffix})  # no breakpoint → not cached
-    return blocks
+
+def _system_blocks(system: str) -> list[dict]:
+    return [{"type": "text", "text": system, "cache_control": _EPHEMERAL}]
 
 
-def _move_cache_breakpoint(messages: list[dict]) -> None:
-    """Keep exactly one message-level cache breakpoint, on the latest turn we build.
+def _as_blocks(message: dict) -> list:
+    content = message["content"]
+    if isinstance(content, str):
+        content = [{"type": "text", "text": content}]
+        message["content"] = content
+    return content
 
-    The tool-use loop re-sends a growing message list each iteration; marking the
-    most recent dict-content turn lets the prior turns be read from cache. We strip
-    any breakpoint we added before so the count never creeps past the 4-breakpoint
-    limit (system block holds the other one)."""
+
+def _set_breakpoints(messages: list[dict], history_end: int) -> None:
+    """Mark the end of the stored history and the latest message; clear any others
+    so the request never exceeds the 4-breakpoint limit (the system block has one)."""
     for m in messages:
         c = m.get("content")
         if isinstance(c, list):
             for b in c:
                 if isinstance(b, dict):
                     b.pop("cache_control", None)
-    if not messages:
-        return
-    last = messages[-1]
-    content = last["content"]
-    if isinstance(content, str):  # the initial user turn — promote to a block so it's markable
-        content = [{"type": "text", "text": content}]
-        last["content"] = content
-    if isinstance(content, list) and content and isinstance(content[-1], dict):
-        content[-1]["cache_control"] = _EPHEMERAL
+    for idx in {history_end, len(messages) - 1}:
+        if 0 <= idx < len(messages):
+            content = _as_blocks(messages[idx])
+            if content and isinstance(content[-1], dict):
+                content[-1]["cache_control"] = _EPHEMERAL
 
 
 def _log_cache(response, where: str) -> None:
@@ -118,28 +124,49 @@ class _ClaudeProvider:
         from anthropic import Anthropic
         if not config.ANTHROPIC_API_KEY:
             raise RuntimeError("ANTHROPIC_API_KEY is not set.")
-        self._client = Anthropic(api_key=config.ANTHROPIC_API_KEY)
+        # A stalled connection must not freeze the skull for minutes: bound each
+        # request and let the SDK retry transient failures with backoff.
+        self._client = Anthropic(api_key=config.ANTHROPIC_API_KEY,
+                                 timeout=_REQUEST_TIMEOUT, max_retries=_MAX_RETRIES)
         self._model = config.CLAUDE_MODEL
 
     def run_conversation(self, *, system, system_suffix, history, user_text, tools, execute_tool,
                          on_tool_use, slow_tools, max_tokens):
-        system_blocks = _system_blocks(system, system_suffix)
+        system_blocks = _system_blocks(system)
         messages = [{"role": h["role"], "content": h["content"]} for h in history]
-        messages.append({"role": "user", "content": user_text})
+        history_end = len(messages) - 1
+        if system_suffix:
+            user_content = [
+                {"type": "text", "text": f"<turn_context>{system_suffix}\n</turn_context>"},
+                {"type": "text", "text": user_text},
+            ]
+        else:
+            user_content = user_text
+        messages.append({"role": "user", "content": user_content})
 
         last_tool_text_result = ""
+        rounds = 0
         while True:
-            _move_cache_breakpoint(messages)
+            _set_breakpoints(messages, history_end)
+            extra = {}
+            if rounds >= _MAX_TOOL_ROUNDS:
+                # Runaway tool loop: force a plain-text answer from what it has.
+                print(f"[llm] Tool-use limit ({_MAX_TOOL_ROUNDS} rounds) reached — requesting final answer.")
+                extra["tool_choice"] = {"type": "none"}
             response = self._call_with_retry(
                 model=self._model, max_tokens=max_tokens, system=system_blocks,
-                tools=tools, messages=messages,
+                tools=tools, messages=messages, **extra,
             )
             _log_cache(response, "run_conversation")
-            if response.stop_reason != "tool_use":
+            if response.stop_reason != "tool_use" or rounds >= _MAX_TOOL_ROUNDS:
                 text = next((b.text for b in response.content if hasattr(b, "text") and b.text), "")
-                if not text and last_tool_text_result:
+                if (not text and last_tool_text_result
+                        and len(last_tool_text_result) <= _MAX_FALLBACK_TOOL_TEXT
+                        and "INSTRUCTION" not in last_tool_text_result):
+                    # A short, speakable tool result (e.g. a dice roll) with no model text.
                     return last_tool_text_result
                 return text
+            rounds += 1
 
             slow = [b.name for b in response.content
                     if getattr(b, "type", None) == "tool_use" and b.name in slow_tools]
@@ -165,20 +192,12 @@ class _ClaudeProvider:
             messages.append({"role": "user", "content": tool_results})
 
     def _call_with_retry(self, **kwargs):
-        import time
-        import anthropic
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                return self._client.messages.create(**kwargs)
-            except (anthropic.InternalServerError, anthropic.RateLimitError, anthropic.APIConnectionError) as e:
-                if attempt == max_retries - 1:
-                    raise
-                time.sleep(2 ** attempt)
+        # Retries with backoff and the request timeout are handled by the SDK client.
+        return self._client.messages.create(**kwargs)
 
     def simple(self, system, user, max_tokens):
         r = self._call_with_retry(
-            model=self._model, max_tokens=max_tokens, system=_system_blocks(system, None),
+            model=self._model, max_tokens=max_tokens, system=_system_blocks(system),
             messages=[{"role": "user", "content": user}],
         )
         _log_cache(r, "simple")
@@ -188,7 +207,7 @@ class _ClaudeProvider:
         import base64
         b64 = base64.standard_b64encode(jpeg_bytes).decode()
         r = self._call_with_retry(
-            model=self._model, max_tokens=max_tokens, system=_system_blocks(system, None),
+            model=self._model, max_tokens=max_tokens, system=_system_blocks(system),
             messages=[{"role": "user", "content": [
                 {"type": "image", "source": {"type": "base64",
                                              "media_type": "image/jpeg", "data": b64}},

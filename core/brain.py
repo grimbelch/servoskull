@@ -1980,10 +1980,10 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
     longterm = _memory.load_longterm()
     now = datetime.now()
     date_ctx = f"\n\nCURRENT DATE AND TIME: {now.strftime('%A, %B %-d, %Y at %-I:%M %p')}."
-    # Prompt caching: keep the frozen SYSTEM_PROMPT as the cached prefix (tools + system),
-    # and push everything volatile — the clock, recalled facts, and current mood — into
-    # system_suffix, which the LLM layer places AFTER the cache breakpoint. Same content
-    # and order as before; this just stops the per-minute timestamp from busting the cache.
+    # Prompt caching: tools + the stable system prompt (+ the static WFRP persona) and the
+    # stored history are cached prefixes. Everything volatile — the clock, speaker, facts,
+    # mood — goes in system_suffix, which the LLM layer sends with the new user turn so it
+    # never invalidates the cached history.
     system = SYSTEM_PROMPT
     active_game = get_current_game()
     game_ctx = f"\n\nCURRENT ACTIVE TABLETOP GAME: {active_game}. Please default all dice rolling requests to this game unless the user specifies otherwise."
@@ -1999,11 +1999,14 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
             "If they agree, execute the 'register_voice' tool with their name."
         )
         
-    whfrp_prompt = f"\n\n{wfrp.get_persona_prompt()}" if wfrp.get_persona_prompt() else ""
+    # The WFRP GM persona is large and static, so it joins the cached system prompt.
+    whfrp_prompt = wfrp.get_persona_prompt()
+    if whfrp_prompt:
+        system = system + "\n\n" + whfrp_prompt
     equip_hint = ""
     if user_text and any(k in user_text.lower() for k in ["equip", "trapping", "weapon", "armour", "armor", "item", "gear", "carry"]):
         equip_hint = "\n\nCRITICAL DIRECTIVE: The user is asking about character equipment or status. You MUST call whfrp_lookup_character(name='[Character Name]') to read live equipment and weapon details from the SQLite database before responding! DO NOT call warhammer40k_rules or rely on conversation memory."
-    system_suffix = (date_ctx + game_ctx + speaker_ctx + whfrp_prompt + equip_hint
+    system_suffix = (date_ctx + game_ctx + speaker_ctx + equip_hint
                      + _memory.longterm_prompt(longterm) + _memory.facts_prompt(facts) + _mood.system_addendum())
 
 

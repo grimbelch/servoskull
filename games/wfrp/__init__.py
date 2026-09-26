@@ -9,6 +9,7 @@ Provides:
 """
 from __future__ import annotations
 
+import functools
 import pathlib
 from . import campaign
 from . import search
@@ -16,8 +17,9 @@ from . import tools
 from . import foundry
 
 
+@functools.lru_cache(maxsize=1)
 def get_persona_prompt() -> str:
-    """Return the WFRP GM mode system prompt and character creation protocol."""
+    """Return the WFRP GM mode system prompt and character creation protocol (read once)."""
     p = pathlib.Path(__file__).parent / "persona.txt"
     if p.exists():
         return p.read_text(encoding="utf-8")

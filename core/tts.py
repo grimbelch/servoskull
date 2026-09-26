@@ -29,9 +29,19 @@ def _preprocess_text(text: str) -> str:
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
+_eleven_client = None
+_eleven_client_key = None
+
+
 def _elevenlabs_client():
-    from elevenlabs.client import ElevenLabs
-    return ElevenLabs(api_key=config.ELEVENLABS_API_KEY)
+    """One shared client (its HTTP connection is reused, saving a TLS handshake per
+    phrase); rebuilt if the API key changes. The client is safe to share across threads."""
+    global _eleven_client, _eleven_client_key
+    if _eleven_client is None or _eleven_client_key != config.ELEVENLABS_API_KEY:
+        from elevenlabs.client import ElevenLabs
+        _eleven_client = ElevenLabs(api_key=config.ELEVENLABS_API_KEY, timeout=20)
+        _eleven_client_key = config.ELEVENLABS_API_KEY
+    return _eleven_client
 
 def _synthesize_elevenlabs(text: str) -> bytes:
     text = _preprocess_text(text)

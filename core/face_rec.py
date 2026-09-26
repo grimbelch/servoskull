@@ -219,6 +219,13 @@ def train() -> str:
     except Exception as e:
         return f"Training failed: {e}"
 
+def _cosine(a, b) -> float:
+    a = np.asarray(a, dtype=np.float32).ravel()
+    b = np.asarray(b, dtype=np.float32).ravel()
+    denom = float(np.linalg.norm(a) * np.linalg.norm(b))
+    return float(np.dot(a, b) / denom) if denom > 0 else -1.0
+
+
 def recognize(frame) -> str | None:
     """Analyze a frame. If a trained face is recognized with high confidence, return their name.
 
@@ -247,12 +254,12 @@ def recognize(frame) -> str | None:
         best_name = None
         best_score = -1.0
 
-        # Compare with all registered embeddings
-        # SFace Cosine similarity matches return values in range [-1, 1]
+        # Compare with all registered embeddings by cosine similarity in [-1, 1].
+        # FaceRecognizerSF.feature() is NOT L2-normalised, so a raw dot product is not
+        # a cosine and the 0.363 threshold below would be meaningless. Normalise both.
         for name, vectors in _embeddings_db.items():
             for v in vectors:
-                # Cosine similarity
-                score = float(np.dot(v, embedding))
+                score = _cosine(v, embedding)
                 if score > best_score:
                     best_score = score
                     best_name = name

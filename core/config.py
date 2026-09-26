@@ -446,7 +446,7 @@ RECORD_SECONDS = 10
 # LOWER = more sensitive to quiet speech (but more prone to picking up background
 # noise); raise it if it starts transcribing ambient hum. Recorder floor is ~300.
 SILENCE_THRESHOLD = int(_cfg("SILENCE_THRESHOLD", "180"))
-SILENCE_DURATION = float(_cfg("SILENCE_DURATION", "3.0"))
+SILENCE_DURATION = float(_cfg("SILENCE_DURATION", "1.2"))  # seconds of silence that end a command
 
 
 def set_silence_duration(seconds: float) -> str:

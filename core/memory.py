@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import queue
 import threading
 
 from core import config
@@ -139,9 +140,36 @@ def extract_and_store(user_text: str, assistant_text: str, personality: str | No
     except Exception as e:
         print(f"[memory] Extraction error ({p}): {e}")
 
+# Memory extraction costs a Claude call, so skip exchanges that can't contain a
+# personal fact, and run extractions one at a time on a single worker thread.
+_MIN_WORDS_FOR_EXTRACTION = 4
+_extract_queue: "queue.Queue[tuple[str, str, str]]" = queue.Queue(maxsize=8)
+_worker_started = False
+_worker_lock = threading.Lock()
+
+
+def _extract_worker() -> None:
+    while True:
+        user_text, assistant_text, p = _extract_queue.get()
+        try:
+            extract_and_store(user_text, assistant_text, p)
+        finally:
+            _extract_queue.task_done()
+
+
 def store_in_background(user_text: str, assistant_text: str, personality: str | None = None) -> None:
+    global _worker_started
+    if len(user_text.split()) < _MIN_WORDS_FOR_EXTRACTION or not assistant_text.strip():
+        return
     p = personality or config.get_personality_key()
-    threading.Thread(target=extract_and_store, args=(user_text, assistant_text, p), daemon=True).start()
+    with _worker_lock:
+        if not _worker_started:
+            threading.Thread(target=_extract_worker, daemon=True, name="memory-extract").start()
+            _worker_started = True
+    try:
+        _extract_queue.put_nowait((user_text, assistant_text, p))
+    except queue.Full:
+        print("[memory] Extraction backlog full — skipping this exchange.")
 
 def purge_memory_of_name(name: str, personality: str | None = None) -> int:
     """Remove any facts from memory and longterm_memory containing the name (case-insensitive).
