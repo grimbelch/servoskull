@@ -1,6 +1,8 @@
 # Secrets — never commit
 .env
 .spotify_cache
+# TLS key/cert are generated per unit into USER_DATA_DIR; never commit one.
+*.pem
 
 # Python
 .venv/

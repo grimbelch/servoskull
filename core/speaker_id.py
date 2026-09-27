@@ -375,7 +375,11 @@ def identify_speaker(wav_bytes: bytes) -> str | None:
 def register_voice(name: str) -> str:
     """Record 3 voice samples for the given name and train the GMM classifier."""
     from core import audio, sfx, tts
-    
+
+    name = config.identity_name(name)
+    if not name:
+        return "Invalid name for voice registration: letters, digits, spaces, hyphens and apostrophes only."
+
     # Suspend background thinking phrases so they don't play during recording
     config.COGITATION_SUSPENDED = True
     try:

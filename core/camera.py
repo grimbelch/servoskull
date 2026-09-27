@@ -453,6 +453,9 @@ def capture_on_demand() -> str:
 
 def register_face(name: str) -> str:
     """Capture a series of face images over 5 seconds to train face recognition."""
+    name = config.identity_name(name)
+    if not name:
+        return "Invalid name for visage calibration: letters, digits, spaces, hyphens and apostrophes only."
     if not config.CAMERA_ENABLED:
         return "Camera interface is disabled in configuration."
     

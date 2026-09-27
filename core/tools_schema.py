@@ -779,7 +779,7 @@ def build_tools() -> list[dict]:
     },
     {
         "name": "purge_identity",
-        "description": "Purge all biometric data (visage/face training, voice profiles) and memory records associated with a specific person's name.",
+        "description": "Purge all biometric data (visage/face training, voice profiles) and memory records associated with a specific person's name. The purge does NOT run immediately: the system asks the user to confirm aloud right after your reply, so do not say that it has been done.",
         "input_schema": {
             "type": "object",
             "properties": {

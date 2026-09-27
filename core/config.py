@@ -1,6 +1,7 @@
 import json
 import os
 import pathlib
+import re
 import sys
 
 import stat
@@ -103,6 +104,22 @@ def data_path(name: str) -> pathlib.Path:
     settings) resolves through here so the whole writable surface can be relocated
     with one env var and factory-reset in one place."""
     return USER_DATA_DIR / name
+
+
+_IDENTITY_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9 '\-]{0,39}")
+
+
+def identity_name(name) -> str | None:
+    """Validate a person's name before it is used as a faces/voices directory name.
+
+    Names come from Claude's tool calls, so anything spoken (or injected through
+    a search result) can end up here. Only letters, digits, spaces, hyphens and
+    apostrophes are allowed, at most 40 characters, so a name can never be
+    "..", empty, or contain a path separator. Returns the cleaned name or None."""
+    cleaned = " ".join(str(name or "").split())
+    if not _IDENTITY_NAME_RE.fullmatch(cleaned) or not any(c.isalpha() for c in cleaned):
+        return None
+    return cleaned
 
 
 def _load_settings() -> dict:

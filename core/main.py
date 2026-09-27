@@ -652,7 +652,8 @@ _MAINT_COMMANDS = (
     ("shutdown", re.compile(r"shut ?down(?: system| yourself)?|power (?:down|off)(?: system| yourself)?"
                             r"|turn (?:yourself|system) off|turn off (?:yourself|system)")),
 )
-_MAINT_LABELS = {"update": "a system update", "reboot": "a full reboot", "shutdown": "a full shutdown"}
+_MAINT_LABELS = {"update": "a system update", "reboot": "a full reboot", "shutdown": "a full shutdown",
+                 "purge": "an identity purge"}
 _MAINT_CONFIRM_SECS = 30.0
 _CONFIRM_YES = ("yes", "yeah", "yep", "yup", "affirmative", "confirm", "confirmed", "do it", "proceed",
                 "go ahead", "i'm sure", "i am sure", "correct", "aye")
@@ -670,15 +671,29 @@ def _maintenance_command(text: str) -> str | None:
     return None
 
 
-def _maintenance_prompt(action: str) -> str:
+def _maintenance_prompt(action: str, arg: str | None = None) -> str:
     label = _MAINT_LABELS[action]
+    if action == "purge":
+        if config.PERSONALITY.get("eye_animation") == "dog":
+            return f"Do you really want me to forget {arg} completely, face, voice and memories? Say yes if you're sure!"
+        return (f"Master, confirm the purge of all visage, vox and memory records for {arg}? "
+                "This cannot be undone. Speak yes to proceed.")
     if config.PERSONALITY.get("eye_animation") == "dog":
         return f"Do you really want {label}? Say yes if you're sure!"
     return f"Master, confirm {label} of this unit? Speak yes to proceed."
 
 
-def _run_maintenance(action: str, on_wake) -> None:
-    """Announce and carry out a confirmed update, reboot or shutdown."""
+def _run_maintenance(action: str, arg: str | None, on_wake) -> None:
+    """Announce and carry out a confirmed update, reboot, shutdown or identity purge."""
+    if action == "purge":
+        result = brain._execute_purge_identity(arg)
+        print(f"[skull] {result}")
+        try:
+            eyes.on()
+            _speak_interruptible(tts.synthesize(result), on_wake)
+        except Exception:
+            pass
+        return
     key, default = {
         "update": ("update_message", "Initiating system update."),
         "reboot": ("reboot_message", "Initiating system reboot."),
@@ -698,25 +713,26 @@ def _run_maintenance(action: str, on_wake) -> None:
     _execute_pending_system_command()
 
 
-# Update/reboot/shutdown requested by Claude's tools. Nothing runs until the user
-# confirms aloud: the main loop picks the request up after the reply and asks.
-_maintenance_requested: str | None = None
+# Update/reboot/shutdown/identity purge requested by Claude's tools. Nothing runs
+# until the user confirms aloud: the main loop picks the request up after the
+# reply and asks. Stored as (action, argument) — the argument is the name for a purge.
+_maintenance_requested: tuple[str, str | None] | None = None
 
 
-def request_maintenance(action: str) -> str:
-    """Tool callback for self_update / reboot_system / shutdown_system."""
+def request_maintenance(action: str, arg: str | None = None) -> str:
+    """Tool callback for self_update / reboot_system / shutdown_system / purge_identity."""
     global _maintenance_requested
-    _maintenance_requested = action
-    print(f"[skull] Claude requested {action} — will ask the user to confirm aloud.")
+    _maintenance_requested = (action, arg)
+    print(f"[skull] Claude requested {action}{f' of {arg}' if arg else ''} — will ask the user to confirm aloud.")
     return (f"{_MAINT_LABELS[action].capitalize()} has NOT been started. It needs the user's spoken "
             "confirmation, which the system will ask for immediately after your reply. Reply with one "
             "short sentence at most, and do not say that it is happening.")
 
 
-def _take_maintenance_request() -> str | None:
+def _take_maintenance_request() -> tuple[str, str | None] | None:
     global _maintenance_requested
-    action, _maintenance_requested = _maintenance_requested, None
-    return action
+    request, _maintenance_requested = _maintenance_requested, None
+    return request
 
 
 def _split_for_pipelining(text: str, min_first: int = 25, min_total: int = 90) -> tuple[str, str]:
@@ -973,6 +989,7 @@ def main():
     brain.register_update_cb(lambda: request_maintenance("update"))
     brain.register_reboot_cb(lambda: request_maintenance("reboot"))
     brain.register_shutdown_cb(lambda: request_maintenance("shutdown"))
+    brain.register_purge_identity_cb(lambda name: request_maintenance("purge", name))
     brain.register_switch_personality_cb(switch_personality)
 
     # Set default output volume to 50% on boot
@@ -1027,16 +1044,37 @@ def main():
     # ── First-Boot / Unconfigured Appliance Check ──────────────────────────────
 
     from core import wifi_provisioner
+
+    def _on_wifi(status: dict) -> bool:
+        return bool(status.get("connected")) and not status.get("is_ap")
+
     wifi_status = wifi_provisioner.get_status()
-    if not config.is_configured() or not wifi_status.get("connected") or wifi_status.get("is_ap"):
-        print("[skull] Appliance is in unconfigured or AP mode — raising setup hotspot AP...")
+    if config.is_configured() and not _on_wifi(wifi_status):
+        # A configured unit without Wi-Fi: drop any leftover hotspot and give
+        # NetworkManager a minute to reconnect (slow router, brief outage) before
+        # falling back to setup mode.
+        if wifi_status.get("is_ap"):
+            wifi_provisioner.stop_hotspot()
+        print("[skull] Configured but not on Wi-Fi — waiting for the network to come up...")
+        deadline = time.time() + 60.0
+        while time.time() < deadline and not _on_wifi(wifi_status):
+            time.sleep(2.0)
+            wifi_status = wifi_provisioner.get_status()
+
+    if not config.is_configured() or not _on_wifi(wifi_status):
+        print("[skull] Appliance is unconfigured or has no Wi-Fi — raising setup hotspot AP...")
         wifi_provisioner.start_hotspot()
         _start_setup_announcement_repeater(120.0)
         print("[skull] Remaining in setup mode loop awaiting user provisioning...")
-        while not config.is_configured() and (wifi_status.get("is_ap") or not wifi_status.get("connected")):
+        # Stay here until the unit is configured AND on a real network. Previously a
+        # configured unit left this loop at once and ran with the hotspot still up,
+        # so it had no internet until someone intervened by hand.
+        while not config.is_configured() or not _on_wifi(wifi_status):
             time.sleep(1.0)
             wifi_status = wifi_provisioner.get_status()
-        print("[skull] Setup completed or network connected — proceeding to active operating mode.")
+        stop_setup_repeater()
+        wifi_provisioner.stop_hotspot()
+        print("[skull] Setup completed and network connected — proceeding to active operating mode.")
     
     try:
         boot_wav = _load_or_record_boot_wav()
@@ -1725,7 +1763,11 @@ def main():
                     except Exception:
                         pass
                     dice_handled = True
-                
+            if dice_handled:
+                # The roll has been spoken; without this the same text went on to
+                # Claude, which rolled again and announced a different result.
+                continue
+
             # ── 3a-6. Detect Personality Switch commands ──────────────
             _t_norm = _t.lower()
             _switch_to = _personality_switch_target(user_text)
@@ -1801,13 +1843,13 @@ def main():
                             pass
                         continue
 
-            # A pending update/reboot/shutdown runs only on an explicit spoken yes.
+            # A pending update/reboot/shutdown/purge runs only on an explicit spoken yes.
             if _pending_maintenance is not None:
-                _action, _expires = _pending_maintenance
+                _action, _arg, _expires = _pending_maintenance
                 _pending_maintenance = None
                 if time.time() <= _expires and _said_any(_t, _CONFIRM_YES) and not _said_any(_t, _CONFIRM_NO):
                     print(f"[skull] Maintenance '{_action}' confirmed.")
-                    _run_maintenance(_action, on_wake)
+                    _run_maintenance(_action, _arg, on_wake)
                     continue
                 print(f"[skull] Maintenance '{_action}' not confirmed — cancelled.")
                 if _said_any(_t, _CONFIRM_NO):
@@ -1822,7 +1864,7 @@ def main():
             _maint_action = _maintenance_command(user_text)
             if _maint_action:
                 print(f"[skull] Local {_maint_action} intent detected — awaiting confirmation.")
-                _pending_maintenance = (_maint_action, time.time() + _MAINT_CONFIRM_SECS)
+                _pending_maintenance = (_maint_action, None, time.time() + _MAINT_CONFIRM_SECS)
                 try:
                     eyes.on()
                     _speak_interruptible(tts.synthesize(_maintenance_prompt(_maint_action)), on_wake)
@@ -2100,14 +2142,15 @@ def main():
                         _briefing_awaiting_response = False
                         set_speech_active(False)
 
-            # ── 7b. Ask to confirm an update/reboot/shutdown that Claude requested ─────
+            # ── 7b. Ask to confirm an update/reboot/shutdown/purge that Claude requested ─
             _requested = _take_maintenance_request()
             if _requested:
-                _pending_maintenance = (_requested, time.time() + _MAINT_CONFIRM_SECS)
+                _req_action, _req_arg = _requested
+                _pending_maintenance = (_req_action, _req_arg, time.time() + _MAINT_CONFIRM_SECS)
                 try:
                     set_speech_active(True)
                     eyes.on()
-                    _speak_interruptible(tts.synthesize(_maintenance_prompt(_requested)), on_wake)
+                    _speak_interruptible(tts.synthesize(_maintenance_prompt(_req_action, _req_arg)), on_wake)
                 except Exception:
                     set_speech_active(False)
                 skip_wake_word = True  # listen straight away for the yes/no

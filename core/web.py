@@ -1377,9 +1377,9 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
 
             config.save_settings(settings_data)
 
-            if "skull.main" in sys.modules and hasattr(sys.modules["skull.main"], "stop_setup_repeater"):
+            if "core.main" in sys.modules and hasattr(sys.modules["core.main"], "stop_setup_repeater"):
                 try:
-                    sys.modules["skull.main"].stop_setup_repeater()
+                    sys.modules["core.main"].stop_setup_repeater()
                 except Exception:
                     pass
 
@@ -1535,10 +1535,12 @@ def _run_server(port: int) -> None:
         import subprocess
 
         use_https = getattr(config, "WEB_SERVER_HTTPS", True)
-        # Save certificates in the skull code directory
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        cert_file = os.path.join(base_dir, "cert.pem")
-        key_file = os.path.join(base_dir, "key.pem")
+        # The certificate and private key live with the other per-unit data, never
+        # in the code directory: a key next to the source ended up committed to the
+        # public repo, so every unit was serving the same (published) private key.
+        config.USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
+        cert_file = str(config.data_path("cert.pem"))
+        key_file = str(config.data_path("key.pem"))
 
         if use_https:
             if not os.path.exists(cert_file) or not os.path.exists(key_file):

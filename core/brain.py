@@ -1662,13 +1662,21 @@ def _tool_capture_and_describe_surroundings(i):
     from core import camera
     return camera.capture_on_demand()
 
+_BAD_IDENTITY_NAME = ("Invalid name: identity names may only contain letters, digits, spaces, hyphens "
+                      "and apostrophes (40 characters at most). Nothing was changed.")
+
+
 def _tool_register_face(i):
-    name_val = i.get("name", "")
+    name_val = config.identity_name(i.get("name", ""))
+    if not name_val:
+        return _BAD_IDENTITY_NAME
     from core import camera
     return camera.register_face(name_val)
 
 def _tool_register_voice(i):
-    name_val = i.get("name", "")
+    name_val = config.identity_name(i.get("name", ""))
+    if not name_val:
+        return _BAD_IDENTITY_NAME
     from core import speaker_id
     return speaker_id.register_voice(name_val)
 
@@ -1681,7 +1689,13 @@ def _tool_play_idle_animation(i):
     return f"Initiating cogitator screensaver sequence ({anim_str}) for {dur} seconds."
 
 def _tool_purge_identity(i):
-    name_val = i.get("name", "")
+    name_val = config.identity_name(i.get("name", ""))
+    if not name_val:
+        return _BAD_IDENTITY_NAME
+    # Deleting someone's face, voice and memory records is irreversible, so like
+    # update/reboot/shutdown it only runs after the user confirms aloud.
+    if _PURGE_IDENTITY_CB:
+        return _PURGE_IDENTITY_CB(name_val)
     return _execute_purge_identity(name_val)
 
 def _tool_get_daily_briefing(i):
@@ -1853,7 +1867,13 @@ def _execute_display_art(search_query: str) -> str:
 def _execute_purge_identity(name: str) -> str:
     import shutil
     from core import face_rec, speaker_id, memory
-    
+
+    # Re-validated here (not only in the tool handler): this deletes directories
+    # named after the caller's input, so it must never see "..", "" or a path.
+    name = config.identity_name(name)
+    if not name:
+        return _BAD_IDENTITY_NAME
+
     purged_parts = []
     
     # 1. Purge face recognition data
@@ -1915,6 +1935,13 @@ _SELF_UPDATE_CB = None
 _REBOOT_CB = None
 _SHUTDOWN_CB = None
 _SWITCH_PERSONALITY_CB = None
+_PURGE_IDENTITY_CB = None
+
+
+def register_purge_identity_cb(cb):
+    """cb(name) -> str: ask the user to confirm the purge instead of running it now."""
+    global _PURGE_IDENTITY_CB
+    _PURGE_IDENTITY_CB = cb
 
 
 def register_reload_cb(cb):
