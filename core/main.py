@@ -8,6 +8,7 @@ import traceback
 import random
 import re
 import pathlib
+import queue
 from concurrent.futures import ThreadPoolExecutor
 
 # ── Module-level compiled regexes ─────────────────────────────────────────────
@@ -33,7 +34,7 @@ def run_background_task(func, *args, **kwargs):
 from core import config
 from core import db
 db.init_db()
-from core import audio, wake_word, transcribe, brain, tts, eyes, sfx, reminders, mood
+from core import audio, wake_word, transcribe, brain, tts, eyes, sfx, reminders, mood, speech_stream
 from core import spotify_ctrl, cast_audio, camera, quiet, display, temperature, candles, bambu_ctrl
 
 
@@ -513,6 +514,9 @@ def _cogitation_loop(cancel: threading.Event) -> None:
         wav = _cogitation_wavs[indices[i % len(indices)]]
         try:
             with _speech_lock:
+                # The reply may have started streaming while we waited for the lock.
+                if cancel.is_set():
+                    break
                 audio.play_wav_bytes(wav, output_device=config.VOICE_OUTPUT_DEVICE)
         except Exception:
             pass
@@ -534,19 +538,29 @@ def _load_or_record_boot_wav() -> bytes:
         return tts.synthesize(phrase)
 
 
-def _speak_interruptible(wav_bytes: bytes, on_wake) -> bool:
-    """Play wav_bytes while listening for the wake word so the user can barge in.
+# One spoken sequence (a reply, an observation, a reminder) at a time: a second
+# caller waits for the whole sequence to finish, as it did when _speech_lock was
+# held throughout. The barge-in listener shares one wake-word model, so two
+# sequences must never listen at once.
+_speak_seq_lock = threading.RLock()
 
-    Mirrors the main reply path's barge-in: a background listener stops playback
-    the instant the wake word fires, and the eyes/display track speech amplitude
-    throughout. Used by the unprompted speech paths (idle utterances, camera
-    observations) which otherwise played to completion and ignored the wake word.
+
+def _speak_clips(clips, on_wake) -> bool:
+    """Play a sequence of WAV clips while listening for the wake word so the user
+    can barge in. `clips` is any iterable; it may block between items while the
+    next clip is still being synthesized.
+
+    One barge-in listener and one eye/display driver serve the whole sequence.
+    _speech_lock is held only while a clip is actually playing, so speech from
+    other threads (the "stand by" before a slow tool) slots into the gaps instead
+    of deadlocking against a reply that is waiting for its next sentence.
 
     Returns True if the wake word interrupted playback — the caller should set
     skip_wake_word so the next loop records the new command immediately. When not
-    interrupted, the eyes are turned off and the display returned to idle here.
+    interrupted, the eyes are turned off and the display returned to idle here
+    (only if something was played).
     """
-    with _speech_lock:
+    with _speak_seq_lock:
         _stop_play = threading.Event()
         _interrupted = threading.Event()
         _cancel_listener = threading.Event()
@@ -559,54 +573,160 @@ def _speak_interruptible(wav_bytes: bytes, on_wake) -> bool:
                 if on_wake:
                     on_wake()
 
-        int_thread = threading.Thread(target=_interrupt_listener, daemon=True)
-        int_thread.start()
-
         def _drive_visuals(amp: float) -> None:
             eyes.set_amplitude(amp)
             display.set_amplitude(amp)
 
-        # Route to the same output the main reply path uses: cast to the Google Home
-        # when configured, otherwise the local speaker. Either way the eyes/display
-        # track amplitude and stop_event provides barge-in.
-        if cast_audio.is_configured():
-            cast_audio.play(wav_bytes, amplitude_fn_setter=lambda fn: _drive_visuals(fn()), stop_event=_stop_play)
-        else:
-            amp_ref = [None]
-            play_done = threading.Event()
+        amp_ref = [None]
+        play_done = threading.Event()
 
-            def receive_amp(fn):
-                amp_ref[0] = fn
+        def receive_amp(fn):
+            amp_ref[0] = fn
 
-            def eye_loop():
-                time.sleep(0.05)
-                while not play_done.is_set():
-                    amp = amp_ref[0]() if amp_ref[0] else 0.0
-                    _drive_visuals(amp)
-                    time.sleep(0.025)
+        def eye_loop():
+            time.sleep(0.05)
+            while not play_done.is_set():
+                amp = amp_ref[0]() if amp_ref[0] else 0.0
+                _drive_visuals(amp)
+                time.sleep(0.025)
 
-            eye_thread = threading.Thread(target=eye_loop, daemon=True)
-            eye_thread.start()
-
-            try:
-                audio.play_wav_bytes(
-                    wav_bytes,
-                    amplitude_cb=receive_amp,
-                    stop_event=_stop_play,
-                    output_device=config.VOICE_OUTPUT_DEVICE,
-                )
-            finally:
-                play_done.set()
+        int_thread = None
+        eye_thread = None
+        played = False
+        try:
+            for wav_bytes in clips:
+                if wav_bytes is None or _interrupted.is_set():
+                    break
+                if int_thread is None:
+                    # Listen from the first clip on (not while a reply is still being
+                    # thought about), and keep listening through the gaps between clips.
+                    int_thread = threading.Thread(target=_interrupt_listener, daemon=True)
+                    int_thread.start()
+                played = True
+                with _speech_lock:
+                    if _interrupted.is_set():
+                        break
+                    # Route to the same output the main reply path uses: cast to the
+                    # Google Home when configured, otherwise the local speaker. Either
+                    # way the eyes/display track amplitude and stop_event provides barge-in.
+                    if cast_audio.is_configured():
+                        cast_audio.play(wav_bytes, amplitude_fn_setter=lambda fn: _drive_visuals(fn()),
+                                        stop_event=_stop_play)
+                        continue
+                    if eye_thread is None:
+                        eye_thread = threading.Thread(target=eye_loop, daemon=True)
+                        eye_thread.start()
+                    try:
+                        audio.play_wav_bytes(
+                            wav_bytes,
+                            amplitude_cb=receive_amp,
+                            stop_event=_stop_play,
+                            output_device=config.VOICE_OUTPUT_DEVICE,
+                        )
+                    finally:
+                        amp_ref[0] = None
+        finally:
+            play_done.set()
+            if eye_thread is not None:
                 eye_thread.join(timeout=1.0)
 
         if _interrupted.is_set():
             # Leave the eyes lit — on_wake() already turned them on for the next command.
             return True
-        eyes.off()
-        display.idle()
-        _cancel_listener.set()
-        int_thread.join(timeout=1.0)
+        if int_thread is not None:
+            _cancel_listener.set()
+            int_thread.join(timeout=1.0)
+        if played:
+            eyes.off()
+            display.idle()
         return False
+
+
+def _speak_interruptible(wav_bytes: bytes, on_wake) -> bool:
+    """Play one clip with barge-in; see _speak_clips."""
+    return _speak_clips([wav_bytes], on_wake)
+
+
+class _ReplyStreamer:
+    """Speaks a reply sentence by sentence while the model is still writing it.
+
+    feed() takes text deltas on the model's thread and cuts them into sentences
+    (speech_stream.SentenceCutter). A synth thread turns each sentence into audio,
+    in order, while a play thread speaks the finished clips through _speak_clips
+    with barge-in — so a reply starts playing once its first sentence has been
+    synthesized rather than after the whole reply has been written and voiced.
+    """
+
+    def __init__(self, on_wake, on_first_clip=None):
+        self._on_wake = on_wake
+        self._on_first_clip = on_first_clip
+        self._cutter = speech_stream.SentenceCutter()
+        self._sentences: queue.Queue = queue.Queue()
+        self._clips: queue.Queue = queue.Queue()
+        self._done = threading.Event()
+        self._ended = False
+        self._abort = False
+        self.interrupted = False  # the wake word cut playback short
+        self.spoke = False        # at least one clip was played
+        threading.Thread(target=self._synth_loop, daemon=True).start()
+        threading.Thread(target=self._play_loop, daemon=True).start()
+
+    def feed(self, delta: str) -> None:
+        """Called by brain.respond() with each text delta from the model."""
+        for sentence in self._cutter.feed(delta):
+            self._sentences.put(sentence)
+
+    def end_of_text(self) -> None:
+        """The model has finished: speak what remains, then wrap up. Idempotent."""
+        if self._ended:
+            return
+        self._ended = True
+        for sentence in self._cutter.flush():
+            self._sentences.put(sentence)
+        self._sentences.put(None)
+
+    def cancel(self) -> None:
+        """Drop anything not yet synthesized (the turn failed)."""
+        self._abort = True
+        self.end_of_text()
+
+    def wait(self, timeout: float = 600.0) -> bool:
+        """Block until playback has finished (or was interrupted); returns interrupted."""
+        self._done.wait(timeout)
+        return self.interrupted
+
+    def _synth_loop(self) -> None:
+        while True:
+            sentence = self._sentences.get()
+            if sentence is None:
+                break
+            if self._abort or self.interrupted or not tts.has_speech(sentence):
+                continue
+            try:
+                self._clips.put(tts.synthesize(sentence))
+            except Exception as e:
+                print(f"[skull] TTS error on streamed sentence: {e}")
+        self._clips.put(None)
+
+    def _clip_iter(self):
+        while True:
+            wav = self._clips.get()
+            if wav is None:
+                return
+            if not self.spoke:
+                self.spoke = True
+                eyes.on()
+                if self._on_first_clip:
+                    self._on_first_clip()
+            yield wav
+
+    def _play_loop(self) -> None:
+        try:
+            self.interrupted = _speak_clips(self._clip_iter(), self._on_wake)
+        except Exception as e:
+            print(f"[skull] Streamed playback error: {e}")
+        finally:
+            self._done.set()
 
 
 def _spotify_poller_loop():
@@ -1976,7 +2096,9 @@ def main():
             _is_hymn_req = any(tr in user_text.lower() for tr in _HYMN_TRIGGERS)
 
             if not _is_hymn_req:
-                _acknowledge()
+                # On its own thread: the model starts working while the clip plays,
+                # and _speech_lock keeps the streamed reply from overlapping it.
+                threading.Thread(target=_acknowledge, daemon=True).start()
 
             print("[skull] Consulting the Machine God...")
             display.think()  # spin the cog while the brain cogitates
@@ -1986,17 +2108,24 @@ def main():
             cog_thread = threading.Thread(target=_cogitation_loop, args=(_cancel_cog,), daemon=True)
             cog_thread.start()
 
+            # The reply is spoken sentence by sentence as the model streams it; the
+            # first clip also ends the thinking phrases.
+            _streamer = _ReplyStreamer(on_wake, on_first_clip=_cancel_cog.set)
             _brain_failed = False
             try:
-                reply, spotify_cmds = brain.respond(user_text, speaker_name=speaker_name, on_tool_use=_announce_search)
+                reply, spotify_cmds = brain.respond(user_text, speaker_name=speaker_name, on_tool_use=_announce_search,
+                                                    on_text=None if _is_hymn_req else _streamer.feed)
             except Exception as e:
                 print(f"[skull] Brain error: {e}")
                 _brain_failed = True
+                _streamer.cancel()
             finally:
+                _streamer.end_of_text()
                 _cancel_cog.set()
                 cog_thread.join()
 
             if _brain_failed:
+                _streamer.wait()
                 display.idle()
                 # Say something rather than going silent, so a failed turn is obvious.
                 if config.PERSONALITY.get("eye_animation") == "dog":
@@ -2013,6 +2142,10 @@ def main():
             print(f"[skull] {config.SKULL_NAME}: {reply}")
 
             # ── 4b. Execute commands ───────────────────────────────────────────────
+            # Runs while the tail of a streamed reply may still be playing. A Spotify
+            # failure replaces the reply below; if the reply was already spoken, the
+            # error line is spoken on its own afterwards.
+            _spotify_err_text = None
             if not spotify_cmds:
                 print("[skull] No Spotify command parsed from reply.")
             for cmd in spotify_cmds:
@@ -2034,6 +2167,7 @@ def main():
                                     }
                                     err_text = _error_phrases.get(result, "The Spotify cogitator has reported a malfunction.")
                                 reply = err_text
+                                _spotify_err_text = err_text
                         elif cmd[0] == "pause":
                             spotify_ctrl.pause()
                         elif cmd[0] == "resume":
@@ -2048,6 +2182,9 @@ def main():
                         print("[skull] Spotify command ignored — SPOTIFY_CLIENT_ID/SECRET not set in .env")
                 except Exception as e:
                     print(f"[skull] Command error: {e}")
+
+            # Let a streamed reply finish playing before deciding what else to say.
+            interrupted = _streamer.wait()
 
             # If play_idle_animation was called, suppress speaking response
             if "play_idle_animation" in brain.last_turn_tools():
@@ -2065,48 +2202,53 @@ def main():
                     reply = "Transferring control to the biological canine unit Jax. The Emperor protects. Farewell."
                 print(f"[skull] Overriding LLM reply with switch farewell: {reply}")
 
-            # ── 5. Synthesize speech ───────────────────────────────────────────────
-            # Pipelined: synthesize the first sentence and start speaking it while the
-            # rest of the reply is synthesized in the background, so a long reply starts
-            # playing after one sentence's synthesis instead of the whole reply's.
-            tts_text = reply
-            _first_text, _rest_text = _split_for_pipelining(tts_text)
-            _rest_wav = [None]
-            _rest_ready = threading.Event()
-            if _rest_text:
-                def _synth_rest():
-                    try:
-                        _rest_wav[0] = tts.synthesize(_rest_text)
-                    except Exception as e:
-                        print(f"[skull] TTS error on reply remainder: {e}")
-                    finally:
-                        _rest_ready.set()
-
-                threading.Thread(target=_synth_rest, daemon=True).start()
+            # ── 5/6. Speak ─────────────────────────────────────────────────────────
             try:
-                # synthesize() already falls back from ElevenLabs to local Piper on
-                # quota exhaustion; reaching this except means Piper failed too, so
-                # drop to the OS system voice as a last resort.
-                speech_wav = tts.synthesize(_first_text)
-            except Exception as e:
-                print(f"[skull] TTS error: {e} — using system TTS.")
-                try:
-                    tts.synthesize_fallback(tts_text)
-                except Exception as fe:
-                    print(f"[skull] System TTS error: {fe}")
-                display.idle()  # stop the thinking spin; no amplitude path ran
-                display.stop_noosphere_scan()
-                display.stop_auspex_scan()
-                continue
-
-            # ── 6. Play audio with barge-in (same path as idle observations) ─────────
-            try:
-                interrupted = _speak_interruptible(speech_wav, on_wake)
-                if _rest_text and not interrupted:
-                    _rest_ready.wait(timeout=30.0)
-                    if _rest_wav[0]:
+                if _streamer.spoke:
+                    # Already spoken sentence by sentence as the model streamed it.
+                    # Only a Spotify failure found afterwards still needs a voice.
+                    if _spotify_err_text and not interrupted:
                         eyes.on()
-                        interrupted = _speak_interruptible(_rest_wav[0], on_wake)
+                        interrupted = _speak_interruptible(tts.synthesize(_spotify_err_text), on_wake)
+                else:
+                    # Nothing was streamed (hymn request, a reply-replacing tool, or a
+                    # reply that only exists in post-processing): synthesize the whole
+                    # reply now. Pipelined: the first sentence is spoken while the rest
+                    # is synthesized in the background.
+                    tts_text = reply
+                    _first_text, _rest_text = _split_for_pipelining(tts_text)
+                    _rest_wav = [None]
+                    _rest_ready = threading.Event()
+                    if _rest_text:
+                        def _synth_rest():
+                            try:
+                                _rest_wav[0] = tts.synthesize(_rest_text)
+                            except Exception as e:
+                                print(f"[skull] TTS error on reply remainder: {e}")
+                            finally:
+                                _rest_ready.set()
+
+                        threading.Thread(target=_synth_rest, daemon=True).start()
+                    try:
+                        # synthesize() already falls back from ElevenLabs to local Piper on
+                        # quota exhaustion; reaching this except means Piper failed too, so
+                        # drop to the OS system voice as a last resort.
+                        speech_wav = tts.synthesize(_first_text)
+                    except Exception as e:
+                        print(f"[skull] TTS error: {e} — using system TTS.")
+                        try:
+                            tts.synthesize_fallback(tts_text)
+                        except Exception as fe:
+                            print(f"[skull] System TTS error: {fe}")
+                        display.idle()  # stop the thinking spin; no amplitude path ran
+                        continue
+
+                    interrupted = _speak_interruptible(speech_wav, on_wake)
+                    if _rest_text and not interrupted:
+                        _rest_ready.wait(timeout=30.0)
+                        if _rest_wav[0]:
+                            eyes.on()
+                            interrupted = _speak_interruptible(_rest_wav[0], on_wake)
                 clean_reply = re.sub(r"\[.*?\]", "", reply).strip()
                 ends_with_question = clean_reply.endswith("?")
                 has_question = config.AUTO_LISTEN_ON_QUESTION and ends_with_question

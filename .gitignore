@@ -73,6 +73,9 @@ fix.py
 mock_*.js
 run_*.js
 test*
+# ...but the real unit tests are tracked.
+!tests/
+!tests/**
 update_walkthrough.py
 skull/web_bak.py
 skull/web_new.py

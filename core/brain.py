@@ -1990,12 +1990,25 @@ def _mood_intent(text: str) -> str | None:
     return None
 
 
-def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -> tuple[str, list[tuple]]:
+_HYMN_INTENT_RE = re.compile(r"\b(?:hymn|hymnos|sacred music|sacred chant|binary chant)\b", re.I)
+
+# Once one of these tools has run, the spoken reply is replaced or dropped by the
+# caller (screensaver, hymn, personality farewell), so streaming stops there.
+_STREAM_BLOCKING_TOOLS = {"play_idle_animation", "play_ambient_hymn", "switch_personality"}
+
+
+def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None,
+            on_text=None) -> tuple[str, list[tuple]]:
     """Return (spoken_text, spotify_commands).
 
     on_tool_use: optional callback invoked with the list of slow tool names
     (see _SLOW_TOOLS) the instant Omega-7 is about to run them, so the caller can
     give the user immediate "stand by" feedback before the call blocks.
+    on_text: optional callback receiving the reply text in deltas as the model
+    streams it, so the caller can start speaking before the reply is complete.
+    Raw model text: bracketed commands and *actions* are still in it (the TTS
+    layer strips them). Not called for hymn requests or after a tool that
+    replaces the spoken reply has run.
     """
     global _last_turn_tools
     m_intent = _mood_intent(user_text)
@@ -2027,10 +2040,14 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
             "If they agree, execute the 'register_voice' tool with their name."
         )
         
-    # The WFRP GM persona is large and static, so it joins the cached system prompt.
-    whfrp_prompt = wfrp.get_persona_prompt()
-    if whfrp_prompt:
-        system = system + "\n\n" + whfrp_prompt
+    # The WFRP GM persona is large and static, so it joins the cached system prompt —
+    # but only while that game is active (the same gate as get_active_tools_for_game);
+    # it is ~12 KB that every other turn would otherwise carry.
+    _g_lower = (active_game or "").lower()
+    if any(k in _g_lower for k in ("fantasy", "whfrp", "wfrp")):
+        whfrp_prompt = wfrp.get_persona_prompt()
+        if whfrp_prompt:
+            system = system + "\n\n" + whfrp_prompt
     equip_hint = ""
     if user_text and any(k in user_text.lower() for k in ["equip", "trapping", "weapon", "armour", "armor", "item", "gear", "carry"]):
         equip_hint = "\n\nCRITICAL DIRECTIVE: The user is asking about character equipment or status. You MUST call whfrp_lookup_character(name='[Character Name]') to read live equipment and weapon details from the SQLite database before responding! DO NOT call warhammer40k_rules or rely on conversation memory."
@@ -2058,6 +2075,12 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
     speaker_label = speaker_name if speaker_name else "Unknown"
     formatted_user_text = f"[{speaker_label}]: {user_text}"
 
+    def _stream_text(delta: str) -> None:
+        if not any(t in _STREAM_BLOCKING_TOOLS for t in tools_called):
+            on_text(delta)
+
+    stream_cb = _stream_text if on_text is not None and not _HYMN_INTENT_RE.search(user_text or "") else None
+
     raw = _llm.run_conversation(
         system=system,
         system_suffix=system_suffix,
@@ -2068,6 +2091,7 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
         on_tool_use=on_tool_use,
         slow_tools=_SLOW_TOOLS,
         max_tokens=4096,
+        on_text=stream_cb,
     )
     _last_turn_tools = tools_called
 
@@ -2099,8 +2123,6 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
 
     spoken = _SPOTIFY_RE.sub(_extract_spotify, raw)
     spoken = _strip_actions(spoken).strip()
-
-    _HYMN_INTENT_RE = re.compile(r"\b(?:hymn|hymnos|sacred music|sacred chant|binary chant)\b", re.I)
 
     hymn_allowed = (
         "play_ambient_hymn" in _TOOL_REGISTRY

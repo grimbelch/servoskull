@@ -22,7 +22,7 @@ from core import config
 def run_conversation(*, system: str, history: list[dict], user_text: str,
                      tools: list[dict], execute_tool, on_tool_use=None,
                      slow_tools=frozenset(), max_tokens: int = 4096,
-                     system_suffix: str | None = None) -> str:
+                     system_suffix: str | None = None, on_text=None) -> str:
     """Run the full tool-use loop and return the final assistant text.
 
     execute_tool(name, input_dict) -> str        runs one tool, returns its result
@@ -31,11 +31,16 @@ def run_conversation(*, system: str, history: list[dict], user_text: str,
     system_suffix                                 volatile per-turn context (date/speaker/facts/mood).
                                                   Sent with the new user turn, not in the system
                                                   prompt, so tools + system + history stay cacheable
+    on_text(delta: str)                           if given, responses are streamed and every piece of
+                                                  assistant text is passed here as it arrives. The
+                                                  returned text is exactly the concatenation of what
+                                                  on_text received, so a caller that speaks the deltas
+                                                  has spoken the whole reply
     """
     return _provider().run_conversation(
         system=system, system_suffix=system_suffix, history=history, user_text=user_text,
         tools=tools, execute_tool=execute_tool, on_tool_use=on_tool_use,
-        slow_tools=slow_tools, max_tokens=max_tokens,
+        slow_tools=slow_tools, max_tokens=max_tokens, on_text=on_text,
     )
 
 
@@ -131,7 +136,7 @@ class _ClaudeProvider:
         self._model = config.CLAUDE_MODEL
 
     def run_conversation(self, *, system, system_suffix, history, user_text, tools, execute_tool,
-                         on_tool_use, slow_tools, max_tokens):
+                         on_tool_use, slow_tools, max_tokens, on_text=None):
         system_blocks = _system_blocks(system)
         messages = [{"role": h["role"], "content": h["content"]} for h in history]
         history_end = len(messages) - 1
@@ -145,6 +150,10 @@ class _ClaudeProvider:
         messages.append({"role": "user", "content": user_content})
 
         last_tool_text_result = ""
+        # Text from every round, in order. A round that ends in a tool call may
+        # still say something first ("Consulting the archives."); when streaming,
+        # that has already been spoken, so it belongs in the returned reply too.
+        texts: list[str] = []
         rounds = 0
         while True:
             _set_breakpoints(messages, history_end)
@@ -154,18 +163,23 @@ class _ClaudeProvider:
                 print(f"[llm] Tool-use limit ({_MAX_TOOL_ROUNDS} rounds) reached — requesting final answer.")
                 extra["tool_choice"] = {"type": "none"}
             response = self._call_with_retry(
+                on_text=on_text,
                 model=self._model, max_tokens=max_tokens, system=system_blocks,
                 tools=tools, messages=messages, **extra,
             )
             _log_cache(response, "run_conversation")
+            round_text = " ".join(b.text for b in response.content if hasattr(b, "text") and b.text).strip()
+            if round_text:
+                texts.append(round_text)
             if response.stop_reason != "tool_use" or rounds >= _MAX_TOOL_ROUNDS:
-                text = next((b.text for b in response.content if hasattr(b, "text") and b.text), "")
-                if (not text and last_tool_text_result
+                if (not round_text and last_tool_text_result
                         and len(last_tool_text_result) <= _MAX_FALLBACK_TOOL_TEXT
                         and "INSTRUCTION" not in last_tool_text_result):
                     # A short, speakable tool result (e.g. a dice roll) with no model text.
-                    return last_tool_text_result
-                return text
+                    if on_text is not None:
+                        on_text(last_tool_text_result)
+                    texts.append(last_tool_text_result)
+                return " ".join(texts)
             rounds += 1
 
             slow = [b.name for b in response.content
@@ -191,9 +205,30 @@ class _ClaudeProvider:
             messages.append({"role": "assistant", "content": response.content})
             messages.append({"role": "user", "content": tool_results})
 
-    def _call_with_retry(self, **kwargs):
+    def _call_with_retry(self, on_text=None, **kwargs):
         # Retries with backoff and the request timeout are handled by the SDK client.
-        return self._client.messages.create(**kwargs)
+        if on_text is None:
+            return self._client.messages.create(**kwargs)
+        # Streamed: text deltas go to on_text as they arrive; tool calls and usage
+        # come back in the assembled final message exactly as with create().
+        emitted = False
+        try:
+            with self._client.messages.stream(**kwargs) as stream:
+                for event in stream:
+                    if event.type == "text" and event.text:
+                        emitted = True
+                        on_text(event.text)
+                return stream.get_final_message()
+        except Exception as e:
+            if emitted:
+                raise
+            # Nothing was spoken yet, so a plain request loses nothing.
+            print(f"[llm] Streaming failed before any text ({type(e).__name__}: {e}) — retrying unstreamed.")
+            response = self._client.messages.create(**kwargs)
+            for block in response.content:
+                if getattr(block, "type", None) == "text" and block.text:
+                    on_text(block.text)
+            return response
 
     def simple(self, system, user, max_tokens):
         r = self._call_with_retry(

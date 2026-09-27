@@ -32,6 +32,11 @@ def _preprocess_text(text: str) -> str:
 _eleven_client = None
 _eleven_client_key = None
 
+def has_speech(text: str) -> bool:
+    """True if anything would be spoken after preprocessing (a bare "[SPOTIFY: …]"
+    tag or "*nods*" leaves nothing and shouldn't be sent for synthesis)."""
+    return bool(_preprocess_text(text))
+
 
 def _elevenlabs_client():
     """One shared client (its HTTP connection is reused, saving a TLS handshake per
