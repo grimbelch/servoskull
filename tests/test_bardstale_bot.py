@@ -189,6 +189,8 @@ def test_shopping_buys_the_kit_then_equips_it():
     assert s("The Shoppe", 113, *page(113)).keys == ["P"]
     assert s("The Shoppe", 113, *page(113, "Purchase /(1-9)")).keys == ["4"]
     assert s("The Shoppe", 83, *page(83)).keys == ["F"]                # sword bought; armour is further on
+    b.shopping["VEX"] = []
+    assert s("The Shoppe", 83, *page(83)).keys == ["\x1b"]             # done: leave the list (B only scrolls)
     assert "VEX" in b.to_equip
     # Back on the street: open Vex's sheet and equip what's unequipped.
     b.errand, b.just_left = "", True

@@ -540,7 +540,7 @@ class Bot:
                           f"Buying {items[0].lower() if items else 'gear'}")
         if "p)urc" in low:                               # the item list: find the next item
             if not items:
-                return Action(["B"], "Done buying")
+                return Action(["\x1b"], "Done buying")    # B)ack only scrolls the list
             want = items[0][:9].lower()
             for i, l in enumerate(lines):
                 mm = re.match(r"\s*(\d)\.(.{1,9})", l)
