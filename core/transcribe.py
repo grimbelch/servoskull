@@ -110,6 +110,7 @@ def transcribe(wav_bytes: bytes) -> str:
 
 # ── Streaming ─────────────────────────────────────────────────────────────────
 
+# The GA realtime API: a transcription-type session, our own commit (no server VAD).
 _REALTIME_URL = "wss://api.openai.com/v1/realtime?intent=transcription"
 _STREAM_RATE = 24000  # the realtime API's pcm16 format
 _ABORT = object()
@@ -169,19 +170,22 @@ class StreamingTranscriber:
     def _run(self) -> None:
         try:
             from websockets.sync.client import connect
-            headers = {"Authorization": f"Bearer {config.OPENAI_API_KEY}", "OpenAI-Beta": "realtime=v1"}
+            headers = {"Authorization": f"Bearer {config.OPENAI_API_KEY}"}
             with connect(_REALTIME_URL, additional_headers=headers, open_timeout=5.0, close_timeout=1.0) as conn:
                 conn.send(json.dumps({
-                    "type": "transcription_session.update",
+                    "type": "session.update",
                     "session": {
-                        "input_audio_format": "pcm16",
-                        "input_audio_transcription": {
-                            "model": config.STT_STREAMING_MODEL,
-                            "prompt": _prompt(),
-                            "language": "en",
-                        },
-                        "input_audio_noise_reduction": {"type": "near_field"},
-                        "turn_detection": None,  # we commit when our own VAD says the speaker stopped
+                        "type": "transcription",
+                        "audio": {"input": {
+                            "format": {"type": "audio/pcm", "rate": _STREAM_RATE},
+                            "noise_reduction": {"type": "near_field"},
+                            "transcription": {
+                                "model": config.STT_STREAMING_MODEL,
+                                "prompt": _prompt(),
+                                "language": "en",
+                            },
+                            "turn_detection": None,  # we commit when our own VAD says the speaker stopped
+                        }},
                     },
                 }))
                 print(f"[stt] Streaming session open ({time.monotonic() - self._started_at:.2f}s).")

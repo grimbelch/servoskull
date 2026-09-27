@@ -23,6 +23,11 @@ word → Whisper → Claude with tools → ElevenLabs/Piper speech, plus a round
   Foundry bridge), `bardstale/` (Apple IIe emulator agent), `netea/`, `netepic/`.
   Copyrighted rulebook text is built locally with `games/ingest_pdf.py` and
   git-ignored.
+- A command's end is decided by `core/vad.py` (Silero VAD on onnxruntime) inside
+  `audio.record()`; the recording is streamed to OpenAI's realtime transcription
+  session by `transcribe.StreamingTranscriber` while it is captured, with the
+  batch `transcribe()` as the fallback. `tests/fixtures/speech_22k.wav` is a real
+  spoken sentence for testing either.
 - Requests handled without the model (dice, Spotify, settings, confirmations) are
   matched by pure functions in `core/intents.py` and dispatched by the
   `_LOCAL_INTENTS` table in `core/main.py` to `_h_*` handlers. A new one needs a

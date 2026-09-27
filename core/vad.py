@@ -18,7 +18,8 @@ import threading
 import numpy as np
 
 SAMPLE_RATE = 16000
-CHUNK = 512  # samples per model call (32 ms)
+CHUNK = 512    # samples per model call (32 ms)
+CONTEXT = 64   # tail of the previous chunk the v5 model wants in front of each call
 
 _MODEL_PATH = pathlib.Path(__file__).resolve().parent.parent / "models" / "silero_vad.onnx"
 
@@ -39,6 +40,7 @@ class SileroVAD:
         """Forget the previous utterance (the model is stateful)."""
         with self._lock:
             self._state = np.zeros((2, 1, 128), dtype=np.float32)
+            self._context = np.zeros(CONTEXT, dtype=np.float32)
             self._pending = np.zeros(0, dtype=np.float32)
 
     def feed(self, samples_16k) -> float:
@@ -53,8 +55,11 @@ class SileroVAD:
             buf = np.concatenate([self._pending, x]) if len(self._pending) else x
             n = len(buf) // CHUNK
             for i in range(n):
-                chunk = buf[i * CHUNK:(i + 1) * CHUNK].reshape(1, CHUNK)
-                out, self._state = self._session.run(None, {"input": chunk, "state": self._state, "sr": self._sr})
+                chunk = buf[i * CHUNK:(i + 1) * CHUNK]
+                # Without the context the model scores real speech near zero.
+                x_in = np.concatenate([self._context, chunk]).reshape(1, CONTEXT + CHUNK)
+                out, self._state = self._session.run(None, {"input": x_in, "state": self._state, "sr": self._sr})
+                self._context = chunk[-CONTEXT:]
                 best = max(best, float(out[0][0]))
             self._pending = buf[n * CHUNK:]
         return best
