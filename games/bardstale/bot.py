@@ -395,8 +395,10 @@ class Bot:
             return ""
         groups = [(int(n), name.strip()) for n, name in re.findall(r"(\d+) ([a-z' -]+?)(?:,| and |$)", foes)]
         count = sum(n for n, _ in groups)
+        level = self._party_level(st)
         for _, name in groups:
-            if self.k["danger"].get(self._species(name), {}).get("deadly"):
+            d = self.k["danger"].get(self._species(name), {})
+            if d.get("deadly") and level <= d.get("level", 99):   # until the party has grown
                 return f"{name} are deadly"
         if count > 6 or (count > 4 and st.hp_fraction < 0.8):
             return f"{count} foes is too many"
@@ -404,8 +406,17 @@ class Bot:
 
     @staticmethod
     def _species(name: str) -> str:
+        """Singular form: thieves -> thief, mercenaries -> mercenary, orcs -> orc."""
         name = name.strip().lower()
-        return name[:-1] if name.endswith("s") else name
+        for plural, single in (("ies", "y"), ("ves", "f"), ("s", "")):
+            if name.endswith(plural):
+                return name[: -len(plural)] + single
+        return name
+
+    @staticmethod
+    def _party_level(st: State) -> float:
+        alive = [h.level for h in st.party if h.alive] or [1]
+        return sum(alive) / len(alive)
 
     def _hero_turn(self, lines, st: Optional[State]) -> Action:
         text = _joined(lines)
@@ -441,7 +452,11 @@ class Bot:
             d["fights"] += 1
             d["hp_lost"] += lost
             d["deaths"] += max(0, died)
-            d["deadly"] = d["deaths"] > 0 or d["hp_lost"] / d["fights"] > 0.4
+            # Deadly: a massacre, or a death per fight on average, or half the party's
+            # HP per fight. Remembered with the party's level: it expires as heroes grow.
+            if died >= 3 or (d["fights"] >= 2 and d["deaths"] >= d["fights"]) \
+                    or d["hp_lost"] / d["fights"] > 0.5:
+                d["deadly"], d["level"] = True, self._party_level(st)
         self.k["stats"]["fled" if c.get("ran") else "won"] += 1
         self.pending_events.append(f"The fight with {c.get('foes') or 'the foe'} is over"
                                    + (" (the party fled)." if c.get("ran") else ": victory."))

@@ -62,8 +62,15 @@ def test_fights_small_groups_and_flees_big_or_deadly_ones():
     assert make_bot().act(screen("Kobolds", *FIGHT), at(25, 15)).keys == ["F"]
     many = ("Before you, you", "see 8 Barbarians,", "and 1 Mercenary.", "Will your", "choose to (F)ight", "or (R)un?")
     assert make_bot().act(screen("Barbarians", *many), at(25, 15)).keys == ["R"]
-    wary = make_bot(danger={"kobold": {"fights": 1, "hp_lost": 0.5, "deaths": 1, "deadly": True}})
+    wary = make_bot(danger={"kobold": {"fights": 1, "hp_lost": 0.5, "deaths": 3, "deadly": True, "level": 1}})
     assert wary.act(screen("Kobolds", *FIGHT), at(25, 15)).keys == ["R"]
+    grown = [hero(h.slot, h.name, h.cls, h.hp, h.max_hp, level=3) for h in PARTY]
+    assert make_bot(danger=wary.k["danger"]).act(screen("Kobolds", *FIGHT), at(25, 15, grown)).keys == ["F"]
+
+
+def test_monster_names_are_singular():
+    assert [B.Bot._species(n) for n in ("thieves", "mercenaries", "orcs", "mad dogs", "kobold")] == \
+        ["thief", "mercenary", "orc", "mad dog", "kobold"]
 
 
 def test_combat_round_commands():
