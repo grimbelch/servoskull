@@ -35,25 +35,12 @@ _on_wake_cb = None
 _player = None             # main._speak_interruptible(wav_bytes, on_wake) -> bool
 _speech_active_fn = None   # main.is_speech_active() -> bool
 
-# Background snippets are queued for the main loop to play, so playback (and its
-# barge-in wake-word listener) never runs concurrently with the main loop's own
-# wake-word listening on the shared model.
-_pending_snippet: bytes | None = None
-_pending_lock = threading.Lock()
 
 
 def register_main_hooks(player, speech_active_fn) -> None:
     global _player, _speech_active_fn
     _player = player
     _speech_active_fn = speech_active_fn
-
-
-def take_pending_snippet() -> bytes | None:
-    """Pop a queued background snippet for the main loop to play (or None)."""
-    global _pending_snippet
-    with _pending_lock:
-        wav, _pending_snippet = _pending_snippet, None
-        return wav
 
 
 def register_on_wake_cb(cb) -> None:
@@ -177,11 +164,12 @@ def play_random_snippet(specific_name: str | None = None, duration_sec: float = 
         return None
 
     if defer:
-        global _pending_snippet
-        with _pending_lock:
-            _pending_snippet = wav_bytes
-        from core import web
-        web.trigger_cancel()  # interrupt the main loop's wake-word wait so it plays now
+        # Queued for the main loop (which also wakes from its wake-word wait to play
+        # it), so playback never runs alongside the loop's own listener on the
+        # shared wake-word model. Dropped at delivery if Spotify has started.
+        from core import announcements
+        announcements.announce(wav=wav_bytes, priority=announcements.AMBIENT, source="hymn",
+                               duck_music=False, skip_if_music=True)
         print(f"[ambient_music] Queued snippet from '{chosen_file.name}' for the main loop.")
         return f"Queued 30-second sacred music snippet from '{chosen_file.name}'."
 

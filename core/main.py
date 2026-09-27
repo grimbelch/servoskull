@@ -23,7 +23,7 @@ def run_background_task(func, *args, **kwargs):
 from core import config
 from core import db
 db.init_db()
-from core import audio, wake_word, transcribe, brain, tts, eyes, sfx, reminders, mood, speech_stream, watchdog, intents
+from core import audio, wake_word, transcribe, brain, tts, eyes, sfx, reminders, mood, speech_stream, watchdog, intents, announcements
 from core import spotify_ctrl, cast_audio, camera, quiet, display, temperature, candles, bambu_ctrl
 
 
@@ -324,8 +324,6 @@ def _execute_pending_system_command():
 
 _speech_activation_active = False
 _speech_active_lock = threading.Lock()
-_pending_bambu_lock = threading.Lock()
-_pending_bambu_notifications: list[tuple[str, str]] = []
 
 
 def set_speech_active(active: bool) -> None:
@@ -339,46 +337,10 @@ def is_speech_active() -> bool:
         return _speech_activation_active
 
 
-def _deliver_bambu_notification(event_type: str, text: str) -> None:
-    try:
-        wav_bytes = tts.synthesize(text)
-        with _speech_lock:
-            try:
-                sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
-            except Exception:
-                pass
-            eyes.on()
-            display.on()
-            try:
-                audio.play_wav_bytes(wav_bytes, output_device=config.VOICE_OUTPUT_DEVICE)
-            finally:
-                eyes.off()
-                display.idle()
-    except Exception as e:
-        print(f"[skull] Bambu notification error: {e}")
-
-
 def _speak_bambu_notification(event_type: str, text: str) -> None:
-    """Announce a Bambu 3D printer event verbally, queuing if speech is active."""
+    """Announce a Bambu 3D printer event; the main loop speaks it between turns."""
     print(f"[skull] Bambu notification ({event_type}): {text}")
-    if is_speech_active():
-        print(f"[skull] Speech activation in progress — queuing Bambu notification ({event_type})")
-        with _pending_bambu_lock:
-            _pending_bambu_notifications.append((event_type, text))
-        return
-
-    _deliver_bambu_notification(event_type, text)
-
-
-def _flush_pending_bambu_notifications() -> None:
-    with _pending_bambu_lock:
-        if not _pending_bambu_notifications:
-            return
-        pending = list(_pending_bambu_notifications)
-        _pending_bambu_notifications.clear()
-
-    for event_type, text in pending:
-        _deliver_bambu_notification(event_type, text)
+    announcements.announce(text, priority=announcements.NOTICE, source=f"printer {event_type}", ping="wake_ping")
 
 
 def _preload_phrases(show_progress: bool = False) -> None:
@@ -928,7 +890,7 @@ def _morning_greeting_watcher() -> None:
             if cm is None or cm <= 0 or cm > threshold:
                 continue
 
-            from core import camera, brain, tts, audio, web
+            from core import camera, brain, web
             _, detected_name, face_found = camera.capture_and_identify()
 
             if not face_found:
@@ -942,21 +904,10 @@ def _morning_greeting_watcher() -> None:
                 # Human face detected at console in morning — default to Master Sean if match score was slightly below threshold
                 detected_name = getattr(config, "OWNER_NAME", "Sean") or "Sean"
 
-            # Don't talk over a conversation that's already under way; try again shortly.
-            if is_speech_active():
-                time.sleep(5.0)
-                continue
-
             print(f"[morning] Morning target identified as '{detected_name}' at {cm:.1f} cm (<= {threshold:.0f} cm) — delivering morning greeting...")
 
             greeting_text = brain.generate_morning_greeting(detected_name)
             print(f"[morning] Morning greeting ({detected_name}): {greeting_text}")
-            try:
-                speech_wav = tts.synthesize(greeting_text)
-            except Exception as se:
-                print(f"[morning] Greeting synthesis error: {se}")
-                time.sleep(30.0)
-                continue
 
             # Mark today's morning greeting as delivered (persisted across restarts).
             with _morning_greeting_lock:
@@ -969,27 +920,14 @@ def _morning_greeting_watcher() -> None:
             brain.record_assistant_turn(greeting_text)
             web.log_vox(config.SKULL_NAME, greeting_text)
 
-            # Speak under the speech lock so the greeting never overlaps a reply
-            # (bypasses silent mode for the morning greeting).
-            with _speech_lock:
-                set_speech_active(True)
-                spotify_ctrl.duck()
-                display.on()
-                eyes.on()
-                try:
-                    audio.play_wav_bytes(speech_wav, output_device=config.VOICE_OUTPUT_DEVICE)
-                except Exception as se:
-                    print(f"[morning] Greeting speech delivery error: {se}")
-                finally:
-                    set_speech_active(False)
-                    spotify_ctrl.restore()
-                    display.idle()
-                    eyes.off()
+            # The main loop speaks it (never over a reply; bypasses silent mode) and
+            # then offers the briefing in the same turn.
+            def _offer_briefing():
+                if brain.is_daily_briefing_due():
+                    _morning_briefing_offer_pending.set()
 
-            if brain.is_daily_briefing_due():
-                # Interrupt the wake-word wait so the main loop offers the briefing now.
-                _morning_briefing_offer_pending.set()
-                web.trigger_cancel()
+            announcements.announce(greeting_text, priority=announcements.NOTICE, source="morning",
+                                   bypass_silent=True, then=_offer_briefing)
 
         except Exception as e:
             print(f"[morning] Error in morning greeting watcher: {e}")
@@ -1360,6 +1298,55 @@ def _run_local_intents(turn: _Turn) -> bool:
 
 
 
+# ── Unprompted speech ────────────────────────────────────────────────────────
+
+def _announce_reminder(rem: dict) -> None:
+    """A due reminder; it nags every 10 s until acknowledged."""
+    print(f"[skull] Reminder due: {rem['message']}")
+    announcements.announce(rem["message"], priority=announcements.REMINDER, source="reminder", ping="wake_ping",
+                           then=lambda m=rem["message"]: reminders.add(m, 10, repeating=True))
+
+
+def _deliver(ann: announcements.Announcement, on_wake) -> bool:
+    """Speak one queued announcement. Returns True if the wake word interrupted it,
+    in which case the ducking and speech-active state are left as on_wake() set them
+    for the command that is about to be recorded."""
+    if quiet.is_silent() and not ann.bypass_silent:
+        print(f"[skull] Silent mode — dropping {ann.source} announcement.")
+        return False
+    if ann.skip_if_music and spotify_ctrl.is_playing():
+        print(f"[skull] Music playing — dropping {ann.source} announcement.")
+        return False
+    print(f"[skull] {ann.source}: {ann.text if ann.text else '(audio)'}")
+    interrupted = False
+    try:
+        set_speech_active(True)
+        if ann.duck_music:
+            spotify_ctrl.duck()
+        wav = ann.wav if ann.wav is not None else tts.synthesize(ann.text)
+        if ann.ping:
+            sfx.play_blocking(ann.ping, config.VOICE_OUTPUT_DEVICE)
+        eyes.on()
+        display.on()
+        interrupted = _speak_interruptible(wav, on_wake)
+    except Exception as e:
+        print(f"[skull] {ann.source} announcement error: {e}")
+        eyes.off()
+        display.idle()
+    finally:
+        if not interrupted:
+            set_speech_active(False)
+            if ann.duck_music:
+                spotify_ctrl.restore()
+        if ann.then is not None:
+            try:
+                ann.then()
+            except Exception as e:
+                print(f"[skull] {ann.source} follow-up error: {e}")
+    return interrupted
+
+
+
 def main():
     brain.register_reload_cb(refresh_voice_cache)
     # Claude's tools only request these; they run after a spoken yes (see request_maintenance).
@@ -1502,8 +1489,6 @@ def main():
             if not skip_wake_word:
                 set_speech_active(False)
 
-            _flush_pending_bambu_notifications()
-
             # Immediate feedback the moment the wake word fires: dip music, ping, light
             # the eyes. Defined once per loop so every speech path — replies and the
             # unprompted observations/utterances below — can hand it to the barge-in listener.
@@ -1516,41 +1501,15 @@ def main():
             ambient_music.register_on_wake_cb(on_wake)
 
 
-            # ── 0. Speak any internal-temperature warning ───────────────────────────
-            # Fires regardless of silent mode — an overheating cogitator is a hardware
-            # safety issue the master should always hear about.
-            temp_warning = temperature.get_warning()
-            if temp_warning:
-                print(f"[skull] Temperature warning: {temp_warning}")
-                try:
-                    spotify_ctrl.duck()
-                    sfx.play_blocking("negative", config.VOICE_OUTPUT_DEVICE)
-                    eyes.on()
-                    warn_wav = tts.synthesize(temp_warning)
-                    audio.play_wav_bytes(warn_wav, output_device=config.VOICE_OUTPUT_DEVICE)
-                except Exception as _e:
-                    print(f"[skull] Temperature warning TTS error: {_e}")
-                finally:
-                    eyes.off()
-                    spotify_ctrl.restore()
-                continue  # back to the top; resume listening
-
-            # ── 0a. Speak any reminders that fired during the last conversation ──────
+            # ── 0. Unprompted speech ─────────────────────────────────────────────
+            # Warnings, reminders, printer events, hymn snippets and camera
+            # observations all arrive through the announcements queue (from their own
+            # threads) and are spoken here, in priority order, never during a turn.
             for _rem in reminders.get_due():
-                print(f"[skull] Reminder firing: {_rem['message']}")
-                try:
-                    spotify_ctrl.duck()
-                    with _speech_lock:
-                        sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
-                        eyes.on()
-                        rem_wav = tts.synthesize(_rem["message"])
-                        audio.play_wav_bytes(rem_wav, output_device=config.VOICE_OUTPUT_DEVICE)
-                except Exception as _e:
-                    print(f"[skull] Reminder TTS error: {_e}")
-                finally:
-                    eyes.off()
-                    spotify_ctrl.restore()
-                reminders.add(_rem["message"], 10, repeating=True)
+                _announce_reminder(_rem)
+            for _ann in announcements.drain():
+                if _deliver(_ann, on_wake):
+                    skip_wake_word = True
 
             # ── 0a2. Offer the briefing after a proximity morning greeting ──────────
             if _morning_briefing_offer_pending.is_set():
@@ -1573,39 +1532,6 @@ def main():
                         _briefing_awaiting_response = False
                         set_speech_active(False)
                     continue
-
-            # ── 0a3. Play a background hymn snippet queued by ambient_music ──────────
-            _snippet = ambient_music.take_pending_snippet()
-            if _snippet and not quiet.is_silent() and not spotify_ctrl.is_playing():
-                try:
-                    eyes.on()
-                    display.on()
-                    if _speak_interruptible(_snippet, on_wake):
-                        skip_wake_word = True
-                except Exception as e:
-                    print(f"[skull] Ambient hymn playback error: {e}")
-                    eyes.off()
-                    display.idle()
-                continue
-
-            # ── 0b. Speak any pending camera observations ──────────────────────────
-            observation = camera.get_observation()
-            if observation and quiet.is_silent():
-                # Silent mode: drain the observation so it doesn't burst out later, but stay quiet.
-                observation = None
-            if observation:
-                try:
-                    spotify_ctrl.duck()
-                    eyes.on()
-                    obs_wav = tts.synthesize(observation)
-                    # Barge-in: let the user cut in with the wake word mid-observation.
-                    if _speak_interruptible(obs_wav, on_wake):
-                        skip_wake_word = True
-                except Exception as e:
-                    print(f"[camera] Camera observation error: {e}")
-                    eyes.off()
-                    display.idle()
-                continue
 
             # Check for web command
             from core import web
@@ -1669,9 +1595,10 @@ def main():
                     play_ack_sound = True
                     _idle_cancel = threading.Event()
                     _idle_fired = threading.Event()
-                    _due_reminders: list = []
 
                     def _idle_and_reminder_watcher():
+                        # Ends the wake-word wait when it's time for an idle remark, when a
+                        # reminder comes due, or when anything else is queued to be said.
                         delay = random.uniform(_IDLE_MIN, _IDLE_MAX)
                         t_end = time.time() + delay
                         while not _idle_cancel.is_set():
@@ -1680,26 +1607,24 @@ def main():
                                 _idle_fired.set()
                                 _idle_cancel.set()
                                 return
-                            due = reminders.get_due()
-                            if due:
-                                _due_reminders.extend(due)
-                                _idle_cancel.set()
-                                return
-                            if temperature.has_pending():
+                            for _rem in reminders.get_due():
+                                _announce_reminder(_rem)
+                            if announcements.pending():
                                 _idle_cancel.set()
                                 return
                             _idle_cancel.wait(timeout=min(2.0, max(0.1, t_end - now)))
 
                     run_background_task(_idle_and_reminder_watcher)
-                
-                    # Register cancel event with web server
+
+                    # Web commands and announcements from other threads end the wait too.
                     web.register_cancel_event(_idle_cancel)
-                
+                    announcements.register_wakeup(_idle_cancel)
+
                     detected = wake_word.wait_for_wake_word(on_detected=on_wake, cancel=_idle_cancel)
                     _idle_cancel.set()  # stop background threads if wake word fired first
-                
-                    # Unregister cancel event
+
                     web.register_cancel_event(None)
+                    announcements.register_wakeup(None)
 
                     # Check if a web command came in during the wait
                     web_item = web.get_queued_command()
@@ -1712,22 +1637,8 @@ def main():
                     elif not detected and web.pop_wake_request():
                         skip_wake_word = True
                         continue
-                    elif not detected and _due_reminders:
-                        for _rem in _due_reminders:
-                            print(f"[skull] Reminder firing: {_rem['message']}")
-                            try:
-                                spotify_ctrl.duck()  # restored at the loop top after the `continue` below
-                                with _speech_lock:
-                                    sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
-                                    eyes.on()
-                                    rem_wav = tts.synthesize(_rem["message"])
-                                    audio.play_wav_bytes(rem_wav, output_device=config.VOICE_OUTPUT_DEVICE)
-                            except Exception as _e:
-                                print(f"[skull] Reminder TTS error: {_e}")
-                            finally:
-                                eyes.off()
-                            reminders.add(_rem["message"], 10, repeating=True)
-                        continue  # back to top of loop
+                    elif not detected and announcements.pending():
+                        continue  # spoken at the top of the loop
 
                     elif not detected and _idle_fired.is_set():
                         if quiet.is_silent():
@@ -1739,24 +1650,14 @@ def main():
                             display.set_mood(new_mood)
                         print("[skull] Idle timeout — generating ambient utterance...")
                         try:
-                            spotify_ctrl.duck()  # restored at the loop top after the `continue` below
                             utterance = brain.idle_utterance()
-                            if utterance:
-                                print(f"[skull] Idle: {utterance}")
-                                idle_wav = tts.synthesize(utterance)
-                                eyes.on()
-                                display.on()
-                                # Barge-in: let the user cut in with the wake word mid-utterance.
-                                if _speak_interruptible(idle_wav, on_wake):
-                                    skip_wake_word = True
                         except Exception as e:
                             print(f"[skull] Idle utterance error: {e}")
-                            eyes.off()
-                            display.idle()
+                            utterance = None
+                        if utterance and _deliver(announcements.Announcement(
+                                priority=announcements.OBSERVATION, text=utterance, source="idle"), on_wake):
+                            skip_wake_word = True
                         continue  # back to listening without going through record/transcribe
-
-                    elif not detected and temperature.has_pending():
-                        continue  # temp warning queued — spoken at the top of the loop
 
                     elif not detected and _morning_briefing_offer_pending.is_set():
                         continue  # briefing offer queued — spoken at the top of the loop

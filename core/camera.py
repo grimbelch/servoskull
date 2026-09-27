@@ -17,13 +17,11 @@ On non-Pi hosts: falls back to cv2.VideoCapture.
 """
 
 from __future__ import annotations
-import queue
 import threading
 import time
 
-from core import config, proximity
+from core import announcements, config, proximity
 
-_observation_queue: queue.Queue = queue.Queue()
 _last_observation_time: float = 0.0
 _call_times: list[float] = []  # timestamps of recent vision calls (rolling hour)
 
@@ -119,7 +117,7 @@ def _run_observation(jpeg_bytes: bytes) -> None:
     try:
         text = _ask_vision(jpeg_bytes)
         print(f"[camera] {text}")
-        _observation_queue.put(text)
+        announcements.announce(text, priority=announcements.OBSERVATION, source="camera")
     except Exception as e:
         print(f"[camera] Vision error: {e}")
     finally:
@@ -295,7 +293,7 @@ def _capture_and_observe(read, reason: str) -> None:
     try:
         text = _ask_vision(buf.tobytes(), detected_name)
         print(f"[camera] {text}")
-        _observation_queue.put(text)
+        announcements.announce(text, priority=announcements.OBSERVATION, source="camera")
     except Exception as e:
         print(f"[camera] Vision error: {e}")
     finally:
@@ -376,14 +374,6 @@ def start() -> None:
     """Start background vision triggering. No-op (disabled per user request;
     camera now runs strictly on-demand when queried)."""
     pass
-
-
-def get_observation() -> str | None:
-    """Return a pending vision observation, or None if the queue is empty."""
-    try:
-        return _observation_queue.get_nowait()
-    except queue.Empty:
-        return None
 
 
 _backend_lock = threading.Lock()

@@ -18,13 +18,12 @@ from __future__ import annotations
 import threading
 import time
 
-from core import config
+from core import announcements, config
 
 # Standard SoC thermal sensor on the Raspberry Pi (and most Linux SBCs).
 _SENSOR = config.THERMAL_SENSOR_PATH
 
 _lock = threading.Lock()
-_pending: str | None = None   # warning text waiting for the main loop to speak
 _armed = True                 # True when cooled below clear threshold (ready to warn)
 _last_warn = 0.0              # monotonic timestamp of the last warning
 
@@ -62,22 +61,8 @@ def _phrase(temp: float) -> str:
     ])
 
 
-def get_warning() -> str | None:
-    """Pop the pending warning (if any) for the main loop to speak."""
-    global _pending
-    with _lock:
-        w = _pending
-        _pending = None
-        return w
-
-
-def has_pending() -> bool:
-    with _lock:
-        return _pending is not None
-
-
 def _monitor() -> None:
-    global _pending, _armed, _last_warn
+    global _armed, _last_warn
     warn = config.TEMP_WARN_THRESHOLD
     clear = config.TEMP_CLEAR_THRESHOLD
     cooldown = config.TEMP_WARN_COOLDOWN
@@ -103,7 +88,8 @@ def _monitor() -> None:
         with _lock:
             if temp >= warn:
                 if _armed or (now - _last_warn) >= cooldown:
-                    _pending = _phrase(temp)
+                    announcements.announce(_phrase(temp), priority=announcements.SAFETY, source="temperature",
+                                           ping="negative", bypass_silent=True)
                     _armed = False
                     _last_warn = now
                     print(f"[temp] HIGH {temp:.1f}°C — queued spoken warning")
@@ -184,9 +170,8 @@ def _power_phrase() -> str:
 
 
 def _queue_warning(text: str) -> None:
-    global _pending
-    with _lock:
-        _pending = f"{_pending} {text}" if _pending else text
+    # Hardware safety: heard even in silent mode.
+    announcements.announce(text, priority=announcements.SAFETY, source="power", ping="negative", bypass_silent=True)
 
 
 def _power_monitor() -> None:
