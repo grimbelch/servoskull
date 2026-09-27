@@ -260,11 +260,15 @@ BAMBU_PRINTER_ACCESS_CODE = _cfg("BAMBU_PRINTER_ACCESS_CODE", "")
 
 # Claude (Anthropic) powers the brain, idle utterances, memory extraction, and vision.
 CLAUDE_MODEL = _cfg("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
+# OpenAI speech-to-text model: whisper-1 (default) or gpt-4o-mini-transcribe (faster, more accurate).
+STT_MODEL = _cfg("STT_MODEL", "whisper-1")
 
 # ── Text-to-speech ───────────────────────────────────────────────────────────────
 # "piper" (local, free) or "elevenlabs" (cloud, quota-limited)
 TTS_BACKEND = _cfg("TTS_BACKEND", "elevenlabs")
 PIPER_MODEL_PATH = _cfg("PIPER_MODEL_PATH", "models/servoskull.onnx")
+# ElevenLabs model: eleven_turbo_v2 (default) or eleven_flash_v2_5 for the lowest latency.
+ELEVENLABS_MODEL = _cfg("ELEVENLABS_MODEL", "eleven_turbo_v2")
 # Wipe cached canned-phrase audio for one run after changing the ElevenLabs voice.
 RESET_VOICE_CACHE = _cfg("RESET_VOICE_CACHE", "false").lower() == "true"
 

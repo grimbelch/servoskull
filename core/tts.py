@@ -58,7 +58,7 @@ def _synthesize_elevenlabs(text: str) -> bytes:
     audio_iter = client.text_to_speech.convert(
         voice_id=voice_id,
         text=text,
-        model_id="eleven_turbo_v2",
+        model_id=config.ELEVENLABS_MODEL,
         output_format="pcm_16000",
     )
     pcm = b"".join(audio_iter)

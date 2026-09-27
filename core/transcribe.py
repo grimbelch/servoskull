@@ -64,7 +64,7 @@ def transcribe(wav_bytes: bytes) -> str:
     audio_file.name = "audio.wav"
 
     result = _get_client().audio.transcriptions.create(
-        model="whisper-1",
+        model=config.STT_MODEL,
         file=audio_file,
         prompt=(f"Jax, {config.SKULL_NAME}, Golden Retriever, dog, fetch, woof" if config.get_personality_key() == "jax"
                 else f"{config.SKULL_NAME}, Omnissiah, Adeptus Mechanicus, Necromunda, Warhammer"),
