@@ -182,7 +182,9 @@ class StreamingTranscriber:
                         "type": "transcription",
                         "audio": {"input": {
                             "format": {"type": "audio/pcm", "rate": _STREAM_RATE},
-                            "noise_reduction": {"type": "near_field"},
+                            # No server-side noise reduction: on this mic (peaks ~5% of full
+                            # scale) either setting wiped the speech and the model echoed
+                            # the prompt; without it the transcript matches the batch call.
                             "transcription": {
                                 "model": config.STT_STREAMING_MODEL,
                                 "prompt": _prompt(),
