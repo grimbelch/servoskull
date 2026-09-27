@@ -505,10 +505,11 @@ SILENCE_THRESHOLD = int(_cfg("SILENCE_THRESHOLD", "180"))
 # Software gain applied to the microphone as PipeWire's source volume (1.0 = none).
 # The USB codec's analog gain is already at its top and speech still peaked near 5%
 # of full scale, which starved the VAD and the transcribers. PipeWire's volume
-# number follows a cubic curve, so 1.6 is about x4 linear (+12 dB): speech peaks
-# near 25-30%, the noise floor stays far below SILENCE_THRESHOLD, and loud speech
-# doesn't clip. Measured on the unit: 1.0 -> RMS 9, 1.6 -> ~37, 4.0 -> 87 (capped).
-MIC_SOFT_GAIN = float(_cfg("MIC_SOFT_GAIN", "1.6"))
+# number follows a cubic curve, so 2.0 is about x8 linear (+18 dB): normal speech
+# peaks around 20-30% (it was 10-14% at 1.6), the noise floor (RMS ~70) stays far
+# below SILENCE_THRESHOLD, and loud speech still doesn't clip. Measured on the
+# unit: 1.0 -> RMS 9, 1.6 -> 37, 2.0 -> 69, 4.0 -> 87 (capped).
+MIC_SOFT_GAIN = float(_cfg("MIC_SOFT_GAIN", "2.0"))
 SILENCE_DURATION = float(_cfg("SILENCE_DURATION", "1.2"))  # seconds of silence that end a command
 # Voice activity detection (models/silero_vad.onnx). With it, a command ends
 # VAD_END_SILENCE seconds after the speaker stops; SILENCE_DURATION then only
