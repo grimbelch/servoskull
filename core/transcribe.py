@@ -148,6 +148,10 @@ class StreamingTranscriber:
         from core import audio
         pcm24, _ = audio.resample_pcm(pcm, rate, _STREAM_RATE)
         self._sent_bytes += len(pcm24)
+        if config.AUDIO_DEBUG:
+            import numpy as np
+            a = np.frombuffer(pcm24, dtype=np.int16).astype(np.float32)
+            print(f"[stt] feed {len(pcm)//2/rate:.2f}s @{rate}Hz -> {len(pcm24)//2} samples @24k, rms={np.sqrt(np.mean(a*a)):.0f}")
         self._q.put(pcm24)
 
     def finish(self, timeout: float = 4.0) -> str | None:

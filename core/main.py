@@ -1797,8 +1797,12 @@ def main():
                     if _stt_stream is not None:
                         _t0 = time.monotonic()
                         user_text = _stt_stream.finish(timeout=4.0)
-                        if user_text is None:
-                            print("[skull] Streamed transcript unavailable — using the batch call.")
+                        if not user_text:
+                            # None: streaming failed. "": it heard nothing (or only the prompt
+                            # words) in a recording the VAD/RMS gate said had speech — the
+                            # batch call gets a second opinion before we say "I hear nothing".
+                            print("[skull] Streamed transcript unavailable or empty — using the batch call.")
+                            user_text = None
                         else:
                             print(f"[skull] Streamed transcript ready {time.monotonic() - _t0:.2f}s after end of speech.")
                     if user_text is None:
