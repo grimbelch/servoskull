@@ -13,6 +13,9 @@ _MODULES = [
     "gothic_broadside", "warp_translation", "galactic_orrery", "forge_world_orbital",
     "plasma_reactor", "mechadendrite_assembly", "cogitator_boot", "administratum_cogitation",
     "tyranid_swarm", "necron_awakening", "chaos_corruption", "inquisitorial_dossier",
+    "imperial_chronometer", "thought_for_the_day", "votive_candle", "hololith_skull",
+    "suspensor_telemetry", "optic_aperture", "censer_thurible", "aquila_ascendant",
+    "patrol_vector", "purity_seal",
 ]
 
 RENDERERS = {}
