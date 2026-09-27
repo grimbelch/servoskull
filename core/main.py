@@ -10,18 +10,7 @@ import re
 import pathlib
 import queue
 from concurrent.futures import ThreadPoolExecutor
-
-# ── Module-level compiled regexes ─────────────────────────────────────────────
-# Compiled once at import; never recompiled per loop iteration.
-_BARDS_TALE = r"\bbards?[\'’]?s?\s*tales?\b"
-_RE_GAME_START = re.compile(
-    r"\b(play|start|launch|run|begin|resume|continue|load|boot)\b.*" + _BARDS_TALE, re.I)
-_RE_GAME_NEW = re.compile(r"\b(new|fresh)\s+(game|party|adventure|campaign)\b|\bstart\s+over\b|\bfrom\s+scratch\b", re.I)
-# Only consulted while the game is running, so "stop playing" still reaches Spotify otherwise.
-_RE_GAME_STOP = re.compile(
-    r"\b(stop|end|quit|halt|exit|pause|enough)\b.*\b(game|playing|dungeon)\b|"
-    r"\b(stop|end|quit|halt|exit|pause)\b.*" + _BARDS_TALE, re.I)
-_RE_MUSIC_WORDS = re.compile(r"\b(music|song|spotify|album|track|playlist|radio|tune)s?\b", re.I)
+from dataclasses import dataclass
 
 _background_executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="skull_bg")
 
@@ -34,7 +23,7 @@ def run_background_task(func, *args, **kwargs):
 from core import config
 from core import db
 db.init_db()
-from core import audio, wake_word, transcribe, brain, tts, eyes, sfx, reminders, mood, speech_stream, watchdog
+from core import audio, wake_word, transcribe, brain, tts, eyes, sfx, reminders, mood, speech_stream, watchdog, intents
 from core import spotify_ctrl, cast_audio, camera, quiet, display, temperature, candles, bambu_ctrl
 
 
@@ -750,46 +739,11 @@ def _spotify_poller_loop():
             time.sleep(30.0)
 
 
-def _said_any(text: str, phrases) -> bool:
-    """Whole-word/phrase match, so "now" or "know" don't read as "no".
-
-    Module-level on purpose: main() has local `import re` statements, which make
-    `re` a local of main() and break closures defined inside it that use `re`.
-    """
-    return any(re.search(rf"\b{re.escape(p)}\b", text) for p in phrases)
-
-
-# ── Maintenance commands (update / reboot / shutdown) ────────────────────────
-# Matched against the whole utterance (after dropping filler words), never as a
-# substring, so "turn off the music" or "restart the song" can't power the Pi
-# down. Each one is also confirmed with a spoken "yes" before it runs.
-_MAINT_FILLER = re.compile(
-    r"\b(please|now|immediately|omega\s*(?:7|seven|8|eight)|servitor|jax|hey|ok|okay|can you|"
-    r"could you|would you|will you|i want you to|i need you to|go ahead and|the|a)\b"
-)
-_MAINT_COMMANDS = (
-    ("update", re.compile(r"(?:run )?(?:self|system) update|update (?:your software|yourself|your system)|pull updates")),
-    ("reboot", re.compile(r"reboot(?: system| yourself)?|restart (?:system|yourself)")),
-    ("shutdown", re.compile(r"shut ?down(?: system| yourself)?|power (?:down|off)(?: system| yourself)?"
-                            r"|turn (?:yourself|system) off|turn off (?:yourself|system)")),
-)
+# Maintenance commands (update / reboot / shutdown) are matched in core/intents.py
+# and confirmed with a spoken "yes" before they run.
 _MAINT_LABELS = {"update": "a system update", "reboot": "a full reboot", "shutdown": "a full shutdown",
                  "purge": "an identity purge"}
 _MAINT_CONFIRM_SECS = 30.0
-_CONFIRM_YES = ("yes", "yeah", "yep", "yup", "affirmative", "confirm", "confirmed", "do it", "proceed",
-                "go ahead", "i'm sure", "i am sure", "correct", "aye")
-_CONFIRM_NO = ("no", "nope", "nah", "cancel", "abort", "stop", "don't", "do not", "negative",
-               "never mind", "nevermind", "wait")
-
-
-def _maintenance_command(text: str) -> str | None:
-    """Return "update", "reboot" or "shutdown" only if that is the entire request."""
-    t = re.sub(r"[^a-z0-9\s]", " ", text.lower())
-    t = " ".join(_MAINT_FILLER.sub(" ", t).split())
-    for action, pattern in _MAINT_COMMANDS:
-        if pattern.fullmatch(t):
-            return action
-    return None
 
 
 def _maintenance_prompt(action: str, arg: str | None = None) -> str:
@@ -1102,6 +1056,308 @@ def _start_setup_announcement_repeater(interval_sec: float = 120.0) -> None:
                 _play_setup_announcement()
 
     threading.Thread(target=_loop, daemon=True).start()
+
+
+# ── Local intents (handled without the model) ────────────────────────────────
+# Matching lives in core/intents.py (pure, unit-tested). The handlers below do
+# the work and speak; each returns True when the turn is finished, or False to
+# let the request go on to the model (a voice switch, an unclear briefing answer,
+# a confirmation that turned out to be a new request).
+
+@dataclass
+class _Turn:
+    """One transcribed utterance and the loop state a handler may change."""
+    user_text: str
+    text: str                   # lower-cased transcript
+    speaker_name: str | None
+    on_wake: object
+    skip_wake_word: bool = False
+    skip_ack: bool = False
+    briefing_awaiting: bool = False
+    pending_maintenance: tuple | None = None   # (action, arg, expires_at)
+
+
+def _is_dog() -> bool:
+    return config.PERSONALITY.get("eye_animation") == "dog"
+
+
+def _say(turn: _Turn, text: str) -> bool:
+    """Speak a line with barge-in; an interruption skips the next wake-word wait."""
+    try:
+        eyes.on()
+        if _speak_interruptible(tts.synthesize(text), turn.on_wake):
+            turn.skip_wake_word = True
+            return True
+    except Exception as e:
+        print(f"[skull] Speech error: {e}")
+        eyes.off()
+    return False
+
+
+def _h_maintenance_reply(intent, turn: _Turn) -> bool:
+    action, arg, expires = turn.pending_maintenance
+    turn.pending_maintenance = None
+    answer = intent.args["answer"]
+    if answer == "yes" and time.time() <= expires:
+        print(f"[skull] Maintenance '{action}' confirmed.")
+        _run_maintenance(action, arg, turn.on_wake)
+        return True
+    print(f"[skull] Maintenance '{action}' not confirmed — cancelled.")
+    if answer == "no":
+        _say(turn, "Understood. Standing down.")
+        return True
+    return False  # a new request: handle it normally
+
+
+def _h_briefing(intent, turn: _Turn) -> bool:
+    from core import web
+    turn.briefing_awaiting = False
+    answer = intent.args["answer"]
+    if answer == "yes":
+        print("[skull] Morning briefing requested. Generating...")
+        try:
+            briefing_text = brain.generate_daily_briefing()
+            brain.mark_daily_briefing_done()
+            web.log_vox(config.SKULL_NAME, briefing_text)
+            print(f"[skull] Daily Briefing: {briefing_text}")
+            _say(turn, briefing_text)
+        except Exception as e:
+            print(f"[skull] Briefing delivery failed: {e}")
+        finally:
+            display.stop_noosphere_scan()
+            display.stop_auspex_scan()
+        return True
+    if answer == "no":
+        print("[skull] User declined morning briefing. Archiving.")
+        ack = "Okay, no problem! We can catch up later." if _is_dog() else "Understood, master. Cogitations archived. Speak freely."
+        web.log_vox(config.SKULL_NAME, ack)
+        _say(turn, ack)
+        return True
+    print("[skull] Briefing response unclear — falling through to brain.")
+    return False
+
+
+def _h_screensaver(intent, turn: _Turn) -> bool:
+    display.trigger_idle_animation(300.0, intent.args["name"])
+    return True
+
+
+def _h_bards_tale(intent, turn: _Turn) -> bool:
+    from games.bardstale import agent as bt
+    if intent.args["action"] == "start":
+        if bt.is_running():
+            reply = "I am already in Skara Brae. Watch my eye."
+        else:
+            new_game = intent.args["new"] or not bt.can_resume()
+            problem = bt.start(_game_narrate, new_game=new_game)
+            if problem:
+                print(f"[skull] Bard's Tale cannot start: {problem}")
+                reply = f"I cannot enter Skara Brae. {problem}"
+            else:
+                display.start_game_display()
+                reply = ("A new party gathers at the Adventurers' Guild. Beginning the tale."
+                         if new_game else "Resuming the tale where my party left off.")
+    else:
+        bt.stop()
+        display.stop_game_display()
+        reply = "Game suspended. My progress is committed to the data-vaults."
+    print(f"[skull] Bard's Tale -> {reply}")
+    _say(turn, reply)
+    return True
+
+
+def _h_conversation_reset(intent, turn: _Turn) -> bool:
+    # Wipes the short-term history by voice, so a poisoned/anchored conversation
+    # can be recovered without SSH. Deliberately NOT an LLM tool: the whole point
+    # is to recover when the model itself is misbehaving.
+    print("[skull] Conversation reset requested — clearing short-term history.")
+    brain.reset()
+    _say(turn, "Alright, I've cleared my head! What do you want to talk about now? Woof!" if _is_dog()
+         else "As you command, master. This unit's short-term cogitation is purged — the slate is clean. Speak anew.")
+    return True
+
+
+def _h_spotify_control(intent, turn: _Turn) -> bool:
+    if not spotify_ctrl.is_configured():
+        print("[skull] Spotify not configured — leaving the request to the model.")
+        return False
+    action = intent.args["action"]
+    if action == "stop":
+        spotify_ctrl.pause()
+        _say(turn, "Music off!" if _is_dog() else "Silencing the music.")
+    elif action == "resume":
+        spotify_ctrl.resume()
+        _say(turn, "Music on!" if _is_dog() else "Resuming the music.")
+    else:
+        spotify_ctrl.skip()
+        _say(turn, "Next one!" if _is_dog() else "Skipping.")
+    return True
+
+
+def _h_spotify_volume(intent, turn: _Turn) -> bool:
+    if not spotify_ctrl.is_configured():
+        return False
+    if "level" in intent.args:
+        spotify_ctrl.set_volume(intent.args["level"])
+        _say(turn, f"Setting volume to {intent.args['level']} percent.")
+    else:
+        spotify_ctrl.adjust_volume(intent.args["change"])
+        _say(turn, "Turning the volume up." if intent.args["change"] > 0 else "Lowering the volume.")
+    return True
+
+
+def _h_dice(intent, turn: _Turn) -> bool:
+    a = intent.args
+    if a["game"] == "necromunda":
+        result = brain._execute_tool("roll_necromunda_dice", {"count": a["count"], "dice_type": a["dice_type"]})
+    else:
+        result = brain._execute_tool("roll_standard_dice", {"count": a["count"], "sides": a["sides"], "target": a["target"]})
+    _say(turn, result)
+    return True
+
+
+def _h_personality_switch(intent, turn: _Turn) -> bool:
+    _say(turn, switch_personality(intent.args["target"]))
+    _execute_pending_system_command()
+    return True
+
+
+def _h_display_rotation(intent, turn: _Turn) -> bool:
+    result = config.set_display_rotation(intent.args["degrees"], relative=not intent.args["absolute"])
+    print(f"[skull] {result}")
+    _say(turn, result)
+    return True
+
+
+def _h_voice_wait(intent, turn: _Turn) -> bool:
+    result = config.set_silence_duration(intent.args["seconds"])
+    print(f"[skull] {result}")
+    _say(turn, result)
+    return True
+
+
+def _h_honorific(intent, turn: _Turn) -> bool:
+    result = config.set_honorific(intent.args["name"])
+    print(f"[skull] {result}")
+    _say(turn, result)
+    return True
+
+
+def _h_maintenance_command(intent, turn: _Turn) -> bool:
+    action = intent.args["action"]
+    print(f"[skull] Local {action} intent detected — awaiting confirmation.")
+    turn.pending_maintenance = (action, None, time.time() + _MAINT_CONFIRM_SECS)
+    _say(turn, _maintenance_prompt(action))
+    turn.skip_wake_word = True  # listen straight away for the yes/no
+    turn.skip_ack = True
+    return True
+
+
+def _h_voice_registration(intent, turn: _Turn) -> bool:
+    # Handled directly: when the voice model mistakes the owner for a stranger
+    # (e.g. after a mic change), the model would rightly refuse to let an
+    # "unknown" speaker re-register as the owner.
+    name = (intent.args["name"] or config._OWNER_PROFILE.get("name") or "Master").strip().title()
+    print(f"[skull] Voice registration for '{name}'.")
+    try:
+        from core import speaker_id
+        eyes.on()
+        _speak_interruptible(tts.synthesize(
+            f"Voice imprint protocol for {name}. Answer five inquiries in full sentences."), turn.on_wake)
+        result = speaker_id.register_voice(name)
+        print(f"[skull] {result}")
+        _speak_interruptible(tts.synthesize(
+            f"Voice imprint for {name} is sealed in the archives." if "complete" in result.lower()
+            else "The voice imprint rite has failed. Consult the logs."), turn.on_wake)
+    except Exception as e:
+        print(f"[skull] Voice registration error: {e}")
+    return True
+
+
+def _h_web_access_code(intent, turn: _Turn) -> bool:
+    # Shown on the eye, never spoken aloud or logged.
+    from core import web
+    try:
+        display.show_access_code(web.issue_access_code(), 60.0)
+        _say(turn, "The code is on my eye screen! Quick, copy it down!" if _is_dog()
+             else "The access code is displayed on my ocular, Master.")
+    except Exception as e:
+        print(f"[skull] Access code display error: {e}")
+    return True
+
+
+def _h_voice_cache_refresh(intent, turn: _Turn) -> bool:
+    refresh_voice_cache()
+    _say(turn, config.PERSONALITY.get("refresh_voice_message", "Purging voice cache."))
+    return True
+
+
+def _h_tts_switch(intent, turn: _Turn) -> bool:
+    # Falls through: the model acknowledges the switch in character, in the new voice.
+    config.TTS_BACKEND = intent.args["backend"]
+    print(f"[skull] TTS → {config.TTS_BACKEND} (user request)")
+    threading.Thread(target=_preload_phrases, daemon=True).start()
+    return False
+
+
+def _h_idle_observation(intent, turn: _Turn) -> bool:
+    try:
+        utterance = brain.idle_utterance()
+        if utterance:
+            print(f"[skull] Idle: {utterance}")
+            _say(turn, utterance)
+    except Exception as e:
+        print(f"[skull] Idle utterance error: {e}")
+        eyes.off()
+    return True
+
+
+def _match_personality_switch(text: str, ctx) -> intents.Intent | None:
+    target = _personality_switch_target(text)
+    return intents.Intent("personality_switch", {"target": target}) if target else None
+
+
+# In order: answers to the skull's own questions first, then commands.
+_LOCAL_INTENTS = (
+    (intents.maintenance_reply, _h_maintenance_reply),
+    (intents.briefing, _h_briefing),
+    (intents.screensaver, _h_screensaver),
+    (intents.bards_tale, _h_bards_tale),
+    (intents.conversation_reset, _h_conversation_reset),
+    (intents.spotify_control, _h_spotify_control),
+    (intents.spotify_volume, _h_spotify_volume),
+    (intents.dice, _h_dice),
+    (_match_personality_switch, _h_personality_switch),
+    (intents.display_rotation, _h_display_rotation),
+    (intents.voice_wait, _h_voice_wait),
+    (intents.honorific, _h_honorific),
+    (intents.maintenance_command, _h_maintenance_command),
+    (intents.voice_registration, _h_voice_registration),
+    (intents.web_access_code, _h_web_access_code),
+    (intents.voice_cache_refresh, _h_voice_cache_refresh),
+    (intents.tts_switch, _h_tts_switch),
+    (intents.idle_observation, _h_idle_observation),
+)
+
+
+def _run_local_intents(turn: _Turn) -> bool:
+    """Run the local intent table; True if the turn was finished without the model."""
+    from games.bardstale import agent as bt
+    ctx = intents.Context(
+        screensavers=tuple(display.get_screensaver_names()),
+        game_running=bt.is_running(),
+        awaiting_briefing=turn.briefing_awaiting,
+        pending_maintenance=turn.pending_maintenance is not None,
+    )
+    for matcher, handler in _LOCAL_INTENTS:
+        intent = matcher(turn.text, ctx)
+        if intent is None:
+            continue
+        print(f"[skull] Local intent: {intent.kind}" + (f" {intent.args}" if intent.args else ""))
+        if handler(intent, turn):
+            return True
+    return False
+
 
 
 def main():
@@ -1636,461 +1892,17 @@ def main():
 
             _t = user_text.lower()
 
-            # ── 3a-0. Intercept screensaver / visual emulation commands ────────────
-            if "screensaver" in _t or "visual emulation" in _t:
-                m = re.search(r'(?:play|run|show|start|trigger|exec|execute)?\s*([a-z0-9_]+)\s*(?:screensaver|visual emulation)', _t)
-                anim_target = None
-                if m:
-                    anim_target = m.group(1).strip()
-                if not anim_target or anim_target not in display.get_screensaver_names():
-                    for s_name in display.get_screensaver_names():
-                        if s_name in _t:
-                            anim_target = s_name
-                            break
-                if anim_target:
-                    print(f"[skull] Local screensaver intercept triggered: {anim_target}")
-                    display.trigger_idle_animation(300.0, anim_target)
-                    continue
-
-            # ── 3a-0b. Bard's Tale: Omega-7 plays it himself ─────────────────
-            from games.bardstale import agent as _bt_agent
-            _bt_reply = None
-            if _RE_GAME_START.search(_t):
-                if _bt_agent.is_running():
-                    _bt_reply = "I am already in Skara Brae. Watch my eye."
-                else:
-                    _bt_new = bool(_RE_GAME_NEW.search(_t)) or not _bt_agent.can_resume()
-                    _bt_problem = _bt_agent.start(_game_narrate, new_game=_bt_new)
-                    if _bt_problem:
-                        print(f"[skull] Bard's Tale cannot start: {_bt_problem}")
-                        _bt_reply = f"I cannot enter Skara Brae. {_bt_problem}"
-                    else:
-                        display.start_game_display()
-                        _bt_reply = ("A new party gathers at the Adventurers' Guild. Beginning the tale."
-                                     if _bt_new else "Resuming the tale where my party left off.")
-            elif (_bt_agent.is_running() and _RE_GAME_STOP.search(_t)
-                  and not _RE_MUSIC_WORDS.search(_t)):
-                _bt_agent.stop()
-                display.stop_game_display()
-                _bt_reply = "Game suspended. My progress is committed to the data-vaults."
-            if _bt_reply:
-                print(f"[skull] Bard's Tale intent -> {_bt_reply}")
-                try:
-                    eyes.on()
-                    _speak_interruptible(tts.synthesize(_bt_reply), on_wake)
-                except Exception as _ge:
-                    print(f"[skull] Bard's Tale speech error: {_ge}")
+            # ── 3a. Local intents (handled without the model) ─────────────────────
+            turn = _Turn(user_text=user_text, text=_t, speaker_name=speaker_name, on_wake=on_wake,
+                         briefing_awaiting=_briefing_awaiting_response,
+                         pending_maintenance=_pending_maintenance)
+            handled = _run_local_intents(turn)
+            _briefing_awaiting_response = turn.briefing_awaiting
+            _pending_maintenance = turn.pending_maintenance
+            skip_wake_word = skip_wake_word or turn.skip_wake_word
+            skip_ack = skip_ack or turn.skip_ack
+            if handled:
                 continue
-
-            # ── 3a-1. Intercept morning-briefing / briefing / update requests ───────────────
-            _BRIEFING_KEYS = ("briefing", "morning update", "daily update", "morning report",
-                              "daily report", "morning telemetry", "daily telemetry", "morning dispatch", "daily dispatch")
-            if _briefing_awaiting_response or any(bk in _t for bk in _BRIEFING_KEYS):
-                _YES = ("yes", "sure", "yeah", "yep", "yup", "ready", "affirmative",
-                        "proceed", "deliver", "go ahead", "please", "of course",
-                        "absolutely", "aye", "correct", "indeed", "do it", "ok", "okay",
-                        "briefing", "daily briefing", "morning briefing", "morning update", "daily update",
-                        "give it to me", "tell me", "update", "i am", "i'm ready", "let's hear it",
-                        "go on", "hit me", "let's go", "lay it on me", "bring it", "go for it")
-                _NO  = ("no", "not now", "later", "skip", "negative", "cancel",
-                        "nevermind", "never mind", "pass", "maybe later", "not yet",
-                        "nope", "nah", "not ready", "i'm not", "i am not", "don't", "do not")
-
-                # Declines are checked first so "I am not ready" isn't taken as a yes.
-                _declined = _briefing_awaiting_response and _said_any(_t, _NO)
-                if not _declined and (_said_any(_t, _YES) or any(bk in _t for bk in _BRIEFING_KEYS)):
-                    _briefing_awaiting_response = False
-                    print("[skull] User confirmed/requested morning briefing/update. Generating...")
-                    try:
-                        briefing_text = brain.generate_daily_briefing()
-                        brain.mark_daily_briefing_done()
-                        web.log_vox(config.SKULL_NAME, briefing_text)
-                        print(f"[skull] Daily Briefing: {briefing_text}")
-                        briefing_wav = tts.synthesize(briefing_text)
-                        eyes.on()
-                        interrupted = _speak_interruptible(briefing_wav, on_wake)
-                        if interrupted:
-                            skip_wake_word = True
-                    except Exception as e:
-                        print(f"[skull] Briefing delivery failed: {e}")
-                    finally:
-                        display.stop_noosphere_scan()
-                        display.stop_auspex_scan()
-                    continue
-                elif _declined:
-                    _briefing_awaiting_response = False
-                    print("[skull] User declined morning briefing. Archiving.")
-                    try:
-                        if config.get_personality_key() == "jax":
-                            ack_text = "Okay, no problem! We can catch up later."
-                        else:
-                            ack_text = "Understood, master. Cogitations archived. Speak freely."
-                        web.log_vox(config.SKULL_NAME, ack_text)
-                        ack_wav = tts.synthesize(ack_text)
-                        eyes.on()
-                        _speak_interruptible(ack_wav, on_wake)
-                    except Exception as e:
-                        print(f"[skull] Briefing dismiss ack error: {e}")
-                    continue
-                else:
-                    _briefing_awaiting_response = False
-                    print("[skull] Briefing response unclear — falling through to brain.")
-
-            # ── 3a. Conversation-reset request (deterministic, pre-LLM) ────────────
-            # Wipes the short-term history by voice, so a poisoned/anchored conversation
-            # (e.g. the model repeating an earlier wrong answer from history instead of
-            # re-checking) can be recovered without SSH. Deliberately NOT an LLM tool:
-            # the whole point is to recover when the model itself is misbehaving.
-            _RESET_TRIGGERS = (
-                "forget this conversation", "forget our conversation", "forget the conversation",
-                "clear this conversation", "clear our conversation", "clear the conversation",
-                "reset this conversation", "reset our conversation", "reset the conversation",
-                "new conversation", "start a new conversation", "wipe this conversation",
-                "erase this conversation", "purge this conversation", "forget what we",
-                "forget everything we", "clear chat history", "forget our chat",
-                "clear our chat", "forget our discussion", "forget this discussion",
-            )
-            if any(p in _t for p in _RESET_TRIGGERS):
-                print("[skull] Conversation reset requested — clearing short-term history.")
-                brain.reset()
-                if config.get_personality_key() == "jax":
-                    _ack = "Alright, I've cleared my head! What do you want to talk about now? Woof!"
-                else:
-                    _ack = ("As you command, master. This unit's short-term cogitation is purged — "
-                            "the slate is clean. Speak anew.")
-                try:
-                    eyes.on()
-                    if _speak_interruptible(tts.synthesize(_ack), on_wake):
-                        skip_wake_word = True
-                except Exception as e:
-                    print(f"[skull] Reset ack error: {e}")
-                    eyes.off()
-                continue
-
-            # ── 3a-2. Detect explicit local Spotify control commands ──────────────
-            _STOP_MUSIC_PHRASES = (
-                "stop music", "stop playing", "stop spotify", "pause music", "pause spotify",
-                "turn off music", "turn off the music", "kill the music", "halt the music",
-                "enough music", "silence the music", "stop the music"
-            )
-            _RESUME_MUSIC_PHRASES = (
-                "resume music", "resume spotify", "continue music", "unpause music", "unpause spotify",
-                "start music", "start playing", "play music", "play spotify", "continue playing",
-                "resume", "unpause"
-            )
-            _SKIP_MUSIC_PHRASES = (
-                "skip music", "skip song", "next song", "next track", "skip track"
-            )
-        
-            if any(p in _t for p in _STOP_MUSIC_PHRASES) or _t.strip() in ("stop", "pause"):
-                print("[skull] Local stop-music intent detected.")
-                if spotify_ctrl.is_configured():
-                    spotify_ctrl.pause()
-            elif any(p in _t for p in _RESUME_MUSIC_PHRASES) or _t.strip() in ("resume", "unpause"):
-                print("[skull] Local resume-music intent detected.")
-                if spotify_ctrl.is_configured():
-                    spotify_ctrl.resume()
-            elif any(p in _t for p in _SKIP_MUSIC_PHRASES) or _t.strip() in ("skip", "next"):
-                print("[skull] Local skip-music intent detected.")
-                if spotify_ctrl.is_configured():
-                    spotify_ctrl.skip()
-
-            # ── 3a-3. Detect Spotify volume control commands ──────────────
-            _VOLUME_UP_PHRASES = (
-                "turn up music", "turn up the music", "make music louder", "make the music louder",
-                "louder music", "louder spotify", "increase music volume", "increase spotify volume",
-                "crank the music", "crank the tunes", "volume up"
-            )
-            _VOLUME_DOWN_PHRASES = (
-                "turn down music", "turn down the music", "make music quieter", "make the music quieter",
-                "quieter music", "quieter spotify", "decrease music volume", "decrease spotify volume",
-                "lower music volume", "lower spotify volume", "volume down"
-            )
-        
-            vol_handled = False
-            if any(p in _t for p in _VOLUME_UP_PHRASES):
-                print("[skull] Local Spotify volume up detected.")
-                if spotify_ctrl.is_configured():
-                    spotify_ctrl.adjust_volume(15)
-                    try:
-                        speech_wav = tts.synthesize("Turning the volume up.")
-                        eyes.on()
-                        _speak_interruptible(speech_wav, on_wake)
-                    except Exception:
-                        pass
-                    vol_handled = True
-            elif any(p in _t for p in _VOLUME_DOWN_PHRASES):
-                print("[skull] Local Spotify volume down detected.")
-                if spotify_ctrl.is_configured():
-                    spotify_ctrl.adjust_volume(-15)
-                    try:
-                        speech_wav = tts.synthesize("Lowering the volume.")
-                        eyes.on()
-                        _speak_interruptible(speech_wav, on_wake)
-                    except Exception:
-                        pass
-                    vol_handled = True
-            else:
-                # Only intercept as Spotify if 'music' or 'spotify' is explicitly mentioned
-                # to avoid hijacking plain system-volume commands like "set your volume to 70%"
-                m = re.search(r"(?:music|spotify)\s*volume\s*(?:to\s+)?(\d+)", _t)
-                if m:
-                    level = int(m.group(1))
-                    if 0 <= level <= 100:
-                        print(f"[skull] Local Spotify absolute volume set detected: {level}%")
-                        if spotify_ctrl.is_configured():
-                            spotify_ctrl.set_volume(level)
-                            try:
-                                speech_wav = tts.synthesize(f"Setting volume to {level} percent.")
-                                eyes.on()
-                                _speak_interruptible(speech_wav, on_wake)
-                            except Exception:
-                                pass
-                            vol_handled = True
-            if vol_handled:
-                continue
-
-            # ── 3a-4. Detect Instant Dice Roll commands ──────────────
-            dice_handled = False
-        
-            # 1. Necromunda specialized dice
-            m_necro = re.search(r"roll\s+(?:a\s+|an\s+)?(\d+)?\s*(firepower|injury|scatter|hit\s+location|location)\s*d(?:ice|ie)?", _t)
-            if m_necro:
-                count = int(m_necro.group(1)) if m_necro.group(1) else 1
-                dice_type = m_necro.group(2).lower().strip()
-                if "location" in dice_type:
-                    dice_type = "location"
-                print(f"[skull] Instant Necromunda roll detected: {count}x {dice_type}")
-                res = brain._execute_tool("roll_necromunda_dice", {"count": count, "dice_type": dice_type})
-                try:
-                    speech_wav = tts.synthesize(res)
-                    eyes.on()
-                    _speak_interruptible(speech_wav, on_wake)
-                except Exception:
-                    pass
-                dice_handled = True
-            
-            # 2. Standard multi-sided dice
-            if not dice_handled:
-                m_std = re.search(r"roll\s+(?:a\s+|an\s+)?(\d+)?\s*d\s*(\d+)(?:\s*(?:needing|target|against)\s+(\d+))?", _t)
-                if m_std:
-                    count = int(m_std.group(1)) if m_std.group(1) else 1
-                    sides = int(m_std.group(2))
-                    target = int(m_std.group(3)) if m_std.group(3) else None
-                    print(f"[skull] Instant standard roll detected: {count}d{sides} (target: {target})")
-                    res = brain._execute_tool("roll_standard_dice", {"count": count, "sides": sides, "target": target})
-                    try:
-                        speech_wav = tts.synthesize(res)
-                        eyes.on()
-                        _speak_interruptible(speech_wav, on_wake)
-                    except Exception:
-                        pass
-                    dice_handled = True
-            if dice_handled:
-                # The roll has been spoken; without this the same text went on to
-                # Claude, which rolled again and announced a different result.
-                continue
-
-            # ── 3a-6. Detect Personality Switch commands ──────────────
-            _t_norm = _t.lower()
-            _switch_to = _personality_switch_target(user_text)
-            if _switch_to:
-                print(f"[skull] Local personality switch to '{_switch_to}' detected.")
-                msg = switch_personality(_switch_to)
-                try:
-                    speech_wav = tts.synthesize(msg)
-                    eyes.on()
-                    _speak_interruptible(speech_wav, on_wake)
-                except Exception:
-                    pass
-                _execute_pending_system_command()
-                continue
-
-            # ── 3a-5. Detect Voice Cache Refresh and Self-Update ──────────
-            # Needs both a voice word and a cache word ("clear your voice cache", "rebuild
-            # the phrase library"): a bare "clear the table" used to wipe the cache and
-            # re-pay ElevenLabs to re-synthesize every phrase.
-            _RE_REFRESH = re.compile(r"\b(?:refresh|reload|clear|rebuild|regenerate|update|purge|reset)\s+(?:your\s+|the\s+)?"
-                                     r"(?:voice|sound|phrase|response|canned|precanned|audio|speech)\s+"
-                                     r"(?:cache|library|responses|phrases|sounds)\b", re.I)
-        
-            # ── 3a-7. Detect Display Rotation commands ──────────────
-            if ("rotate" in _t_norm or "turn" in _t_norm or "adjust" in _t_norm or "tilt" in _t_norm) and ("display" in _t_norm or "screen" in _t_norm or "eye" in _t_norm):
-                m = re.search(r"([+-]?\d+(?:\.\d+)?)", _t_norm)
-                if m:
-                    val = float(m.group(1))
-                    if "counter" in _t_norm or "left" in _t_norm or "ccw" in _t_norm:
-                        deg_change = -abs(val)
-                    elif "clockwise" in _t_norm or "right" in _t_norm or "cw" in _t_norm:
-                        deg_change = abs(val)
-                    else:
-                        deg_change = val
-                
-                    is_absolute = "to" in _t_norm and "by" not in _t_norm
-                    res_msg = config.set_display_rotation(deg_change, relative=not is_absolute)
-                    print(f"[skull] Local display rotation intent: {res_msg}")
-                    try:
-                        speech_wav = tts.synthesize(res_msg)
-                        eyes.on()
-                        _speak_interruptible(speech_wav, on_wake)
-                    except Exception:
-                        pass
-                    continue
-
-            # ── 3a-8. Detect Voice Wait Duration commands ──────────────
-            if ("voice wait" in _t_norm or "silence wait" in _t_norm or "silence duration" in _t_norm or "voice duration" in _t_norm or "wait period" in _t_norm or "wait duration" in _t_norm) and ("set" in _t_norm or "change" in _t_norm or "adjust" in _t_norm or "make" in _t_norm):
-                m = re.search(r"([+-]?\d+(?:\.\d+)?)", _t_norm)
-                if m:
-                    sec_val = float(m.group(1))
-                    res_msg = config.set_silence_duration(sec_val)
-                    print(f"[skull] Local voice wait duration intent: {res_msg}")
-                    try:
-                        speech_wav = tts.synthesize(res_msg)
-                        eyes.on()
-                        _speak_interruptible(speech_wav, on_wake)
-                    except Exception:
-                        pass
-            # ── 3a-9. Detect Honorific / Title commands ──────────────
-            if ("honorific" in _t_norm or "title" in _t_norm or "call me" in _t_norm or "address me" in _t_norm) and ("set" in _t_norm or "change" in _t_norm or "make" in _t_norm or "update" in _t_norm or "call" in _t_norm or "address" in _t_norm):
-                m = re.search(r"(?:set|change|update|make)\s+(?:my\s+)?(?:honorific|title)\s+(?:to\s+)?([a-z0-9\s_-]+)|(?:call\s+me|address\s+me\s+as)\s+([a-z0-9\s_-]+)(?:\s+from\s+now\s+on)?", _t, re.I)
-                if m:
-                    new_h = (m.group(1) or m.group(2) or "").strip()
-                    if new_h:
-                        res_msg = config.set_honorific(new_h)
-                        print(f"[skull] Local honorific intent: {res_msg}")
-                        try:
-                            speech_wav = tts.synthesize(res_msg)
-                            eyes.on()
-                            _speak_interruptible(speech_wav, on_wake)
-                        except Exception:
-                            pass
-                        continue
-
-            # A pending update/reboot/shutdown/purge runs only on an explicit spoken yes.
-            if _pending_maintenance is not None:
-                _action, _arg, _expires = _pending_maintenance
-                _pending_maintenance = None
-                if time.time() <= _expires and _said_any(_t, _CONFIRM_YES) and not _said_any(_t, _CONFIRM_NO):
-                    print(f"[skull] Maintenance '{_action}' confirmed.")
-                    _run_maintenance(_action, _arg, on_wake)
-                    continue
-                print(f"[skull] Maintenance '{_action}' not confirmed — cancelled.")
-                if _said_any(_t, _CONFIRM_NO):
-                    try:
-                        eyes.on()
-                        _speak_interruptible(tts.synthesize("Understood. Standing down."), on_wake)
-                    except Exception:
-                        pass
-                    continue
-                # Anything else is treated as a new request and handled normally below.
-
-            _maint_action = _maintenance_command(user_text)
-            if _maint_action:
-                print(f"[skull] Local {_maint_action} intent detected — awaiting confirmation.")
-                _pending_maintenance = (_maint_action, None, time.time() + _MAINT_CONFIRM_SECS)
-                try:
-                    eyes.on()
-                    _speak_interruptible(tts.synthesize(_maintenance_prompt(_maint_action)), on_wake)
-                except Exception:
-                    pass
-                skip_wake_word = True  # listen straight away for the yes/no
-                skip_ack = True
-                continue
-
-            # Voice (re-)registration, handled directly: when the voice model mistakes
-            # the owner for a stranger (e.g. after a mic change), the LLM would rightly
-            # refuse to let an "unknown" speaker re-register as the owner.
-            _m_reg = re.search(r"\b(?:register|enrol+|record|re-?register|update|retrain)\s+(?:my\s+)?voice(?:\s+(?:print|profile|imprint))?"
-                               r"(?:\s+(?:as|for)\s+(?P<name>[a-z][a-z' -]{0,30}?))?[.!?]*$", _t)
-            if _m_reg:
-                _reg_name = (_m_reg.group("name") or config._OWNER_PROFILE.get("name") or "Master").strip().title()
-                print(f"[skull] Local voice registration intent for '{_reg_name}'.")
-                try:
-                    eyes.on()
-                    _speak_interruptible(tts.synthesize(
-                        f"Voice imprint protocol for {_reg_name}. Answer five inquiries in full sentences."), on_wake)
-                    from core import speaker_id
-                    _reg_result = speaker_id.register_voice(_reg_name)
-                    print(f"[skull] {_reg_result}")
-                    _speak_interruptible(tts.synthesize(
-                        f"Voice imprint for {_reg_name} is sealed in the archives." if "complete" in _reg_result.lower()
-                        else "The voice imprint rite has failed. Consult the logs."), on_wake)
-                except Exception as e:
-                    print(f"[skull] Voice registration error: {e}")
-                continue
-
-            # Show the web remote access code on the eye (never spoken aloud or logged).
-            if re.search(r"\b(web|remote)\b.*\b(access )?(code|password|pass ?code)\b|\baccess code\b", _t):
-                print("[skull] Local web-access-code intent detected — showing code on the eye.")
-                try:
-                    display.show_access_code(web.issue_access_code(), 60.0)
-                    eyes.on()
-                    _speak_interruptible(tts.synthesize(
-                        "The access code is displayed on my ocular, Master." if config.PERSONALITY.get("eye_animation") != "dog"
-                        else "The code is on my eye screen! Quick, copy it down!"), on_wake)
-                except Exception as e:
-                    print(f"[skull] Access code display error: {e}")
-                continue
-
-            if _RE_REFRESH.search(_t):
-                print("[skull] Local voice cache refresh intent detected.")
-                refresh_voice_cache()
-                try:
-                    msg = config.PERSONALITY.get("refresh_voice_message", "Purging voice cache.")
-                    speech_wav = tts.synthesize(msg)
-                    eyes.on()
-                    _speak_interruptible(speech_wav, on_wake)
-                except Exception:
-                    pass
-                continue
-
-            # ── 3b. Detect explicit voice-switch requests ──────────────────────────
-            # Unambiguous phrases match on their own (they name a backend or contain "voice").
-            _ELEVENLABS_PHRASES = (
-                "elevenlabs", "eleven labs", "cloud voice", "premium voice", "cloud tts",
-                "fancy voice", "good voice", "better voice", "real voice", "nice voice",
-            )
-            _PIPER_PHRASES = (
-                "piper", "local voice", "standard voice", "local tts",
-                "basic voice", "offline voice", "robot voice", "cheap voice",
-            )
-            # Bare words that are too common to match alone (e.g. "Spotify Premium",
-            # "premium ammunition") — only count when a voice-switch intent word is present.
-            _SWITCH_INTENT = ("voice", "speak", "sound", "talk", "tts", "switch")
-            _has_intent = any(w in _t for w in _SWITCH_INTENT)
-            _AMBIGUOUS_ELEVENLABS = ("premium", "cloud")
-            _AMBIGUOUS_PIPER = ("local", "offline")
-            if any(p in _t for p in _ELEVENLABS_PHRASES) or (
-                _has_intent and any(p in _t for p in _AMBIGUOUS_ELEVENLABS)
-            ):
-                config.TTS_BACKEND = "elevenlabs"
-                print("[skull] TTS → elevenlabs (user request)")
-                threading.Thread(target=_preload_phrases, daemon=True).start()
-            elif any(p in _t for p in _PIPER_PHRASES) or (
-                _has_intent and any(p in _t for p in _AMBIGUOUS_PIPER)
-            ):
-                config.TTS_BACKEND = "piper"
-                print("[skull] TTS → piper (user request)")
-                threading.Thread(target=_preload_phrases, daemon=True).start()
-
-            # ── 3c. Detect on-demand idle observation request ─────────────────────
-            _IDLE_TRIGGERS = ("idle observation", "status update", "observation", "what have you observed",
-                              "ambient", "what's happening", "hive update", "tell me something")
-            if any(p in _t for p in _IDLE_TRIGGERS):
-                print("[skull] On-demand idle utterance requested.")
-                try:
-                    utterance = brain.idle_utterance()
-                    if utterance:
-                        print(f"[skull] Idle: {utterance}")
-                        idle_wav = tts.synthesize(utterance)
-                        eyes.on()
-                        # Barge-in: let the user cut in with the wake word mid-utterance.
-                        if _speak_interruptible(idle_wav, on_wake):
-                            skip_wake_word = True
-                except Exception as e:
-                    print(f"[skull] Idle utterance error: {e}")
-                    eyes.off()
-                continue  # skip normal brain.respond(); idle timer resets on next loop
 
             # ── 4. Generate response ───────────────────────────────────────────────
             # Acknowledge the request immediately (unless a hymn is requested, where

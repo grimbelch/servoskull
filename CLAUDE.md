@@ -23,6 +23,10 @@ word → Whisper → Claude with tools → ElevenLabs/Piper speech, plus a round
   Foundry bridge), `bardstale/` (Apple IIe emulator agent), `netea/`, `netepic/`.
   Copyrighted rulebook text is built locally with `games/ingest_pdf.py` and
   git-ignored.
+- Requests handled without the model (dice, Spotify, settings, confirmations) are
+  matched by pure functions in `core/intents.py` and dispatched by the
+  `_LOCAL_INTENTS` table in `core/main.py` to `_h_*` handlers. A new one needs a
+  matcher, a handler, a table entry and tests in `tests/test_intents.py`.
 - `tests/` — pytest unit tests for the pure-logic pieces (tracked even though the
   `test*` ignore rule covers scratch scripts).
 
