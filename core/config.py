@@ -262,6 +262,10 @@ BAMBU_PRINTER_ACCESS_CODE = _cfg("BAMBU_PRINTER_ACCESS_CODE", "")
 CLAUDE_MODEL = _cfg("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
 # OpenAI speech-to-text model: whisper-1 (default) or gpt-4o-mini-transcribe (faster, more accurate).
 STT_MODEL = _cfg("STT_MODEL", "whisper-1")
+# Stream the recording to a realtime transcription session while it is captured,
+# so the transcript is ready when the speaker stops (falls back to STT_MODEL).
+STT_STREAMING = _cfg("STT_STREAMING", "true").lower() == "true"
+STT_STREAMING_MODEL = _cfg("STT_STREAMING_MODEL", "gpt-4o-mini-transcribe")
 
 # ── Text-to-speech ───────────────────────────────────────────────────────────────
 # "piper" (local, free) or "elevenlabs" (cloud, quota-limited)
@@ -499,6 +503,12 @@ RECORD_SECONDS = 10
 # noise); raise it if it starts transcribing ambient hum. Recorder floor is ~300.
 SILENCE_THRESHOLD = int(_cfg("SILENCE_THRESHOLD", "180"))
 SILENCE_DURATION = float(_cfg("SILENCE_DURATION", "1.2"))  # seconds of silence that end a command
+# Voice activity detection (models/silero_vad.onnx). With it, a command ends
+# VAD_END_SILENCE seconds after the speaker stops; SILENCE_DURATION then only
+# bounds how long to wait for them to start. Falls back to RMS silence if off.
+VAD_ENABLED = _cfg("VAD_ENABLED", "true").lower() == "true"
+VAD_THRESHOLD = float(_cfg("VAD_THRESHOLD", "0.5"))     # speech probability that counts as talking
+VAD_END_SILENCE = float(_cfg("VAD_END_SILENCE", "0.7"))  # seconds of non-speech that end a command
 
 
 def set_silence_duration(seconds: float) -> str:

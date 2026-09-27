@@ -23,7 +23,7 @@ def run_background_task(func, *args, **kwargs):
 from core import config
 from core import db
 db.init_db()
-from core import audio, wake_word, transcribe, brain, tts, eyes, sfx, reminders, mood, speech_stream, watchdog, intents, announcements
+from core import audio, wake_word, transcribe, brain, tts, eyes, sfx, reminders, mood, speech_stream, watchdog, intents, announcements, vad
 from core import spotify_ctrl, cast_audio, camera, quiet, display, temperature, candles, bambu_ctrl
 
 
@@ -1674,6 +1674,13 @@ def main():
 
             if not run_brain:
                 # ── 2. Play wake ack, then record ────────────────────────────────────────
+                # The transcription session connects in the background now, while the
+                # wake phrase plays, so it is open by the time recording starts; the
+                # recording is streamed into it and the batch call is the fallback.
+                _stt_stream = transcribe.StreamingTranscriber() if transcribe.streaming_available() else None
+                if _stt_stream is not None:
+                    _stt_stream.start()
+
                 # Wake phrase plays first (blocking) so the mic doesn't pick up the skull's
                 # own speaker output. Recording starts after playback finishes.
                 if play_ack_sound:
@@ -1695,19 +1702,25 @@ def main():
                 _rec_exc: list = [None]
                 _rec_done = threading.Event()
 
-                # Answering a question allows for a longer reply window (30s max) and a more
-                # patient silence threshold timeout (4.5s) so the user can dictate numbers/codes.
+                # Answering a question allows for a longer reply window (30s max), a more
+                # patient wait for the answer to start (4.5s), and longer pauses within it
+                # so numbers and codes can be dictated.
                 rec_secs = 30 if is_answering_question else config.RECORD_SECONDS
                 silence_dur = 4.5 if is_answering_question else config.SILENCE_DURATION
+                end_silence = max(config.VAD_END_SILENCE, 1.5) if is_answering_question else config.VAD_END_SILENCE
+                _vad = vad.load() if config.VAD_ENABLED else None
 
                 def _do_record():
                     try:
-                        print(f"[skull] Recording settings: max_secs={rec_secs}, silence_dur={silence_dur}")
+                        print(f"[skull] Recording settings: max_secs={rec_secs}, start_wait={silence_dur}, "
+                              f"end_silence={end_silence if _vad else 'rms'}, stream_stt={'on' if _stt_stream else 'off'}")
                         _rec_pcm[0] = audio.record(
                             seconds=rec_secs,
                             device_index=config.MIC_DEVICE_INDEX,
                             silence_threshold=config.SILENCE_THRESHOLD,
                             silence_duration=silence_dur,
+                            vad=_vad, vad_threshold=config.VAD_THRESHOLD, vad_end_silence=end_silence,
+                            on_audio=_stt_stream.feed if _stt_stream is not None else None,
                         )
                     except Exception as e:
                         _rec_exc[0] = e
@@ -1722,11 +1735,15 @@ def main():
                     # cross-thread PortAudio calls are what used to crash (double free).
                     # Just abandon the (daemon) recorder thread and go back to listening.
                     print("[skull] Recording hung — abandoning this recording")
+                    if _stt_stream is not None:
+                        _stt_stream.abort()
                     set_speech_active(False)
                     eyes.off()
                     continue
 
                 if _rec_exc[0] is not None:
+                    if _stt_stream is not None:
+                        _stt_stream.abort()
                     err_str = str(_rec_exc[0])
                     # PaErrorCode -9985 = paDeviceUnavailable — audio device not ready yet
                     # (e.g. PipeWire startup race on boot). Back off silently rather than
@@ -1746,6 +1763,8 @@ def main():
                 max_rms = audio.max_window_rms(pcm, pcm_rate) if pcm else 0.0
                 if not pcm or max_rms < config.SILENCE_THRESHOLD:
                     print(f"[skull] No speech detected (peak RMS {max_rms:.1f} < threshold {config.SILENCE_THRESHOLD}) — acknowledging silence.")
+                    if _stt_stream is not None:
+                        _stt_stream.abort()
                     eyes.off()
                     _acknowledge_silence()
                     continue
@@ -1774,8 +1793,17 @@ def main():
 
                 print("[skull] Transcribing...")
                 try:
-                    _stt_wav = audio.pcm_to_wav_bytes(*audio.to_speech_rate(pcm, pcm_rate))
-                    user_text = transcribe.transcribe(_stt_wav)
+                    user_text = None
+                    if _stt_stream is not None:
+                        _t0 = time.monotonic()
+                        user_text = _stt_stream.finish(timeout=4.0)
+                        if user_text is None:
+                            print("[skull] Streamed transcript unavailable — using the batch call.")
+                        else:
+                            print(f"[skull] Streamed transcript ready {time.monotonic() - _t0:.2f}s after end of speech.")
+                    if user_text is None:
+                        _stt_wav = audio.pcm_to_wav_bytes(*audio.to_speech_rate(pcm, pcm_rate))
+                        user_text = transcribe.transcribe(_stt_wav)
                     _spk_thread.join(timeout=10.0)
                     speaker_name = _spk_result[0]
                 except Exception as e:

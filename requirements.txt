@@ -15,6 +15,7 @@
 # ── Brain, ears and voice ────────────────────────────────────────────────────────
 anthropic>=0.30.0,<1
 openai>=1.30.0,<3
+websockets>=13              # streaming speech-to-text (realtime transcription session)
 elevenlabs>=1.0.0,<3
 piper-tts>=1.2.0
 # On Linux openwakeword's tflite-runtime dependency has no Python 3.13 wheels, so

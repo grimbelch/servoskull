@@ -112,10 +112,17 @@ def optimize_mic_levels() -> None:
         pass
 
 
-def record(seconds: float, device_index: int = -1, silence_threshold: int = 180, silence_duration: float = 1.5) -> tuple:
-    """Record audio via a single InputStream, stopping early on sustained silence.
+def record(seconds: float, device_index: int = -1, silence_threshold: int = 180, silence_duration: float = 1.5,
+           *, vad=None, vad_threshold: float = 0.5, vad_end_silence: float = 0.7, on_audio=None) -> tuple:
+    """Record audio via a single InputStream, stopping early when the speaker stops.
 
     Returns (pcm_bytes, sample_rate) at the device's native rate.
+
+    With `vad` (a core.vad.SileroVAD) the recording ends vad_end_silence seconds
+    after the last speech, or after the lead-in plus silence_duration if nobody
+    spoke at all. Without it, silence_duration seconds below the RMS
+    silence_threshold end it. on_audio(pcm_bytes, rate), if given, receives each
+    new slice of audio as it is captured (used to stream it to speech-to-text).
 
     Uses ONE explicitly-managed InputStream, started once and closed exactly once
     from this thread. The previous sd.rec()/sd.stop() approach let the silence
@@ -134,7 +141,14 @@ def record(seconds: float, device_index: int = -1, silence_threshold: int = 180,
     lead_in_secs = 1.5
     silence_chunks_needed = max(1, round(silence_duration / ANALYSIS_SECS))
 
-    print(f"[audio] recording: device={dev}, rate={native}Hz")
+    end_of_speech = None
+    if vad is not None:
+        from core.vad import EndOfSpeech
+        vad.reset()
+        end_of_speech = EndOfSpeech(threshold=vad_threshold, start_timeout=lead_in_secs + silence_duration,
+                                    end_silence=vad_end_silence)
+
+    print(f"[audio] recording: device={dev}, rate={native}Hz, end-of-speech={'vad' if vad else 'rms'}")
 
     chunks: list = []
     chunks_lock = threading.Lock()
@@ -150,6 +164,17 @@ def record(seconds: float, device_index: int = -1, silence_threshold: int = 180,
             if not chunks:
                 return np.zeros(0, dtype=np.int16)
             return np.concatenate(chunks)[:, 0]
+
+    consumed = [0]  # chunks already handed to the VAD / on_audio
+
+    def _new_samples() -> np.ndarray:
+        """Samples captured since the last call (only the new chunks are joined)."""
+        with chunks_lock:
+            fresh = chunks[consumed[0]:]
+            consumed[0] = len(chunks)
+        if not fresh:
+            return np.zeros(0, dtype=np.int16)
+        return np.concatenate(fresh)[:, 0]
 
     def _tail(n: int) -> np.ndarray:
         """The last n samples, joining only the newest chunks (re-joining the whole
@@ -181,6 +206,21 @@ def record(seconds: float, device_index: int = -1, silence_threshold: int = 180,
             if now >= hard_deadline:
                 print("[audio] Recording timed out — stopping")
                 break
+            new = _new_samples()
+            if on_audio is not None and len(new):
+                try:
+                    on_audio(new.tobytes(), native)
+                except Exception as e:
+                    print(f"[audio] on_audio error: {e}")
+            if end_of_speech is not None:
+                prob = vad.feed(np.frombuffer(resample_pcm(new.tobytes(), native, 16000)[0], dtype=np.int16)) if len(new) else 0.0
+                from core import config as _cfg
+                if _cfg.AUDIO_DEBUG:
+                    print(f"[audio] vad={prob:.2f} t={now - t_start:.2f}s")
+                if end_of_speech.update(prob, now - t_start):
+                    print("[audio] end of speech" if end_of_speech.started else "[audio] no speech heard — stopping")
+                    break
+                continue
             if now - t_start < lead_in_secs:
                 continue
             window = _tail(analysis_frames)
@@ -241,16 +281,21 @@ def max_window_rms(pcm: bytes, sample_rate: int, window_secs: float = 0.25) -> f
 SPEECH_RATE = 16000  # Whisper works at 16 kHz; anything higher is wasted upload
 
 
-def to_speech_rate(pcm: bytes, sample_rate: int) -> tuple[bytes, int]:
-    """Resample mono int16 PCM to 16 kHz for speech-to-text (a 3x smaller upload at 48 kHz)."""
-    if sample_rate == SPEECH_RATE or not pcm:
+def resample_pcm(pcm: bytes, sample_rate: int, target_rate: int) -> tuple[bytes, int]:
+    """Resample mono int16 PCM to target_rate; returns (pcm, target_rate)."""
+    if sample_rate == target_rate or not pcm:
         return pcm, sample_rate
     from math import gcd
     from scipy.signal import resample_poly
-    g = gcd(SPEECH_RATE, sample_rate)
+    g = gcd(target_rate, sample_rate)
     samples = np.frombuffer(pcm, dtype=np.int16).astype(np.float32)
-    out = resample_poly(samples, SPEECH_RATE // g, sample_rate // g)
-    return np.clip(out, -32768, 32767).astype(np.int16).tobytes(), SPEECH_RATE
+    out = resample_poly(samples, target_rate // g, sample_rate // g)
+    return np.clip(out, -32768, 32767).astype(np.int16).tobytes(), target_rate
+
+
+def to_speech_rate(pcm: bytes, sample_rate: int) -> tuple[bytes, int]:
+    """Resample mono int16 PCM to 16 kHz for speech-to-text (a 3x smaller upload at 48 kHz)."""
+    return resample_pcm(pcm, sample_rate, SPEECH_RATE)
 
 
 def pcm_to_wav_bytes(pcm: bytes, sample_rate: int) -> bytes:
