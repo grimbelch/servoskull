@@ -81,6 +81,7 @@ test*
 # ...but the real unit tests are tracked.
 !tests/
 !tests/**
+tests/__pycache__/
 update_walkthrough.py
 
 # Adventure module content extracted from Foundry VTT. The artwork and prose are
