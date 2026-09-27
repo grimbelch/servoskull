@@ -94,22 +94,29 @@ def set_system_volume(level: str) -> str:
 
 
 def optimize_mic_levels() -> None:
-    """Ensure USB microphone has Auto Gain Control (AGC) disabled and optimal gain.
-    
+    """Set the microphone up the same way on every start: AGC off, the USB codec's
+    analog capture gain at its maximum, and config.MIC_SOFT_GAIN applied as
+    PipeWire's source volume so every consumer (wake word, recording, speaker ID,
+    both transcribers) gets the boosted signal.
+
     AGC dynamically raises the noise floor in silence and compresses human voice,
     severely degrading wake-word and silence-detection accuracy.
     """
     try:
         import shutil
+        from core import config
         if shutil.which("amixer"):
             subprocess.run(["amixer", "-q", "sset", "Auto Gain Control", "off"], capture_output=True)
             for card in range(4):
                 subprocess.run(["amixer", "-q", "-c", str(card), "sset", "Auto Gain Control", "off"], capture_output=True)
-                subprocess.run(["amixer", "-q", "-c", str(card), "sset", "Mic", "33"], capture_output=True)
+                subprocess.run(["amixer", "-q", "-c", str(card), "sset", "Mic", "100%"], capture_output=True)
         if shutil.which("wpctl"):
-            subprocess.run(["wpctl", "set-volume", "@DEFAULT_AUDIO_SOURCE@", "1.0"], capture_output=True)
-    except Exception:
-        pass
+            gain = max(0.1, float(config.MIC_SOFT_GAIN))
+            subprocess.run(["wpctl", "set-volume", "-l", f"{gain:.2f}", "@DEFAULT_AUDIO_SOURCE@", f"{gain:.2f}"],
+                           capture_output=True)
+            print(f"[audio] Mic: analog gain at maximum, PipeWire source volume {gain:.2f} (cubic scale)")
+    except Exception as e:
+        print(f"[audio] Could not set mic levels: {e}")
 
 
 def record(seconds: float, device_index: int = -1, silence_threshold: int = 180, silence_duration: float = 1.5,
@@ -246,7 +253,8 @@ def record(seconds: float, device_index: int = -1, silence_threshold: int = 180,
     data = _collected()
     frames = min(len(data), max_frames)
     total_secs = frames / native if native else 0.0
-    print(f"[audio] done: {frames} frames ({total_secs:.1f}s)")
+    peak_pct = 100.0 * float(np.abs(data[:frames]).max()) / 32768.0 if frames else 0.0
+    print(f"[audio] done: {frames} frames ({total_secs:.1f}s), peak {peak_pct:.0f}% of full scale")
 
     pcm_arr = data[:frames].copy()
     if not pcm_arr.any():
