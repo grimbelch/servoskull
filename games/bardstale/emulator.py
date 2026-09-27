@@ -91,6 +91,24 @@ def save_session(**fields) -> None:
     os.replace(tmp, SESSION_FILE)
 
 
+KNOWLEDGE_FILE = DATA_DIR / "knowledge.json"
+
+
+def load_knowledge() -> dict:
+    """What the autopilot has learned about the game world (persists across games)."""
+    try:
+        return json.loads(KNOWLEDGE_FILE.read_text())
+    except Exception:
+        return {}
+
+
+def save_knowledge(data: dict) -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = KNOWLEDGE_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=1, default=list))
+    os.replace(tmp, KNOWLEDGE_FILE)
+
+
 def session() -> dict:
     return _load_session()
 
@@ -265,6 +283,25 @@ def save_state() -> bool:
         time.sleep(0.1)
     print("[emulator] Save state did not complete.")
     return False
+
+
+_peek_lock = threading.Lock()
+
+
+def peek(*ranges: tuple[int, int], timeout: float = 3.0) -> Optional[list[bytes]]:
+    """Read emulated memory: peek((addr, length), ...) -> one bytes object per range,
+    or None if the emulator didn't answer. Takes one or two frames (~0.1 s)."""
+    with _peek_lock:
+        path = RUN_DIR / "peek"
+        path.unlink(missing_ok=True)
+        if not send("peek " + " ".join(f"{a:04x} {n}" for a, n in ranges)):
+            return None
+        deadline = time.monotonic() + timeout
+        while not path.exists():
+            if time.monotonic() > deadline:
+                return None
+            time.sleep(0.02)
+        return [bytes.fromhex(f) for f in path.read_text().split()]
 
 
 def frame_seq() -> int:

@@ -33,16 +33,28 @@ Omega-7 plays the 1985 Apple II *Bard's Tale* on an emulated Apple IIe, showing 
 game on his eye with the keys he presses above it and what he's doing below it, and
 commenting aloud on notable moments.
 
+By default (`BARDSTALE_MODE=hybrid`) a rule-based autopilot plays: it reads the
+game's memory (position, facing, party HP/SP/gold, the city map) and the screen text,
+fights with fixed tactics per class, flees fights it has learned are deadly, heals at
+the temple, and at the Guild replaces fallen low-level heroes with newly created ones.
+The language model only voices the commentary (a small text call) and handles a few
+rare screens — the Review Board, Garth's shop, or anything unfamiliar. That costs
+cents per hour. `BARDSTALE_MODE=llm` has the model decide every move instead
+(`BARDSTALE_MODEL`, Sonnet by default; about $3–4 per hour).
+
 | Spoken Command | Function |
 | :--- | :--- |
 | *"Play Bard's Tale"* / *"Resume Bard's Tale"* | Resumes the saved game (or starts one if there is none). |
 | *"Start a new game of Bard's Tale"* | Starts over with the pre-built party (*A Team). |
 | *"Stop the game"* / *"Quit Bard's Tale"* / *"Stop playing"* | Saves and stops. ("Stop playing music" still goes to Spotify.) |
 
-Settings: `BARDSTALE_MODEL` (default Sonnet 5; Haiku 4.5 is cheaper but plays poorly), `BARDSTALE_MAX_MINUTES` (120; a
-session saves and stops after this), `BARDSTALE_NARRATE_SECS` (45; minimum gap
-between spoken comments). Web API: `GET /api/game/status`, `POST /api/game/start`
-(`{"new": true}` for a new game), `POST /api/game/stop`.
+Settings: `BARDSTALE_MODE` (hybrid), `BARDSTALE_STEP_SECS` (0.8; the autopilot's pace),
+`BARDSTALE_NARRATOR_MODEL` (Haiku 4.5), `BARDSTALE_MODEL` (Sonnet 5; rescue turns and
+llm mode), `BARDSTALE_MAX_MINUTES` (120; a session saves and stops after this),
+`BARDSTALE_NARRATE_SECS` (45; minimum gap between spoken comments). What the autopilot
+learns (buildings, dangerous monsters) is kept in `<data dir>/bardstale/knowledge.json`.
+Web API: `GET /api/game/status`, `POST /api/game/start` (`{"new": true}` for a new
+game), `POST /api/game/stop`.
 
 ---
 

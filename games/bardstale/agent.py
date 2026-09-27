@@ -28,7 +28,7 @@ from typing import Callable, Optional
 from PIL import Image
 
 from core import config
-from games.bardstale import emulator, eye, screen_text
+from games.bardstale import bot as _bot, emulator, eye, memory, narrator, screen_text
 
 _SYSTEM_PROMPT = """\
 You are Omega-7, an Adeptus Mechanicus servo-skull, playing The Bard's Tale (1985)
@@ -125,6 +125,7 @@ _AUTOSAVE_SECS = 600
 _MIN_TURN_SECS = 1.5        # never faster than this, however quick the model is
 _MAX_FAILURES = 6           # consecutive failed model calls before giving up
 _STUCK_TURNS = 15           # turns with an unchanged screen before reloading the last save
+_RESCUES_PER_HOUR = 30      # hybrid mode: cap on model turns for screens the bot doesn't know
 
 _stop = threading.Event()
 _thread: Optional[threading.Thread] = None
@@ -280,7 +281,7 @@ def _say(text: str) -> None:
 
 
 def _game_loop(resume: bool) -> None:
-    notes, turn = "", 0
+    notes, turn, player = "", 0, None
     try:
         resuming = resume and emulator.can_resume()
         if not emulator.start(resume=resume):
@@ -303,6 +304,10 @@ def _game_loop(resume: bool) -> None:
         began = last_save = time.monotonic()
         last_say, failures, prev_hash, stuck = 0.0, 0, None, 0
         limit = config.BARDSTALE_MAX_MINUTES * 60
+        hybrid = config.BARDSTALE_MODE != "llm"
+        player = _bot.Bot(emulator.load_knowledge()) if hybrid else None
+        rescues: list[float] = []
+        pending_events: list[str] = []
 
         while not _stop.is_set():
             if not emulator.is_running():
@@ -313,7 +318,7 @@ def _game_loop(resume: bool) -> None:
                 break
             t0 = time.monotonic()
 
-            emulator.wait_stable(quiet=0.7, timeout=6.0, stop=_stop)
+            emulator.wait_stable(quiet=0.4 if hybrid else 0.7, timeout=6.0, stop=_stop)
             _, screen = emulator.frame()
             if screen is None:
                 _stop.wait(0.5)
@@ -335,9 +340,45 @@ def _game_loop(resume: bool) -> None:
                 stuck, prev_hash = 0, None
                 continue
 
-            _set(thinking=True)
-            decision = _decide(screen, history, notes, turn)
-            _set(thinking=False)
+            decision, source = None, "llm"
+            if hybrid:
+                text = screen_text.read(screen)
+                state = memory.read_state()
+                if state and state.party and not any(h.alive for h in state.party) \
+                        and emulator.can_resume():
+                    print("[bardstale] The whole party is dead; reloading the last save.")
+                    _say(narrator.comment(["The entire party has been slain."]) or
+                         "My heroes have fallen. Restoring the last saved position.")
+                    emulator.stop(save=False)
+                    if not emulator.start(resume=True):
+                        break
+                    player.combat, player.target = None, None
+                    history.append("(The party was wiped out, so the last save was reloaded.)")
+                    continue
+                if player.city is None and text["location"] == "Skara Brae":
+                    player.city = memory.read_map()
+                action = player.act(text, state)
+                goal = ""
+                if action is not None and action.rescue:
+                    goal, action = action.rescue, None
+                if action is not None:
+                    source = "bot"
+                    where = f"({state.x},{state.y}) " if state else ""
+                    decision = {"saw": where + text["location"] + ": " + " ".join(text["message"])[:80],
+                                "doing": action.doing, "keys": action.keys, "disk": action.disk,
+                                "say": "", "notes": ""}
+                    pending_events += action.events
+                else:
+                    rescues = [t for t in rescues if time.monotonic() - t < 3600]
+                    if len(rescues) >= _RESCUES_PER_HOUR:
+                        _stop.wait(5)
+                        continue
+                    rescues.append(time.monotonic())
+                    print(f"[bardstale] {'Model turn: ' + goal if goal else 'Bot does not know this screen; asking the model.'}")
+            if decision is None:
+                _set(thinking=True)
+                decision = _decide(screen, history, notes, turn, goal=goal if hybrid else "")
+                _set(thinking=False)
             if _stop.is_set():
                 break
             if decision is None:
@@ -358,7 +399,7 @@ def _game_loop(resume: bool) -> None:
                 emulator.insert_disk(disk)
             keys = decision["keys"]
             _set(turn=turn, doing=decision["doing"], keys=keys)
-            print(f"[bardstale] T{turn}: {decision['saw']} | {'disk ' + disk + ' | ' if disk else ''}"
+            print(f"[bardstale] T{turn} {source}: {decision['saw']} | {'disk ' + disk + ' | ' if disk else ''}"
                   f"{' '.join(keys) or '-'} | {decision['doing']}")
 
             for k in keys:
@@ -367,7 +408,7 @@ def _game_loop(resume: bool) -> None:
                 emulator.type_keys(_key_text(k))
                 emulator.wait_stable(quiet=0.35, timeout=3.0, stop=_stop)
 
-            history.append(f"T{turn}: saw {decision['saw']}; "
+            history.append(f"T{turn}{' (autopilot)' if source == 'bot' else ''}: saw {decision['saw']}; "
                            + (f"inserted {disk} disk; " if disk else "")
                            + f"pressed {' '.join(keys) or 'nothing'}")
             del history[:-_HISTORY_TURNS]
@@ -377,16 +418,27 @@ def _game_loop(resume: bool) -> None:
             if decision["say"] and now - last_say >= config.BARDSTALE_NARRATE_SECS:
                 last_say = now
                 _say(decision["say"])
+            elif pending_events and now - last_say >= config.BARDSTALE_NARRATE_SECS:
+                last_say = now
+                batch, pending_events = pending_events[-3:], []
+                threading.Thread(target=lambda b=batch: _say(narrator.comment(b) or ""),
+                                 daemon=True, name="bardstale-narrator").start()
+            del pending_events[:-6]
             if now - last_save >= _AUTOSAVE_SECS:
                 last_save = now
                 emulator.save_session(notes=notes, turns=turn)
                 emulator.save_state()
+                if player:
+                    emulator.save_knowledge(player.k)
 
-            _stop.wait(max(0.0, _MIN_TURN_SECS - (time.monotonic() - t0)))
+            pace = config.BARDSTALE_STEP_SECS if source == "bot" else _MIN_TURN_SECS
+            _stop.wait(max(0.0, pace - (time.monotonic() - t0)))
     except Exception:
         traceback.print_exc()
     finally:
         try:
+            if player is not None:
+                emulator.save_knowledge(player.k)
             if emulator.is_running():
                 emulator.save_session(notes=notes, turns=turn)
             emulator.stop(save=True)
@@ -420,14 +472,15 @@ def _anthropic():
     return _client
 
 
-def _decide(screen: Image.Image, history: list[str], notes: str, turn: int) -> Optional[dict]:
+def _decide(screen: Image.Image, history: list[str], notes: str, turn: int, goal: str = "") -> Optional[dict]:
     """Ask the model for this turn's move. None on any failure."""
     # MAME's 560x192 has half-height pixels: scale to square pixels at 3x (840x576)
     # so the model can make out the small Apple II graphics.
     buf = io.BytesIO()
     screen.resize((840, 576), Image.BOX).save(buf, format="PNG")
     text = screen_text.describe(screen)
-    context = (f"Turn {turn + 1}. Disk in drive 1: {emulator.current_disk()}.\n"
+    task = f"YOUR TASK RIGHT NOW: {goal}\n" if goal else ""
+    context = (f"Turn {turn + 1}. Disk in drive 1: {emulator.current_disk()}.\n{task}"
                f"Screen text:\n{text}\n"
                f"Your notes: {notes or '(none yet)'}\n"
                "Recent turns, oldest first:\n" + ("\n".join(history) or "(this is the first turn)"))

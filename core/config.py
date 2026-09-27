@@ -451,9 +451,13 @@ def set_display_rotation(degrees: float, relative: bool = False) -> str:
 
 
 # ── The Bard's Tale (games/bardstale) — Omega-7 plays it himself on an emulated Apple IIe ──
-# Each turn is one vision call to BARDSTALE_MODEL: Sonnet plays far better than Haiku
-# (which wanders in circles) at roughly $3–4 per hour of play vs about $1.
-BARDSTALE_MODEL = _cfg("BARDSTALE_MODEL", "claude-sonnet-5")
+# hybrid: a rule-based autopilot plays; the model only voices commentary and handles
+# rare or unfamiliar screens (cents per hour). llm: the model decides every move, one
+# vision call per turn (Sonnet: roughly $3–4 per hour; Haiku is cheaper but wanders).
+BARDSTALE_MODE = _cfg("BARDSTALE_MODE", "hybrid").lower()
+BARDSTALE_MODEL = _cfg("BARDSTALE_MODEL", "claude-sonnet-5")      # vision turns (llm mode, rescues)
+BARDSTALE_NARRATOR_MODEL = _cfg("BARDSTALE_NARRATOR_MODEL", "claude-haiku-4-5-20251001")
+BARDSTALE_STEP_SECS = float(_cfg("BARDSTALE_STEP_SECS", "0.8"))       # autopilot pace, for watchability
 BARDSTALE_MAX_MINUTES = float(_cfg("BARDSTALE_MAX_MINUTES", "120"))   # a session stops (and saves) after this; 0 = no limit
 BARDSTALE_NARRATE_SECS = float(_cfg("BARDSTALE_NARRATE_SECS", "45"))  # minimum gap between spoken comments
 BARDSTALE_ROMPATH = _cfg("BARDSTALE_ROMPATH", "")                    # Apple IIe ROM zips; default ~/.mame/roms

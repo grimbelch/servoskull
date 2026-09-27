@@ -26,11 +26,19 @@ _FONT: dict[str, str] = json.loads((pathlib.Path(__file__).with_name("font.json"
 UNKNOWN = "·"
 
 
-def _cells(img: Image.Image) -> list[list[str | None]]:
-    """Glyph key (56-bit string) of every text cell, or None for an empty cell."""
+def _pixels(img: Image.Image) -> np.ndarray:
     a = np.asarray(img.convert("RGB"), dtype=np.int16)
     if a.shape[:2] != (192, 560):
         a = np.asarray(img.convert("RGB").resize((560, 192), Image.NEAREST), dtype=np.int16)
+    return a
+
+
+def _cells(img_or_pixels, dy: int = 0) -> list[list[str | None]]:
+    """Glyph key (56-bit string) of every text cell, or None for an empty cell. `dy`
+    shifts the grid down by that many pixel rows (for smoothly scrolling text)."""
+    a = img_or_pixels if isinstance(img_or_pixels, np.ndarray) else _pixels(img_or_pixels)
+    if dy:
+        a = np.concatenate([a[dy:], np.zeros((dy, 560, 3), dtype=a.dtype)])
     bright = (a.min(axis=2) > 200).reshape(24, 8, 40, 14).transpose(0, 2, 1, 3)
     dark = (a.max(axis=2) < 60).reshape(24, 8, 40, 14).transpose(0, 2, 1, 3)
     # Ink is whatever differs from the cell's background (white box or black screen).
@@ -71,10 +79,28 @@ def _line(cells, r: int, c0: int, c1: int) -> str:
     return "".join(_glyph(k) for k in cells[r][c0:c1]).rstrip()
 
 
+def _message(a: np.ndarray, cells) -> list[str]:
+    """Message box lines. Combat messages scroll up pixel by pixel, so when the
+    grid-aligned read has unreadable cells, the best of the 8 row offsets wins."""
+    lines = [_line(cells, r, 21, 39) for r in range(3, 15)]
+    bad = sum(l.count(UNKNOWN) for l in lines)
+    if bad:
+        for dy in range(1, 8):
+            c = _cells(a, dy)
+            alt = [_line(c, r, 21, 39) for r in range(2, 15)]
+            n = sum(l.count(UNKNOWN) for l in alt)
+            if n < bad:
+                lines, bad = alt, n
+            if not bad:
+                break
+    return lines
+
+
 def read(img: Image.Image) -> dict:
     """{"location": str, "message": [lines], "party": [lines]} for a 560x192 frame."""
-    cells = _cells(img)
-    message = [_line(cells, r, 21, 39) for r in range(3, 15)]
+    a = _pixels(img)
+    cells = _cells(a)
+    message = _message(a, cells)
     while message and not message[-1]:
         message.pop()
     while message and not message[0]:
