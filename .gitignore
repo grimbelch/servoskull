@@ -93,3 +93,7 @@ games/warhammer40k/rules/
 games/necromunda/rules/
 games/wfrp/rules/*
 !games/wfrp/rules/llm_*.md
+
+# Emulator ROMs are copyrighted system firmware: supplied by the user, never committed.
+games/roms/
+*.zip

@@ -39,7 +39,11 @@ sudo apt-get install -y \
     liblgpio-dev \
     swig \
     python3-lgpio \
-    python3-rpi.gpio
+    python3-rpi.gpio \
+    mame
+# mame: the Apple IIe emulator for games/bardstale. It also needs the Apple IIe ROM
+# sets (apple2e.zip, a2diskiing.zip, d2fdc.zip), which are not distributed with this
+# repo: put them in ~/.mame/roms.
 
 
 # Enable the SPI bus for the GC9A01 face display and the I2C bus for the VL53L1X

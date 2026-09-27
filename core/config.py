@@ -420,6 +420,15 @@ def set_display_rotation(degrees: float, relative: bool = False) -> str:
     return f"Display rotation set to {DISPLAY_FINE_ROTATION} degrees."
 
 
+# ── The Bard's Tale (games/bardstale) — Omega-7 plays it himself on an emulated Apple IIe ──
+# Each turn is one vision call to BARDSTALE_MODEL: Sonnet plays far better than Haiku
+# (which wanders in circles) at roughly $3–4 per hour of play vs about $1.
+BARDSTALE_MODEL = _cfg("BARDSTALE_MODEL", "claude-sonnet-5")
+BARDSTALE_MAX_MINUTES = float(_cfg("BARDSTALE_MAX_MINUTES", "120"))   # a session stops (and saves) after this; 0 = no limit
+BARDSTALE_NARRATE_SECS = float(_cfg("BARDSTALE_NARRATE_SECS", "45"))  # minimum gap between spoken comments
+BARDSTALE_ROMPATH = _cfg("BARDSTALE_ROMPATH", "")                    # Apple IIe ROM zips; default ~/.mame/roms
+
+
 # ── Internal temperature monitoring (Raspberry Pi only) ──────────────────────────
 # The skull watches its SoC temperature and speaks a warning when it climbs too high.
 # The Pi 5 begins soft-throttling around 80°C and hard-throttles ~85°C, so the

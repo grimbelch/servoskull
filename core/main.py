@@ -12,15 +12,15 @@ from concurrent.futures import ThreadPoolExecutor
 
 # ── Module-level compiled regexes ─────────────────────────────────────────────
 # Compiled once at import; never recompiled per loop iteration.
+_BARDS_TALE = r"\bbards?[\'’]?s?\s*tales?\b"
 _RE_GAME_START = re.compile(
-    r"\b(play|start|launch|run|begin)\b.*\b(bard|bardstale)\b"
-    r"|\bwatch\s+.*play\b|\bplay\s+(the\s+)?game\b",
-    re.I,
-)
+    r"\b(play|start|launch|run|begin|resume|continue|load|boot)\b.*" + _BARDS_TALE, re.I)
+_RE_GAME_NEW = re.compile(r"\b(new|fresh)\s+(game|party|adventure|campaign)\b|\bstart\s+over\b|\bfrom\s+scratch\b", re.I)
+# Only consulted while the game is running, so "stop playing" still reaches Spotify otherwise.
 _RE_GAME_STOP = re.compile(
-    r"\b(stop|end|quit|halt|enough)\b.*\b(bard|game|playing)\b",
-    re.I,
-)
+    r"\b(stop|end|quit|halt|exit|pause|enough)\b.*\b(game|playing|dungeon)\b|"
+    r"\b(stop|end|quit|halt|exit|pause)\b.*" + _BARDS_TALE, re.I)
+_RE_MUSIC_WORDS = re.compile(r"\b(music|song|spotify|album|track|playlist|radio|tune)s?\b", re.I)
 
 _background_executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="skull_bg")
 
@@ -49,6 +49,11 @@ def shutdown(sig=None, frame=None):
         monitor = bambu_ctrl.get_monitor()
         if monitor:
             monitor.stop()
+    except Exception:
+        pass
+    try:
+        from games.bardstale import agent as _bt_agent
+        _bt_agent.stop(wait=True)  # saves the game and closes the emulator cleanly
     except Exception:
         pass
     display.cleanup()
@@ -1486,50 +1491,34 @@ def main():
                     display.trigger_idle_animation(300.0, anim_target)
                     continue
 
-            # ── 3a-0b. Bard's Tale autonomous play intents ─────────────────────
+            # ── 3a-0b. Bard's Tale: Omega-7 plays it himself ─────────────────
+            from games.bardstale import agent as _bt_agent
+            _bt_reply = None
             if _RE_GAME_START.search(_t):
-                from games.bardstale import agent as _bt_agent
-                disk_dir = pathlib.Path(__file__).resolve().parent.parent / "games" / "bardstale" / "disks"
-                char_disk = disk_dir / "bards_tale_character.dsk"
-                if char_disk.exists():
-                    selected_disk = str(char_disk)
+                if _bt_agent.is_running():
+                    _bt_reply = "I am already in Skara Brae. Watch my eye."
                 else:
-                    disks = sorted(
-                        list(disk_dir.glob("*.dsk")) + list(disk_dir.glob("*.woz"))
-                        + list(disk_dir.glob("*.nib"))
-                    ) if disk_dir.exists() else []
-                    selected_disk = str(disks[0]) if disks else ""
-
-                if not selected_disk:
-                    _reply = ("No Bard's Tale disk image found in the data-vaults. "
-                              "Place a .dsk or .woz file in games/bardstale/disks/ "
-                              "and try again.")
-                elif _bt_agent.is_running():
-                    _reply = "The dungeon protocol is already active, my Lord."
-                else:
-                    _reply = ("Accessing the data-vaults of Skara Brae. "
-                              "Autonomous dungeon protocol initiating now.")
-                    display.start_game_display()
-                    _bt_agent.start(selected_disk, _game_narrate)
-                print(f"[skull] Bard's Tale start intent → {_reply}")
-                try:
-                    eyes.on()
-                    _speak_interruptible(tts.synthesize(_reply), on_wake)
-                except Exception as _ge:
-                    print(f"[skull] Bard's Tale start speech error: {_ge}")
-                continue
-
-            elif _RE_GAME_STOP.search(_t):
-                from games.bardstale import agent as _bt_agent
+                    _bt_new = bool(_RE_GAME_NEW.search(_t)) or not _bt_agent.can_resume()
+                    _bt_problem = _bt_agent.start(_game_narrate, new_game=_bt_new)
+                    if _bt_problem:
+                        print(f"[skull] Bard's Tale cannot start: {_bt_problem}")
+                        _bt_reply = f"I cannot enter Skara Brae. {_bt_problem}"
+                    else:
+                        display.start_game_display()
+                        _bt_reply = ("A new party gathers at the Adventurers' Guild. Beginning the tale."
+                                     if _bt_new else "Resuming the tale where my party left off.")
+            elif (_bt_agent.is_running() and _RE_GAME_STOP.search(_t)
+                  and not _RE_MUSIC_WORDS.search(_t)):
                 _bt_agent.stop()
                 display.stop_game_display()
-                _reply = "Dungeon protocol terminated. The cogitator returns to vigil."
-                print("[skull] Bard's Tale stop intent.")
+                _bt_reply = "Game suspended. My progress is committed to the data-vaults."
+            if _bt_reply:
+                print(f"[skull] Bard's Tale intent -> {_bt_reply}")
                 try:
                     eyes.on()
-                    _speak_interruptible(tts.synthesize(_reply), on_wake)
+                    _speak_interruptible(tts.synthesize(_bt_reply), on_wake)
                 except Exception as _ge:
-                    print(f"[skull] Bard's Tale stop speech error: {_ge}")
+                    print(f"[skull] Bard's Tale speech error: {_ge}")
                 continue
 
             # ── 3a-1. Intercept morning-briefing / briefing / update requests ───────────────

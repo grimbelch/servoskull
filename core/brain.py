@@ -2007,6 +2007,13 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None) -
     equip_hint = ""
     if user_text and any(k in user_text.lower() for k in ["equip", "trapping", "weapon", "armour", "armor", "item", "gear", "carry"]):
         equip_hint = "\n\nCRITICAL DIRECTIVE: The user is asking about character equipment or status. You MUST call whfrp_lookup_character(name='[Character Name]') to read live equipment and weapon details from the SQLite database before responding! DO NOT call warhammer40k_rules or rely on conversation memory."
+    try:
+        from games.bardstale import agent as _bt_agent
+        _bt_summary = _bt_agent.summary()
+        if _bt_summary:
+            game_ctx += "\n\nBARD'S TALE: " + _bt_summary
+    except Exception:
+        pass
     system_suffix = (date_ctx + game_ctx + speaker_ctx + equip_hint
                      + _memory.longterm_prompt(longterm) + _memory.facts_prompt(facts) + _mood.system_addendum())
 

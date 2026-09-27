@@ -27,6 +27,25 @@ You can activate the Servo Skull by speaking any of the supported wake words:
 
 ---
 
+## 🎲 The Bard's Tale (Omega-7 plays it himself)
+
+Omega-7 plays the 1985 Apple II *Bard's Tale* on an emulated Apple IIe, showing the
+game on his eye with the keys he presses above it and what he's doing below it, and
+commenting aloud on notable moments.
+
+| Spoken Command | Function |
+| :--- | :--- |
+| *"Play Bard's Tale"* / *"Resume Bard's Tale"* | Resumes the saved game (or starts one if there is none). |
+| *"Start a new game of Bard's Tale"* | Starts over with the pre-built party (*A Team). |
+| *"Stop the game"* / *"Quit Bard's Tale"* / *"Stop playing"* | Saves and stops. ("Stop playing music" still goes to Spotify.) |
+
+Settings: `BARDSTALE_MODEL` (default Sonnet 5; Haiku 4.5 is cheaper but plays poorly), `BARDSTALE_MAX_MINUTES` (120; a
+session saves and stops after this), `BARDSTALE_NARRATE_SECS` (45; minimum gap
+between spoken comments). Web API: `GET /api/game/status`, `POST /api/game/start`
+(`{"new": true}` for a new game), `POST /api/game/stop`.
+
+---
+
 ## ⚙️ Voice & Personality Management
 
 | Spoken Command | Function |

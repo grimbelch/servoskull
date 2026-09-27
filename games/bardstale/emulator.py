@@ -1,330 +1,310 @@
 """
-MAME-based Apple IIe emulator wrapper for Bard's Tale autonomous gameplay.
-Drop-in replacement for the linapple backend.
+Headless Apple IIe (MAME) for Omega-7's Bard's Tale player.
 
-Pi apt dependency:  sudo apt install mame xvfb xdotool
-Python pip:         python-xlib  (Pillow already present)
+MAME runs with no window and no sound (-video none -sound none); control.lua is
+its only interface. Python and Lua talk through small files in a tmpfs directory,
+so nothing here touches X11 or the SD card per frame:
 
-ROM requirement
-───────────────
-MAME needs apple2e.zip (Apple IIe system ROMs) in its ROM path.
-Default location: ~/.mame/roms/apple2e.zip
-The ROM archive is freely available from the Internet Archive.
+    keys / disk swaps / save states  ->  RUN_DIR/cmd       (Lua executes, deletes)
+    screen pixels                    <-  RUN_DIR/frame     (rewritten when it changes)
 
-Disk format
-───────────
-MAME supports: .dsk  .do  .po  .nib  .woz  .2mg
-⚠  .d64 is the Commodore 64 format — NOT compatible.
-   You need the Apple II edition of Bard's Tale.
+Requirements on the Pi: `sudo apt install mame`, and the Apple IIe ROM sets
+(apple2e.zip, a2diskiing.zip, d2fdc.zip) in ~/.mame/roms or BARDSTALE_ROMPATH.
 
-Public API (unchanged from the linapple backend)
-────────────────────────────────────────────────
-  start(disk_path) -> bool
-  stop()
-  send_key(key: str)
-  capture_frame() -> PIL.Image | None
-  is_running() -> bool
+The pristine disk images in games/bardstale/disks are never written. A game plays
+from working copies in <user data>/bardstale/disks, so the characters' progress
+(written to the character disk by the game itself) survives restarts, and a MAME
+save state taken on stop lets the next session resume exactly where it left off.
 """
 
 from __future__ import annotations
+
+import json
 import os
 import pathlib
+import shutil
 import subprocess
+import tempfile
 import threading
 import time
 from typing import Optional
 
-try:
-    from PIL import Image
-    _PIL_AVAILABLE = True
-except ImportError:
-    _PIL_AVAILABLE = False
-    Image = None  # type: ignore
+from PIL import Image
 
-try:
-    from Xlib import display as _xlib_display, X as _X
-    _XLIB_AVAILABLE = True
-except ImportError:
-    _XLIB_AVAILABLE = False
+from core import config
 
-# ── Configuration ─────────────────────────────────────────────────────────────
-DISPLAY_NUM  = ":99"
-_XVFB_GEOM   = "560x384x24"    # Apple IIe native × 2; MAME fullscreen fills it
-_MAME_DRIVER = "apple2e"        # MAME system driver for Apple IIe
-_BOOT_DELAY  = 5.0              # seconds for MAME to initialise and show first frame
+PKG_DIR = pathlib.Path(__file__).resolve().parent
+PRISTINE_DISKS = PKG_DIR / "disks"
+DISKS = {
+    "boot": "bards_tale_boot.dsk",
+    "character": "bards_tale_character.dsk",
+    "dungeon": "bards_tale_dungeon.dsk",
+}
 
-# MAME flags. -nowindow fills the Xvfb virtual framebuffer without a title bar,
-# giving us a clean game image to crop. -sound none stops MAME from fighting the Pi's
-# ALSA device (Omega-7's audio stack handles all sound).
-_MAME_FLAGS: list[str] = [
-    "-nowindow",
-    "-skip_gameinfo",
-    "-sound",           "none",
-    "-video",           "soft",      # software renderer — safe with Xvfb / X11
-    "-noautosave",
-]
+DATA_DIR = config.USER_DATA_DIR / "bardstale"
+WORK_DISKS = DATA_DIR / "disks"
+MAME_DIR = DATA_DIR / "mame"        # cfg / nvram / save states — never the repo
+SESSION_FILE = DATA_DIR / "session.json"
+STATE_NAME = "omega7"
+STATE_FILE = MAME_DIR / "sta" / "apple2e" / f"{STATE_NAME}.sta"
 
-# ROM search path for MAME.
-# Default: the games/ root directory alongside this package — a single shared
-# location for all future emulated systems (e.g. games/apple2e.zip).
-# Override with the MAME_ROMPATH environment variable if needed.
-_ROMPATH: str = os.environ.get(
-    "MAME_ROMPATH",
-    str(pathlib.Path(__file__).resolve().parent.parent),  # → …/Servoskull/games/
-)
+_shm = pathlib.Path("/dev/shm")
+RUN_DIR = (_shm if _shm.is_dir() else pathlib.Path(tempfile.gettempdir())) / "omega7-bardstale"
 
-# ── Module state ───────────────────────────────────────────────────────────────
-_lock        = threading.Lock()
-_xvfb_proc:  Optional[subprocess.Popen] = None
-_mame_proc:  Optional[subprocess.Popen] = None
-_window_id:  Optional[str]              = None
-_xlib_dpy                               = None
+_lock = threading.Lock()        # start/stop
+_cmd_lock = threading.Lock()    # one writer for RUN_DIR/cmd
+_proc: Optional[subprocess.Popen] = None
+_frame_cache: tuple[int, Optional[Image.Image]] = (-1, None)
+_drive0 = "boot"
 
 
-import signal
-
-# ── Internal helpers ───────────────────────────────────────────────────────────
-
-def _safe_signal_guard():
-    """Context manager to prevent signal.signal from raising ValueError on non-main threads."""
-    class _Guard:
-        def __enter__(self):
-            self.orig_signal = signal.signal
-            if threading.current_thread() != threading.main_thread():
-                signal.signal = lambda *args, **kwargs: None
-            return self
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            signal.signal = self.orig_signal
-    return _Guard()
-
-
-def _get_xlib_display():
-    global _xlib_dpy
-    if not _XLIB_AVAILABLE:
-        return None
+def _child_setup() -> None:
+    """In the MAME child before exec: lower its priority (the voice pipeline comes
+    first) and have the kernel kill it if Omega-7 dies, since MAME ignores SIGTERM."""
+    os.nice(10)
     try:
-        if _xlib_dpy is None:
-            with _safe_signal_guard():
-                _xlib_dpy = _xlib_display.Display(DISPLAY_NUM)
-        return _xlib_dpy
-    except Exception as e:
-        print(f"[emulator] Xlib connect error: {e}")
-        _xlib_dpy = None
-        return None
+        import ctypes
+        ctypes.CDLL("libc.so.6", use_errno=True).prctl(1, 9)  # PR_SET_PDEATHSIG, SIGKILL
+    except Exception:
+        pass
 
 
-import shutil
-
-def _build_env() -> dict:
-    """Return env dict pointing SDL2 and the display at our virtual framebuffer."""
-    path = os.environ.get("PATH", "")
-    if "/usr/games" not in path.split(":"):
-        path = f"/usr/games:{path}"
-    return {
-        **os.environ,
-        "PATH":             path,
-        "DISPLAY":          DISPLAY_NUM,
-        "SDL_VIDEODRIVER":  "x11",      # force SDL2 to use X11 (works with Xvfb)
-    }
+def _rompath() -> str:
+    default = f"{pathlib.Path('~/.mame/roms').expanduser()};{PKG_DIR.parent / 'roms'}"
+    return getattr(config, "BARDSTALE_ROMPATH", "") or default
 
 
-# ── Public API ─────────────────────────────────────────────────────────────────
+def _load_session() -> dict:
+    try:
+        return json.loads(SESSION_FILE.read_text())
+    except Exception:
+        return {}
 
-def start(disk_path: str) -> bool:
-    """
-    Launch Xvfb and MAME apple2e with *disk_path* as the floppy image.
-    Returns True when the emulator is up, False on missing dependency or ROM error.
-    Safe to call when already running — returns True immediately.
-    """
-    global _xvfb_proc, _mame_proc, _window_id, _xlib_dpy
 
-    with _lock, _safe_signal_guard():
-        stop()  # Ensure any stale MAME or Xvfb instances are terminated clean
+def save_session(**fields) -> None:
+    """Merge fields into session.json (atomically)."""
+    data = _load_session()
+    data.update(fields)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = SESSION_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=2))
+    os.replace(tmp, SESSION_FILE)
 
-        try:
-            from games import prepare_roms
-        except Exception as e:
-            print(f"[emulator] prepare_roms check: {e}")
 
-        env = _build_env()
+def session() -> dict:
+    return _load_session()
 
-        # ── 1. Virtual framebuffer ────────────────────────────────────────────
-        xvfb_bin = shutil.which("Xvfb", path=env["PATH"]) or "Xvfb"
-        try:
-            _xvfb_proc = subprocess.Popen(
-                [xvfb_bin, DISPLAY_NUM, "-screen", "0", _XVFB_GEOM],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                env=env,
-                restore_signals=False,
-            )
-        except FileNotFoundError:
-            print("[emulator] Xvfb not found. Install: sudo apt install xvfb")
+
+def can_resume() -> bool:
+    return STATE_FILE.exists() and all((WORK_DISKS / f).exists() for f in DISKS.values())
+
+
+def missing_requirements() -> str:
+    """Human-readable reason the game can't run, or '' when everything is present."""
+    if not shutil.which("mame", path=f"/usr/games:{os.environ.get('PATH', '')}"):
+        return "MAME is not installed."
+    missing = [f for f in DISKS.values() if not (PRISTINE_DISKS / f).exists()]
+    if missing:
+        return f"Missing disk images: {', '.join(missing)}."
+    dirs = [pathlib.Path(p).expanduser() for p in _rompath().split(";") if p]
+    if not any((d / "apple2e.zip").exists() for d in dirs):
+        return "The Apple IIe ROMs (apple2e.zip) are not installed."
+    return ""
+
+
+def start(resume: bool = True) -> bool:
+    """Launch MAME. Resumes the saved game when there is one (and resume is set);
+    otherwise starts fresh from pristine disk copies. Returns True once running."""
+    global _proc, _drive0, _frame_cache
+    with _lock:
+        _stop_locked(save=False)
+        problem = missing_requirements()
+        if problem:
+            print(f"[emulator] Cannot start: {problem}")
             return False
 
-        time.sleep(0.8)
-        _xlib_dpy = None    # reset cached Xlib connection
+        resuming = resume and can_resume()
+        if not resuming:
+            WORK_DISKS.mkdir(parents=True, exist_ok=True)
+            for f in DISKS.values():
+                shutil.copyfile(PRISTINE_DISKS / f, WORK_DISKS / f)
+            STATE_FILE.unlink(missing_ok=True)
+            save_session(drive0="boot", turns=0, notes="", started=time.time())
+        _drive0 = session().get("drive0", "boot") if resuming else "boot"
+        if _drive0 not in DISKS:
+            _drive0 = "boot"
 
-        # ── 2. MAME ───────────────────────────────────────────────────────────
-        mame_bin = shutil.which("mame", path=env["PATH"]) or "mame"
-        disk_path_obj = pathlib.Path(disk_path).resolve()
-        other_disks = [
-            str(p) for p in sorted(list(disk_path_obj.parent.glob("*.dsk")) + list(disk_path_obj.parent.glob("*.woz")) + list(disk_path_obj.parent.glob("*.po")))
-            if p.resolve() != disk_path_obj
+        shutil.rmtree(RUN_DIR, ignore_errors=True)
+        RUN_DIR.mkdir(parents=True)
+        MAME_DIR.mkdir(parents=True, exist_ok=True)
+        _frame_cache = (-1, None)
+
+        cmd = [
+            "mame", "apple2e",
+            "-noreadconfig", "-rompath", _rompath(),
+            "-video", "none", "-sound", "none",
+            "-skip_gameinfo", "-noautosave", "-nomouse",
+            "-cfg_directory", str(MAME_DIR / "cfg"),
+            "-nvram_directory", str(MAME_DIR / "nvram"),
+            "-state_directory", str(MAME_DIR / "sta"),
+            "-snapshot_directory", str(MAME_DIR / "snap"),
+            "-diff_directory", str(MAME_DIR / "diff"),
+            "-input_directory", str(MAME_DIR / "inp"),
+            "-comment_directory", str(MAME_DIR / "comments"),
+            "-flop1", str(WORK_DISKS / DISKS[_drive0]),
+            "-autoboot_script", str(PKG_DIR / "control.lua"),
         ]
-        cmd = [mame_bin, _MAME_DRIVER, "-flop1", str(disk_path_obj)]
-        if other_disks:
-            cmd += ["-flop2", other_disks[0]]
-            print(f"[emulator] Mounted drive 2 (-flop2): {other_disks[0]}")
-        cmd += _MAME_FLAGS
-        cmd += ["-rompath", _ROMPATH]
-
+        if resuming:
+            cmd += ["-state", STATE_NAME]
+        env = {**os.environ, "OMEGA7_BT_DIR": str(RUN_DIR),
+               "PATH": f"/usr/games:{os.environ.get('PATH', '')}"}
+        log = open(RUN_DIR / "mame.log", "wb")
         try:
-            _mame_proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-                env=env,
-                restore_signals=False,
-            )
-        except FileNotFoundError:
-            print("[emulator] mame not found. Install: sudo apt install mame")
-            _xvfb_proc.terminate()
-            _xvfb_proc = None
+            _proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, env=env,
+                                     cwd=str(MAME_DIR), preexec_fn=_child_setup)
+        except OSError as e:
+            print(f"[emulator] Could not launch MAME: {e}")
             return False
+        finally:
+            log.close()
 
-        time.sleep(_BOOT_DELAY)
-
-        # ── 3. Resolve window for xdotool ─────────────────────────────────────
-        if _mame_proc.poll() is not None:
-            err_out = ""
-            if _mame_proc.stderr:
-                err_out = _mame_proc.stderr.read().decode("utf-8", errors="replace")
-            print(f"[emulator] MAME exited during boot (code {_mame_proc.poll()}). Output: {err_out.strip()}")
-            _xvfb_proc.terminate()
-            _xvfb_proc = _mame_proc = None
-            return False
-
-        try:
-            result = subprocess.run(
-                ["xdotool", "search", "--class", "mame"],
-                capture_output=True, text=True,
-                env=env, timeout=5,
-                restore_signals=False,
-            )
-            wids = result.stdout.strip().split()
-            if not wids:
-                result = subprocess.run(
-                    ["xdotool", "search", "--onlyvisible", ""],
-                    capture_output=True, text=True,
-                    env=env, timeout=5,
-                    restore_signals=False,
-                )
-                wids = result.stdout.strip().split()
-            _window_id = wids[0] if wids else None
-        except Exception as e:
-            print(f"[emulator] xdotool search error: {e}")
-            _window_id = None
-
-        print(f"[emulator] MAME apple2e started — PID {_mame_proc.pid}, "
-              f"window {_window_id or '(unknown)'}, disk: {disk_path}")
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            if _proc.poll() is not None:
+                tail = (RUN_DIR / "mame.log").read_text(errors="replace")[-600:]
+                print(f"[emulator] MAME exited during start (code {_proc.returncode}): {tail.strip()}")
+                _proc = None
+                return False
+            if (RUN_DIR / "frame.info").exists():
+                break
+            time.sleep(0.2)
+        print(f"[emulator] MAME apple2e running (pid {_proc.pid}), "
+              f"{'resumed saved game' if resuming else 'new game'}, drive 1: {_drive0} disk")
         return True
 
 
-def stop() -> None:
-    """Terminate MAME and Xvfb cleanly."""
-    global _xvfb_proc, _mame_proc, _window_id, _xlib_dpy
-
+def stop(save: bool = True) -> None:
+    """Save the game (optionally) and shut MAME down cleanly so disk writes are flushed."""
     with _lock:
-        for proc in (_mame_proc, _xvfb_proc):
-            if proc is None:
-                continue
-            try:
-                proc.terminate()
-                proc.wait(timeout=4)
-            except Exception:
-                try:
-                    proc.kill()
-                except Exception:
-                    pass
-
-        if _xlib_dpy is not None:
-            try:
-                _xlib_dpy.close()
-            except Exception:
-                pass
-            _xlib_dpy = None
-
-        _mame_proc = _xvfb_proc = _window_id = None
-        print("[emulator] Stopped.")
+        _stop_locked(save)
 
 
-def send_key(key: str) -> None:
-    """
-    Inject *key* into the MAME window via xdotool.
-
-    Uses --clearmodifiers so stray Shift/Ctrl states don't corrupt input.
-    xdotool key names: "w" "a" "s" "d" "f" "c" "r"
-                       "Return" "space" "1" … "9"
-    """
-    global _window_id
-    if not is_running():
+def _stop_locked(save: bool) -> None:
+    global _proc
+    if _proc is None:
         return
-    env = _build_env()
-    try:
-        if not _window_id:
-            res = subprocess.run(
-                ["xdotool", "search", "--class", "mame"],
-                capture_output=True, text=True, env=env, timeout=2, restore_signals=False
-            )
-            wids = res.stdout.strip().split()
-            _window_id = wids[0] if wids else None
-
-        cmd = ["xdotool", "key", "--clearmodifiers"]
-        if _window_id:
-            cmd += ["--window", _window_id]
-        cmd.append(key)
-        subprocess.run(cmd, capture_output=True, env=env, timeout=2, restore_signals=False)
-    except Exception as e:
-        print(f"[emulator] send_key({key!r}) error: {e}")
-
-
-def capture_frame() -> Optional["Image.Image"]:
-    """
-    Screenshot the Xvfb display and return a 240×240 PIL Image, ready to blit.
-
-    MAME runs fullscreen inside Xvfb at 560×384.  We grab the root window,
-    centre-crop to a 384×384 square (keeping the dungeon view), and scale to
-    240×240 for the GC9A01 skull display.
-    """
-    if not _PIL_AVAILABLE:
-        return None
-
-    dpy = _get_xlib_display()
-    if dpy is None:
-        return None
-
-    try:
-        root = dpy.screen().root
-        geom = root.get_geometry()
-        raw  = root.get_image(0, 0, geom.width, geom.height, _X.ZPixmap, 0xFFFFFFFF)
-        img  = Image.frombytes(
-            "RGBA", (geom.width, geom.height), raw.data, "raw", "BGRA"
-        ).convert("RGB")
-    except Exception as e:
-        print(f"[emulator] capture_frame error: {e}")
-        return None
-
-    # Centre-crop to square then scale to skull display resolution
-    w, h  = img.size
-    side  = min(w, h)
-    left  = (w - side) // 2
-    top   = (h - side) // 2
-    img   = img.crop((left, top, left + side, top + side))
-    img   = img.resize((240, 240), Image.LANCZOS)
-    return img
+    if _proc.poll() is None:
+        if save:
+            save_state()
+        send("exit")  # a clean exit writes the disk images back
+        try:
+            _proc.wait(timeout=6)
+        except subprocess.TimeoutExpired:
+            _proc.kill()  # MAME ignores SIGTERM
+            _proc.wait(timeout=4)
+    _proc = None
+    print("[emulator] Stopped.")
 
 
 def is_running() -> bool:
-    """Return True while MAME is alive."""
-    return _mame_proc is not None and _mame_proc.poll() is None
+    return _proc is not None and _proc.poll() is None
+
+
+def send(line: str) -> bool:
+    """Queue one command line for control.lua. Waits (briefly) for the previous one
+    to be consumed, since the Lua side reads a single file."""
+    if not is_running():
+        return False
+    path = RUN_DIR / "cmd"
+    with _cmd_lock:
+        deadline = time.monotonic() + 3
+        while path.exists():
+            if time.monotonic() > deadline or not is_running():
+                print(f"[emulator] Command not consumed, dropping: {line[:40]}")
+                return False
+            time.sleep(0.03)
+        tmp = RUN_DIR / "cmd.tmp"
+        tmp.write_text(line + "\n")
+        os.replace(tmp, path)
+    return True
+
+
+def type_keys(text: str) -> bool:
+    """Type text on the Apple II keyboard ("\\r" = Return, "\\x1b" = Esc)."""
+    return send("keys " + text.encode("latin-1", "replace").hex())
+
+
+def insert_disk(name: str) -> bool:
+    """Put the named disk ("boot", "character" or "dungeon") in drive 1."""
+    global _drive0
+    if name not in DISKS or not send(f"load 0 {WORK_DISKS / DISKS[name]}"):
+        return False
+    _drive0 = name
+    save_session(drive0=name)
+    return True
+
+
+def current_disk() -> str:
+    return _drive0
+
+
+def turbo(on: bool) -> None:
+    send("turbo on" if on else "turbo off")
+
+
+def save_state() -> bool:
+    """Write a MAME save state and remember which disk is in the drive."""
+    before = STATE_FILE.stat().st_mtime if STATE_FILE.exists() else 0.0
+    if not send(f"save {STATE_NAME}"):
+        return False
+    deadline = time.monotonic() + 4
+    while time.monotonic() < deadline:
+        if STATE_FILE.exists() and STATE_FILE.stat().st_mtime != before:
+            save_session(drive0=_drive0, saved=time.time())
+            return True
+        time.sleep(0.1)
+    print("[emulator] Save state did not complete.")
+    return False
+
+
+def frame_seq() -> int:
+    """Sequence number of the latest screen picture (bumps only when it changes)."""
+    try:
+        return int((RUN_DIR / "frame.info").read_text().split()[0])
+    except Exception:
+        return -1
+
+
+def frame() -> tuple[int, Optional[Image.Image]]:
+    """(seq, picture) of the latest screen: RGB at MAME's native 560x192."""
+    global _frame_cache
+    try:
+        seq, w, h = (int(v) for v in (RUN_DIR / "frame.info").read_text().split())
+    except Exception:
+        return -1, None
+    if seq == _frame_cache[0]:
+        return _frame_cache
+    try:
+        raw = (RUN_DIR / "frame").read_bytes()
+        img = Image.frombuffer("RGBA", (w, h), raw, "raw", "BGRA", 0, 1).convert("RGB")
+    except Exception:
+        return _frame_cache
+    _frame_cache = (seq, img)
+    return _frame_cache
+
+
+def wait_stable(quiet: float = 0.7, timeout: float = 6.0, stop: Optional[threading.Event] = None) -> bool:
+    """Wait until the screen hasn't changed for `quiet` seconds. False on timeout
+    (e.g. an animated title screen), which callers treat as "good enough"."""
+    deadline = time.monotonic() + timeout
+    seq, since = frame_seq(), time.monotonic()
+    while time.monotonic() < deadline:
+        if stop is not None and stop.is_set():
+            return False
+        time.sleep(0.1)
+        now_seq = frame_seq()
+        if now_seq != seq:
+            seq, since = now_seq, time.monotonic()
+        elif time.monotonic() - since >= quiet:
+            return True
+    return False

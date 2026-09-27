@@ -997,59 +997,37 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             pass
 
     def _handle_game_status(self) -> None:
-        """GET /api/game/status — returns current Bard's Tale agent state."""
+        """GET /api/game/status — current Bard's Tale agent state."""
         try:
             from games.bardstale import agent as _bt_agent
             self._send_json(_bt_agent.get_status())
         except Exception as e:
-            self._send_json({"running": False, "turn": 0, "last_action": "", "error": str(e)})
+            self._send_json({"running": False, "error": str(e)})
 
     def _handle_game_start(self) -> None:
-        """POST /api/game/start — launch the autonomous Bard's Tale agent."""
+        """POST /api/game/start {"new": bool} — Omega-7 starts playing (resumes by default)."""
         try:
-            import pathlib
-            content_length = int(self.headers.get("Content-Length", 0))
-            if content_length > 0:
-                raw_body = self.rfile.read(content_length).decode("utf-8")
-                data = json.loads(raw_body) if raw_body.strip() else {}
-            else:
-                data = {}
-            disk_dir = pathlib.Path(__file__).resolve().parent.parent / "games" / "bardstale" / "disks"
-            # Allow caller to override disk path; otherwise pick first found disk
-            disk_path = data.get("disk", "")
-            if not disk_path:
-                char_disk = disk_dir / "bards_tale_character.dsk"
-                if char_disk.exists():
-                    disk_path = str(char_disk)
-                else:
-                    disks = sorted(
-                        list(disk_dir.glob("*.dsk")) + list(disk_dir.glob("*.woz"))
-                        + list(disk_dir.glob("*.nib"))
-                    ) if disk_dir.exists() else []
-                    disk_path = str(disks[0]) if disks else ""
-            if not disk_path:
-                self._send_json({"ok": False, "error": "No disk image found in games/bardstale/disks/"}, 400)
-                return
+            data = self._read_json() or {}
             from games.bardstale import agent as _bt_agent
-            if _bt_agent.is_running():
-                self._send_json({"ok": False, "error": "Game already running"})
-                return
             from core import display as _disp
             # The running service is `python -m core.main` (__main__); importing
             # core.main would load a second copy with its own speech lock.
             _main = sys.modules.get("__main__")
             if not hasattr(_main, "_game_narrate"):
                 import core.main as _main
+            problem = _bt_agent.start(_main._game_narrate, new_game=bool(data.get("new")))
+            if problem:
+                self._send_json({"ok": False, "error": problem}, 400)
+                return
             _disp.start_game_display()
-            _bt_agent.start(disk_path, _main._game_narrate)
-            self._send_json({"ok": True, "disk": disk_path})
+            self._send_json({"ok": True})
         except Exception as e:
             import traceback
             traceback.print_exc()
             self._send_json({"ok": False, "error": str(e)}, 500)
 
     def _handle_game_stop(self) -> None:
-        """POST /api/game/stop — stop the Bard's Tale agent."""
+        """POST /api/game/stop — stop playing (progress is saved)."""
         try:
             from games.bardstale import agent as _bt_agent
             from core import display as _disp

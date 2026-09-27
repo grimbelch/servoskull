@@ -1137,7 +1137,7 @@ def _loop():
 
 def _render_loop():
     global _rolling_die, _showing_omnissiah_glyph, _showing_custom_image, _custom_image, _custom_image_expiry
-    global _showing_alignment, _alignment_until
+    global _showing_alignment, _alignment_until, _showing_game
     global _last_activity_time, _active_idle_anim, _custom_idle_expiry, _requested_idle_anim
     bezel = _make_bezel()
     mask = _make_iris_mask()
@@ -1165,8 +1165,6 @@ def _render_loop():
     presence_at = t0
     presence_cm = None
     low_power = False
-    game_frame = None      # last game frame shown (held so its identity stays unique)
-    game_frame_seq = 0
     next_frame = t0        # frame deadline; pacing is measured against this
 
     def pace(fps: float) -> None:
@@ -1212,6 +1210,7 @@ def _render_loop():
             or image_retrieval_active
             or _visualizing_music
             or _showing_custom_image
+            or _showing_game
             or _speaking
             or _thinking
         )
@@ -1387,11 +1386,11 @@ def _render_loop():
         if _showing_game:
             try:
                 from games.bardstale import agent as _bt_agent
-                gf = _bt_agent.get_latest_frame()
-                if gf is not None:
-                    if gf is not game_frame:  # a new capture; resend only then
-                        game_frame, game_frame_seq = gf, game_frame_seq + 1
-                    _blit_static(("game", game_frame_seq), lambda: gf)
+                if _bt_agent.is_running():
+                    key, frame = _bt_agent.eye_frame()
+                    _blit_static(("game", key), lambda: frame)
+                else:  # the game ended on its own (time limit, error)
+                    _showing_game = False
             except Exception as e:
                 _render_error("game frame", e)
             pace(config.DISPLAY_FPS)

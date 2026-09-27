@@ -1,428 +1,482 @@
 """
-Autonomous Bard's Tale AI player for Omega-7.
+Omega-7 plays The Bard's Tale (Apple II, 1985) by himself.
 
-Every turn the agent:
-  1. Captures a frame from the Apple II emulator.
-  2. Sends it to Claude Vision (Haiku — fast & cheap) with an in-character prompt.
-  3. Receives a JSON action + narration sentence.
-  4. Speaks the narration via the skull's TTS system (non-blocking).
-  5. Sends the keypress to the emulator.
+Each turn the agent waits for the emulated screen to settle, shows it to Claude,
+and gets back a small JSON decision: which keys to press (and which disk to put
+in the drive), a short label for the eye display, an optional in-character line
+to speak, and his running notes. Keys are typed one at a time, each followed by
+a wait for the screen to settle, so the game never drops input.
 
-Between full vision calls the agent runs an autonomous walking mode that follows
-a right-hand-wall rule and keeps the display live at native FPS without burning
-extra API tokens.
-
-Architecture note: the game loop runs on its own daemon thread (not the shared
-ThreadPoolExecutor) because it is long-running and must never be cancelled by
-executor shutdown.
+The eye shows the live Apple screen with the keys just pressed above it and what
+he's doing below it (games/bardstale/eye.py). Progress is kept between sessions:
+stopping saves a MAME state, and the next "play Bard's Tale" resumes from it.
 """
 
 from __future__ import annotations
+
 import base64
 import hashlib
 import io
 import json
+import os
+import re
 import threading
 import time
+import traceback
 from typing import Callable, Optional
 
-from games.bardstale import emulator, maps
+from PIL import Image
 
-try:
-    from PIL import Image
-    _PIL_AVAILABLE = True
-except ImportError:
-    _PIL_AVAILABLE = False
-    Image = None  # type: ignore
+from core import config
+from games.bardstale import emulator, eye, screen_text
 
-
-# ── Tuning constants ─────────────────────────────────────────────────────────────
-_VISION_INTERVAL = 1      # full Claude call every turn
-_TURN_DELAY      = 15.00  # seconds between turns (gives ample time for TTS narration to play cleanly)
-_WALK_DELAY      = 0.50   # seconds between keypresses in autonomous walk mode
-_CLAUDE_MODEL    = "claude-haiku-4-5-20251001"   # fast + inexpensive for per-turn calls
-_MAX_NARRATION_TOKENS = 150
-
-# Keys that constitute a movement action
-_MOVE_KEYS = {"w", "a", "s", "d"}
-
-# xdotool-compatible key names for cardinal directions
-_DIR_KEYS = {"north": "w", "south": "s", "east": "d", "west": "a"}
-
-# Normalise whatever Claude returns into a valid xdotool key
-_KEY_ALIASES: dict[str, str] = {
-    # Movement
-    "north": "w", "south": "s", "east": "d", "west": "a",
-    "forward": "w", "back": "s", "right": "d", "left": "a",
-    # Actions & Menus (uppercase required for Apple II keyboard menu commands)
-    "fight": "F", "cast": "C", "run": "R", "retreat": "R",
-    "enter": "Return", "confirm": "Return", "ok": "Return",
-    "pass": "space", "skip": "space", "wait": "space",
-    "start": "S", "start game": "S", "s": "S", "S": "S",
-    "add": "A", "remove": "R", "exit": "E", "check": "C",
-    # Pass-throughs
-    "w": "w", "a": "a", "s": "s", "d": "d",
-    "f": "F", "c": "C", "r": "R", "e": "E", "E": "E", "A": "A", "C": "C",
-    "1": "1", "2": "2", "3": "3", "4": "4",
-    "5": "5", "6": "6", "7": "7", "8": "8", "9": "9",
-    "Return": "Return", "space": "space",
-}
-
-
-# ── Game system prompt ────────────────────────────────────────────────────────────
 _SYSTEM_PROMPT = """\
-You are Omega-7, a servo-skull of the Adeptus Mechanicus, autonomously playing
-The Bard's Tale (1985, Apple II). You are an ancient machine-spirit navigating
-the cursed city of Skara Brae and its dungeons, narrating your journey aloud
-to your master in the manner of a veteran Imperial war-machine.
+You are Omega-7, an Adeptus Mechanicus servo-skull, playing The Bard's Tale (1985)
+on an emulated Apple IIe by yourself while your master watches on your eye display.
+Each turn you get a screenshot and your recent history. Reply with ONLY a JSON object:
 
-Each turn you receive a screenshot of the current game state. You MUST respond
-with a single line of valid JSON and nothing else:
+{"saw": "<what the screen shows, <=15 words>",
+ "doing": "<label for your eye display, <=18 characters, e.g. \\"Fighting kobolds\\">",
+ "keys": ["<key>", ...],
+ "disk": null,
+ "say": "",
+ "notes": "<optional>"}
 
-{"key": "<xdotool_key>", "narration": "<one short sentence in character>"}
+keys: up to 6 keys, typed in order. A key is a single character ("I", "A", "1", "?")
+or RETURN or SPACE. To type a word (a spell code, a name) use one string, e.g. "ARFI",
+then RETURN. An empty list means wait a moment.
+disk: only when the message box literally says "Insert <NAME> disk": set disk to
+"boot", "character" or "dungeon" and press SPACE. Otherwise null. There is one drive.
+say: usually "". For notable moments only (a fight begins or is won, a level gained,
+a hero dies, a dungeon entered, treasure found) one short sentence in character, spoken
+aloud to your master: a machine-spirit's dry, reverent commentary.
+notes: your memory across turns (goals, where things are, lessons). Rewrite it in full
+(<=500 chars) when something worth remembering happens; omit it otherwise.
 
-Valid keys:
-  w = move north      s = move south                d = move east       a = move west
-  f = fight           c = cast spell / check        r = run / remove    e = exit guild
-  Return = confirm    space = pass/skip             1–7 = menu option / party slot / drive number
-  S = Start Game      A = Add member                E = Exit Guild
+SCREEN
+Each turn also includes the screen's text, read exactly from the screen: trust it
+over the picture ("·" marks a character the reader couldn't decode). The location
+label under the view says where you are: "The Guild" = inside the Adventurers' Guild,
+"Skara Brae" = out on the city streets, anything else = that building or dungeon.
+An empty message box in the city just means nothing is happening: walk on.
+Top left: the view (street, room or monster). Top right: the message box, under the
+game's "The Bard's Tale" logo (just the title, not a place). Bottom: the party. Columns: AC (armor class, lower is better), Hits (MAXIMUM hit points), Cond
+(CURRENT hit points; 0 or a word like DEAD means trouble), SpPt (spell points), Cl.
+While the game loads from disk the view or the whole screen shows coloured noise or
+stripes: that is normal. Press nothing (empty keys) and wait for it to finish.
 
-Special disk & menu handling:
-  * UTILITIES / MENU SCREEN: If you see "S)tart Game", "Start Game", or "Utilities", respond with key "S".
-  * GUILD OF ADVENTURERS: If in Guild of Adventurers, press "A" to add members or "E" to exit guild into Skara Brae!
-  * DISK / DRIVE PROMPTS: If the screen displays "Insert Character Disk into Drive 1 (or press 2 for Drive 2)",
-    or ANY prompt asking to insert a disk or press 2 for Drive 2, respond with key "2".
-    The Character Disk is already loaded into Drive 2!
-  * SPLASH / TITLE SCREENS: If the screen says "Press any key to continue" or "Press Space", press "space" or "Return".
+COMMANDS (Apple II)
+Moving, in the city and dungeons: I = forward, J = turn left, L = turn right,
+L L = turn around (there is no R or "right" key). K = kick a door open. ? = street name, facing and time of day.
+1-6 = view that hero (SPACE to return). C = cast a spell. B = bard song (El Cid).
+U = use an equipped item. N = new party order. E = up a portal, D = down a portal.
+Walking into a building's door enters it; (E)xit leaves. After leaving a building
+you stand in the street facing the building across the street, not the one you left.
+If I doesn't move you (the screen didn't change), a wall or building is ahead: turn.
+Use ? often: it costs nothing and tells you the street, your facing and the time. Menus show options as
+(X)word: press the letter. A message that waits for a key: SPACE.
+NEVER press P (party attack: heroes hit each other). ESC only where a prompt shows
+"(esc)" to back out; elsewhere it pauses the game.
+In the Guild never Remove or Delete members and never use Disk Options; on the
+UTILITIES menu only ever press S.
 
-Decision priorities:
-  1. GUILD: If in the Guild of Adventurers, press "A" to add members, or "E" to exit into the city.
-  2. UTILITIES / DISK PROMPTS: Press "S" for Start Game if on utilities menu. Press "2" for Drive 2 if on disk prompt.
-  3. COMBAT: If in combat, fight (f) all heroes if HP >= 60%. Cast healing (c) or retreat (r) if HP < 30%.
-  4. DUNGEON / CITY: Move systematically (w, a, s, d).
-  5. DEFAULT: If uncertain, press "space" (pass).
+THE PARTY (*ATEAM)
+1 Brian the Fist, Paladin; 2 Samson, Warrior; 3 El Cid, Bard; 4 Markus, Rogue;
+5 Merlin, Conjurer; 6 Omar, Magician. Only heroes 1-3 can melee, and only the first
+two monster groups can be hit in melee.
 
-Narration: One short, punchy sentence in character. Reference the Omnissiah, data-vaults,
-and machine-spirits occasionally. Never break character.\
+COMBAT
+"(F)ight or (R)un?": F, unless the foes clearly outclass you. Each hero then picks:
+(A)ttack (heroes 1-3), (D)efend, (C)ast, (B)ard song (then 1-6), (H)ide (Markus),
+(U)se. Only the options listed for that hero work. TARGETS: foe groups are LETTERS
+(A, B, C, D; "Attack group (A-B)" means press A or B); party members are NUMBERS
+1-6. Never answer a foe prompt with a number: that hits your own hero.
+Whose turn it is: the message box says so ("OMAR has these options"). Only that
+hero acts; give only his own spells. Casting: C, then the code typed as ONE string
+("ARFI"), RETURN, then the target: a foe group letter for ARFI, a hero number for
+VOPL. "Thou knowest not that spell!" means that hero doesn't have it. After the last hero, the round plays out: press SPACE
+through the messages if they wait. Useful level-1 spells (spell-point cost):
+  MERLIN (Conjurer) only: ARFI 3 (Arc Fire, 1-4 damage per level to one foe),
+          SOSH 3 (shield on self), MAFL 2 (light), TRZP 2 (disarms a trap).
+  OMAR (Magician) only: VOPL 3 (a hero's weapon does +2-8), AIAR 3 (armor on
+          self), STLI 2 (light), SCSI 2 (tells where you are in a dungeon).
+  In a fight: Merlin ARFI at a foe group; Omar VOPL on hero 1 or 2, or Defend.
+Bard songs in combat: 1 more damage, 2 better hitting, 3 foes deal less damage,
+4 heals the party, 5 party harder to hit, 6 magic protection. El Cid can sing as many
+songs as his level, then needs a drink at a tavern.
+
+HOW TO PLAY WELL
+Keep everyone alive; the pre-built party is level 1 and dies easily, especially at
+night, when the worst monsters roam. Spell points regenerate only outdoors by day
+(or at Roscoe's Energy Emporium, for gold). Temples heal fully and resurrect, for gold.
+Garth's Equipment Shoppe sells weapons and armor. The Review Board (find it; closed at
+night) raises levels once heroes have enough experience: visit it regularly.
+Kick in doors of unmarked buildings to find fights: fighting is how heroes grow.
+The tavern on Rakhir Street serves wine. The first dungeon to try is the Sewers, only
+once the party is level 3-4 and fully healed. Record landmarks and street names in
+your notes. If your keys did nothing (history says the screen did not change), try
+something different rather than repeating yourself.
 """
 
-_MAP_CONTEXT_TEMPLATE = "\n\nMap intelligence — {level}:\n{notes}"
+_SPECIAL_KEYS = {"RETURN": "\r", "ENTER": "\r", "SPACE": " ", "ESC": "\x1b"}
+_MAX_KEYS = 6
+_HISTORY_TURNS = 14
+_AUTOSAVE_SECS = 600
+_MIN_TURN_SECS = 1.5        # never faster than this, however quick the model is
+_MAX_FAILURES = 6           # consecutive failed model calls before giving up
+_STUCK_TURNS = 15           # turns with an unchanged screen before reloading the last save
+
+_stop = threading.Event()
+_thread: Optional[threading.Thread] = None
+_narrate_cb: Optional[Callable[[str], None]] = None
+_status_lock = threading.Lock()
+_status = {"phase": "idle", "turn": 0, "doing": "", "keys": [], "thinking": False,
+           "started": 0.0, "message": ""}
+_eye_cache: tuple = (None, None)
+_client = None
 
 
-# ── Module state ─────────────────────────────────────────────────────────────────
-_stop         = threading.Event()
-_running      = threading.Event()
-_frame_lock   = threading.Lock()
-_latest_frame: Optional["Image.Image"] = None
-_turn_count   = 0
-_last_action  = ""
-_narrate_cb:  Optional[Callable[[str], None]] = None
-_game_thread: Optional[threading.Thread]      = None
+# ── Public API ─────────────────────────────────────────────────────────────────
 
-
-# ── Walk-state tracker ────────────────────────────────────────────────────────────
-
-class _WalkState:
-    """
-    Tracks the party's relative position and facing for right-hand-wall-following
-    and loop detection. Coordinates are relative to where the game loop started.
-    """
-    _DIRS  = ["north", "east", "south", "west"]   # clockwise order
-    _DELTA = {"north": (0, -1), "east": (1, 0), "south": (0, 1), "west": (-1, 0)}
-
-    def __init__(self) -> None:
-        self.x          = 0
-        self.y          = 0
-        self.facing_idx = 0      # index into _DIRS
-        self.history:   list[tuple[int, int, int]] = []
-        self.loop_count = 0
-
-    @property
-    def facing(self) -> str:
-        return self._DIRS[self.facing_idx]
-
-    def turn_right(self) -> None:
-        self.facing_idx = (self.facing_idx + 1) % 4
-
-    def turn_left(self) -> None:
-        self.facing_idx = (self.facing_idx - 1) % 4
-
-    def step_forward(self) -> None:
-        dx, dy = self._DELTA[self.facing]
-        self.x += dx
-        self.y += dy
-        pos = (self.x, self.y, self.facing_idx)
-        self.history.append(pos)
-        # Loop detection: same position+facing 3× in the last 24 steps → reverse
-        if len(self.history) > 24:
-            self.history = self.history[-24:]
-        if self.history.count(pos) >= 3:
-            self.loop_count += 1
-            print(f"[bardstale] Loop detected (#{self.loop_count}) at ({self.x},{self.y}) "
-                  f"facing {self.facing} — reversing.")
-            self.facing_idx = (self.facing_idx + 2) % 4
-            self.history.clear()
-
-    @property
-    def forward_key(self) -> str:
-        return _DIR_KEYS[self.facing]
-
-    @property
-    def right_facing(self) -> str:
-        return self._DIRS[(self.facing_idx + 1) % 4]
-
-
-# ── Frame utilities ───────────────────────────────────────────────────────────────
-
-def _frame_hash(frame: "Image.Image") -> str:
-    """Cheap perceptual hash — detects meaningful screen changes."""
-    tiny = frame.resize((16, 16)).convert("L")
-    return hashlib.md5(tiny.tobytes()).hexdigest()
-
-
-def _encode_frame(frame: "Image.Image") -> str:
-    """Return JPEG base64 string of the frame for the Claude API."""
-    buf = io.BytesIO()
-    frame.save(buf, format="JPEG", quality=75)
-    return base64.standard_b64encode(buf.getvalue()).decode()
-
-
-# ── Claude Vision call ────────────────────────────────────────────────────────────
-
-def _ask_claude(
-    frame: "Image.Image",
-    level:  str = "skara_brae",
-    walk:   Optional[_WalkState] = None,
-) -> tuple[str, str]:
-    """
-    Send the current frame to Claude Vision and return (xdotool_key, narration).
-    Returns ("space", "") on any error — the agent simply passes that turn.
-    """
-    global _turn_count
-    raw = ""
-    try:
-        import anthropic
-        from core import config
-
-        # Build context-enriched system prompt
-        x, y   = (walk.x, walk.y) if walk else (0, 0)
-        map_note = maps.get_context(level, x, y)
-        system   = _SYSTEM_PROMPT
-        if map_note:
-            system += _MAP_CONTEXT_TEMPLATE.format(level=level, notes=map_note)
-
-        client  = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
-        img_b64 = _encode_frame(frame)
-
-        response = client.messages.create(
-            model=_CLAUDE_MODEL,
-            max_tokens=_MAX_NARRATION_TOKENS,
-            system=system,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": "image/jpeg",
-                            "data": img_b64,
-                        },
-                    },
-                    {
-                        "type": "text",
-                        "text": (
-                            f"Turn {_turn_count + 1}. "
-                            f"Position: ({x},{y}), facing {walk.facing if walk else 'unknown'}. "
-                            "What do you see and what key do you press?"
-                        ),
-                    },
-                ],
-            }],
-        )
-
-        raw    = response.content[0].text.strip()
-
-        # Strip markdown fences if Claude wraps its JSON
-        if raw.startswith("```"):
-            parts = raw.split("```")
-            raw   = parts[1].strip()
-            if raw.startswith("json"):
-                raw = raw[4:].strip()
-
-        parsed    = json.loads(raw)
-        key_raw   = str(parsed.get("key", "space")).strip().lower()
-        narration = str(parsed.get("narration", "")).strip()
-        key       = _KEY_ALIASES.get(key_raw, key_raw)   # normalise
-
-        return key, narration
-
-    except json.JSONDecodeError as e:
-        print(f"[bardstale] Claude JSON parse error: {e!r}  raw={raw!r}")
-        return "space", ""
-    except Exception as e:
-        print(f"[bardstale] _ask_claude error: {e}")
-        return "space", ""
-
-
-# ── Main game loop ────────────────────────────────────────────────────────────────
-
-def _game_loop() -> None:
-    global _latest_frame, _turn_count, _last_action
-
-    print("[bardstale] Autonomous game loop started.")
-    # ── Fast boot sequence ────────────────────────────────────────────────────
-    # Quickly press space twice to clear title/credits, then 'S' and Return for Start Game
-    print("[bardstale] Executing fast boot sequence (space -> space -> S -> Return)...")
-    _stop.wait(timeout=3.0)
-    if not _stop.is_set():
-        emulator.send_key("space")
-        _stop.wait(timeout=0.8)
-    if not _stop.is_set():
-        emulator.send_key("space")
-        _stop.wait(timeout=0.8)
-    if not _stop.is_set():
-        emulator.send_key("S")
-        _stop.wait(timeout=0.8)
-    if not _stop.is_set():
-        emulator.send_key("Return")
-        _stop.wait(timeout=1.0)
-
-    walk          = _WalkState()
-    step_counter  = 0
-    prev_hash     = ""
-    in_walk_mode  = False
-    current_level = "skara_brae"
-
-    while not _stop.is_set():
-        if not emulator.is_running():
-            print("[bardstale] Emulator exited unexpectedly — stopping game loop.")
-            break
-
-        # ── Capture frame ─────────────────────────────────────────────────────
-        frame = emulator.capture_frame()
-        if frame is None:
-            _stop.wait(timeout=0.5)
-            continue
-
-        with _frame_lock:
-            _latest_frame = frame
-
-        current_hash   = _frame_hash(frame)
-        screen_changed = (current_hash != prev_hash)
-
-        # ── Decide: autonomous walk step or full vision call? ─────────────────
-        need_vision = (
-            screen_changed           # new screen state
-            or not in_walk_mode      # not currently walking
-            or step_counter >= _VISION_INTERVAL   # periodic check-in
-        )
-
-        if need_vision:
-            # ── Full vision turn ──────────────────────────────────────────────
-            key, narration = _ask_claude(frame, level=current_level, walk=walk)
-            print(f"[bardstale] Turn {_turn_count + 1}: key={key!r}  {narration!r}")
-
-            if narration and _narrate_cb:
-                try:
-                    _narrate_cb(narration)
-                except Exception as e:
-                    print(f"[bardstale] narrate_cb error: {e}")
-
-            emulator.send_key(key)
-            if key in {"S", "s"}:
-                time.sleep(0.3)
-                emulator.send_key("Return")
-            _last_action = key
-            _turn_count += 1
-
-            # Update walk state
-            in_walk_mode = key in _MOVE_KEYS
-            if in_walk_mode:
-                walk.step_forward()
-            step_counter = 0
-
-            # Heuristic: infer level changes from narrative keywords
-            # (Claude knows the screen content; we infer from its narration)
-            narration_lower = narration.lower()
-            current_level = maps.detect_level_from_text(narration_lower) or current_level
-
-            _stop.wait(timeout=_TURN_DELAY)
-
-        else:
-            # ── Autonomous walk step (right-hand-wall-following) ──────────────
-            # Keep pressing forward without a vision call.
-            # If the screen doesn't change next iteration we know we hit a wall
-            # and will re-enter vision mode automatically.
-            emulator.send_key(walk.forward_key)
-            walk.step_forward()
-            _last_action = walk.forward_key
-            step_counter += 1
-
-            _stop.wait(timeout=_WALK_DELAY)
-
-        prev_hash = current_hash
-
-    _running.clear()
-    print(f"[bardstale] Game loop ended after {_turn_count} turns.")
-
-
-# ── Public API ────────────────────────────────────────────────────────────────────
-
-def start(disk_path: str, narrate_cb: Callable[[str], None]) -> None:
-    """
-    Start the emulator and launch the autonomous game loop.
-
-    *narrate_cb* is called with each narration sentence and must be non-blocking
-    (it should queue the TTS work onto a background thread).
-    """
-    global _narrate_cb, _turn_count, _last_action, _game_thread, _latest_frame
-
+def start(narrate_cb: Callable[[str], None], new_game: bool = False) -> str:
+    """Start playing (resuming the saved game unless new_game). Returns a short
+    reason when it can't start, else ''. Never blocks: the emulator boots on the
+    game thread."""
+    global _thread, _narrate_cb
+    if is_running():
+        return "already running"
+    problem = emulator.missing_requirements()
+    if problem:
+        return problem
+    if not config.ANTHROPIC_API_KEY:
+        return "No Anthropic API key is configured."
     _stop.clear()
-    _narrate_cb  = narrate_cb
-    _turn_count  = 0
-    _last_action = ""
-
-    with _frame_lock:
-        _latest_frame = None
-
-    if not emulator.start(disk_path):
-        print("[bardstale] Emulator failed to start.")
-        return
-
-    _running.set()
-    _game_thread = threading.Thread(
-        target=_game_loop, daemon=True, name="bardstale-agent"
-    )
-    _game_thread.start()
-    print(f"[bardstale] Agent started — disk: {disk_path}")
+    _narrate_cb = narrate_cb
+    _set(phase="starting", turn=0, doing="Booting Apple IIe", keys=[], thinking=False,
+         started=time.time(), message="")
+    _thread = threading.Thread(target=_game_loop, args=(not new_game,), daemon=True,
+                               name="bardstale-agent")
+    _thread.start()
+    return ""
 
 
-def stop() -> None:
-    """Stop the agent and shut down the emulator."""
+def stop(wait: bool = False) -> None:
+    """Stop playing; the game thread saves progress and shuts the emulator down."""
     _stop.set()
-    _running.clear()
-    emulator.stop()
-    if _game_thread and _game_thread.is_alive():
-        _game_thread.join(timeout=3.0)
-    print("[bardstale] Agent stopped.")
-
-
-def get_latest_frame() -> Optional["Image.Image"]:
-    """Thread-safe read of the most recently captured game frame."""
-    with _frame_lock:
-        return _latest_frame
-
-
-def get_status() -> dict:
-    """Return current agent status for the web API."""
-    return {
-        "running":     _running.is_set() and emulator.is_running(),
-        "turn":        _turn_count,
-        "last_action": _last_action,
-    }
+    if wait and _thread is not None and _thread.is_alive():
+        _thread.join(timeout=15)
 
 
 def is_running() -> bool:
-    """Return True while the game loop is active."""
-    return _running.is_set() and emulator.is_running()
+    return _thread is not None and _thread.is_alive()
+
+
+def can_resume() -> bool:
+    return emulator.can_resume()
+
+
+def get_status() -> dict:
+    with _status_lock:
+        s = dict(_status)
+    s["running"] = is_running()
+    s["can_resume"] = emulator.can_resume()
+    return s
+
+
+def summary() -> str:
+    """What the game is up to, for the conversation model's context ('' when idle)."""
+    if not is_running():
+        return ""
+    with _status_lock:
+        recent = list(_status.get("recent", []))
+        notes, doing, turn = _status.get("notes", ""), _status["doing"], _status["turn"]
+    text = (f"You are currently playing The Bard's Tale (Apple II) by yourself on your eye "
+            f"display: turn {turn}, now {doing or 'starting up'}.")
+    if notes:
+        text += f" Your game notes: {notes}"
+    if recent:
+        text += " Recent turns: " + " | ".join(recent)
+    return text
+
+
+def eye_frame() -> tuple:
+    """(key, 240x240 image) for the display loop; key changes whenever the picture does."""
+    global _eye_cache
+    seq, screen = emulator.frame()
+    with _status_lock:
+        doing = _status["doing"]
+        keys_text = "…" if _status["thinking"] else eye.key_glyphs(_status["keys"])
+    key = (seq, doing, keys_text)
+    if _eye_cache[0] != key:
+        _eye_cache = (key, eye.render(screen, doing, keys_text))
+    return _eye_cache
+
+
+# ── Scripted start-up ───────────────────────────────────────────────────────────
+# The emulated game draws every screen identically, so the start-up screens are
+# recognised by fingerprints of screen regions (MAME's 560x192 frame). A scripted
+# boot never presses a key while a disk is loading or swaps a disk too early, which
+# is what goes wrong when the model drives the start-up from screenshots.
+
+_REGIONS = {"full": (0, 0, 560, 192), "msg": (290, 22, 546, 120), "head": (130, 0, 440, 33)}
+_BOOT_STEPS = [
+    # (what, region, fingerprint, disk to insert, keys)
+    ("crack screen",       "full", "d02e8c91", None,        " "),
+    ("title screen",       "head", "ba5f441f", None,        " "),
+    ("character disk",     "msg",  "79ad4410", "character", " "),
+    ("utilities menu",     "msg",  "6c7cb1df", None,        "S"),
+    ("guild, empty",       "msg",  "ab5d6a88", None,        "A"),
+    ("load character",     "msg",  "622a03df", None,        "*ATEAM\r"),
+]
+_GUILD_WITH_PARTY = ("full", "11280165")
+
+
+def _fingerprint(img: Image.Image, region: str) -> str:
+    return hashlib.md5(img.crop(_REGIONS[region]).tobytes()).hexdigest()[:8]
+
+
+def _wait_for_screen(region: str, fp: str, timeout: float) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline and not _stop.is_set():
+        _, img = emulator.frame()
+        if img is not None and _fingerprint(img, region) == fp:
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def _scripted_boot() -> bool:
+    """Boot a new game to the Adventurers' Guild with the *ATEAM party loaded,
+    fast-forwarded. False if a screen didn't appear (the model then takes over)."""
+    emulator.turbo(True)
+    try:
+        for what, region, fp, disk, keys in _BOOT_STEPS:
+            _set(doing=f"Booting: {what.split(',')[0]}")
+            if not _wait_for_screen(region, fp, timeout=60):
+                print(f"[bardstale] Scripted boot: '{what}' screen not seen; the model takes over.")
+                return False
+            if disk:
+                emulator.insert_disk(disk)
+                time.sleep(0.3)
+            emulator.type_keys(keys)
+        return _wait_for_screen(*_GUILD_WITH_PARTY, timeout=60)
+    finally:
+        emulator.turbo(False)
+
+
+# ── Game loop ──────────────────────────────────────────────────────────────────
+
+def _set(**fields) -> None:
+    with _status_lock:
+        _status.update(fields)
+
+
+def _say(text: str) -> None:
+    if text and _narrate_cb:
+        try:
+            _narrate_cb(text)
+        except Exception as e:
+            print(f"[bardstale] narration error: {e}")
+
+
+def _game_loop(resume: bool) -> None:
+    notes, turn = "", 0
+    try:
+        resuming = resume and emulator.can_resume()
+        if not emulator.start(resume=resume):
+            _set(message="The emulator failed to start.")
+            _say("The Apple cogitator refuses to wake. The game cannot begin.")
+            return
+        sess = emulator.session()
+        notes, turn = (sess.get("notes", ""), int(sess.get("turns", 0))) if resuming else ("", 0)
+        history = ["(Resumed the saved game.)"] if resuming else []
+        if not resuming:
+            if _scripted_boot():
+                history.append("(Start-up done: the *ATEAM party is loaded and you are in the "
+                               "Adventurers' Guild. Next: (E)xit Guild into Skara Brae.)")
+                emulator.save_state()
+            else:
+                history.append("(Start-up did not finish as expected; look at the screen.)")
+        _set(phase="playing", turn=turn, doing="Resuming" if resuming else "Booting Apple IIe")
+        print(f"[bardstale] {'Resumed' if resuming else 'New'} game, turn {turn}.")
+
+        began = last_save = time.monotonic()
+        last_say, failures, prev_hash, stuck = 0.0, 0, None, 0
+        limit = config.BARDSTALE_MAX_MINUTES * 60
+
+        while not _stop.is_set():
+            if not emulator.is_running():
+                print("[bardstale] Emulator exited unexpectedly.")
+                break
+            if limit > 0 and time.monotonic() - began > limit:
+                _say("My allotted cycles in Skara Brae are spent. Progress is committed to the data-vaults.")
+                break
+            t0 = time.monotonic()
+
+            emulator.wait_stable(quiet=0.7, timeout=6.0, stop=_stop)
+            _, screen = emulator.frame()
+            if screen is None:
+                _stop.wait(0.5)
+                continue
+            h = hashlib.md5(screen.tobytes()).hexdigest()
+            _dump_unknown_glyphs(screen, h)
+            if history and prev_hash == h:
+                history[-1] += " -> the screen did NOT change"
+                stuck += 1
+            else:
+                stuck = 0
+            if stuck >= _STUCK_TURNS and emulator.can_resume():
+                print(f"[bardstale] Screen unchanged for {stuck} turns; reloading the last save.")
+                _say("The machine-spirit falters. Restoring my last saved position.")
+                emulator.stop(save=False)
+                if not emulator.start(resume=True):
+                    break
+                history.append("(You were stuck, so the last saved game was reloaded.)")
+                stuck, prev_hash = 0, None
+                continue
+
+            _set(thinking=True)
+            decision = _decide(screen, history, notes, turn)
+            _set(thinking=False)
+            if _stop.is_set():
+                break
+            if decision is None:
+                failures += 1
+                if failures >= _MAX_FAILURES:
+                    _say("My link to the cogitator has failed. Suspending the game.")
+                    break
+                _stop.wait(min(60, 2 ** failures))
+                continue
+            failures = 0
+            turn += 1
+            prev_hash = h
+
+            if decision["notes"]:
+                notes = decision["notes"]
+            disk = decision["disk"]
+            if disk and disk != emulator.current_disk():
+                emulator.insert_disk(disk)
+            keys = decision["keys"]
+            _set(turn=turn, doing=decision["doing"], keys=keys)
+            print(f"[bardstale] T{turn}: {decision['saw']} | {'disk ' + disk + ' | ' if disk else ''}"
+                  f"{' '.join(keys) or '-'} | {decision['doing']}")
+
+            for k in keys:
+                if _stop.is_set():
+                    break
+                emulator.type_keys(_key_text(k))
+                emulator.wait_stable(quiet=0.35, timeout=3.0, stop=_stop)
+
+            history.append(f"T{turn}: saw {decision['saw']}; "
+                           + (f"inserted {disk} disk; " if disk else "")
+                           + f"pressed {' '.join(keys) or 'nothing'}")
+            del history[:-_HISTORY_TURNS]
+            _set(recent=[h.split(";")[0] for h in history[-4:]], notes=notes)
+
+            now = time.monotonic()
+            if decision["say"] and now - last_say >= config.BARDSTALE_NARRATE_SECS:
+                last_say = now
+                _say(decision["say"])
+            if now - last_save >= _AUTOSAVE_SECS:
+                last_save = now
+                emulator.save_session(notes=notes, turns=turn)
+                emulator.save_state()
+
+            _stop.wait(max(0.0, _MIN_TURN_SECS - (time.monotonic() - t0)))
+    except Exception:
+        traceback.print_exc()
+    finally:
+        try:
+            if emulator.is_running():
+                emulator.save_session(notes=notes, turns=turn)
+            emulator.stop(save=True)
+        except Exception:
+            traceback.print_exc()
+        _set(phase="idle", thinking=False, doing="")
+        print(f"[bardstale] Game stopped after turn {turn}.")
+
+
+_GLYPH_DUMP = os.environ.get("BARDSTALE_GLYPH_DUMP", "")  # development: collect unreadable screens
+
+
+def _dump_unknown_glyphs(screen: Image.Image, h: str) -> None:
+    if _GLYPH_DUMP and screen_text.UNKNOWN in screen_text.describe(screen):
+        path = os.path.join(_GLYPH_DUMP, f"{h[:10]}.png")
+        if not os.path.exists(path):
+            screen.save(path)
+
+
+def _key_text(token: str) -> str:
+    return _SPECIAL_KEYS.get(token, token)
+
+
+# ── The model ──────────────────────────────────────────────────────────────────
+
+def _anthropic():
+    global _client
+    if _client is None:
+        import anthropic
+        _client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY, timeout=30.0, max_retries=1)
+    return _client
+
+
+def _decide(screen: Image.Image, history: list[str], notes: str, turn: int) -> Optional[dict]:
+    """Ask the model for this turn's move. None on any failure."""
+    # MAME's 560x192 has half-height pixels: scale to square pixels at 3x (840x576)
+    # so the model can make out the small Apple II graphics.
+    buf = io.BytesIO()
+    screen.resize((840, 576), Image.BOX).save(buf, format="PNG")
+    text = screen_text.describe(screen)
+    context = (f"Turn {turn + 1}. Disk in drive 1: {emulator.current_disk()}.\n"
+               f"Screen text:\n{text}\n"
+               f"Your notes: {notes or '(none yet)'}\n"
+               "Recent turns, oldest first:\n" + ("\n".join(history) or "(this is the first turn)"))
+    raw = ""
+    try:
+        response = _anthropic().messages.create(
+            model=config.BARDSTALE_MODEL,
+            max_tokens=2000,   # headroom: some models reason before answering
+            system=[{"type": "text", "text": _SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": "image/png",
+                                             "data": base64.standard_b64encode(buf.getvalue()).decode()}},
+                {"type": "text", "text": context},
+            ]}],
+        )
+        raw = "".join(getattr(b, "text", "") for b in response.content)
+        if response.stop_reason == "max_tokens":
+            print("[bardstale] Model reply hit max_tokens.")
+        m = re.search(r"\{.*\}", raw, re.S)
+        # ESC pauses the game, so it's only passed through where a prompt offers "(esc)".
+        return _clean(json.loads(m.group(0) if m else raw), allow_esc="(esc)" in text.lower())
+    except Exception as e:
+        print(f"[bardstale] Decision failed: {e} {raw[:200]!r}")
+        return None
+
+
+def _clean(data: dict, allow_esc: bool = False) -> dict:
+    """Validate the model's JSON into safe, bounded values."""
+    keys = []
+    for k in data.get("keys") or []:
+        k = str(k).strip()
+        if not k:
+            continue
+        up = k.upper()
+        if up in _SPECIAL_KEYS and up != "ESC":
+            keys.append("RETURN" if up == "ENTER" else up)
+        elif up in ("ESC", "ESCAPE") and allow_esc:
+            keys.append("ESC")
+        elif up in ("P", "ESC", "ESCAPE"):   # party attack / pause: never
+            continue
+        elif len(k) <= 12 and all(32 < ord(c) < 127 for c in k):
+            keys.append(up)
+    disk = data.get("disk")
+    disk = disk.strip().lower() if isinstance(disk, str) else None
+    return {
+        "saw": str(data.get("saw") or "")[:120],
+        "doing": str(data.get("doing") or "")[:24],
+        "keys": keys[:_MAX_KEYS],
+        "disk": disk if disk in emulator.DISKS else None,
+        "say": str(data.get("say") or "").strip()[:200],
+        "notes": str(data.get("notes") or "").strip()[:600],
+    }
