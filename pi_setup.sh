@@ -111,14 +111,14 @@ fi
 
 # ── 5. Install systemd service ────────────────────────────────────────────
 echo "[5/6] Installing systemd service..."
-SERVICE_SRC="$HOME/Servoskull/omega7.service"
+# The second unit is hostnamed omega8 and runs from omega8.service; every other
+# unit is omega7. (Choosing by the file's presence installed omega8 everywhere,
+# since both unit files are in the repo.)
 SERVICE_NAME="omega7.service"
-if [ -f "$HOME/Servoskull/omega8.service" ] || [ "$(hostname)" = "omega8" ]; then
-    if [ -f "$HOME/Servoskull/omega8.service" ]; then
-        SERVICE_SRC="$HOME/Servoskull/omega8.service"
-        SERVICE_NAME="omega8.service"
-    fi
+if [ "$(hostname)" = "omega8" ] && [ -f "$HOME/Servoskull/omega8.service" ]; then
+    SERVICE_NAME="omega8.service"
 fi
+SERVICE_SRC="$HOME/Servoskull/$SERVICE_NAME"
 SERVICE_DST="/etc/systemd/system/$SERVICE_NAME"
 USER_ID=$(id -u)
 
@@ -150,7 +150,7 @@ if [ -f "$RASPOTIFY_CONF" ]; then
     sudo sed -i 's/^#\?BITRATE=.*/BITRATE="320"/' "$RASPOTIFY_CONF"
     # Render through PulseAudio rather than a fixed ALSA device, so music follows
     # the default sink: Omega-7's own speaker normally, or a Bluetooth speaker once
-    # one is connected (skull/bluetooth_ctrl.py points the default sink at it).
+    # one is connected (core/bluetooth_ctrl.py points the default sink at it).
     if grep -q '^#\?LIBRESPOT_BACKEND=' "$RASPOTIFY_CONF"; then
         sudo sed -i 's/^#\?LIBRESPOT_BACKEND=.*/LIBRESPOT_BACKEND="pulseaudio"/' "$RASPOTIFY_CONF"
     else
@@ -269,5 +269,5 @@ echo "  5. Add your Spotify credentials to .env:"
 echo "       SPOTIFY_CLIENT_ID=..."
 echo "       SPOTIFY_CLIENT_SECRET=..."
 echo "     Raspotify is already named 'Omega-7' — Omega-7 will play Spotify locally."
-echo "  6. Start the service: sudo systemctl start omega7"
+echo "  6. Start the service: sudo systemctl start ${SERVICE_NAME%.service}"
 echo "     Or run manually:   cd ~/Servoskull && source .venv/bin/activate && python -m core.main"

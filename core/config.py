@@ -22,10 +22,8 @@ load_dotenv(override=True)
 #   2. environment / .env               (developer convenience)
 #   3. hardcoded default                (last resort)
 #
-# USER_DATA_DIR defaults to the repo root — which is the systemd WorkingDirectory on
-# the Pi and the run directory in dev, so existing memory/mood/history files are
-# found unchanged. On the appliance image, set OMEGA7_DATA_DIR to a writable path
-# such as /var/lib/omega7 or ~/.config/omega7.
+# USER_DATA_DIR defaults to ~/.config/omega7. On an appliance image, set
+# OMEGA7_DATA_DIR to another writable path such as /var/lib/omega7.
 _REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 USER_DATA_DIR = pathlib.Path(os.getenv("OMEGA7_DATA_DIR", "~/.config/omega7")).expanduser()
 USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -504,7 +502,7 @@ SPEAKER_ID_THRESHOLD = float(_cfg("SPEAKER_ID_THRESHOLD", "-60.0"))
 # ── Persona (character = product data; owner profile = user data) ─────────────────
 # The servo-skull character and all tool-usage instructions live in the shipped
 # persona template; the owner's personal details come from owner.json (written by
-# the setup wizard). See skull/persona.py.
+# the setup wizard). See core/persona.py.
 from core import persona as _persona  # noqa: E402  (needs USER_DATA_DIR above)
 
 # The skull's own name — owner-settable at setup; defaults to the product name.

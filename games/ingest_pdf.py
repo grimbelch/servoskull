@@ -2,7 +2,7 @@
 """Ingest PDF rulebooks into the skull's offline Rules/ library.
 
 Converts one or more PDFs into the same per-page Markdown + manifest.json layout
-the skull already reads (see skull/search.py). Run this once, on a real computer
+the skull already reads (see core/search.py). Run this once, on a real computer
 (NOT the Pi) — it needs pymupdf4llm, which is only a dev-time dependency:
 
     pip install pymupdf4llm

@@ -137,7 +137,7 @@ def get_screensaver_names() -> list[str]:
     return _screensavers.get_screensaver_names() if _screensavers else []
 
 
-# Mood -> base iris colour. Names match skull/mood.py dispositions; unknown moods
+# Mood -> base iris colour. Names match core/mood.py dispositions; unknown moods
 # fall back to Imperial red.
 _MOOD_COLOURS = getattr(_display_module, 'MOOD_COLOURS', {
     "VIGILANT": (255, 40, 30),
@@ -1664,7 +1664,7 @@ def set_amplitude(amp: float) -> None:
 
 
 def set_mood(mood: str) -> None:
-    """Tint the iris to match Omega-7's current disposition (see skull/mood.py)."""
+    """Tint the iris to match Omega-7's current disposition (see core/mood.py)."""
     global _mood_rgb
     if not _available:
         return

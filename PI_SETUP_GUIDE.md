@@ -1,7 +1,7 @@
 # Omega-7 Servo Skull — Raspberry Pi 5 Setup Guide
 
 A start-to-finish guide for building the skull from a fresh Raspberry Pi 5, matched
-to this project's actual code (pin assignments come straight from [skull/config.py](skull/config.py)).
+to this project's actual code (pin assignments come straight from [core/config.py](core/config.py)).
 
 > **Golden rule:** Do **all wiring with the Pi powered off and unplugged.** Only the
 > camera ribbon and GPIO header are static-sensitive — handle the board by its edges.
@@ -54,7 +54,7 @@ If anything core is missing, stop and source it before Friday — the Pi 5 **req
 > Python-3.13 wheels). Audio also goes through **PipeWire**, not PulseAudio (see §6).
 4. Click the gear / **Edit Settings** before writing and pre-configure:
    - **Hostname:** `omega7`
-   - **Username/password:** pick a user (this build uses `sspeer`) — the systemd service runs as this user
+   - **Username/password:** pick a user (the examples below use `<user>`) — the systemd service runs as this user
    - **Wi-Fi:** your SSID + password + country
    - **Locale/timezone**
    - **Enable SSH** (password or your key) — lets you work headless later
@@ -68,7 +68,7 @@ If anything core is missing, stop and source it before Friday — the Pi 5 **req
 
 1. Insert the microSD, connect micro-HDMI + keyboard (or go straight to SSH if Wi-Fi worked).
 2. Plug in the 27 W supply **last**. The Pi boots.
-3. From your Mac you should be able to: `ssh sspeer@omega7.local` (or just `ssh omega7`)
+3. From your Mac you should be able to: `ssh <user>@omega7.local` (or just `ssh omega7`)
 4. Update everything and enable the SPI bus the round display needs:
 
 ```bash
@@ -185,7 +185,7 @@ The Arducam kit includes the 15-to-22-pin adapter you need.
 4. Do the camera-end of the ribbon the same way (contacts to the lens side).
 5. Never insert/remove the ribbon while powered.
 
-`picamera2` auto-detects the IMX708 — your [skull/camera.py](skull/camera.py) uses
+`picamera2` auto-detects the IMX708 — your [core/camera.py](core/camera.py) uses
 it directly. You'll flip `CAMERA_ENABLED=true` in step 6.
 
 ### 4.5 Audio — UGREEN USB sound card
@@ -287,43 +287,43 @@ circuit wired, `candles.py` is a silent no-op.
 
 ## 5. Deploy the software
 
-The project expects to live at `~/skull`. From an SSH session on the Pi:
+The project expects to live at `~/Servoskull`. From an SSH session on the Pi:
 
 ```bash
 # Option A — clone from your git remote (preferred):
-git clone <your-repo-url> ~/skull
+git clone <your-repo-url> ~/Servoskull
 
 # Option B — copy from your Mac over the network:
 #   (run this ON YOUR MAC, from the project folder)
-#   rsync -av --exclude '.venv' --exclude '.git' "./" sspeer@omega7.local:~/skull/
+#   rsync -av --exclude '.venv' --exclude '.git' "./" <user>@omega7.local:~/Servocore/
 ```
 
 Then copy your secrets file in (it is git-ignored, so it won't have come from the clone):
 
 ```bash
 # From your Mac:
-scp "/Users/sean/Desktop/Skull Project/.env" sspeer@omega7.local:~/skull/.env
+scp /path/to/your/.env <user>@omega7.local:~/Servocore/.env
 ```
 
 Run the one-shot installer — it installs system packages, builds the venv, fetches the
 Piper voice + wake-word models, and installs both the `omega7` and `raspotify` services:
 
 ```bash
-cd ~/skull
+cd ~/Servoskull
 bash pi_setup.sh
 ```
 
 At the end it prints your **audio device indices** — keep that output, you need it next.
 
 > **Pi 5 GPIO shim (important).** The classic `RPi.GPIO` library does **not** work on the Pi 5
-> (its GPIO chip changed). Both [skull/eyes.py](skull/eyes.py) and [skull/display.py](skull/display.py)
+> (its GPIO chip changed). Both [core/eyes.py](core/eyes.py) and [core/display.py](core/display.py)
 > import `RPi.GPIO`, and without it the eyes/display silently do nothing (`display.py` prints
 > "spidev/RPi.GPIO/Pillow unavailable — skipping"). Install the drop-in shim into the venv:
 > ```bash
 > # rpi-lgpio depends on lgpio, which has NO prebuilt wheel for Python 3.13 — it compiles
 > # from source, so install the build tools first or the wheel build fails (swig / -llgpio):
 > sudo apt install -y swig liblgpio-dev python3-dev
-> cd ~/skull && source .venv/bin/activate
+> cd ~/Servoskull && source .venv/bin/activate
 > pip uninstall -y RPi.GPIO          # remove the incompatible classic lib if present
 > pip install rpi-lgpio              # provides the RPi.GPIO API on Pi 5
 > ```
@@ -335,8 +335,8 @@ At the end it prints your **audio device indices** — keep that output, you nee
 
 ## 6. Configure `.env`
 
-Edit `~/skull/.env` and set the hardware-specific values. The keys come from
-[skull/config.py](skull/config.py):
+Edit `~/Servocore/.env` and set the hardware-specific values. The keys come from
+[core/config.py](core/config.py):
 
 ```ini
 # Audio — route through PipeWire, NOT the raw USB card. On Trixie the audio server
@@ -377,7 +377,7 @@ CANDLE_ENABLED=true
 Inspect devices any time (sounddevice's list shows which is the PipeWire `default`):
 
 ```bash
-cd ~/skull && source .venv/bin/activate
+cd ~/Servoskull && source .venv/bin/activate
 python -c "import sounddevice as sd; print(sd.query_devices())"
 ```
 
@@ -394,18 +394,18 @@ wpctl set-default <id>                 # e.g. wpctl set-default 45
 
 ## 7. Bring-up tests (one subsystem at a time)
 
-Run each from `cd ~/skull && source .venv/bin/activate`. Test before final assembly so you
+Run each from `cd ~/Servoskull && source .venv/bin/activate`. Test before final assembly so you
 can still reach the wiring.
 
 **Eye LEDs:**
 ```bash
-python -c "from skull import eyes, config, time; eyes.setup(config.LED_PIN_LEFT, config.LED_PIN_CENTER, config.LED_PIN_RIGHT); eyes.on(); __import__('time').sleep(2); eyes.off(); eyes.cleanup()"
+python -c "from core import eyes, config, time; eyes.setup(config.LED_PIN_LEFT, config.LED_PIN_CENTER, config.LED_PIN_RIGHT); eyes.on(); __import__('time').sleep(2); eyes.off(); eyes.cleanup()"
 ```
 All three LEDs should glow for 2 s. If one stays dark, check its LED polarity and resistor.
 
 **Round display:**
 ```bash
-python -c "from skull import display; display.setup(); display.on(); __import__('time').sleep(3); display.cleanup()"
+python -c "from core import display; display.setup(); display.on(); __import__('time').sleep(3); display.cleanup()"
 ```
 You should see the glowing red iris with the Mechanicus tick-ring. Nothing? Re-check VCC=3.3 V,
 that SPI is enabled (`ls /dev/spidev0.*`), and the DC/RES/CS pins.
@@ -427,7 +427,7 @@ Speak and confirm it registers input; play any test sound to confirm output.
 
 Manual run (watch the logs live while you shake out problems):
 ```bash
-cd ~/skull && source .venv/bin/activate && python -m skull.main
+cd ~/Servoskull && source .venv/bin/activate && python -m core.main
 ```
 
 As the auto-start service (already enabled by `pi_setup.sh`):

@@ -70,7 +70,7 @@ Warhammer 40k AI Talking Servo Skull Build based on Raspberry Pi 5.
 - [ ] **VL53L1X Time-of-Flight (ToF) Laser Rangefinder Sensor**
   - Measures physical presence/distance up to ~4m/8m using eye-safe laser flight time over I2C.
   - Connects via I2C: VCC (3.3V Pin 1), GND (Pin 9), SDA (GPIO 2 / Pin 3), SCL (GPIO 3 / Pin 5).
-  - Supported out-of-the-box in `skull/proximity.py` and `skull/camera.py` via `python-VL53L1X`.
+  - Supported out-of-the-box in `core/proximity.py` and `core/camera.py` via `python-VL53L1X`.
 - [ ] **4-pin Dupont Ribbon Cable (Female-to-Female, 20–30cm)**
   - Routes from rangefinder module through skull to GPIO header inside.
   - JST-XH 4-pin connector kit is a tidier alternative for a locking plug.

@@ -153,26 +153,34 @@ Complete step-by-step documentation is included in the repository:
 ## 📁 Repository Layout
 
 ```
-skull/                 Python application package
+core/                  Python application package
   main.py              Wake-word loop & orchestration
   brain.py             Claude conversation & tool dispatch
-  llm.py               Anthropic API client
+  tools_schema.py      Claude tool definitions
+  llm.py               Anthropic API client (streaming, prompt caching)
   wake_word.py         openWakeWord engine ("Servitor")
   transcribe.py        Whisper speech-to-text
   tts.py               Piper & ElevenLabs voice engine
+  speech_stream.py     Cuts a streaming reply into speakable sentences
   audio.py             PipeWire audio capture & playback
   camera.py            IMX708 vision & SFace facial recognition
-  eyes.py              GPIO eye LEDs & candle transistor control
+  eyes.py / candles.py WS2812 eye LEDs; candle transistor control
   display.py           GC9A01 circular display driver & HUD engines
   spotify_ctrl.py      Spotify Connect integration
   bambu_ctrl.py        Bambu Lab 3D printer MQTT client
   web.py               Adeptus Mechanicus HTTPS Web Remote (Port 8080)
   memory.py / mood.py  Persistent memory & drifting personality state
+  db.py                SQLite state: history, facts, reminders
   config.py            Single source of truth configuration
 
-Rules/                 Offline rules database (40k, Necromunda, NetEpic, NetEA)
+personalities/         One folder per personality: persona, phrases, tools, screensavers
+  omega7/              Omega-7 (screensavers in classic/ and lore/)
+  jax/                 Jax, the dog
+games/                 Tabletop engines & rules: wfrp/ (WFRP 4e GM), bardstale/,
+                       netea/ and netepic/ (fan-made rules), ingest_pdf.py
+tests/                 Unit tests (python -m pytest tests)
 pi_setup.sh            One-shot Pi installer & service setup
-omega7.service         systemd service descriptor
+omega7.service         systemd service descriptor (omega8.service: the second unit)
 ```
 
 ---
@@ -193,6 +201,6 @@ The fan-made NetEpic and NetEA rules are included. Run the ingest on a desktop (
 
 - **Hardware:** Raspberry Pi 5 (4 GB) + components listed in [`Shopping list.md`](<Shopping list.md>).
 - **OS:** Raspberry Pi OS 64-bit (Debian *Trixie*, Python 3.13, PipeWire).
-- **API Keys:** Anthropic Claude (required); OpenAI, ElevenLabs, Spotify (optional).
+- **API Keys:** Anthropic Claude and OpenAI (Whisper speech-to-text) are required for the voice loop; ElevenLabs and Spotify are optional.
 
 *The Omnissiah smiles upon a clean install. Praise the Machine God.*

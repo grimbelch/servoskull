@@ -923,7 +923,7 @@ def _tool_roll_whfrp_dice(i):
 
 
 def _tool_start_campaign(i):
-    from core import campaign as _campaign
+    from games.wfrp import campaign as _campaign
     name = i.get("campaign_name", "").strip()
     if not name:
         return "Error: campaign_name is required."
@@ -958,7 +958,7 @@ def _tool_start_campaign(i):
 
 
 def _tool_list_campaigns(i):
-    from core import campaign as _campaign
+    from games.wfrp import campaign as _campaign
     campaigns = _campaign.list_campaigns()
     if not campaigns:
         return "No campaigns saved. Use start_campaign to begin a new one."
@@ -972,7 +972,7 @@ def _tool_list_campaigns(i):
 
 
 def _tool_get_campaign_state(i):
-    from core import campaign as _campaign
+    from games.wfrp import campaign as _campaign
     active = _campaign.get_active_campaign()
     if not active:
         return "No active campaign. Use start_campaign to begin or resume one."
@@ -980,7 +980,7 @@ def _tool_get_campaign_state(i):
 
 
 def _tool_save_campaign_state(i):
-    from core import campaign as _campaign
+    from games.wfrp import campaign as _campaign
     active = _campaign.get_active_campaign()
     if not active:
         return "No active campaign. Use start_campaign first."
@@ -997,7 +997,7 @@ def _tool_save_campaign_state(i):
 
 
 def _tool_roll_character_stats(i):
-    from core import campaign as _campaign
+    from games.wfrp import campaign as _campaign
     race_input = i.get("race", "human").strip()
     race_key = _campaign.resolve_race(race_input)
     if not race_key:
@@ -1011,7 +1011,7 @@ def _tool_roll_character_stats(i):
 
 
 def _tool_save_character(i):
-    from core import campaign as _campaign
+    from games.wfrp import campaign as _campaign
     active = _campaign.get_active_campaign()
     if not active:
         return "No active campaign. Use start_campaign first, then save_character."
@@ -1068,13 +1068,13 @@ def _tool_save_character(i):
 
 
 def _tool_roll_random_talent(i):
-    from core import campaign as _campaign
+    from games.wfrp import campaign as _campaign
     count = int(i.get("count", 1))
     return _campaign.roll_random_talent(count)
 
 
 def _tool_get_species_info(i):
-    from core import campaign as _campaign
+    from games.wfrp import campaign as _campaign
     race_input = i.get("race", "human").strip()
     race_key = _campaign.resolve_race(race_input)
     if not race_key:

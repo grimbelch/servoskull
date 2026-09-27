@@ -174,4 +174,4 @@ journalctl -u omega8 -f
 sudo systemctl restart omega8
 
 # Force rebuild voice phrase cache
-python3 -c "import shutil, os; shutil.rmtree(os.path.expanduser('~/skull/models/phrase_cache'))"
+python3 -c "import shutil, os; shutil.rmtree(os.path.expanduser('~/Servoskull/models/phrase_cache'))"

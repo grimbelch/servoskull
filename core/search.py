@@ -28,7 +28,7 @@ def _game_rules_dir(game_name: str) -> pathlib.Path:
 
 
 def _rules_dir() -> pathlib.Path:
-    """Resolve the offline rules library dir without depending on skull.config."""
+    """Resolve the offline rules library dir without depending on core.config."""
     repo_root = pathlib.Path(__file__).resolve().parent.parent
     data_dir = pathlib.Path(os.getenv("OMEGA7_DATA_DIR", "~/.config/omega7")).expanduser()
     rules_env = os.getenv("RULES_DIR", "games/rules")

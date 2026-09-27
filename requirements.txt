@@ -1,21 +1,50 @@
-anthropic>=0.30.0
-openai>=1.30.0
-elevenlabs>=1.0.0
+# Runtime dependencies for every platform. Lower bounds are versions known to work;
+# the API clients are capped at their next major release so a self-update on the
+# unit can't pull in a breaking change.
+#
+#   Pi (Raspberry Pi OS Trixie, Python 3.13): pi_setup.sh installs this file, plus
+#     openwakeword --no-deps with onnxruntime (tflite-runtime has no 3.13 wheels),
+#     the Pi 5 GPIO shim and the optional VL53L1X driver, and downloads the models.
+#   Mac: `brew install portaudio` first (PyAudio builds against it).
+#   Windows: PyAudio ships prebuilt wheels; nothing extra.
+#
+# Not listed, installed by pi_setup.sh or apt because pip can't build them everywhere
+# (the modules no-op when they are missing): VL53L1X (proximity sensor), picamera2
+# (camera), rpi-ws281x (WS2812 eye LEDs — see CANDLE_WIRING.md), RPi.GPIO/rpi-lgpio.
+
+# ── Brain, ears and voice ────────────────────────────────────────────────────────
+anthropic>=0.30.0,<1
+openai>=1.30.0,<3
+elevenlabs>=1.0.0,<3
 piper-tts>=1.2.0
-openwakeword>=0.6.0
+# On Linux openwakeword's tflite-runtime dependency has no Python 3.13 wheels, so
+# pi_setup.sh installs it --no-deps there. The marker keeps a plain
+# `pip install -r requirements.txt` from trying to resolve it again on the Pi
+# (pi_setup.sh and the self-update also strip the line, belt and braces).
+openwakeword>=0.6.0; sys_platform != 'linux'
+onnxruntime>=1.16            # openwakeword inference backend
+
+# ── Audio ────────────────────────────────────────────────────────────────────────
 pyaudio>=0.2.14
 sounddevice>=0.4.6
 scipy>=1.11.0
-numpy>=1.24.0
+numpy>=1.24.0,<3
+pydub>=0.25.1                # generate_sounds.py (also needs ffmpeg)
+audioop-lts>=0.2.2; python_version >= '3.13'
+
+# ── Vision, display, speaker ID ──────────────────────────────────────────────────
+opencv-python>=4.8.0
+Pillow>=10.0.0
+scikit-learn>=1.3            # speaker_id GMM voice profiles
+spidev>=3.5; sys_platform == 'linux'   # GC9A01 round display over SPI
+
+# ── Integrations ─────────────────────────────────────────────────────────────────
 python-dotenv>=1.0.0
 spotipy>=2.23.0
-ddgs>=0.1.0
-opencv-python>=4.8.0
-# Face display (GC9A01 round panel over SPI) — Pi only
-Pillow>=10.0.0
-spidev>=3.5; sys_platform == 'linux'
-pydub>=0.25.1
-audioop-lts>=0.2.2; python_version >= '3.13'
-# Proximity trigger (VL53L1X time-of-flight over I2C) — optional Pi hardware sensor.
-# camera.py / proximity.py no-ops if the package is absent.
-paho-mqtt>=2.1.0
+ddgs>=0.1.0                  # web/news search
+requests>=2.31
+paho-mqtt>=2.1.0             # Bambu Lab printer telemetry
+pychromecast>=13.0.0         # optional Google Home / Chromecast voice output
+pexpect>=4.8                 # bluetooth_ctrl drives bluetoothctl
+psutil>=5.9                  # web remote telemetry
+windows-curses>=2.3.0; sys_platform == 'win32'

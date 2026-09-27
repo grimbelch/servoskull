@@ -180,7 +180,7 @@ To drive the WS2812B candles from Python on the Pi:
 pip install rpi-ws281x
 ```
 
-### Python Code Snippet (`skull/candles.py`)
+### Python Code Snippet (`core/candles.py`)
 ```python
 import time
 import math

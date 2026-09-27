@@ -1,4 +1,4 @@
-"""skull/screensavers.py – Cogitator Visual Emulation (Screensaver Animations).
+"""omega7/screensavers.py – Cogitator Visual Emulation (Screensaver Animations).
 
 Registry and dispatch for Omega-7's screensavers on the GC9A01 circular HUD.
 The screensavers themselves live in two packages, each module exposing NAME and

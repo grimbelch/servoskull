@@ -36,7 +36,7 @@ settings.json
 # Claude Code local settings
 .claude/
 
-# Offline game rulesets the skull references (see skull/search.py, RULES_DIR).
+# Offline game rulesets the skull references (see core/search.py, RULES_DIR).
 # Official Games Workshop rules text (Necromunda, Warhammer 40k) is copyrighted —
 # kept local only, never committed to this public repo.
 *.pdf
@@ -58,6 +58,11 @@ games/*/rules/**/images/
 
 # Generated TTS phrase cache — rebuilt on demand per personality.
 models/phrase_cache/
+models/boot_phrase.wav
+# Piper's stock English voice: pi_setup.sh downloads it (60 MB); the skull's own
+# voice is models/servoskull.onnx, which is tracked.
+models/en_GB-alan-medium.onnx
+models/en_GB-alan-medium.onnx.json
 
 # Scratch and temporary scripts
 scratch/
@@ -77,9 +82,6 @@ test*
 !tests/
 !tests/**
 update_walkthrough.py
-skull/web_bak.py
-skull/web_new.py
-skull/web_server.py
 
 # Adventure module content extracted from Foundry VTT. The artwork and prose are
 # licensed Cubicle 7 material, reproducible from a local Foundry install with
