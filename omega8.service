@@ -17,6 +17,9 @@ KillSignal=SIGTERM
 TimeoutStopSec=30s
 Restart=on-failure
 RestartSec=3s
+# core/watchdog.py pings while the main thread makes progress; a hung process
+# (a stuck audio call, a deadlock) stops pinging and is restarted.
+WatchdogSec=300
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=omega8

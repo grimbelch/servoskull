@@ -15,6 +15,9 @@ ExecStart=__HOME__/Servoskull/.venv/bin/python -u -m core.main
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=5s
+# core/watchdog.py pings while the main thread makes progress; a hung process
+# (a stuck audio call, a deadlock) stops pinging and is restarted.
+WatchdogSec=300
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=omega7

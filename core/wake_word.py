@@ -7,6 +7,7 @@ import numpy as np
 import sounddevice as sd
 from scipy.signal import resample_poly
 from openwakeword.model import Model
+from core import watchdog
 from core.config import WAKE_WORD_MODEL, MIC_DEVICE_INDEX, WAKE_WORD_THRESHOLD
 
 TARGET_RATE = 16000
@@ -78,6 +79,7 @@ def wait_for_wake_word(on_detected=None, cancel=None) -> bool:
                             blocksize=native_chunk, device=dev, callback=_cb):
             _ww_consecutive_failures = 0  # device opened successfully — reset counter
             while True:
+                watchdog.beat()  # idle listening is healthy; a dead mic stream is not
                 if cancel and cancel.is_set():
                     return False
                 try:

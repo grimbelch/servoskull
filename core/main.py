@@ -34,7 +34,7 @@ def run_background_task(func, *args, **kwargs):
 from core import config
 from core import db
 db.init_db()
-from core import audio, wake_word, transcribe, brain, tts, eyes, sfx, reminders, mood, speech_stream
+from core import audio, wake_word, transcribe, brain, tts, eyes, sfx, reminders, mood, speech_stream, watchdog
 from core import spotify_ctrl, cast_audio, camera, quiet, display, temperature, candles, bambu_ctrl
 
 
@@ -603,6 +603,7 @@ def _speak_clips(clips, on_wake) -> bool:
                     int_thread = threading.Thread(target=_interrupt_listener, daemon=True)
                     int_thread.start()
                 played = True
+                watchdog.beat()
                 with _speech_lock:
                     if _interrupted.is_set():
                         break
@@ -1139,6 +1140,7 @@ def main():
     from core import web
 
     web.start()
+    watchdog.start()
     print(f"[skull] {config.SKULL_NAME} online.")
     audio.optimize_mic_levels()
     try:
@@ -1231,6 +1233,7 @@ def main():
     _pending_maintenance = None
 
     while True:
+        watchdog.beat()
         try:
             # Back at idle — undo any music ducking from the previous interaction.
             spotify_ctrl.restore()

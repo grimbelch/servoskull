@@ -10,6 +10,8 @@ import numpy as np
 import sounddevice as sd
 import scipy.io.wavfile as wavfile
 
+from core import watchdog
+
 CHANNELS = 1
 _SAMPLE_WIDTH = 2  # bytes per sample for int16
 
@@ -172,6 +174,7 @@ def record(seconds: float, device_index: int = -1, silence_threshold: int = 180,
     try:
         while True:
             time.sleep(ANALYSIS_SECS)
+            watchdog.beat()
             now = time.monotonic()
             if captured[0] >= max_frames:
                 break
@@ -375,6 +378,7 @@ def play_wav_bytes(
                 while time.monotonic() < deadline:
                     if not stream.active:
                         break
+                    watchdog.beat()
                     time.sleep(0.05)
             return
         except Exception as e:

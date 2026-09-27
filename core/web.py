@@ -1,6 +1,7 @@
 from __future__ import annotations
 from core import web_campaign
 import http.server
+import os
 import socketserver
 import threading
 import json
@@ -1371,7 +1372,9 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                 if "elevenlabs" in keys and keys["elevenlabs"]:
                     settings_data["ELEVENLABS_API_KEY"] = keys["elevenlabs"]
                 if "elevenlabs_voice_id" in keys and keys["elevenlabs_voice_id"]:
-                    settings_data["ELEVENLABS_VOICE_ID"] = keys["elevenlabs_voice_id"]
+                    # Stored per personality; a plain ELEVENLABS_VOICE_ID was never read.
+                    voice_owner = data.get("skull_name") or config.SKULL_NAME
+                    settings_data[config.voice_id_setting_name(voice_owner)] = keys["elevenlabs_voice_id"]
                 if "openai" in keys and keys["openai"]:
                     settings_data["OPENAI_API_KEY"] = keys["openai"]
 
@@ -1391,17 +1394,17 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
                 wifi_provisioner.connect_network(data["wifi"]["ssid"], data["wifi"].get("password"))
                 wifi_provisioner.stop_hotspot()
 
-            try:
-                from core import tts
-                owner_title = data.get("owner", {}).get("honorific") or data.get("owner", {}).get("title") or "Master"
-                owner_name = data.get("owner", {}).get("name", "")
-                name_str = f"{owner_title} {owner_name}".strip() if owner_name else owner_title
-                announcement = f"Initialization complete, {name_str}. Machine spirit online."
-                wav = tts.synthesize_piper(announcement)
-            except Exception as e:
-                print(f"[web] Post-setup speech error: {e}")
-
             self._send_json({"status": "ok", "message": "Appliance initialized successfully!"})
+
+            # The name, keys and persona are read at import time across the app, so
+            # the process restarts to load them; systemd brings it straight back
+            # (Restart=on-failure counts exit code 3 as a failure) and the boot
+            # phrase announces the newly configured unit. A manual run just logs it.
+            if os.environ.get("INVOCATION_ID"):
+                print("[web] Setup saved — restarting the service to load the new configuration.")
+                threading.Timer(2.0, lambda: os._exit(3)).start()
+            else:
+                print("[web] Setup saved — restart the skull to load the new configuration.")
         except Exception as e:
             self._send_json({"status": "error", "message": str(e)}, 500)
 

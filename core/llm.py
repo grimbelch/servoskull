@@ -14,7 +14,7 @@ Persisted history is plain {"role", "content"(str)} turns.
 
 from __future__ import annotations
 
-from core import config
+from core import config, watchdog
 
 
 # ── Public API ──────────────────────────────────────────────────────────────────
@@ -156,6 +156,7 @@ class _ClaudeProvider:
         texts: list[str] = []
         rounds = 0
         while True:
+            watchdog.beat()  # each round is bounded by the request timeout and retries
             _set_breakpoints(messages, history_end)
             extra = {}
             if rounds >= _MAX_TOOL_ROUNDS:
@@ -215,6 +216,7 @@ class _ClaudeProvider:
         try:
             with self._client.messages.stream(**kwargs) as stream:
                 for event in stream:
+                    watchdog.beat()
                     if event.type == "text" and event.text:
                         emitted = True
                         on_text(event.text)

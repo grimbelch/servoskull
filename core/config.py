@@ -165,10 +165,12 @@ def save_settings(new_settings: dict) -> None:
         OPENAI_API_KEY = str(current["OPENAI_API_KEY"])
     if "ELEVENLABS_API_KEY" in current:
         ELEVENLABS_API_KEY = str(current["ELEVENLABS_API_KEY"])
-    if "ELEVENLABS_VOICE_ID" in current:
-        ELEVENLABS_VOICE_ID = str(current["ELEVENLABS_VOICE_ID"])
     if "SKULL_NAME" in current:
         SKULL_NAME = str(current["SKULL_NAME"])
+    # Voice IDs are stored per personality (see ELEVENLABS_VOICE_ID below).
+    voice_key = voice_id_setting_name(SKULL_NAME)
+    if voice_key in current:
+        ELEVENLABS_VOICE_ID = str(current[voice_key])
 
 
 def save_owner_profile(data: dict) -> None:
@@ -241,7 +243,15 @@ def _load_personality_config(name: str) -> dict:
 
 PERSONALITY = _load_personality_config(SKULL_NAME)
 
-ELEVENLABS_VOICE_ID = _cfg(f"ELEVENLABS_VOICE_ID_{SKULL_NAME.upper()}", PERSONALITY.get("elevenlabs_voice_id", "21m00Tcm4TlvDq8ikWAM"))
+
+def voice_id_setting_name(skull_name: str) -> str:
+    """The setting that holds a personality's ElevenLabs voice, e.g.
+    ELEVENLABS_VOICE_ID_OMEGA-7. Per personality so one .env / settings.json can
+    carry a voice for each; a plain ELEVENLABS_VOICE_ID is not read."""
+    return f"ELEVENLABS_VOICE_ID_{skull_name.upper()}"
+
+
+ELEVENLABS_VOICE_ID = _cfg(voice_id_setting_name(SKULL_NAME), PERSONALITY.get("elevenlabs_voice_id", "21m00Tcm4TlvDq8ikWAM"))
 
 # ── Bambu 3D Printer ─────────────────────────────────────────────────────────────
 BAMBU_PRINTER_IP = _cfg("BAMBU_PRINTER_IP", "")
@@ -260,6 +270,7 @@ RESET_VOICE_CACHE = _cfg("RESET_VOICE_CACHE", "false").lower() == "true"
 
 # ── Wake word (openWakeWord) ─────────────────────────────────────────────────────
 # A built-in model name (e.g. "hey_jarvis") or a path to a custom .onnx model.
+# Per personality, like the voice: WAKE_WORD_MODEL_OMEGA-7, WAKE_WORD_MODEL_JAX.
 WAKE_WORD_MODEL = _cfg(f"WAKE_WORD_MODEL_{SKULL_NAME.upper()}", PERSONALITY.get("wake_word_model", "models/servitor.onnx"))
 WAKE_WORD_THRESHOLD = float(_cfg("WAKE_WORD_THRESHOLD", "0.65"))
 

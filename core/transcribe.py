@@ -1,20 +1,24 @@
 import io
 import re
 from core import config
-from core.config import OPENAI_API_KEY, SKULL_NAME
 
 # Built lazily on first transcription so importing this module never fails just
 # because the OpenAI key isn't set (e.g. on a host that only does TTS playback).
+# The key is read from config each time (not copied at import) so one saved by
+# the setup wizard takes effect without a restart.
 _client = None
+_client_key = None
 
 
 def _get_client():
-    global _client
-    if _client is None:
-        if not OPENAI_API_KEY:
-            raise RuntimeError("OPENAI_API_KEY is not set (required for Whisper speech-to-text).")
+    global _client, _client_key
+    key = config.OPENAI_API_KEY
+    if not key:
+        raise RuntimeError("OPENAI_API_KEY is not set (required for Whisper speech-to-text).")
+    if _client is None or _client_key != key:
         from openai import OpenAI
-        _client = OpenAI(api_key=OPENAI_API_KEY, timeout=15.0)
+        _client = OpenAI(api_key=key, timeout=15.0)
+        _client_key = key
     return _client
 
 # Whisper hallucinates these strings on silence or ambient noise
@@ -62,7 +66,8 @@ def transcribe(wav_bytes: bytes) -> str:
     result = _get_client().audio.transcriptions.create(
         model="whisper-1",
         file=audio_file,
-        prompt=f"Jax, {SKULL_NAME}, Golden Retriever, dog, fetch, woof" if config.get_personality_key() == "jax" else f"{SKULL_NAME}, Omnissiah, Adeptus Mechanicus, Necromunda, Warhammer",
+        prompt=(f"Jax, {config.SKULL_NAME}, Golden Retriever, dog, fetch, woof" if config.get_personality_key() == "jax"
+                else f"{config.SKULL_NAME}, Omnissiah, Adeptus Mechanicus, Necromunda, Warhammer"),
     )
     text = result.text.strip()
     print(f"[skull] Whisper raw: {text!r}")

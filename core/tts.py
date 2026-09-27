@@ -1,6 +1,7 @@
 import io
 import re
 import sys
+import time
 import wave
 import subprocess
 from core import config
@@ -44,7 +45,9 @@ def _elevenlabs_client():
     global _eleven_client, _eleven_client_key
     if _eleven_client is None or _eleven_client_key != config.ELEVENLABS_API_KEY:
         from elevenlabs.client import ElevenLabs
-        _eleven_client = ElevenLabs(api_key=config.ELEVENLABS_API_KEY, timeout=20)
+        # A sentence takes ElevenLabs a second or two; a longer wait means the
+        # network is gone, and the reply is waiting on this.
+        _eleven_client = ElevenLabs(api_key=config.ELEVENLABS_API_KEY, timeout=10)
         _eleven_client_key = config.ELEVENLABS_API_KEY
     return _eleven_client
 
@@ -94,6 +97,11 @@ def synthesize_piper(text: str) -> bytes:
 # session — every further phrase goes straight to the local Piper voice instead
 # of paying the network round-trip just to get another quota error.
 _elevenlabs_exhausted = False
+# Any other failure (network down, 5xx) rests ElevenLabs for a while: without
+# this, every sentence of every reply waited out the full request timeout
+# before Piper spoke it.
+ELEVENLABS_COOLDOWN = 60.0
+_elevenlabs_retry_at = 0.0
 
 
 def _is_quota_error(e: Exception) -> bool:
@@ -108,8 +116,9 @@ def synthesize(text: str) -> bytes:
     fails), fall back to the local Piper model so the skull keeps talking — just
     in its local voice rather than going silent.
     """
-    global _elevenlabs_exhausted
-    if config.TTS_BACKEND.lower() == "elevenlabs" and not _elevenlabs_exhausted:
+    global _elevenlabs_exhausted, _elevenlabs_retry_at
+    if (config.TTS_BACKEND.lower() == "elevenlabs" and not _elevenlabs_exhausted
+            and time.monotonic() >= _elevenlabs_retry_at):
         try:
             return _synthesize_elevenlabs(text)
         except Exception as e:
@@ -118,7 +127,9 @@ def synthesize(text: str) -> bytes:
                       "Piper voice for the rest of this session.")
                 _elevenlabs_exhausted = True
             else:
-                print(f"[tts] ElevenLabs error ({e}) — falling back to local Piper voice.")
+                _elevenlabs_retry_at = time.monotonic() + ELEVENLABS_COOLDOWN
+                print(f"[tts] ElevenLabs error ({e}) — using the local Piper voice for the "
+                      f"next {ELEVENLABS_COOLDOWN:.0f}s.")
     return _synthesize_piper(text)
 
 
