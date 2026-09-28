@@ -451,6 +451,35 @@ def _acknowledge_silence() -> None:
             print(f"[skull] Silence acknowledgement error: {e}")
 
 
+_stt_billing_warned_at = 0.0
+_STT_BILLING_REPEAT_SECS = 600
+
+
+def _explain_stt_failure(error: Exception) -> None:
+    """Say why a command couldn't be understood instead of only beeping.
+
+    An exhausted speech-to-text account fails every command until someone tops it up,
+    so that case is named outright (at most every ten minutes; a beep in between)."""
+    global _stt_billing_warned_at
+    text = str(error).lower()
+    billing = "insufficient_quota" in text or "credit" in text or "billing" in text
+    if billing and time.monotonic() - _stt_billing_warned_at < _STT_BILLING_REPEAT_SECS:
+        sfx.play("negative", config.VOICE_OUTPUT_DEVICE)
+        return
+    if billing:
+        _stt_billing_warned_at = time.monotonic()
+        line = ("I cannot understand speech right now: my speech-to-text account has run out of "
+                "credits. It needs topping up.")
+    else:
+        line = "I couldn't make that out. My speech-to-text service didn't answer. Please try again."
+    with _speech_lock:
+        try:
+            audio.play_wav_bytes(tts.synthesize(line), output_device=config.VOICE_OUTPUT_DEVICE)
+        except Exception as e:
+            print(f"[skull] Could not explain the transcription failure: {e}")
+            sfx.play("negative", config.VOICE_OUTPUT_DEVICE)
+
+
 def _cogitation_loop(cancel: threading.Event) -> None:
     """Play periodic thinking phrases while brain.respond() is running."""
     if cancel.wait(timeout=8.0):
@@ -1812,7 +1841,7 @@ def main():
                     speaker_name = _spk_result[0]
                 except Exception as e:
                     print(f"[skull] STT error: {e}")
-                    sfx.play("negative", config.VOICE_OUTPUT_DEVICE)
+                    _explain_stt_failure(e)
                     continue
 
                 if not user_text:
