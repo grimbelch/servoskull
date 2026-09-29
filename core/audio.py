@@ -5,6 +5,7 @@ import wave
 import threading
 
 import os
+import re
 import subprocess
 import numpy as np
 import sounddevice as sd
@@ -27,24 +28,31 @@ def _native_input_rate(device_index: int) -> int:
         return 44100
 
 
-def _unity_gain_under_echo_cancel() -> None:
-    """With PipeWire echo cancellation the default sink is echo_cancel.sink, which
-    feeds the real sound card. Volume changes apply to the default sink, so hold the
-    card itself at 100%; otherwise the two volumes multiply (50% x 50% ~ -36 dB)."""
-    import shutil
-    if not shutil.which("pactl"):
-        return
+def _volume_sink() -> str:
+    """The sink whose volume actually changes how loud the skull is.
+
+    With PipeWire echo cancellation the default sink is echo_cancel.sink, a filter
+    node with no channel volumes: volume set on it is silently ignored. The loudness
+    lives on the sound card the filter plays into, so that is the one to set."""
     try:
-        default = subprocess.run(["pactl", "get-default-sink"], capture_output=True, text=True, timeout=3).stdout.strip()
-        if not default.startswith("echo_cancel") and not default.startswith("effect_input.echo_cancel"):
-            return
-        sinks = subprocess.run(["pactl", "list", "short", "sinks"], capture_output=True, text=True, timeout=3).stdout
-        for line in sinks.splitlines():
-            parts = line.split("\t")
-            if len(parts) > 1 and parts[1].startswith("alsa_output."):
-                subprocess.run(["pactl", "set-sink-volume", parts[1], "100%"], capture_output=True, timeout=3)
+        default = subprocess.run(["pactl", "get-default-sink"], capture_output=True, text=True,
+                                 timeout=3).stdout.strip()
+        if default.startswith("echo_cancel") or default.startswith("effect_input.echo_cancel"):
+            sinks = subprocess.run(["pactl", "list", "short", "sinks"], capture_output=True, text=True,
+                                   timeout=3).stdout
+            for line in sinks.splitlines():
+                parts = line.split("\t")
+                if len(parts) > 1 and parts[1].startswith("alsa_output."):
+                    return parts[1]
     except Exception as e:
-        print(f"[audio] Could not normalise sound card volume under echo cancellation: {e}")
+        print(f"[audio] Could not find the sound card behind echo cancellation: {e}")
+    return "@DEFAULT_SINK@"
+
+
+def _sink_percent(sink: str) -> int | None:
+    out = subprocess.run(["pactl", "get-sink-volume", sink], capture_output=True, text=True, timeout=3).stdout
+    m = re.search(r"(\d+)%", out)
+    return int(m.group(1)) if m else None
 
 
 def set_system_volume(level: str) -> str:
@@ -62,8 +70,17 @@ def set_system_volume(level: str) -> str:
             else:
                 script = f"set volume output volume {level_str.rstrip('%')}"
             subprocess.run(["osascript", "-e", script], capture_output=True, check=True)
+        elif shutil.which("pactl"):
+            sink = _volume_sink()
+            if level_str.startswith(("+", "-")):
+                pct = level_str if level_str.endswith("%") else f"{level_str}%"
+            else:
+                pct = f"{min(100, int(float(level_str.rstrip('%'))))}%"
+            subprocess.run(["pactl", "set-sink-volume", sink, pct], capture_output=True, check=True)
+            now = _sink_percent(sink)
+            if now is not None and now > 100:              # "louder" never goes past 100%
+                subprocess.run(["pactl", "set-sink-volume", sink, "100%"], capture_output=True, check=True)
         else:
-            _unity_gain_under_echo_cancel()
             if level_str.startswith("+") or level_str.startswith("-"):
                 val = float(level_str.lstrip("+").rstrip("%")) / 100.0
                 sign = "+" if level_str.startswith("+") else "-"
