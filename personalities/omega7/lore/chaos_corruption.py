@@ -1,13 +1,14 @@
-"""Chaos Corruption Spread – the warp gnaws at an Imperial data-lattice.
+"""Chaos Corruption Spread – the warp gnaws at a cogitator's data-lattice.
 
-A 60x60 numpy cellular field of corruption sits over a mosaic of clean
-aquila-gold / lapis tiles.  Warp breaches (each aligned to one of the Ruinous
-Powers) send out wandering tendrils; a noisy growth rule fills the gaps into
-pulsing, veined flesh, and the tiles near the front are warped by an animated
-displacement field.  Purity Seal firewalls drop in, slam down with a golden
-shockwave and push the corruption back.  A feedback controller keeps the
-tug-of-war balanced but random; each ~100 s "engagement" ends with a verdict
-(held or lost) and a fresh lattice.
+A 60x60 numpy cellular field of corruption sits over a green-phosphor lattice of
+data tiles (aquila, cog, skull, Inquisitorial I, circuit traces). Warp breaches,
+each aligned to one of the Ruinous Powers, send out wandering tendrils; a noisy
+growth rule fills the gaps into glitching blocks of corrupted data that burn
+through the monochrome screen in the god's own impossible colour, and the lattice
+near the front shears under an animated displacement field. Consecrated firewall
+wards slam down with a phosphor shockwave and push the corruption back. A
+feedback controller keeps the tug-of-war balanced but random; each ~100 s
+"engagement" ends with a verdict (held or lost) and a fresh lattice.
 """
 
 from __future__ import annotations
@@ -18,21 +19,24 @@ import random
 import numpy as np
 from PIL import Image, ImageChops, ImageDraw
 
+from ..classic._phosphor import (AMBER, GREEN, GREEN_DIM, GREEN_FAINT, GREEN_HI, GREEN_MID,
+                                 RED as ALARM, Phosphor)
 from ._common import CX, CY, Session, font, safe_half_width
 
 NAME = "chaos_corruption"
 
 _rng = random.Random()
 _session = Session()
+_ph = Phosphor(decay=0.3, bloom=0.45, flicker=0.03)
 
 G = 60            # simulation grid
 CELL = 4          # px per cell
-GODS = [
-    ("KHORNE", (200, 25, 20)),
-    ("TZEENTCH", (110, 60, 230)),
-    ("NURGLE", (120, 165, 40)),
-    ("SLAANESH", (215, 60, 185)),
-    ("UNDIVIDED", (160, 20, 90)),
+GODS = [                          # warp light: the only colours a phosphor screen shouldn't show
+    ("KHORNE", (230, 30, 20)),
+    ("TZEENTCH", (140, 70, 255)),
+    ("NURGLE", (190, 190, 30)),
+    ("SLAANESH", (240, 60, 200)),
+    ("UNDIVIDED", (200, 20, 110)),
 ]
 _GODCOL = np.array([c for _, c in GODS], np.float32)
 
@@ -70,7 +74,7 @@ def _tsprite(text, size):
     return m
 
 
-def _fit(img, y, text, fill, size, shadow=(0, 0, 0)):
+def _fit(img, y, text, fill, size, shadow=None):
     hw = safe_half_width(y + size * 0.6, 4)
     while size > 9 and _tsprite(text, size)[1] > 2 * hw:
         size -= 1
@@ -90,26 +94,17 @@ def _smooth_noise(h, w, cells, rng):
 
 
 def _build_tiles(rng):
-    """Imperial data-lattice: 12x12 tiles of gold and lapis with sigils."""
-    img = Image.new("RGB", (240, 240), (10, 14, 30))
+    """The cogitator's data-lattice: 12x12 phosphor tiles, each with a sacred glyph."""
+    img = Image.new("RGB", (240, 240), (0, 0, 0))
     d = ImageDraw.Draw(img)
-    gold = (150, 112, 40)
-    gold_d = (84, 60, 20)
-    blue = (22, 36, 86)
-    blue_d = (10, 18, 46)
     T = 20
     for j in range(12):
         for i in range(12):
             x0, y0 = i * T, j * T
-            g = (i + j) % 2 == 0
-            face, dark = (gold, gold_d) if g else (blue, blue_d)
-            d.rectangle([x0, y0, x0 + T - 1, y0 + T - 1], fill=dark)
-            d.rectangle([x0 + 1, y0 + 1, x0 + T - 3, y0 + T - 3], fill=face)
-            d.line([(x0 + 1, y0 + 1), (x0 + T - 3, y0 + 1)], fill=tuple(min(255, c + 45) for c in face))
-            d.line([(x0 + 1, y0 + 1), (x0 + 1, y0 + T - 3)], fill=tuple(min(255, c + 30) for c in face))
-            ink = dark if g else (150, 120, 50)
+            d.rectangle([x0 + 1, y0 + 1, x0 + T - 2, y0 + T - 2], outline=GREEN_FAINT)
+            ink = GREEN_MID if rng.random() < 0.35 else GREEN_DIM
             k = rng.random()
-            cx, cy = x0 + 9, y0 + 9
+            cx, cy = x0 + 10, y0 + 10
             if k < 0.22:      # aquila wings
                 d.line([(cx - 6, cy - 2), (cx, cy + 1), (cx + 6, cy - 2)], fill=ink)
                 d.line([(cx - 5, cy + 1), (cx, cy + 3), (cx + 5, cy + 1)], fill=ink)
@@ -129,41 +124,28 @@ def _build_tiles(rng):
                     d.line([(cx - 3, cy + yy), (cx + 3, cy + yy)], fill=ink)
             else:             # data circuit
                 d.line([(x0 + 4, cy), (cx, cy), (cx, y0 + 16)], fill=ink)
-                d.point((x0 + 4, cy), fill=(255, 230, 150))
-    return np.asarray(img).astype(np.float32) * 0.85
+                d.point((x0 + 4, cy), fill=GREEN_HI)
+    return np.asarray(img).astype(np.float32)
 
 
 def _build_seal():
-    """Purity seal sprite (RGBA): wax disc with aquila stamp and two ribbons."""
-    W, H = 26, 40
-    im = Image.new("RGBA", (W * 2, H * 2), (0, 0, 0, 0))
+    """A consecrated firewall ward (RGBA): a ringed cog with the Inquisitorial I."""
+    W = H = 30
+    s = 3
+    im = Image.new("RGBA", (W * s, H * s), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
-    s = 2
-    # ribbons
-    for off, sk in ((-5, -3), (4, 3)):
-        x = 13 + off
-        poly = [(x - 3, 18), (x + 3, 18), (x + 3 + sk, 38), (x + sk, 35), (x - 3 + sk, 38)]
-        d.polygon([(px * s, py * s) for px, py in poly], fill=(222, 208, 170, 255), outline=(120, 100, 70, 255))
-        for yy in (23, 27, 31):
-            d.line([((x - 2 + sk * (yy - 18) / 20) * s, yy * s), ((x + 2 + sk * (yy - 18) / 20) * s, yy * s)],
-                   fill=(70, 50, 40, 255), width=1)
-    # wax blob (irregular)
-    pts = []
-    rr = random.Random(7)
-    for k in range(18):
-        a = k / 18 * 2 * math.pi
-        r = 11 + rr.uniform(-1.2, 1.2)
-        pts.append(((13 + math.cos(a) * r) * s, (13 + math.sin(a) * r) * s))
-    d.polygon(pts, fill=(150, 14, 18, 255), outline=(90, 5, 8, 255))
-    d.ellipse([6 * s, 6 * s, 20 * s, 20 * s], outline=(215, 60, 55, 255), width=2)
-    # aquila impression
-    c = (13 * s, 13 * s)
-    ink = (90, 6, 10, 255)
-    d.line([(c[0] - 10, c[1] - 3), (c[0], c[1] + 2), (c[0] + 10, c[1] - 3)], fill=ink, width=3)
-    d.line([(c[0], c[1] - 6), (c[0], c[1] + 8)], fill=ink, width=3)
-    d.ellipse([c[0] - 7, c[1] - 12, c[0] - 1, c[1] - 6], fill=(230, 90, 80, 255))
-    im = im.resize((W, H), Image.LANCZOS)
-    return im
+    c = W * s / 2
+    hi, mid = GREEN_HI + (255,), GREEN + (255,)
+    d.ellipse([c - 13 * s, c - 13 * s, c + 13 * s, c + 13 * s], outline=mid, width=s)
+    for a in range(0, 360, 30):                               # cog teeth
+        r = math.radians(a)
+        d.line([(c + math.cos(r) * 10 * s, c + math.sin(r) * 10 * s),
+                (c + math.cos(r) * 13 * s, c + math.sin(r) * 13 * s)], fill=mid, width=2 * s)
+    d.ellipse([c - 8 * s, c - 8 * s, c + 8 * s, c + 8 * s], fill=(0, 0, 0, 255), outline=hi, width=s)
+    d.line([(c, c - 6 * s), (c, c + 6 * s)], fill=hi, width=s)
+    for yy in (-5, 0, 5):
+        d.line([(c - 3 * s, c + yy * s), (c + 3 * s, c + yy * s)], fill=hi, width=s)
+    return im.resize((W, H), Image.LANCZOS)
 
 
 _SEAL = _build_seal()
@@ -172,9 +154,10 @@ _SEAL_SCALED = [(k, _SEAL.resize((max(1, int(_SEAL.width * k)), max(1, int(_SEAL
 _SEAL_FADE = [(_SEAL, _SEAL.getchannel("A").point(lambda v, a=a: int(v * a))) for a in (0.8, 0.6, 0.4, 0.2)]
 
 _S: dict = {}
+_GODS_STORM = (190, 80, 255)
 
 STATUS_BREACH = ["WARP BREACH DETECTED", "HERESY IN THE LATTICE", "DAEMONIC INCURSION", "REALITY FAILING"]
-STATUS_SEAL = ["PURITY SEAL DEPLOYED", "FIREWALL CONSECRATED", "LITANY OF PURITY", "BY HIS WILL: PURGE"]
+STATUS_SEAL = ["FIREWALL WARD DEPLOYED", "LATTICE CONSECRATED", "LITANY OF PURITY", "BY HIS WILL: PURGE"]
 
 
 def _new_cycle(t0):
@@ -296,6 +279,7 @@ def _step(t, dt):
 def render(bezel, mask, now: float) -> Image.Image:
     if _session.fresh(now):
         _reset()
+        _ph.reset()
     ta = _session.t(now)
     S = _S
     if S.get("pending"):
@@ -346,10 +330,11 @@ def render(bezel, mask, now: float) -> Image.Image:
         tiles = S["tiles8"][sy * 240 + sx]
         # flesh colour per cell (god hue, pulsing), upscaled
         pulse = 0.55 + 0.45 * np.sin(S["ph1"] * 3 + t * 3.3 + c * 5)
+        glitch = np.random.default_rng().random((G, G)).astype(np.float32)   # per-block data noise
         gc = _GODCOL[S["god"]]
-        flesh_c = gc * (0.35 + 0.65 * pulse)[..., None]
+        flesh_c = gc * ((0.6 + 0.4 * pulse) * (0.12 + 0.88 * glitch ** 2.5))[..., None]  # sparse bright blocks
         ci = _CELLIDX[idx]
-        flesh = np.asarray(Image.fromarray(np.clip(flesh_c, 0, 255).astype(np.uint8)).resize((240, 240), Image.BILINEAR)
+        flesh = np.asarray(Image.fromarray(np.clip(flesh_c, 0, 255).astype(np.uint8)).resize((240, 240), Image.NEAREST)
                            ).reshape(-1, 3)[idx] * S["veins"][idx]
         rim_col = gc.reshape(-1, 3)[ci] * 0.6 + 110
         thr = S["thr"][idx]
@@ -365,8 +350,8 @@ def render(bezel, mask, now: float) -> Image.Image:
     # consecrated ground shimmer (additive gold glow, computed per cell)
     pur = S["pur"]
     if pur.max() > 0.02:
-        k = (0.18 + 0.1 * math.sin(t * 5)) * pur * _INSIDE
-        glow = np.clip(k[..., None] * np.array([255, 220, 120], np.float32), 0, 255).astype(np.uint8)
+        k = (0.07 + 0.04 * math.sin(t * 5)) * pur * _INSIDE
+        glow = np.clip(k[..., None] * np.array(GREEN, np.float32), 0, 255).astype(np.uint8)
         img = ImageChops.add(img, Image.fromarray(glow).resize((240, 240), Image.BILINEAR))
     d = ImageDraw.Draw(img)
 
@@ -380,11 +365,11 @@ def render(bezel, mask, now: float) -> Image.Image:
             r = min(s["rmax"], (age - 0.35) * 7.0) * CELL
             if r < s["rmax"] * CELL:
                 a = 1 - r / (s["rmax"] * CELL)
-                col = (int(255 * a + 60), int(220 * a + 40), int(120 * a + 20))
+                col = tuple(int(h * a + m * (1 - a)) for h, m in zip(GREEN_HI, GREEN_DIM))
                 d.ellipse([px - r, py - r, px + r, py + r], outline=col, width=2)
             if age < 0.6:
                 fr = 12 * (1 - (age - 0.35) / 0.25)
-                d.ellipse([px - fr, py - fr, px + fr, py + fr], fill=(255, 245, 200))
+                d.ellipse([px - fr, py - fr, px + fr, py + fr], fill=GREEN_HI)
         if age < 0.35:
             k = min(len(_SEAL_SCALED) - 1, int(age / 0.35 * len(_SEAL_SCALED)))
             spr = _SEAL_SCALED[k][1]
@@ -401,24 +386,28 @@ def render(bezel, mask, now: float) -> Image.Image:
     rim_r = 108
     box = [CX - rim_r, CY - rim_r, CX + rim_r, CY + rim_r]
     a0, a1 = 212, 328
-    d.arc(box, a0, a1, fill=(30, 25, 30), width=7)
-    d.arc(box, a0, a0 + (a1 - a0) * P, fill=(int(200 + 55 * P), int(170 * (1 - P)), int(40 * (1 - P))), width=5)
+    d.arc(box, a0, a1, fill=GREEN_FAINT, width=7)
+    meter = GREEN if P < 0.4 else (AMBER if P < 0.6 else ALARM)
+    d.arc(box, a0, a0 + (a1 - a0) * P, fill=meter, width=5)
     for k in range(6):
         a = math.radians(a0 + (a1 - a0) * k / 5)
         d.line([(CX + math.cos(a) * 100, CY + math.sin(a) * 100), (CX + math.cos(a) * 104, CY + math.sin(a) * 104)],
-               fill=(220, 190, 110))
+               fill=GREEN_MID)
     pc = int(round(P * 100))
-    colp = (255, 210, 90) if P < 0.4 else ((255, 140, 60) if P < 0.6 else (255, 60, 60))
-    _fit(img, 22, f"CORRUPTION {pc}%", colp, 11)
-    _fit(img, 36, f"LATTICE SECTOR {S['sector']}", (200, 190, 160), 9)
+    _fit(img, 22, f"CORRUPTION {pc}%", GREEN_HI if P < 0.4 else meter, 11)
+    _fit(img, 36, f"LATTICE SECTOR {S['sector']}", GREEN_MID, 9)
     msg, mt = S["msg"]
     if t - mt < 5.0 or S["verdict"] is not None:
         if (t - mt) > 0.6 or int((t - mt) * 8) % 2 == 0:
             big = S["verdict"] is not None
-            _fit(img, 200 if not big else 110, msg, (255, 235, 180) if "SEAL" in msg or "PURITY" in msg or "HOLDS" in msg
-                 or "PURGE" in msg or "FIREWALL" in msg else (255, 110, 110), 10 if not big else 14)
+            good = any(w in msg for w in ("WARD", "PURITY", "HOLDS", "PURGE", "CONSECRATED", "SECURE"))
+            if big:                                           # the verdict gets an alarm box
+                d.rectangle([CX - 104, 104, CX + 104, 130], fill=(0, 0, 0),
+                            outline=GREEN_HI if good else ALARM, width=2)
+            _fit(img, 200 if not big else 110, msg, GREEN_HI if good else AMBER if not big else ALARM,
+                 10 if not big else 14)
     if S["storm"] > 0 and int(t * 4) % 2 == 0:
-        _fit(img, 186, "WARP STORM", (230, 90, 255), 10)
+        _fit(img, 186, "WARP STORM", _GODS_STORM, 10)
     if S["verdict"] is not None and t - S["verdict"][1] > 7.0:
         S["pending"] = True
-    return img
+    return _ph.compose(img)
