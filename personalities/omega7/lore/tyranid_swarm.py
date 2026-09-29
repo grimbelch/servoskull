@@ -1,11 +1,12 @@
-"""Tyranid Bio-Swarm – a hive fleet descends on a world and strips it to bare rock.
+"""Tyranid Bio-Swarm – a hive fleet strips a world to bare rock, seen on a phosphor auspex.
 
-A slowly turning globe (texture-mapped, tilted) is divided into named regions.
-A numpy flocking swarm (leaders + alignment/cohesion/separation on a coarse
-grid) spores down onto the surface, feeds region by region while branching
-bio-vein networks crawl across the texture and the land fades to barren
-grey-brown.  The Shadow in the Warp static thickens as the biomass counter
-climbs; "PLANET CONSUMED" ends the cycle and a new world is generated.
+A slowly turning globe (texture-mapped, tilted), shaded in phosphor green with
+bright hive-city lights, is divided into named regions. A numpy flocking swarm
+(leaders + alignment/cohesion/separation on a coarse grid) of hostile contacts in
+amber and red spores down onto the surface, feeds region by region while
+branching bio-vein networks pulse alarm-red across the texture and the land
+withers to a dim, cracked husk. The Shadow in the Warp static thickens as the
+biomass counter climbs; "PLANET CONSUMED" ends the cycle and a new world begins.
 """
 
 from __future__ import annotations
@@ -16,12 +17,16 @@ import random
 import numpy as np
 from PIL import Image, ImageDraw
 
+from ..classic._phosphor import AMBER, GREEN, GREEN_DIM, GREEN_FAINT, GREEN_HI, GREEN_MID, RED as ALARM, Phosphor
 from ._common import CX, CY, SAFE_R, Session, font, safe_half_width
 
 NAME = "tyranid_swarm"
 
 _rng = random.Random()
 _session = Session()
+_ph = Phosphor(decay=0.35, bloom=0.5, flicker=0.03)
+_PHOSPHOR = np.array([0.18, 1.0, 0.45], np.float32)       # luminance -> phosphor green
+_LUMA = np.array([0.30, 0.59, 0.11], np.float32)
 
 # ── Geometry ─────────────────────────────────────────────────────────────────
 GR = 80                 # globe radius (px)
@@ -72,7 +77,7 @@ _CVEC = _TVEC[2::4, 2::4]
 # ── Static space background + atmosphere halo ───────────────────────────────
 _yy, _xx = np.mgrid[0:240, 0:240]
 _RR = np.sqrt((_xx - GCX + 0.5) ** 2 + (_yy - GCY + 0.5) ** 2)
-_HALO = (np.clip(1 - np.abs(_RR - GR - 1.5) / 7.0, 0, 1) ** 1.6)[:, :, None] * np.array([70, 140, 255])
+_HALO = (np.clip(1 - np.abs(_RR - GR - 1.5) / 7.0, 0, 1) ** 1.6)[:, :, None] * np.array(GREEN_MID)
 _HALO = (_HALO * (_RR >= GR - 1)[:, :, None]).astype(np.float32)
 
 _NOISE = None  # static noise tiles (built lazily)
@@ -197,7 +202,10 @@ def _build_world():
             keep[:] = True
         cells.append((lat[keep].astype(np.float32), lon[keep].astype(np.float32)))
     names = _rng.sample(REGION_NAMES, nreg)
-    return dict(wtype=wtype, base=base, barren=barren.astype(np.float32), region=region, reg_c=reg_c,
+    # A monochrome auspex: the living world as phosphor brightness, the husk nearly dark.
+    base = ((base @ _LUMA) * 0.6)[..., None] * _PHOSPHOR
+    barren = ((barren @ _LUMA) * 0.22)[..., None] * _PHOSPHOR
+    return dict(wtype=wtype, base=base.astype(np.float32), barren=barren.astype(np.float32), region=region, reg_c=reg_c,
                 seeds=seeds, nreg=nreg, spread=spread, cells=cells, names=names,
                 fine=(_noise(TH, TW, 16, 32, 2) * 0.9).astype(np.float32))
 
@@ -208,14 +216,13 @@ def _seed_latlon(s):
 
 def _build_stars():
     arr = np.zeros((240, 240, 3), np.float32)
-    arr[:] = (2, 0, 6)
     for _ in range(170):
         x, y = _rng.randrange(240), _rng.randrange(240)
-        b = _rng.random() ** 2.5 * 200 + 30
-        arr[y, x] = (b * 0.9, b * 0.85, b)
-    # faint purple nebula (the hive fleet's warp shadow)
+        b = _rng.random() ** 2.5 * 0.7 + 0.1
+        arr[y, x] = np.array(GREEN_MID, np.float32) * b
+    # faint interference where the hive fleet's warp shadow falls
     neb = _noise(240, 240, 3, 3, 3)
-    arr += (np.clip(neb - 0.55, 0, 1) * 110)[..., None] * np.array([0.6, 0.15, 0.8])
+    arr += (np.clip(neb - 0.55, 0, 1) * 0.6)[..., None] * np.array(GREEN_DIM, np.float32)
     return arr
 
 
@@ -242,8 +249,8 @@ def _new_cycle(t0):
     spread = g.normal(0, 38, N_PART)
     sx0 = CX + math.cos(ang) * dist - math.sin(ang) * spread
     sy0 = CY + math.sin(ang) * dist + math.cos(ang) * spread
-    pal = np.array([[150, 70, 200], [190, 100, 230], [110, 40, 150], [225, 205, 170], [240, 225, 195],
-                    [170, 40, 120]], np.float32)
+    pal = np.array([AMBER, [200, 140, 30], [160, 100, 20], [255, 225, 150], [255, 240, 200],
+                    ALARM], np.float32)                   # hostile contacts; brightest = warrior-forms
     pc = g.choice(len(pal), N_PART, p=[0.3, 0.2, 0.2, 0.14, 0.08, 0.08])
     _S.clear()
     _S.update(
@@ -411,7 +418,7 @@ def _text(img, x, y, text, fill, size, shadow=(0, 0, 0)):
     return w
 
 
-def _fit(img, y, text, fill, size, shadow=(0, 0, 0)):
+def _fit(img, y, text, fill, size, shadow=None):
     hw = safe_half_width(y + size * 0.6, 4)
     while size > 9 and _tsprite(text, size)[1] > 2 * hw:
         size -= 1
@@ -430,6 +437,7 @@ def _fmt_biomass(v):
 def render(bezel, mask, now: float) -> Image.Image:
     if _session.fresh(now):
         _reset()
+        _ph.reset()
     t_all = _session.t(now)
     S = _S
     if S.get("pending"):
@@ -505,7 +513,7 @@ def render(bezel, mask, now: float) -> Image.Image:
     colr = base + (barren - base) * c
     vein = np.asarray(S["vein"])[_ROW, col].astype(np.float32)[:, None] * (1 / 255) * (0.3 + 0.55 * c)
     pulse = 0.75 + 0.25 * math.sin(t * 3.1)
-    vcol = np.array([150 * pulse + 40, 45, 185 * pulse + 30], np.float32)
+    vcol = np.array(ALARM, np.float32) * (0.45 + 0.35 * pulse)
     colr = colr + (vcol - colr) * vein
     colr *= _SHADE
     if done and tdone > 9.0:
@@ -551,11 +559,11 @@ def render(bezel, mask, now: float) -> Image.Image:
     if done:
         warp = max(0.05, warp - tdone * 0.05)
     sh = _rng.randrange(240)
-    arr += _NOISE[sh:sh + 240] * np.float32(warp)
+    arr += _NOISE[sh:sh + 240] * np.float32(warp) * _PHOSPHOR
     if _rng.random() < 0.05 + cons_frac * 0.08:
         y0 = _rng.randrange(20, 210)
         h = _rng.randint(2, 7)
-        arr[y0:y0 + h] = np.roll(arr[y0:y0 + h], _rng.randint(-14, 14), 1) * 1.15 + np.array([20, 0, 30])
+        arr[y0:y0 + h] = np.roll(arr[y0:y0 + h], _rng.randint(-14, 14), 1) * 1.15 + np.array(GREEN_FAINT)
     np.clip(arr, 0, 255, out=arr)
     img = Image.fromarray(arr.astype(np.uint8))
     d = ImageDraw.Draw(img)
@@ -567,45 +575,45 @@ def render(bezel, mask, now: float) -> Image.Image:
         if pz > 0.1:
             px, py = float(px), float(py)
             rr_ = 9 + 2 * math.sin(t * 5)
-            colh = (255, 70, 90)
+            colh = ALARM
             for k in range(4):
                 a0 = k * 90 + t * 60
                 d.arc([px - rr_, py - rr_, px + rr_, py + rr_], a0, a0 + 50, fill=colh, width=1)
     # rim gauges: biomass (left), regions (right)
     rim = SAFE_R - 3
     box = [CX - rim, CY - rim, CX + rim, CY + rim]
-    d.arc(box, 120, 240, fill=(50, 20, 60), width=4)
+    d.arc(box, 120, 240, fill=GREEN_FAINT, width=4)
     fillb = min(1.0, cons_frac)
     if fillb > 0.005:
-        d.arc(box, 240 - 120 * fillb, 240, fill=(190, 70, 230), width=4)
+        d.arc(box, 240 - 120 * fillb, 240, fill=AMBER, width=4)
     seg = 120.0 / nreg
     for r in range(nreg):
         a0 = -60 + r * seg + 1.5
         pr = float(S["prog"][S["order"][r]])
-        colg = (60, 140, 70) if pr <= 0 else ((170, 140, 90) if pr >= 1 else (230, 80, 100))
+        colg = GREEN_MID if pr <= 0 else (GREEN_FAINT if pr >= 1 else ALARM)
         d.arc(box, a0, a0 + seg - 3, fill=colg, width=4)
     top = f"HIVE FLEET {S['fleet']}"
-    _fit(img, 22, top, (200, 120, 235), 11)
-    _fit(img, 35, f"{S['world']} - {w['wtype']}", (170, 170, 150), 9)
+    _fit(img, 22, top, AMBER, 11)
+    _fit(img, 35, f"{S['world']} - {w['wtype']}", GREEN_MID, 9)
     if not done:
         if S["tstart"] is None:
             msg = "BIO-SPORES INBOUND" if int(t * 2) % 2 or t > 2 else ""
-            _fit(img, 196, msg, (255, 110, 120), 10)
+            _fit(img, 196, msg, ALARM, 10)
         else:
-            _fit(img, 196, "DEVOURING: " + w["names"][tgt], (235, 150, 150), 9)
-        _fit(img, 207, "BIOMASS " + S["bmtxt"], (215, 195, 160), 10)
+            _fit(img, 196, "DEVOURING: " + w["names"][tgt], AMBER, 9)
+        _fit(img, 207, "BIOMASS " + S["bmtxt"], GREEN, 10)
     else:
         if tdone < 12.0:
             if (int(tdone * 3) % 4 != 0 or tdone > 1.5) and tdone < 9.0:
                 bw = 150
-                d.rectangle([CX - bw // 2, CY - 18, CX + bw // 2, CY + 20], fill=(20, 0, 20), outline=(200, 60, 220))
-                _fit(img, CY - 14, "PLANET CONSUMED", (240, 120, 255), 16)
-                _fit(img, CY + 6, "BIOMASS " + S["bmtxt"], (215, 195, 160), 9)
+                d.rectangle([CX - bw // 2, CY - 18, CX + bw // 2, CY + 20], fill=(0, 0, 0), outline=ALARM, width=2)
+                _fit(img, CY - 14, "PLANET CONSUMED", ALARM, 16)
+                _fit(img, CY + 6, "BIOMASS " + S["bmtxt"], GREEN_HI, 9)
             if tdone > 4:
-                _fit(img, 200, "NEW PREY SOUGHT...", (170, 120, 200), 10)
+                _fit(img, 200, "NEW PREY SOUGHT...", AMBER, 10)
         if tdone > 12.0:
             S["pending"] = True
     # flickering warp-shadow warning
     if warp > 0.3 and (int(now * 4) % 5 == 0):
-        _fit(img, 49, "SHADOW IN THE WARP", (200, 90, 230), 9)
-    return img
+        _fit(img, 49, "SHADOW IN THE WARP", AMBER, 9)
+    return _ph.compose(img)
