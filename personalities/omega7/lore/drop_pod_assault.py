@@ -1,11 +1,12 @@
-"""Drop Pod Assault – orbital planetfall on a rotating 3D wireframe world.
+"""Drop Pod Assault – orbital planetfall on a green-phosphor tactical display.
 
-A lit, textured planet rotates with a lat/long wireframe; a Battle Barge in
-high orbit designates landing zones with insertion beams, drop pods streak in
-on re-entry trails, impact flashes bloom, then Imperial control zones spread
-across the surface while xenos-held zones pulse red and shrink. All zones live
-on the sphere (proper 3D, back-facing hidden). The campaign ends with the world
-secured – or Exterminatus if the xenos cannot be dislodged – then a new world.
+A shaded planet rotates under a lat/long graticule, rendered in phosphor green; a
+Battle Barge in high orbit designates landing zones with insertion beams, drop
+pods streak in glowing amber with re-entry heat, impact rings bloom, then
+Imperial control zones spread across the surface in bright green while
+xenos-held zones pulse alarm-red and shrink. All zones live on the sphere
+(proper 3D, back-facing hidden). The campaign ends with the world secured – or
+Exterminatus burning it red if the xenos cannot be dislodged – then a new world.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ import random
 import numpy as np
 from PIL import Image, ImageDraw
 
+from ..classic._phosphor import AMBER, GREEN, GREEN_DIM, GREEN_FAINT, GREEN_HI, GREEN_MID, RED as ALARM, Phosphor
 from ._common import CX, Session, font, lerp_color, scale
 
 NAME = "drop_pod_assault"
@@ -53,6 +55,7 @@ def _txt(d, xy, text, fill, size):
 
 _rng = random.Random()
 _session = Session()
+_ph = Phosphor(decay=0.45, bloom=0.5, flicker=0.03)
 
 DT = 1.0 / 30.0
 PR = 74                 # planet radius, px
@@ -61,10 +64,11 @@ TILT = 0.38
 TEX_H, TEX_W = 128, 256
 SPIN = 0.11             # rad/s
 
-HUD = (120, 200, 255)
-GOLD = (255, 200, 80)
-RED = (255, 60, 40)
-WHITE = (255, 255, 255)
+HUD = GREEN
+GOLD = GREEN_HI          # Imperial success
+RED = ALARM              # the foe
+WHITE = GREEN_HI
+_PHOSPHOR = np.array([0.18, 1.0, 0.45], np.float32)   # luminance -> phosphor green
 
 _WORLDS = ["CALTH", "ISTVAAN", "MACRAGGE", "OCTARIUS", "BADAB", "ARMAGEDDON", "PISCINA",
            "TALLARN", "HYDRAPHUR", "BAAL SECUNDUS", "CHOGORIS", "NOCTURNE", "FENRIS", "KRIEG"]
@@ -115,7 +119,7 @@ def _tilted_polar():
     lo0 = ((lon + math.pi) * (TEX_W / (2 * math.pi))).astype(np.float32)
     step = math.pi / 6
     latgrid = np.abs(((lat + step / 2) % step) - step / 2) < 0.012
-    gridcol = (np.array([70, 150, 220], np.float32)[None, :] * (0.35 + 0.65 * _LIGHT[:, None])).astype(np.float32)
+    gridcol = (np.array(GREEN_MID, np.float32)[None, :] * (0.45 + 0.55 * _LIGHT[:, None])).astype(np.float32)
     return li * TEX_W, lo0, lon.astype(np.float32), np.cos(lat).astype(np.float32), latgrid, gridcol
 
 
@@ -174,21 +178,23 @@ def _make_texture():
     tex = pal[cls]
     # subtle shading by noise
     tex *= (0.85 + 0.25 * n[..., None])
+    # A monochrome tactical display: terrain survives only as phosphor brightness.
+    lum = tex @ np.array([0.30, 0.59, 0.11], np.float32)
+    tex = (lum * 0.55)[..., None] * _PHOSPHOR[None, None, :]
     return np.clip(tex, 0, 255).astype(np.float32), ptype
 
 
 def _make_bg():
     arr = np.zeros((240, 240, 3), np.float32)
-    arr[:] = (2, 3, 8)
     for _ in range(90):
         x, y = _rng.randrange(240), _rng.randrange(240)
-        b = _rng.uniform(40, 200)
-        arr[y, x] = (b, b, min(255, b * 1.1))
+        b = _rng.uniform(0.15, 0.7)
+        arr[y, x] = np.array(GREEN_MID, np.float32) * b
     # atmosphere halo
     halo = np.clip(1.0 - (_RR - 1.0) * 9.0, 0, 1) * (_RR >= 1.0)
     yy, xx = np.mgrid[0:240, 0:240].astype(np.float32)
     side = np.clip(0.6 - ((xx - PX) * 0.55 + (yy - PY) * 0.45) / PR * 0.6, 0.2, 1.0)
-    arr += (halo * side)[..., None] * np.array([60, 120, 220], np.float32)
+    arr += (halo * side)[..., None] * np.array(GREEN_MID, np.float32)
     return np.clip(arr, 0, 255).astype(np.uint8)
 
 
@@ -391,6 +397,7 @@ def _occluded(p):
 def render(bezel, mask, now: float) -> Image.Image:
     if _session.fresh(now) or not _st.ready:
         _reset()
+        _ph.reset()
     t_all = _session.t(now)
     st = _st
     lt = t_all - st.t0
@@ -422,11 +429,11 @@ def render(bezel, mask, now: float) -> Image.Image:
     pulse = 0.5 + 0.5 * math.sin(t * 4)
     groups = (
         ([(e[0], e[1] * (1 + 0.06 * math.sin(t * 3 + i))) for i, e in enumerate(st.enemy) if e[2]],
-         np.array([150, 20, 10], np.float32) * (0.5 + 0.3 * pulse), 0.55,
-         np.array([255, 70, 40], np.float32) * (0.7 + 0.3 * pulse)),
+         np.array(ALARM, np.float32) * (0.35 + 0.25 * pulse), 0.4,
+         np.array(ALARM, np.float32) * (0.7 + 0.3 * pulse)),
         ([(z[0], z[1]) for z in st.imp if z[1] > 0.005],
-         np.array([30, 90, 190], np.float32) * 0.7, 0.5,
-         np.array([255, 215, 110], np.float32)),
+         np.array(GREEN, np.float32) * 0.45, 0.5,
+         np.array(GREEN_HI, np.float32)),
     )
     for zl, tint, keep, edge_col in groups:
         if not zl:
@@ -448,7 +455,7 @@ def render(bezel, mask, now: float) -> Image.Image:
 
     if st.ending == "exterminatus":
         k = min(1.0, end_age / 5.0)
-        burn = np.array([255, 90, 20], np.float32) * (0.6 + 0.4 * math.sin(t * 6)) + 40
+        burn = np.array(ALARM, np.float32) * (0.55 + 0.25 * math.sin(t * 6)) + np.array(AMBER, np.float32) * 0.25
         col = col * (1 - k) + burn * k * (0.35 + 0.65 * _LIGHT[:, None])
 
     frame = st.bg.copy()
@@ -461,9 +468,9 @@ def render(bezel, mask, now: float) -> Image.Image:
     # battle barge in high orbit
     bx = PX + (-62 if st.barge_left else 62)
     by = PY - 82
-    d.polygon([(bx - 12, by + 2), (bx + 10, by - 1), (bx + 14, by + 2), (bx + 10, by + 5)], fill=(40, 50, 70),
-              outline=(150, 180, 220))
-    d.line([(bx - 12, by + 2), (bx - 15, by + 2)], fill=(120, 200, 255) if int(t * 6) % 2 else (60, 100, 160))
+    d.polygon([(bx - 12, by + 2), (bx + 10, by - 1), (bx + 14, by + 2), (bx + 10, by + 5)], fill=GREEN_FAINT,
+              outline=GREEN)
+    d.line([(bx - 12, by + 2), (bx - 15, by + 2)], fill=GREEN_HI if int(t * 6) % 2 else GREEN_DIM)
 
     # insertion beams for designated zones
     for p, age, _ in st.designate:
@@ -479,7 +486,7 @@ def render(bezel, mask, now: float) -> Image.Image:
                 continue
             u0, u1 = s / 12, (s + 0.6) / 12
             d.line([(bx + (tx - bx) * u0, by + (ty - by) * u0), (bx + (tx - bx) * u1, by + (ty - by) * u1)],
-                   fill=scale((120, 220, 255), 0.7 * k))
+                   fill=scale(GREEN, 0.7 * k))
         d.ellipse([tx - 3, ty - 3, tx + 3, ty + 3], outline=scale(GOLD, k))
 
     # drop pods with re-entry trails
@@ -492,12 +499,12 @@ def render(bezel, mask, now: float) -> Image.Image:
         heat = min(1.0, max(0.0, (u - 0.3) / 0.5))
         for k in range(4):
             a, b = pts[k], pts[k + 1]
-            c = lerp_color((255, 240, 200), (255, 90, 20), k / 3) if heat > 0.1 else (150, 170, 200)
+            c = lerp_color(GREEN_HI, AMBER, k / 3) if heat > 0.1 else GREEN_MID
             d.line([(PX + float(a[0]), PY + float(a[1])), (PX + float(b[0]), PY + float(b[1]))],
                    fill=scale(c, (1 - k / 4) * (0.5 + 0.5 * heat)), width=2 if k < 2 else 1)
         hx, hy = PX + float(head[0]), PY + float(head[1])
         r = 1.5 + heat * 1.8
-        d.ellipse([hx - r, hy - r, hx + r, hy + r], fill=(255, 250, 220))
+        d.ellipse([hx - r, hy - r, hx + r, hy + r], fill=GREEN_HI)
 
     # impact flashes
     for p, age in st.impacts:
@@ -508,7 +515,7 @@ def render(bezel, mask, now: float) -> Image.Image:
         fore = min(1.0, -float(c[2]) / PR + 0.2)   # foreshorten near limb
         r = 2 + age * 14
         k = 1.0 - age / 1.2
-        d.ellipse([x - r, y - r * fore, x + r, y + r * fore], outline=scale((255, 230, 160), k))
+        d.ellipse([x - r, y - r * fore, x + r, y + r * fore], outline=scale(GREEN_HI, k))
         if age < 0.15:
             d.ellipse([x - 4, y - 4, x + 4, y + 4], fill=WHITE)
 
@@ -523,7 +530,7 @@ def render(bezel, mask, now: float) -> Image.Image:
     w = _tlen(sec, 10)
     _txt(d, (CX - w / 2, 196), sec, GOLD, 10)
     frac = st.secured / max(1, st.total)
-    d.rectangle([CX - 40, 209, CX + 40, 212], outline=(60, 50, 20))
+    d.rectangle([CX - 40, 209, CX + 40, 212], outline=GREEN_DIM)
     if frac > 0:
         d.rectangle([CX - 39, 210, CX - 39 + 78 * frac, 211], fill=GOLD)
     _txt(d, (32, 58), "T+%03d" % int(t), scale(HUD, 0.6), 9)
@@ -545,16 +552,16 @@ def render(bezel, mask, now: float) -> Image.Image:
 
     if st.ending is not None and end_age > 1.5:
         if st.ending == "secured":
-            _banner(d, "WORLD SECURED", "IN THE EMPEROR'S NAME", GOLD, t)
+            _banner(d, "WORLD SECURED", "IN THE EMPEROR'S NAME", GREEN_HI, t)
         else:
             _banner(d, "EXTERMINATUS", "THE XENOS SHALL BURN", RED, t)
-    return img
+    return _ph.compose(img)
 
 
 def _banner(d, title, sub, col, t):
     f14, f9 = font(14), font(9)
     w = max(_tlen(title, 14), _tlen(sub, 9)) + 18
-    d.rectangle([CX - w / 2, 100, CX + w / 2, 138], fill=(4, 6, 12), outline=col)
+    d.rectangle([CX - w / 2, 100, CX + w / 2, 138], fill=(0, 0, 0), outline=col)
     d.line([(CX - w / 2 + 3, 103), (CX + w / 2 - 3, 103)], fill=scale(col, 0.5))
     tw = _tlen(title, 14)
     _txt(d, (CX - tw / 2, 105), title, col if int(t * 3) % 4 else scale(col, 0.6), 14)
