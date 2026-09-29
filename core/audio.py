@@ -55,6 +55,25 @@ def _sink_percent(sink: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
+def _remember_volume(level: float) -> None:
+    """Keep the last spoken volume so a restart comes back at it."""
+    try:
+        from core import config
+        config.atomic_write(config.data_path("volume.json"), f'{{"level": {round(level)}}}')
+    except Exception as e:
+        print(f"[audio] Could not remember the volume: {e}")
+
+
+def saved_volume(default: int = 50) -> int:
+    """The last volume set by voice or the web remote (0-100), else the default."""
+    try:
+        import json
+        from core import config
+        return int(json.loads(config.data_path("volume.json").read_text())["level"])
+    except Exception:
+        return default
+
+
 def set_system_volume(level: str) -> str:
     """Set or adjust output volume across macOS (osascript) and Linux (wpctl/pactl/amixer)."""
     import shutil, sys, re
@@ -71,15 +90,21 @@ def set_system_volume(level: str) -> str:
                 script = f"set volume output volume {level_str.rstrip('%')}"
             subprocess.run(["osascript", "-e", script], capture_output=True, check=True)
         elif shutil.which("pactl"):
+            # Spoken levels follow loudness: PipeWire's percent is a cubic scale (50% is
+            # -18 dB, far quieter than "half"), so a spoken level L is sent as
+            # 100*sqrt(L/100): 50 -> -9 dB (about half as loud), 25 -> -18 dB.
             sink = _volume_sink()
+            amount = float(level_str.lstrip("+-").rstrip("%"))
             if level_str.startswith(("+", "-")):
-                pct = level_str if level_str.endswith("%") else f"{level_str}%"
+                now = _sink_percent(sink)
+                spoken = (now / 100.0) ** 2 * 100 if now is not None else 50.0
+                target = spoken + (amount if level_str.startswith("+") else -amount)
             else:
-                pct = f"{min(100, int(float(level_str.rstrip('%'))))}%"
-            subprocess.run(["pactl", "set-sink-volume", sink, pct], capture_output=True, check=True)
-            now = _sink_percent(sink)
-            if now is not None and now > 100:              # "louder" never goes past 100%
-                subprocess.run(["pactl", "set-sink-volume", sink, "100%"], capture_output=True, check=True)
+                target = amount
+            target = max(0.0, min(100.0, target))
+            pct = round(100 * (target / 100.0) ** 0.5)
+            subprocess.run(["pactl", "set-sink-volume", sink, f"{pct}%"], capture_output=True, check=True)
+            _remember_volume(target)
         else:
             if level_str.startswith("+") or level_str.startswith("-"):
                 val = float(level_str.lstrip("+").rstrip("%")) / 100.0

@@ -1385,10 +1385,11 @@ def main():
     brain.register_purge_identity_cb(lambda name: request_maintenance("purge", name))
     brain.register_switch_personality_cb(switch_personality)
 
-    # Set default output volume to 50% on boot
+    # Restore the last volume asked for (50% the first time)
     try:
-        audio.set_system_volume("50%")
-        print("[skull] Boot volume initialized to 50%")
+        _boot_volume = audio.saved_volume(50)
+        audio.set_system_volume(f"{_boot_volume}%")
+        print(f"[skull] Boot volume initialized to {_boot_volume}%")
     except Exception as e:
         print(f"[skull] Failed to set boot volume: {e}")
 
