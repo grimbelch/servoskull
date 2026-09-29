@@ -1,27 +1,29 @@
-"""Thought for the Day – an auto-quill scribes Imperial maxims on parchment.
+"""Thought for the Day – the daily Ministorum dispatch arrives on the cogitator.
 
-A quill nib writes each maxim letter by letter across a scorched parchment
-disc, holds it, then takes up the next.
+A green-phosphor terminal receives the vox-dispatch: a decryption bar fills, then
+the maxim is set in capitals, each character flickering through cipher glyphs
+before it resolves, a block cursor at the write head. The Ministorum seal and
+AVE IMPERATOR follow, it holds, and a scan-wipe clears the screen for the next.
 """
 
 from __future__ import annotations
 
+import datetime
+import math
 import random
 
-import numpy as np
-from PIL import Image, ImageDraw
+from PIL import ImageDraw
 
-from ._common import Session, font, text_center
+from ..classic._phosphor import AMBER, GREEN, GREEN_DIM, GREEN_HI, GREEN_MID, Phosphor, blank
+from ._common import CX, Session, font, safe_half_width
 
 NAME = "thought_for_the_day"
 
 _session = Session()
+_ph = Phosphor(decay=0.35, bloom=0.6, flicker=0.035)
+_rng = random.Random()
 
-_YY, _XX = np.mgrid[0:240, 0:240].astype(np.float32)
-_RR = np.hypot(_XX - 120, _YY - 120)
-
-
-_TFTD_QUOTES = [
+_QUOTES = [
     "The Emperor protects.",
     "Idle hands invite heresy. Idle cogitators invite worse.",
     "Every rivet is a prayer. Every weld a hymn.",
@@ -43,79 +45,139 @@ _TFTD_QUOTES = [
     "The candle gutters. The duty does not.",
     "Obedience is the first sacrament.",
 ]
-_tftd_state = {"quote": None, "start": 0.0, "bg": None}
+_CIPHER = "#%&*+=?/\\<>[]{}0123456789$@"
+_SEALS = ["MINISTORUM SEAL: SANCTIONED", "CENSOR: APPROVED FOR ALL DECKS",
+          "DISSEMINATION: MANDATORY", "RECITE AT EACH SHIFT-CHANGE"]
+
+# Timeline of one dispatch (seconds)
+_RECEIVE = 1.8          # decryption bar
+_CPS = 15.0             # characters set per second
+_RESOLVE = 0.25         # a character shows cipher glyphs this long before resolving
+_HOLD = 7.0             # after the seal appears
+_WIPE = 0.8
+
+_state = {"quote": None, "start": 0.0, "seal": "", "dispatch": "", "spots": []}
+
+_TOP_Y = 26
+_BODY_TOP, _BODY_BOT = 96, 176
+_SZ_BODY, _LH_BODY = 14, 18
 
 
-def _tftd_background():
-    arr = np.zeros((240, 240, 3), np.float32)
-    rng = np.random.default_rng(7)
-    grain = rng.normal(0, 6, (240, 240)).astype(np.float32)
-    edge = np.clip((_RR - 80) / 30.0, 0, 1)
-    base = np.array([196, 172, 122], np.float32)
-    burn = np.array([95, 60, 25], np.float32)
-    for c in range(3):
-        arr[..., c] = base[c] * (1 - edge) + burn[c] * edge + grain
-    arr[_RR > 112] = (20, 10, 4)
-    img = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
-    d = ImageDraw.Draw(img)
-    d.ellipse([8, 8, 232, 232], outline=(110, 20, 15), width=3)
-    text_center(d, 40, "THOUGHT FOR THE DAY", (120, 20, 15), 10)
-    d.line([(66, 60), (108, 60)], fill=(90, 50, 20), width=1)
-    d.line([(132, 60), (174, 60)], fill=(90, 50, 20), width=1)
-    d.polygon([(120, 54), (126, 60), (120, 66), (114, 60)], outline=(120, 20, 15), fill=(160, 40, 25))
-    return img
+def _imperial_date() -> str:
+    """Imperial dating: check number, year-fraction (000-999), year, millennium."""
+    today = datetime.date.today()
+    frac = int((today.timetuple().tm_yday - 1) / 365 * 1000)
+    return f"0 {frac:03d} {today.year % 1000:03d}.M42"
 
 
-def _wrap_to_circle(text, qf, d, max_w=164):
-    """Word-wrap to a width that sits inside the parchment disc."""
-    lines, cur = [], ""
-    for w in text.split():
+def _aquila(d, cx: float, cy: float, col, s: float = 1.0) -> None:
+    """A line-art double-headed eagle: two heads, a spread of pinions each side."""
+    for side in (-1, 1):
+        hx = cx + side * 5 * s
+        d.line([(cx, cy + 4 * s), (hx, cy - 3 * s), (hx + side * 3 * s, cy - 6 * s)], fill=col, width=1)
+        d.point((hx + side * 1 * s, cy - 4 * s), fill=GREEN_HI)
+        for i in range(5):                                   # pinions fan out and down
+            ang = math.radians(8 + i * 11)
+            length = (30 - i * 3) * s
+            x0, y0 = cx + side * 6 * s, cy + 1 * s + i * 1.4 * s
+            d.line([(x0, y0), (x0 + side * length * math.cos(ang), y0 + length * math.sin(ang) - 6 * s)],
+                   fill=col, width=1)
+    d.polygon([(cx, cy - 1 * s), (cx + 3 * s, cy + 5 * s), (cx, cy + 12 * s), (cx - 3 * s, cy + 5 * s)],
+              outline=col)
+
+
+def _wrap(text: str, f) -> list[tuple[str, float]]:
+    """Word-wrap to the circle: each line as wide as the chord at its height allows."""
+    words, lines, cur = text.split(), [], ""
+    tmp = ImageDraw.Draw(blank())
+    y = _BODY_TOP
+    for w in words:
         trial = (cur + " " + w).strip()
-        if cur and d.textlength(trial, font=qf) > max_w:
+        max_w = 2 * safe_half_width(y + _LH_BODY / 2, margin=18)
+        if cur and tmp.textlength(trial, font=f) > max_w:
             lines.append(cur)
-            cur = w
+            cur, y = w, y + _LH_BODY
         else:
             cur = trial
     if cur:
         lines.append(cur)
-    return lines
+    # centre the block vertically in the body area
+    top = (_BODY_TOP + _BODY_BOT) / 2 - len(lines) * _LH_BODY / 2
+    return [(ln, top + i * _LH_BODY) for i, ln in enumerate(lines)]
+
+
+def _centered(d, y, s, col, size):
+    f = font(size)
+    d.text((CX - d.textlength(s, font=f) / 2, y), s, fill=col, font=f)
+
+
+def _new_dispatch(now: float) -> None:
+    prev = _state["quote"]
+    _state["quote"] = _rng.choice([q for q in _QUOTES if q != prev]).upper()
+    _state["start"] = now
+    _state["seal"] = _rng.choice(_SEALS)
+    f, tmp = font(_SZ_BODY), ImageDraw.Draw(blank())
+    spots = []                                                # (x, y, char) in typing order
+    for line, y in _wrap(_state["quote"], f):
+        x = CX - tmp.textlength(line, font=f) / 2
+        for ch in line + " ":                                 # the trailing space is the wrap
+            spots.append((x, y, ch))
+            x += tmp.textlength(ch, font=f)
+    _state["spots"] = spots
+    _state["dispatch"] = f"DISPATCH {_rng.randint(100, 999)}-{_rng.choice('ABKMTV')}  //  {_imperial_date()}"
 
 
 def render(bezel, mask, now):
     if _session.fresh(now):
-        _tftd_state["quote"] = None
-    st = _tftd_state
-    if st["bg"] is None:
-        st["bg"] = _tftd_background()
-    qf, line_h = font(15), 20
-    if st["quote"] is None or now - st["start"] > 4 + len(st["quote"]) / 16.0 + 7:
-        choices = [q for q in _TFTD_QUOTES if q != st["quote"]]
-        st["quote"], st["start"] = random.choice(choices), now
+        _ph.reset()
+        _new_dispatch(now)
+    quote = _state["quote"]
+    typing = len(quote) / _CPS + _RESOLVE
+    total = _RECEIVE + typing + 0.8 + _HOLD
+    t = now - _state["start"]
+    if t > total + _WIPE:
+        _new_dispatch(now)
+        t = 0.0
 
-    img = st["bg"].copy()
+    img = blank()
     d = ImageDraw.Draw(img)
-    q, t = st["quote"], now - st["start"]
-    n = int(max(0.0, t - 0.6) * 16)
-    lines = _wrap_to_circle(q, qf, d)
-    y = 120 - len(lines) * line_h / 2 + 6
-    shown, qx, qy = n, None, None
-    ink = (40, 22, 10)
-    for ln in lines:
-        part = ln[:max(0, shown)]
-        shown -= len(ln) + 1
-        w = d.textlength(ln, font=qf)
-        x = 120 - w / 2
-        if part:
-            d.text((x, y), part, fill=ink, font=qf)
-            qx, qy = x + d.textlength(part, font=qf), y + 14
-        y += line_h
 
-    # Auto-quill nib hovers at the write head while typing
-    if n < len(q) + 3 and qx is not None:
-        jx, jy = random.uniform(-1, 1), random.uniform(-1, 1)
-        d.line([(qx + jx, qy + jy), (qx + 24 + jx, qy - 34 + jy)], fill=(70, 50, 30), width=2)
-        d.polygon([(qx + jx, qy + jy), (qx + 4 + jx, qy - 7 + jy), (qx - 1 + jx, qy - 6 + jy)], fill=(20, 20, 20))
-        d.line([(qx + 14 + jx, qy - 20), (qx + 30 + jx, qy - 48)], fill=(210, 200, 180), width=4)
-    elif n >= len(q) + 3:
-        text_center(d, 186, "+ AVE IMPERATOR +", (120, 20, 15), 9)
-    return img
+    # Header: aquila, title, dispatch line, rule
+    _aquila(d, CX, _TOP_Y, GREEN_MID, 0.9)
+    _centered(d, _TOP_Y + 18, "+++ THOUGHT FOR THE DAY +++", GREEN_HI, 11)
+    _centered(d, _TOP_Y + 33, _state["dispatch"], GREEN_DIM, 9)
+    half = safe_half_width(_TOP_Y + 50, margin=22)
+    d.line([(CX - half, _TOP_Y + 50), (CX + half, _TOP_Y + 50)], fill=GREEN_DIM)
+
+    if t < _RECEIVE:                                          # receiving: decrypt bar
+        blink = int(now * 3) % 2 == 0
+        _centered(d, 104, "INCOMING VOX-DISPATCH", GREEN if blink else GREEN_MID, 11)
+        frac = t / _RECEIVE
+        bx0, bx1, by = CX - 70, CX + 70, 126
+        d.rectangle([bx0, by, bx1, by + 9], outline=GREEN_MID)
+        d.rectangle([bx0 + 2, by + 2, bx0 + 2 + int((bx1 - bx0 - 4) * frac), by + 7], fill=GREEN)
+        noise = "".join(_rng.choice(_CIPHER) for _ in range(14))
+        _centered(d, 144, f"DECRYPT {int(frac * 100):3d}%  {noise}", GREEN_DIM, 9)
+    else:                                                     # the maxim, set character by character
+        f = font(_SZ_BODY)
+        tt = t - _RECEIVE
+        n_done = int(tt * _CPS)                               # characters started
+        spots = _state["spots"]
+        for k, (x, y, ch) in enumerate(spots[:n_done]):
+            if ch == " ":
+                continue
+            decoding = tt - k / _CPS < _RESOLVE
+            d.text((x, y), _rng.choice(_CIPHER) if decoding else ch,
+                   fill=GREEN_HI if decoding else GREEN, font=f)
+        cx, cy, _ = spots[min(n_done, len(spots) - 1)]
+        if n_done < len(spots) or int(now * 2.5) % 2 == 0:  # solid while setting, then blinks
+            d.rectangle([cx + 1, cy + 2, cx + 8, cy + _SZ_BODY + 1], fill=GREEN_HI)
+        if tt > typing + 0.8:                                 # sealed
+            _centered(d, 184, "+ AVE IMPERATOR +", AMBER, 11)
+            _centered(d, 199, _state["seal"], GREEN_MID, 8)
+
+    if t > total:                                             # scan-wipe to black
+        wipe_y = int((t - total) / _WIPE * 240)
+        d.rectangle([0, 0, 239, wipe_y], fill=(0, 0, 0))
+        d.line([(0, wipe_y), (239, wipe_y)], fill=GREEN_HI, width=2)
+    return _ph.compose(img)
