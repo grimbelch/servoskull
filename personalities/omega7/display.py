@@ -5,6 +5,8 @@ display picks the style at boot and on "switch your eye to ..." through
 set_eye_style(), then rebuilds the bezel and aperture mask.
 """
 
+from __future__ import annotations
+
 import math
 
 from PIL import Image, ImageDraw
@@ -17,6 +19,15 @@ _CX = _CY = 120
 EYE_STYLES = list(eyes.STYLES)
 DEFAULT_EYE_STYLE = eyes.DEFAULT
 _style = eyes.STYLES.get(eyes.DEFAULT) or next(iter(eyes.STYLES.values()))
+
+
+# Mood -> the eye drawn for it (each mood eye names its MOOD), used when the eye
+# is set to follow the disposition.
+MOOD_EYES = {mod.MOOD: name for name, mod in eyes.STYLES.items() if hasattr(mod, "MOOD")}
+
+
+def eye_style_for_mood(mood: str) -> str | None:
+    return MOOD_EYES.get((mood or "").upper())
 
 
 def get_eye_style() -> str:

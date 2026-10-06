@@ -185,6 +185,7 @@ _EYES = Context(eye_styles=(
     ("auspex", ("auspex lens", "targeting", "scanner", "reticle", "auspex", "radar")),
     ("noosphere", ("noosphere cog", "data cog", "noosphere", "binharic", "cog iris")),
     ("cog", ("mechanicus cog", "original", "classic", "gear", "cog", "old")),
+    ("mood", ("match your mood", "match my mood", "mood matched", "match mood", "mood")),
 ))
 
 
@@ -194,6 +195,8 @@ def test_eye_style_by_name():
     assert intents.eye_style("change your ocular to the noosphere cog", _EYES).args == {"action": "set", "name": "noosphere"}
     assert intents.eye_style("bring back the old eye", _EYES).args == {"action": "set", "name": "cog"}
     assert intents.eye_style("eye style classic", _EYES).args == {"action": "set", "name": "cog"}
+    assert intents.eye_style("make your eye match your mood", _EYES).args == {"action": "set", "name": "mood"}
+    assert intents.eye_style("switch to mood eyes", _EYES).args == {"action": "set", "name": "mood"}
 
 
 def test_eye_style_cycle_and_list():
@@ -209,3 +212,4 @@ def test_eye_style_leaves_other_eye_talk_alone():
     assert intents.eye_style("rotate your eye 10 degrees", _EYES) is None
     assert intents.eye_style("run the auspex scan", _EYES) is None   # no eye word
     assert intents.eye_style("switch your eye to auspex", Context()) is None  # personality has one eye
+    assert intents.eye_style("what is your mood", _EYES) is None

@@ -140,29 +140,46 @@ def get_screensaver_names() -> list[str]:
 
 # ── Eye styles ────────────────────────────────────────────────────────────────
 # A personality's display module may offer several eye designs (EYE_STYLES).
-# The choice is kept in eye_style_<persona>.json so it survives a restart; with
-# none saved, the personality config's "eye_style" (else the module default) is
-# used. Bumping _eye_style_gen makes the render loop rebuild bezel and mask.
+# The pseudo-style "mood" makes the eye follow the disposition instead, using the
+# module's eye_style_for_mood(). The choice is kept in eye_style_<persona>.json so
+# it survives a restart; with none saved, the personality config's "eye_style"
+# (else the module default) is used. Bumping _eye_style_gen makes the render loop
+# rebuild bezel and mask.
+
+MOOD_EYE_STYLE = "mood"
+_MOOD_EYE_PHRASES = ("mood", "mood matched", "match mood", "match my mood", "match your mood")
 
 _eye_style_gen = 0
+_eye_follows_mood = False
+_mood_name = "DUTIFUL"
 
 
 def _eye_style_file():
     return config.data_path(f"eye_style_{_persona_key}.json")
 
 
+def _mood_eyes_available() -> bool:
+    return bool(_display_module and hasattr(_display_module, 'eye_style_for_mood'))
+
+
 def get_eye_styles() -> list[str]:
-    """Names of the eye styles this personality offers ([] if only one design)."""
-    return list(getattr(_display_module, 'EYE_STYLES', []))
+    """Names of the eye styles this personality offers ([] if only one design),
+    plus "mood" when it has eyes matched to dispositions."""
+    styles = list(getattr(_display_module, 'EYE_STYLES', []))
+    return styles + [MOOD_EYE_STYLE] if styles and _mood_eyes_available() else styles
 
 
 def get_eye_style() -> str | None:
+    if _eye_follows_mood:
+        return MOOD_EYE_STYLE
     if _display_module and hasattr(_display_module, 'get_eye_style'):
         return _display_module.get_eye_style()
     return None
 
 
 def eye_style_title(name: str) -> str:
+    if name == MOOD_EYE_STYLE:
+        return "Mood-Matched Ocular"
     if _display_module and hasattr(_display_module, 'eye_style_title'):
         return _display_module.eye_style_title(name)
     return name.replace("_", " ").title()
@@ -172,24 +189,52 @@ def eye_style_phrases() -> tuple[tuple[str, tuple[str, ...]], ...]:
     """(name, spoken phrases) for each eye style, for the voice-command matcher."""
     if not (_display_module and hasattr(_display_module, 'eye_style_phrases')):
         return ()
-    return tuple((n, _display_module.eye_style_phrases(n)) for n in get_eye_styles())
+    return tuple((n, _MOOD_EYE_PHRASES if n == MOOD_EYE_STYLE else _display_module.eye_style_phrases(n))
+                 for n in get_eye_styles())
 
 
-def set_eye_style(name: str, save: bool = True) -> bool:
-    """Switch the eye to style `name` (saved for the next boot); False if unknown."""
+def _show_eye_style(name: str) -> bool:
+    """Make the display module draw style `name`; bump the generation if it changed."""
     global _eye_style_gen
     if not (_display_module and hasattr(_display_module, 'set_eye_style')):
         return False
+    if name == get_eye_style_shown():
+        return True
     if not _display_module.set_eye_style(name):
         return False
     _eye_style_gen += 1
-    print(f"[display] Eye style: {name}")
+    _poke()
+    return True
+
+
+def get_eye_style_shown() -> str | None:
+    """The design actually on the eye (the mood's style while following the mood)."""
+    if _display_module and hasattr(_display_module, 'get_eye_style'):
+        return _display_module.get_eye_style()
+    return None
+
+
+def set_eye_style(name: str, save: bool = True) -> bool:
+    """Switch the eye to style `name`, or "mood" to follow the disposition (saved for
+    the next boot); False if unknown."""
+    global _eye_follows_mood
+    if name == MOOD_EYE_STYLE:
+        if not _mood_eyes_available():
+            return False
+        shown = _display_module.eye_style_for_mood(_mood_name)
+        if not (shown and _show_eye_style(shown)):
+            return False
+        _eye_follows_mood = True
+    else:
+        if not _show_eye_style(name):
+            return False
+        _eye_follows_mood = False
+    print(f"[display] Eye style: {name}" + (f" ({get_eye_style_shown()})" if _eye_follows_mood else ""))
     if save:
         try:
             config.atomic_write(_eye_style_file(), json.dumps({"style": name}))
         except Exception as e:
             print(f"[display] Could not save eye style ({e})")
-    _poke()
     return True
 
 
@@ -1758,10 +1803,15 @@ def set_amplitude(amp: float) -> None:
 
 def set_mood(mood: str) -> None:
     """Tint the iris to match Omega-7's current disposition (see core/mood.py)."""
-    global _mood_rgb
+    global _mood_rgb, _mood_name
+    _mood_name = (mood or "").upper() or _mood_name
+    if _eye_follows_mood:
+        shown = _display_module.eye_style_for_mood(_mood_name)
+        if shown and shown != get_eye_style_shown() and _show_eye_style(shown):
+            print(f"[display] Eye follows mood {_mood_name}: {shown}")
     if not _available:
         return
-    _mood_rgb = _MOOD_COLOURS.get((mood or "").upper(), (255, 40, 30))
+    _mood_rgb = _MOOD_COLOURS.get(_mood_name, (255, 40, 30))
 
 
 def think(active: bool = True) -> None:

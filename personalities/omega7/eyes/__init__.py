@@ -17,7 +17,11 @@ from __future__ import annotations
 
 import importlib
 
-_MODULES = ["auspex", "aperture", "noosphere", "augmetic", "cog"]
+_MODULES = [
+    "auspex", "aperture", "noosphere", "augmetic", "cog",
+    # one per mood (MOOD names the disposition each was drawn for)
+    "vigilant", "dutiful", "fervent", "suspicious", "contemplative", "melancholic",
+]
 
 DEFAULT = "cog"
 

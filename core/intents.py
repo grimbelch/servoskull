@@ -319,7 +319,7 @@ def voice_cache_refresh(text: str, ctx: Context) -> Intent | None:
 # printer" or "show me what your eye sees" stay with the model.
 _EYE_NOUN = re.compile(r"\b(?:eye|eyes|ocular|optic|optics)\b")
 _EYE_VERB = re.compile(r"\b(?:switch|change|swap|set|use|show|try|give|make|put|go|cycle|bring|load|wear|"
-                       r"activate|select|pick|style|styles|design|designs|look|pattern)\b")
+                       r"activate|select|pick|match|follow|style|styles|design|designs|look|pattern)\b")
 _EYE_LIST = re.compile(r"\b(?:what|which|list|name)\b.*\b(?:styles?|designs?|options|versions?|looks|kinds|types|patterns)\b")
 _EYE_NEXT = re.compile(r"\b(?:next|another|different|new)\b")
 _EYE_PREV = re.compile(r"\b(?:previous|prior|last)\b")
