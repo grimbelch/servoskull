@@ -23,8 +23,9 @@ word → Whisper → Claude with tools → ElevenLabs/Piper speech, plus a round
   (`cog` is the original), exposing `render_bezel()` and `render_frame(...)`;
   `personalities/omega7/display.py` delegates to the active one. The choice is
   switched by voice (`intents.eye_style`) and saved as `eye_style_<persona>.json`.
-  Mood eyes declare `MOOD`; the "mood" style (the default) swaps between them as
-  the disposition changes (`display.set_mood`).
+  Mood eyes declare `MOOD`. The "shuffle" style (the default) draws a new design
+  on every return from a screensaver and on each mood change: the mood's own eye
+  a third of the time, otherwise any other (`display.pick_eye_style`).
 - `games/` — tabletop engines and rules: `wfrp/` (WFRP 4e game-master engine and
   Foundry bridge), `bardstale/` (Apple IIe emulator agent), `netea/`, `netepic/`.
   Copyrighted rulebook text is built locally with `games/ingest_pdf.py` and

@@ -140,46 +140,63 @@ def get_screensaver_names() -> list[str]:
 
 # ── Eye styles ────────────────────────────────────────────────────────────────
 # A personality's display module may offer several eye designs (EYE_STYLES).
-# The pseudo-style "mood" makes the eye follow the disposition instead, using the
-# module's eye_style_for_mood(). The choice is kept in eye_style_<persona>.json so
-# it survives a restart; with none saved, the personality config's "eye_style"
-# (else the module default) is used. Bumping _eye_style_gen makes the render loop
-# rebuild bezel and mask.
+# The pseudo-style "shuffle" draws a new design each time the eye comes back from
+# a screensaver (or sleep) and whenever the disposition changes: the eye drawn for
+# the current mood (eye_style_for_mood) a third of the time, otherwise any other.
+# The choice is kept in eye_style_<persona>.json so it survives a restart; with
+# none saved, the personality config's "eye_style" (else the module default) is
+# used. Bumping _eye_style_gen makes the render loop rebuild bezel and mask.
 
-MOOD_EYE_STYLE = "mood"
-_MOOD_EYE_PHRASES = ("mood", "mood matched", "match mood", "match my mood", "match your mood")
+SHUFFLE_EYE_STYLE = "shuffle"
+MOOD_EYE_CHANCE = 1 / 3
+_SHUFFLE_PHRASES = ("shuffle", "shuffled", "random", "randomise", "randomize", "mood", "match your mood",
+                    "match my mood", "surprise me")
 
 _eye_style_gen = 0
-_eye_follows_mood = False
+_eye_shuffles = False
 _mood_name = "DUTIFUL"
+
+
+def pick_eye_style(styles: list[str], mood_style: str | None, current: str | None, rng=random) -> str:
+    """The next shuffled eye: the mood's own eye with MOOD_EYE_CHANCE, otherwise a
+    random other design. Never the one already showing (when there is a choice), so
+    every shuffle visibly changes the eye."""
+    if mood_style in styles and mood_style != current and rng.random() < MOOD_EYE_CHANCE:
+        return mood_style
+    others = [s for s in styles if s not in (mood_style, current)] or [s for s in styles if s != mood_style] or styles
+    return rng.choice(others)
 
 
 def _eye_style_file():
     return config.data_path(f"eye_style_{_persona_key}.json")
 
 
-def _mood_eyes_available() -> bool:
-    return bool(_display_module and hasattr(_display_module, 'eye_style_for_mood'))
+def _designs() -> list[str]:
+    return list(getattr(_display_module, 'EYE_STYLES', []))
 
 
 def get_eye_styles() -> list[str]:
     """Names of the eye styles this personality offers ([] if only one design),
-    plus "mood" when it has eyes matched to dispositions."""
-    styles = list(getattr(_display_module, 'EYE_STYLES', []))
-    return styles + [MOOD_EYE_STYLE] if styles and _mood_eyes_available() else styles
+    plus "shuffle" when there is more than one."""
+    styles = _designs()
+    return styles + [SHUFFLE_EYE_STYLE] if len(styles) > 1 else styles
 
 
 def get_eye_style() -> str | None:
-    if _eye_follows_mood:
-        return MOOD_EYE_STYLE
+    """The chosen style ("shuffle" while shuffling)."""
+    return SHUFFLE_EYE_STYLE if _eye_shuffles else get_eye_style_shown()
+
+
+def get_eye_style_shown() -> str | None:
+    """The design actually on the eye."""
     if _display_module and hasattr(_display_module, 'get_eye_style'):
         return _display_module.get_eye_style()
     return None
 
 
 def eye_style_title(name: str) -> str:
-    if name == MOOD_EYE_STYLE:
-        return "Mood-Matched Ocular"
+    if name == SHUFFLE_EYE_STYLE:
+        return "Shuffled Ocular"
     if _display_module and hasattr(_display_module, 'eye_style_title'):
         return _display_module.eye_style_title(name)
     return name.replace("_", " ").title()
@@ -189,12 +206,12 @@ def eye_style_phrases() -> tuple[tuple[str, tuple[str, ...]], ...]:
     """(name, spoken phrases) for each eye style, for the voice-command matcher."""
     if not (_display_module and hasattr(_display_module, 'eye_style_phrases')):
         return ()
-    return tuple((n, _MOOD_EYE_PHRASES if n == MOOD_EYE_STYLE else _display_module.eye_style_phrases(n))
+    return tuple((n, _SHUFFLE_PHRASES if n == SHUFFLE_EYE_STYLE else _display_module.eye_style_phrases(n))
                  for n in get_eye_styles())
 
 
 def _show_eye_style(name: str) -> bool:
-    """Make the display module draw style `name`; bump the generation if it changed."""
+    """Make the display module draw design `name`; bump the generation if it changed."""
     global _eye_style_gen
     if not (_display_module and hasattr(_display_module, 'set_eye_style')):
         return False
@@ -207,29 +224,32 @@ def _show_eye_style(name: str) -> bool:
     return True
 
 
-def get_eye_style_shown() -> str | None:
-    """The design actually on the eye (the mood's style while following the mood)."""
-    if _display_module and hasattr(_display_module, 'get_eye_style'):
-        return _display_module.get_eye_style()
-    return None
+def _shuffle_eye(reason: str) -> None:
+    """Draw a new design for the shuffled eye."""
+    if not _eye_shuffles:
+        return
+    mood_style = None
+    if hasattr(_display_module, 'eye_style_for_mood'):
+        mood_style = _display_module.eye_style_for_mood(_mood_name)
+    name = pick_eye_style(_designs(), mood_style, get_eye_style_shown())
+    if _show_eye_style(name):
+        print(f"[display] Eye shuffled ({reason}): {name}")
 
 
 def set_eye_style(name: str, save: bool = True) -> bool:
-    """Switch the eye to style `name`, or "mood" to follow the disposition (saved for
-    the next boot); False if unknown."""
-    global _eye_follows_mood
-    if name == MOOD_EYE_STYLE:
-        if not _mood_eyes_available():
+    """Switch the eye to design `name`, or "shuffle" (saved for the next boot);
+    False if unknown."""
+    global _eye_shuffles
+    if name == SHUFFLE_EYE_STYLE:
+        if SHUFFLE_EYE_STYLE not in get_eye_styles():
             return False
-        shown = _display_module.eye_style_for_mood(_mood_name)
-        if not (shown and _show_eye_style(shown)):
-            return False
-        _eye_follows_mood = True
+        _eye_shuffles = True
+        _shuffle_eye("chosen")
     else:
         if not _show_eye_style(name):
             return False
-        _eye_follows_mood = False
-    print(f"[display] Eye style: {name}" + (f" ({get_eye_style_shown()})" if _eye_follows_mood else ""))
+        _eye_shuffles = False
+        print(f"[display] Eye style: {name}")
     if save:
         try:
             config.atomic_write(_eye_style_file(), json.dumps({"style": name}))
@@ -1274,6 +1294,7 @@ def _render_loop():
     bezel = _make_bezel()
     mask = _make_iris_mask()
     eye_gen = _eye_style_gen
+    away = False          # True while a screensaver or sleep has the panel; the eye reshuffles on return
     shown = -1.0          # last amplitude actually drawn
     angle = 0.0           # current cog rotation (degrees), advanced while thinking
     t0 = time.monotonic()
@@ -1359,6 +1380,7 @@ def _render_loop():
                 and _in_sleep_hours(now)):
             if not _panel_asleep:
                 _panel_sleep()
+            away = True
             _wake_event.wait(5.0)
             continue
         if _panel_asleep:
@@ -1401,6 +1423,7 @@ def _render_loop():
                             _active_idle_anim = None
                     last_picked_anim = _active_idle_anim
 
+                away = True
                 try:
                     if _active_idle_anim and _screensavers:
                         _blit(_screensavers.render_screensaver_frame(_active_idle_anim, bezel, mask, now))
@@ -1589,6 +1612,9 @@ def _render_loop():
                 next_blink = now + random.uniform(*_BLINK_GAP)
             else:
                 blink = math.sin(math.pi * p)  # 0 at edges, fully closed mid-blink
+        if away:  # back from a screensaver or sleep
+            away = False
+            _shuffle_eye("back from screensaver")
         if eye_gen != _eye_style_gen:  # the eye style was switched: new bezel and aperture
             eye_gen = _eye_style_gen
             bezel = _make_bezel()
@@ -1804,11 +1830,10 @@ def set_amplitude(amp: float) -> None:
 def set_mood(mood: str) -> None:
     """Tint the iris to match Omega-7's current disposition (see core/mood.py)."""
     global _mood_rgb, _mood_name
-    _mood_name = (mood or "").upper() or _mood_name
-    if _eye_follows_mood:
-        shown = _display_module.eye_style_for_mood(_mood_name)
-        if shown and shown != get_eye_style_shown() and _show_eye_style(shown):
-            print(f"[display] Eye follows mood {_mood_name}: {shown}")
+    new_mood = (mood or "").upper() or _mood_name
+    if new_mood != _mood_name:
+        _mood_name = new_mood
+        _shuffle_eye(f"mood {new_mood}")
     if not _available:
         return
     _mood_rgb = _MOOD_COLOURS.get(_mood_name, (255, 40, 30))

@@ -36,32 +36,57 @@ def display(monkeypatch, tmp_path):
     from core import config, display
     monkeypatch.setattr(config, "data_path", lambda n: tmp_path / n)
     monkeypatch.setattr(display, "_display_module", omega_display)
-    monkeypatch.setattr(display, "_eye_follows_mood", False)
+    monkeypatch.setattr(display, "_eye_shuffles", False)
+    monkeypatch.setattr(display, "_mood_name", "DUTIFUL")
     yield display
     omega_display.set_eye_style(eyes.DEFAULT)
 
 
-def test_mood_eye_follows_the_disposition_and_is_remembered(display):
-    display.set_mood("CONTEMPLATIVE")
-    assert display.set_eye_style("mood")
-    assert display.get_eye_style() == "mood"
-    assert display.get_eye_style_shown() == "contemplative"
-    display.set_mood("SUSPICIOUS")
-    assert display.get_eye_style_shown() == "suspicious"
+def test_shuffle_picks_the_mood_eye_a_third_of_the_time_and_never_repeats():
+    import random
+    from core.display import pick_eye_style
+    styles = list(eyes.STYLES)
+    rng = random.Random(1)
+    picks = [pick_eye_style(styles, "suspicious", "auspex", rng) for _ in range(6000)]
+    assert 0.30 < picks.count("suspicious") / len(picks) < 0.37
+    assert "auspex" not in picks                       # the eye already showing is never redrawn
+    others = set(styles) - {"suspicious", "auspex"}
+    assert set(picks) == others | {"suspicious"}       # every other design turns up
+    assert pick_eye_style(["cog"], None, "cog", rng) == "cog"
+    # already wearing the mood's eye: the shuffle still changes it
+    assert all(pick_eye_style(styles, "suspicious", "suspicious", rng) != "suspicious" for _ in range(200))
 
-    assert display.set_eye_style("auspex")         # a chosen style stops following
-    display.set_mood("FERVENT")
-    assert display.get_eye_style_shown() == "auspex"
 
-    display.set_eye_style("mood")
-    display._eye_follows_mood = False               # as after a restart
+def test_shuffle_redraws_on_mood_change_and_is_remembered(display):
+    assert display.set_eye_style("shuffle")
+    assert display.get_eye_style() == "shuffle"
+    seen = {display.get_eye_style_shown()}
+    for mood in ("SUSPICIOUS", "FERVENT", "MELANCHOLIC", "VIGILANT", "CONTEMPLATIVE", "DUTIFUL") * 3:
+        before = display.get_eye_style_shown()
+        display.set_mood(mood)
+        assert display.get_eye_style_shown() != before   # each new mood brings a new design
+        seen.add(display.get_eye_style_shown())
+    assert len(seen) > 3
+
+    before = display.get_eye_style_shown()
+    display.set_mood("DUTIFUL")                          # same mood again: no redraw
+    assert display.get_eye_style_shown() == before
+
+    display._eye_shuffles = False                        # as after a restart
     display._restore_eye_style()
-    assert display.get_eye_style() == "mood" and display.get_eye_style_shown() == "fervent"
+    assert display.get_eye_style() == "shuffle"
+
+
+def test_a_chosen_style_stays_put(display):
+    assert display.set_eye_style("auspex")
+    display.set_mood("FERVENT")
+    display._shuffle_eye("back from screensaver")
+    assert display.get_eye_style() == display.get_eye_style_shown() == "auspex"
 
 
 def test_unknown_style_is_refused_and_cycle_wraps(display):
     assert not display.set_eye_style("no_such_eye")
     styles = display.get_eye_styles()
-    assert styles[-1] == "mood"
+    assert styles[-1] == "shuffle"
     display.set_eye_style(styles[-1])
     assert display.cycle_eye_style(1) == styles[0]

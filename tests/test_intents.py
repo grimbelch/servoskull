@@ -185,7 +185,7 @@ _EYES = Context(eye_styles=(
     ("auspex", ("auspex lens", "targeting", "scanner", "reticle", "auspex", "radar")),
     ("noosphere", ("noosphere cog", "data cog", "noosphere", "binharic", "cog iris")),
     ("cog", ("mechanicus cog", "original", "classic", "gear", "cog", "old")),
-    ("mood", ("match your mood", "match my mood", "mood matched", "match mood", "mood")),
+    ("shuffle", ("match your mood", "surprise me", "randomize", "shuffle", "random", "mood")),
 ))
 
 
@@ -195,8 +195,9 @@ def test_eye_style_by_name():
     assert intents.eye_style("change your ocular to the noosphere cog", _EYES).args == {"action": "set", "name": "noosphere"}
     assert intents.eye_style("bring back the old eye", _EYES).args == {"action": "set", "name": "cog"}
     assert intents.eye_style("eye style classic", _EYES).args == {"action": "set", "name": "cog"}
-    assert intents.eye_style("make your eye match your mood", _EYES).args == {"action": "set", "name": "mood"}
-    assert intents.eye_style("switch to mood eyes", _EYES).args == {"action": "set", "name": "mood"}
+    assert intents.eye_style("make your eye match your mood", _EYES).args == {"action": "set", "name": "shuffle"}
+    assert intents.eye_style("shuffle your eyes", _EYES).args == {"action": "set", "name": "shuffle"}
+    assert intents.eye_style("use a random eye", _EYES).args == {"action": "set", "name": "shuffle"}
 
 
 def test_eye_style_cycle_and_list():

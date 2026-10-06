@@ -3,8 +3,7 @@
 The lids narrow to a lopsided slit, lower on one side, like a sceptical squint.
 Behind them a small iris with a vertical slit pupil throws long sidelong
 glances. Warp static speckles the dark, rows of the image tear sideways now
-and then, and an anomaly reading creeps up and down on the rim with the odd
-'?' blip.
+and then, and an anomaly reading creeps up and down on the rim.
 """
 
 from __future__ import annotations
@@ -16,7 +15,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from ..classic._phosphor import AMBER, GREEN_DIM, GREEN_FAINT, GREEN_MID
-from ._common import CX, CY, Phosphor, arc_ring, composed_bezel, font, lids, polar, scale
+from ._common import CX, CY, Phosphor, arc_ring, composed_bezel, font, lids, scale
 
 NAME = "suspicious"
 TITLE = "Narrowed Augur"
@@ -27,7 +26,7 @@ APERTURE_R = 88
 _ph = Phosphor(decay=0.35, bloom=0.5, flicker=0.06)
 _rng = random.Random()
 _np_rng = np.random.default_rng()
-_state = {"anomaly": 0.31, "blip": None, "blip_until": 0.0, "tear_until": 0.0, "tear_rows": (0, 0), "tear_dx": 0}
+_state = {"anomaly": 0.31, "tear_until": 0.0, "tear_rows": (0, 0), "tear_dx": 0}
 
 
 def _static() -> Image.Image:
@@ -72,20 +71,11 @@ def render_frame(bezel, mask, amp: float, angle: float, blink: float, look_x: fl
     sw = 3 + 3 * amp  # vertical slit pupil
     d.ellipse([cx - sw, cy - r * 0.85, cx + sw, cy + r * 0.85], fill=(0, 0, 0))
 
-    # Anomaly reading drifts; now and then a '?' blip appears somewhere in the eye.
-    st["anomaly"] = min(0.99, max(0.05, st["anomaly"] + _rng.uniform(-0.01, 0.012) + angle * 0.0))
+    # Anomaly reading drifts.
+    st["anomaly"] = min(0.99, max(0.05, st["anomaly"] + _rng.uniform(-0.01, 0.012)))
     f = font(9)
     label = f"ANOMALY {st['anomaly']:.2f}"
     d.text((CX - d.textlength(label, font=f) / 2, CY + 46), label, fill=AMBER if st["anomaly"] > 0.6 else GREEN_MID, font=f)
-    if st["blip"] is None and _rng.random() < 0.02:
-        st["blip"] = polar(_rng.uniform(40, 70), _rng.choice((-15, 0, 15, 165, 180, 195)))
-        st["blip_until"] = now + 0.8
-    if st["blip"] is not None:
-        if now > st["blip_until"]:
-            st["blip"] = None
-        else:
-            bx, by = st["blip"]
-            d.text((bx - 3, by - 6), "?", fill=AMBER, font=font(12))
 
     out = _ph.compose(img)
 
