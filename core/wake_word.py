@@ -1,6 +1,7 @@
 from __future__ import annotations
 import queue
 import threading
+import time
 from math import gcd
 
 import numpy as np
@@ -54,6 +55,17 @@ def _to_target(audio: np.ndarray, native: int) -> np.ndarray:
 _ww_consecutive_failures = 0
 _DEVICE_UNAVAILABLE_ERR = -9985  # PaErrorCode: paDeviceUnavailable
 
+# A healthy stream delivers a chunk every 80 ms. If none arrives for this long
+# (PipeWire restarted, USB mic dropped: PortAudio often just stops calling back
+# without raising), the stream is treated as dead and reopened. The watchdog is
+# only fed when audio actually arrives, so a mic that stays dead stops the
+# pings and systemd restarts the service.
+MIC_STALL_SECS = 3.0
+
+
+class MicStalled(RuntimeError):
+    """The input stream stopped delivering audio."""
+
 
 def wait_for_wake_word(on_detected=None, cancel=None) -> bool:
     """Block until the wake word is detected or cancel is set.
@@ -76,16 +88,21 @@ def wait_for_wake_word(on_detected=None, cancel=None) -> bool:
     print(f"[skull] Listening for wake word ({WAKE_WORD_MODEL}) at {native}Hz...")
     try:
         with sd.InputStream(samplerate=native, channels=1, dtype="int16",
-                            blocksize=native_chunk, device=dev, callback=_cb):
+                            blocksize=native_chunk, device=dev, callback=_cb) as stream:
             _ww_consecutive_failures = 0  # device opened successfully — reset counter
+            last_audio = time.monotonic()
             while True:
-                watchdog.beat()  # idle listening is healthy; a dead mic stream is not
                 if cancel and cancel.is_set():
                     return False
                 try:
                     raw = q.get(timeout=0.1)
                 except queue.Empty:
+                    silent_for = time.monotonic() - last_audio
+                    if silent_for > MIC_STALL_SECS or not stream.active:
+                        raise MicStalled(f"no audio from the microphone for {silent_for:.1f}s")
                     continue
+                last_audio = time.monotonic()
+                watchdog.beat()  # audio is arriving: the mic stream is alive
                 audio = _to_target(raw.flatten(), native)
                 rms = float(np.sqrt(np.mean(audio.astype(np.float32) ** 2)))
                 predictions = oww.predict(audio)
@@ -103,7 +120,6 @@ def wait_for_wake_word(on_detected=None, cancel=None) -> bool:
                     return True
 
     except Exception as e:
-        import time
         _ww_consecutive_failures += 1
         # Back off exponentially (capped at 30s) when the device is unavailable,
         # e.g. during the PipeWire startup race on boot. This prevents the tight
