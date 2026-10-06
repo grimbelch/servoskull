@@ -259,10 +259,14 @@ def set_eye_style(name: str, save: bool = True) -> bool:
 
 
 def cycle_eye_style(step: int = 1) -> str | None:
-    """Switch to the next (or previous, step=-1) eye style; returns its name."""
+    """Switch to the next (or previous, step=-1) eye style; returns its name. While
+    shuffling, "next eye" just draws a new design and keeps shuffling."""
     styles = get_eye_styles()
     if not styles:
         return None
+    if _eye_shuffles:
+        _shuffle_eye("next eye")
+        return get_eye_style_shown()
     current = get_eye_style()
     i = styles.index(current) if current in styles else -step
     name = styles[(i + step) % len(styles)]

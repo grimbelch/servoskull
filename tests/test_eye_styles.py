@@ -88,5 +88,16 @@ def test_unknown_style_is_refused_and_cycle_wraps(display):
     assert not display.set_eye_style("no_such_eye")
     styles = display.get_eye_styles()
     assert styles[-1] == "shuffle"
-    display.set_eye_style(styles[-1])
-    assert display.cycle_eye_style(1) == styles[0]
+    display.set_eye_style(styles[-2])
+    assert display.cycle_eye_style(1) == "shuffle"
+    display.set_eye_style(styles[0])
+    assert display.cycle_eye_style(-1) == "shuffle"
+
+
+def test_next_eye_while_shuffling_draws_a_new_design_and_keeps_shuffling(display):
+    display.set_eye_style("shuffle")
+    for _ in range(10):
+        before = display.get_eye_style_shown()
+        shown = display.cycle_eye_style(1)
+        assert shown == display.get_eye_style_shown() != before
+        assert display.get_eye_style() == "shuffle"
