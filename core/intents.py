@@ -27,6 +27,7 @@ class Context:
     game_running: bool = False          # Bard's Tale is being played
     awaiting_briefing: bool = False     # the skull just offered the morning briefing
     pending_maintenance: bool = False   # the skull just asked "confirm …? Speak yes"
+    eye_styles: tuple[tuple[str, tuple[str, ...]], ...] = ()  # (style, spoken names) per eye design
 
 
 @dataclass(frozen=True)
@@ -311,6 +312,42 @@ _REFRESH_RE = re.compile(r"\b(?:refresh|reload|clear|rebuild|regenerate|update|p
 
 def voice_cache_refresh(text: str, ctx: Context) -> Intent | None:
     return Intent("voice_cache_refresh") if _REFRESH_RE.search(text) else None
+
+
+# Needs an eye word plus a style name, a cycle word or a style question, and (apart
+# from a bare "next eye") a switching verb or "style"/"design": "keep an eye on the
+# printer" or "show me what your eye sees" stay with the model.
+_EYE_NOUN = re.compile(r"\b(?:eye|eyes|ocular|optic|optics)\b")
+_EYE_VERB = re.compile(r"\b(?:switch|change|swap|set|use|show|try|give|make|put|go|cycle|bring|load|wear|"
+                       r"activate|select|pick|style|styles|design|designs|look|pattern)\b")
+_EYE_LIST = re.compile(r"\b(?:what|which|list|name)\b.*\b(?:styles?|designs?|options|versions?|looks|kinds|types|patterns)\b")
+_EYE_NEXT = re.compile(r"\b(?:next|another|different|new)\b")
+_EYE_PREV = re.compile(r"\b(?:previous|prior|last)\b")
+_EYE_BARE = re.compile(r"(?:next|previous) (?:eye|ocular|optic)(?: style| design)?")
+
+
+def eye_style(text: str, ctx: Context) -> Intent | None:
+    if not ctx.eye_styles:
+        return None
+    t = normalize(text)
+    if not _EYE_NOUN.search(t):
+        return None
+    if _EYE_LIST.search(t):
+        return Intent("eye_style", {"action": "list"})
+    if not (_EYE_VERB.search(t) or _EYE_BARE.fullmatch(t)):
+        return None
+    best = None  # longest spoken name wins: "noosphere cog" over "cog"
+    for name, phrases in ctx.eye_styles:
+        for p in phrases:
+            if re.search(rf"\b{re.escape(p)}\b", t) and (best is None or len(p) > best[1]):
+                best = (name, len(p))
+    if best:
+        return Intent("eye_style", {"action": "set", "name": best[0]})
+    if _EYE_PREV.search(t):
+        return Intent("eye_style", {"action": "cycle", "step": -1})
+    if _EYE_NEXT.search(t):
+        return Intent("eye_style", {"action": "cycle", "step": 1})
+    return None
 
 
 # Unambiguous phrases match on their own (they name a backend or contain "voice").

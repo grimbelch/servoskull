@@ -177,3 +177,35 @@ def test_idle_observation_is_the_whole_request():
     assert kind("tell me something about the horus heresy", matcher=intents.idle_observation) is None
     assert kind("what's happening in the news today", matcher=intents.idle_observation) is None
     assert kind("give me a status update on the print", matcher=intents.idle_observation) is None
+
+
+# ── eye style ─────────────────────────────────────────────────────────────────
+
+_EYES = Context(eye_styles=(
+    ("auspex", ("auspex lens", "targeting", "scanner", "reticle", "auspex", "radar")),
+    ("noosphere", ("noosphere cog", "data cog", "noosphere", "binharic", "cog iris")),
+    ("cog", ("mechanicus cog", "original", "classic", "gear", "cog", "old")),
+))
+
+
+def test_eye_style_by_name():
+    assert intents.eye_style("switch your eye to the auspex", _EYES).args == {"action": "set", "name": "auspex"}
+    assert intents.eye_style("Omega 7, use the radar eye", _EYES).args == {"action": "set", "name": "auspex"}
+    assert intents.eye_style("change your ocular to the noosphere cog", _EYES).args == {"action": "set", "name": "noosphere"}
+    assert intents.eye_style("bring back the old eye", _EYES).args == {"action": "set", "name": "cog"}
+    assert intents.eye_style("eye style classic", _EYES).args == {"action": "set", "name": "cog"}
+
+
+def test_eye_style_cycle_and_list():
+    assert intents.eye_style("next eye", _EYES).args == {"action": "cycle", "step": 1}
+    assert intents.eye_style("give me a different eye", _EYES).args == {"action": "cycle", "step": 1}
+    assert intents.eye_style("go back to the previous eye style", _EYES).args == {"action": "cycle", "step": -1}
+    assert intents.eye_style("what eye styles do you have", _EYES).args == {"action": "list"}
+
+
+def test_eye_style_leaves_other_eye_talk_alone():
+    assert intents.eye_style("keep an eye on the printer", _EYES) is None
+    assert intents.eye_style("show me what your eye sees", _EYES) is None
+    assert intents.eye_style("rotate your eye 10 degrees", _EYES) is None
+    assert intents.eye_style("run the auspex scan", _EYES) is None   # no eye word
+    assert intents.eye_style("switch your eye to auspex", Context()) is None  # personality has one eye

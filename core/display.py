@@ -12,6 +12,7 @@ Enable with DISPLAY_ENABLED=true in .env. Wiring lives in config.py.
 """
 
 from __future__ import annotations
+import json
 import math
 import random
 import threading
@@ -135,6 +136,89 @@ _MADCTL_BY_ROT = {0: 0x08, 90: 0x68, 180: 0xC8, 270: 0xA8}
 def get_screensaver_names() -> list[str]:
     """Return the authoritative list of available screensaver animation names."""
     return _screensavers.get_screensaver_names() if _screensavers else []
+
+
+# ── Eye styles ────────────────────────────────────────────────────────────────
+# A personality's display module may offer several eye designs (EYE_STYLES).
+# The choice is kept in eye_style_<persona>.json so it survives a restart; with
+# none saved, the personality config's "eye_style" (else the module default) is
+# used. Bumping _eye_style_gen makes the render loop rebuild bezel and mask.
+
+_eye_style_gen = 0
+
+
+def _eye_style_file():
+    return config.data_path(f"eye_style_{_persona_key}.json")
+
+
+def get_eye_styles() -> list[str]:
+    """Names of the eye styles this personality offers ([] if only one design)."""
+    return list(getattr(_display_module, 'EYE_STYLES', []))
+
+
+def get_eye_style() -> str | None:
+    if _display_module and hasattr(_display_module, 'get_eye_style'):
+        return _display_module.get_eye_style()
+    return None
+
+
+def eye_style_title(name: str) -> str:
+    if _display_module and hasattr(_display_module, 'eye_style_title'):
+        return _display_module.eye_style_title(name)
+    return name.replace("_", " ").title()
+
+
+def eye_style_phrases() -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """(name, spoken phrases) for each eye style, for the voice-command matcher."""
+    if not (_display_module and hasattr(_display_module, 'eye_style_phrases')):
+        return ()
+    return tuple((n, _display_module.eye_style_phrases(n)) for n in get_eye_styles())
+
+
+def set_eye_style(name: str, save: bool = True) -> bool:
+    """Switch the eye to style `name` (saved for the next boot); False if unknown."""
+    global _eye_style_gen
+    if not (_display_module and hasattr(_display_module, 'set_eye_style')):
+        return False
+    if not _display_module.set_eye_style(name):
+        return False
+    _eye_style_gen += 1
+    print(f"[display] Eye style: {name}")
+    if save:
+        try:
+            config.atomic_write(_eye_style_file(), json.dumps({"style": name}))
+        except Exception as e:
+            print(f"[display] Could not save eye style ({e})")
+    _poke()
+    return True
+
+
+def cycle_eye_style(step: int = 1) -> str | None:
+    """Switch to the next (or previous, step=-1) eye style; returns its name."""
+    styles = get_eye_styles()
+    if not styles:
+        return None
+    current = get_eye_style()
+    i = styles.index(current) if current in styles else -step
+    name = styles[(i + step) % len(styles)]
+    return name if set_eye_style(name) else None
+
+
+def _restore_eye_style() -> None:
+    styles = get_eye_styles()
+    if not styles:
+        return
+    name = None
+    try:
+        name = json.loads(_eye_style_file().read_text()).get("style")
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        print(f"[display] Ignoring unreadable eye style file ({e})")
+    if name not in styles:
+        name = config.PERSONALITY.get("eye_style")
+    if name in styles:
+        set_eye_style(name, save=False)
 
 
 # Mood -> base iris colour. Names match core/mood.py dispositions; unknown moods
@@ -434,9 +518,12 @@ def _scale(rgb, k: float):
 def _make_iris_mask():
     """White disc over the cog's central aperture. The iris is composited through
     this mask so its glow never paints over the surrounding gear teeth."""
+    r = _EYE_R
+    if _display_module and hasattr(_display_module, 'aperture_radius'):
+        r = _display_module.aperture_radius()
     m = Image.new("L", (W, H), 0)
     ImageDraw.Draw(m).ellipse(
-        [_CX - _EYE_R, _CY - _EYE_R, _CX + _EYE_R, _CY + _EYE_R], fill=255)
+        [_CX - r, _CY - r, _CX + r, _CY + r], fill=255)
     return m
 
 
@@ -1141,6 +1228,7 @@ def _render_loop():
     global _last_activity_time, _active_idle_anim, _custom_idle_expiry, _requested_idle_anim
     bezel = _make_bezel()
     mask = _make_iris_mask()
+    eye_gen = _eye_style_gen
     shown = -1.0          # last amplitude actually drawn
     angle = 0.0           # current cog rotation (degrees), advanced while thinking
     t0 = time.monotonic()
@@ -1456,6 +1544,10 @@ def _render_loop():
                 next_blink = now + random.uniform(*_BLINK_GAP)
             else:
                 blink = math.sin(math.pi * p)  # 0 at edges, fully closed mid-blink
+        if eye_gen != _eye_style_gen:  # the eye style was switched: new bezel and aperture
+            eye_gen = _eye_style_gen
+            bezel = _make_bezel()
+            mask = _make_iris_mask()
         try:
             _blit(_render_frame(bezel, mask, max(0.0, min(1.0, shown)), angle, blink, look_x, look_y))
         except Exception as e:
@@ -1647,6 +1739,7 @@ def setup() -> None:
         print(f"[display] Hardware init failed ({e}); running virtual render loop for web remote.")
         _available = False
 
+    _restore_eye_style()
     _stop.clear()
     _render_thread = threading.Thread(target=_loop, daemon=True)
     _render_thread.start()

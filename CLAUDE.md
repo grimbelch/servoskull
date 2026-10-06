@@ -19,6 +19,10 @@ word → Whisper → Claude with tools → ElevenLabs/Piper speech, plus a round
   `_common.py`); each exposes `NAME` and `render(bezel, mask, now)` for the
   240×240 round panel at 30 FPS. Register new ones in the package `__init__.py`
   `_MODULES` list and update the counts in README.md.
+- Omega-7's eye designs are one module each in `personalities/omega7/eyes/`
+  (`cog` is the original), exposing `render_bezel()` and `render_frame(...)`;
+  `personalities/omega7/display.py` delegates to the active one. The choice is
+  switched by voice (`intents.eye_style`) and saved as `eye_style_<persona>.json`.
 - `games/` — tabletop engines and rules: `wfrp/` (WFRP 4e game-master engine and
   Foundry bridge), `bardstale/` (Apple IIe emulator agent), `netea/`, `netepic/`.
   Copyrighted rulebook text is built locally with `games/ingest_pdf.py` and

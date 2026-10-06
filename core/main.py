@@ -1109,6 +1109,23 @@ def _h_screensaver(intent, turn: _Turn) -> bool:
     return True
 
 
+def _h_eye_style(intent, turn: _Turn) -> bool:
+    a = intent.args
+    if a["action"] == "list":
+        titles = [display.eye_style_title(n) for n in display.get_eye_styles()]
+        current = display.get_eye_style()
+        reply = f"My ocular patterns are: {', '.join(titles)}."
+        if current:
+            reply += f" The {display.eye_style_title(current)} is engaged."
+    else:
+        name = display.cycle_eye_style(a["step"]) if a["action"] == "cycle" else (
+            a["name"] if display.set_eye_style(a["name"]) else None)
+        reply = (f"Ocular reconfigured. {display.eye_style_title(name)} engaged." if name
+                 else "That ocular pattern is unknown to this unit.")
+    _say(turn, reply)
+    return True
+
+
 def _h_bards_tale(intent, turn: _Turn) -> bool:
     from games.bardstale import agent as bt
     if intent.args["action"] == "start":
@@ -1289,6 +1306,7 @@ _LOCAL_INTENTS = (
     (intents.maintenance_reply, _h_maintenance_reply),
     (intents.briefing, _h_briefing),
     (intents.screensaver, _h_screensaver),
+    (intents.eye_style, _h_eye_style),
     (intents.bards_tale, _h_bards_tale),
     (intents.conversation_reset, _h_conversation_reset),
     (intents.spotify_control, _h_spotify_control),
@@ -1315,6 +1333,7 @@ def _run_local_intents(turn: _Turn) -> bool:
         game_running=bt.is_running(),
         awaiting_briefing=turn.briefing_awaiting,
         pending_maintenance=turn.pending_maintenance is not None,
+        eye_styles=display.eye_style_phrases(),
     )
     for matcher, handler in _LOCAL_INTENTS:
         intent = matcher(turn.text, ctx)
