@@ -1348,13 +1348,6 @@ def _run_local_intents(turn: _Turn) -> bool:
 
 # ── Unprompted speech ────────────────────────────────────────────────────────
 
-def _announce_reminder(rem: dict) -> None:
-    """A due reminder; it nags every 10 s until acknowledged."""
-    print(f"[skull] Reminder due: {rem['message']}")
-    announcements.announce(rem["message"], priority=announcements.REMINDER, source="reminder", ping="wake_ping",
-                           then=lambda m=rem["message"]: reminders.add(m, 10, repeating=True))
-
-
 def _deliver(ann: announcements.Announcement, on_wake) -> bool:
     """Speak one queued announcement. Returns True if the wake word interrupted it,
     in which case the ducking and speech-active state are left as on_wake() set them
@@ -1555,7 +1548,7 @@ def main():
             # observations all arrive through the announcements queue (from their own
             # threads) and are spoken here, in priority order, never during a turn.
             for _rem in reminders.get_due():
-                _announce_reminder(_rem)
+                reminders.announce_due(_rem)
             for _ann in announcements.drain():
                 if _deliver(_ann, on_wake):
                     skip_wake_word = True
@@ -1657,7 +1650,7 @@ def main():
                                 _idle_cancel.set()
                                 return
                             for _rem in reminders.get_due():
-                                _announce_reminder(_rem)
+                                reminders.announce_due(_rem)
                             if announcements.pending():
                                 _idle_cancel.set()
                                 return

@@ -9,7 +9,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta
 
-from core import db
+from core import announcements, db
 
 # ── Public API ─────────────────────────────────────────────────────────────────
 
@@ -42,6 +42,19 @@ def get_due() -> list[dict]:
     """Pop and return all reminders whose fire_at has passed."""
     now = datetime.now().isoformat()
     return db.get_due_reminders(now)
+
+
+def announce_due(rem: dict) -> announcements.Announcement:
+    """Queue a due reminder to be spoken; it nags every 10 s until acknowledged.
+
+    Reminders speak even in silent mode and during sleep hours: get_due() has
+    already removed them from the database, so dropping one would lose it for good,
+    and a reminder the owner set for 06:30 is meant to be heard at 06:30.
+    """
+    print(f"[skull] Reminder due: {rem['message']}")
+    return announcements.announce(rem["message"], priority=announcements.REMINDER, source="reminder",
+                                  ping="wake_ping", bypass_silent=True,
+                                  then=lambda m=rem["message"]: add(m, 10, repeating=True))
 
 
 def format_remaining(fire_at_iso: str) -> str:
