@@ -28,7 +28,7 @@ Simply speak the wake phrase — **"Servitor"** — and it wakes, ignites its to
 | :--- | :--- |
 | **🗣️ In-Character Voice AI** | Wakes to *"Servitor"*, processing queries with Anthropic Claude and speaking aloud via local Piper or ElevenLabs text-to-speech. Formal, archaic, and devoted to the Emperor. |
 | **👁️ Computer Vision & Biometrics** | Arducam IMX708 autofocus camera for scene description (*"What do you see?"*), SFace facial recognition, and GMM voice profile identification. |
-| **💡 Physical Eye HUD & Candle LEDs** | GC9A01 1.28" circular IPS panel "machine-spirit eye" with 6 dynamic HUD animation states, 49 screensavers, and **Live Visual UP Alignment Mode (`▲`)** for precision rotation. Transistor-switched flame LEDs ignite on wake and extinguish on sleep. |
+| **💡 Physical Eye HUD & Candle LEDs** | GC9A01 1.28" circular IPS panel "machine-spirit eye" with 6 dynamic HUD animation states, 48 screensavers, and **Live Visual UP Alignment Mode (`▲`)** for precision rotation. Transistor-switched flame LEDs ignite on wake and extinguish on sleep. |
 | **📖 Offline Tabletop Rules Engine** | Instant lookup for **Warhammer 40,000 (11th ed.)**, **Necromunda**, **NetEpic**, and **Net Epic Armageddon** datasheets, stratagems, weapon traits, skills, and points. |
 | **🎲 Tabletop Dice Simulator** | Intercepts dice requests (standard, firepower, injury, scatter, order, save) with sound effects and projects vector-drawn alphanumeric outcomes directly onto the eye HUD. |
 | **🖨️ Bambu Lab 3D Printer Telemetry** | Secure local MQTT client monitoring active print progress, nozzle/bed temperatures, and vocalizing diagnostic HMS fault warnings. Includes **Step-by-Step Voice Pairing** (*"Connect to a new 3D printer"*). |

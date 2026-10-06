@@ -14,7 +14,7 @@ _MODULES = [
     "plasma_reactor", "mechadendrite_assembly", "cogitator_boot", "administratum_cogitation",
     "tyranid_swarm", "necron_awakening", "chaos_corruption", "inquisitorial_dossier",
     "imperial_chronometer", "thought_for_the_day", "votive_candle",
-    "suspensor_telemetry", "optic_aperture",
+    "suspensor_telemetry",
 ]
 
 RENDERERS = {}
