@@ -2060,9 +2060,15 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None,
     else:
         speaker_ctx = (
             "\n\nCURRENT SPEAKER: Unknown/Unregistered.\n"
-            "INSTRUCTION: You must greet this unregistered user, ask who they are and what they are doing in this sector, "
-            "and ask if they wish to imprint their voice for future recognition. "
-            "If they agree, execute the 'register_voice' tool with their name."
+            "INSTRUCTION: Answer the request normally. The voice simply did not match a stored "
+            "profile, which happens often to people who are in fact enrolled — a short command, a "
+            "noisy room, a reply you were still speaking over. So do not treat this as an intruder, "
+            "do not refuse or defer the request, and do not interrogate them. "
+            "If no one has been asked yet in this conversation, you may add ONE short sentence at "
+            "the end offering to imprint their voice; if they have already been asked, or already "
+            "declined, say nothing about it and never raise it again. "
+            "Keep the whole reply under forty words unless the request itself needs more. "
+            "If they offer a name and agree, execute the 'register_voice' tool with their name."
         )
         
     # The WFRP GM persona is large and static, so it joins the cached system prompt —

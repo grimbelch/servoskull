@@ -348,6 +348,12 @@ def to_speech_rate(pcm: bytes, sample_rate: int) -> tuple[bytes, int]:
     return resample_pcm(pcm, sample_rate, SPEECH_RATE)
 
 
+def drop_leading(pcm: bytes, sample_rate: int, secs: float) -> bytes:
+    """Return `pcm` without its first `secs` of audio (unchanged if that is all of it)."""
+    head = int(max(0.0, secs) * sample_rate) * CHANNELS * _SAMPLE_WIDTH
+    return pcm[head:] if len(pcm) > head else pcm
+
+
 def pcm_to_wav_bytes(pcm: bytes, sample_rate: int) -> bytes:
     """Wrap raw PCM in a WAV container at the given sample rate."""
     buf = io.BytesIO()

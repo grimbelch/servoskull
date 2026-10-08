@@ -5,6 +5,7 @@ Lightweight speaker identification module using MFCC feature extraction and GMM 
 from __future__ import annotations
 import os
 import io
+import json
 import pickle
 import pathlib
 import time
@@ -37,7 +38,15 @@ _llr_threshold = 0.0
 _retrain_attempted = False  # only try the one-off feature-version migration once per process
 
 # Decision tuning. LLRs are per-frame averages of log p(speaker) - log p(background).
-_MIN_SPEECH_FRAMES = 80        # 0.8 s of voiced frames needed to judge at all
+# An ordinary short command ("Tell me a joke") carries only ~0.7 s of voiced audio,
+# so a 0.8 s floor threw away the most common summons of all and reported the owner
+# as a stranger. Measured against the enrolled profile, the LLR is trustworthy from
+# 0.7 s up — 1.4 to 2.2 against a 0.94 threshold, never once below it — while the
+# 0.5-0.7 s band swings from -0.06 to 2.42. So judge anything from half a second, but
+# treat that bottom band as weak evidence: it may confirm an identity, never disprove
+# one, because a low score there says more about the sample than about the speaker.
+_MIN_SPEECH_FRAMES = 50        # 0.5 s of voiced frames needed to judge at all
+_SHORT_SPEECH_FRAMES = 70      # under this, a rejection is too noisy to act on
 _AMBIGUITY_BAND = 0.25         # below threshold but within this band = "not sure"
 _CONTINUITY_SECS = 600.0       # a confident ID carries over unsure turns for 10 minutes
 # Enrollment clips are recorded close to the mic, in a quiet room, in long answers.
@@ -47,6 +56,77 @@ _CONTINUITY_SECS = 600.0       # a confident ID carries over unsure turns for 10
 _CHANNEL_MISMATCH_MARGIN = 0.40
 _MIN_LLR_THRESHOLD = 0.35      # never relax so far that the model accepts anything
 _last_confident: tuple[str, float] | None = None
+
+# The continuity window is the net that catches every clip too short or too noisy to
+# judge, but it used to live only in this process. The unit restarts often — a deploy,
+# a voice-triggered update, a watchdog — and each restart emptied it, so the first
+# short command afterwards was guaranteed to come back "unknown" no matter how well
+# the profile scores. Keep it on disk instead, stamped with wall-clock time so the
+# same _CONTINUITY_SECS window applies across a restart.
+_LAST_SPEAKER_PATH = pathlib.Path(config.data_path("last_speaker.json"))
+_last_confident_loaded = False
+
+
+def _load_last_confident() -> None:
+    """Restore the carried-over speaker from disk, once per process."""
+    global _last_confident, _last_confident_loaded
+    _last_confident_loaded = True
+    try:
+        if not _LAST_SPEAKER_PATH.exists():
+            return
+        saved = json.loads(_LAST_SPEAKER_PATH.read_text())
+        name, when = str(saved["name"]), float(saved["at"])
+    except Exception as e:
+        print(f"[speaker_id] Could not read the last speaker: {e}")
+        return
+    if not name or name not in _speaker_models:
+        return  # the profile was purged or renamed since
+    age = time.time() - when
+    if age >= _CONTINUITY_SECS:
+        return
+    _last_confident = (name, when)
+    print(f"[speaker_id] Carrying '{name}' over from before the restart ({age:.0f}s ago).")
+
+
+def _remember_confident(name: str) -> None:
+    """Record a positive identification, in memory and on disk."""
+    global _last_confident
+    _last_confident = (name, time.time())
+    try:
+        config.atomic_write(_LAST_SPEAKER_PATH,
+                            json.dumps({"name": name, "at": _last_confident[1]}))
+    except Exception as e:
+        print(f"[speaker_id] Could not save the last speaker: {e}")
+
+
+def _forget_confident() -> None:
+    """Drop the carried-over speaker; a different voice is on the mic."""
+    global _last_confident
+    _last_confident = None
+    try:
+        _LAST_SPEAKER_PATH.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+def forget_speaker(name: str) -> None:
+    """Drop the carried-over identification if it names `name`.
+
+    Called when a profile is purged. It reads the stored name rather than trusting
+    this process's copy, which is empty for most of a run's first minutes.
+    """
+    stored = None
+    if _last_confident:
+        stored = _last_confident[0]
+    else:
+        try:
+            if _LAST_SPEAKER_PATH.exists():
+                stored = str(json.loads(_LAST_SPEAKER_PATH.read_text())["name"])
+        except Exception:
+            return
+    if stored == name:
+        _forget_confident()
+
 
 def load_model() -> bool:
     """Load the trained GMM models from disk. Returns True on success.
@@ -341,10 +421,11 @@ def identify_speaker(wav_bytes: bytes) -> str | None:
     matches are accepted; clearly different sound is rejected; too little speech or
     a borderline score keeps the speaker confidently identified in the last
     _CONTINUITY_SECS (so "yes" mid-conversation doesn't make the skull ask who you are)."""
-    global _last_confident
     if not _speaker_models:
         if not load_model():
             return None
+    if not _last_confident_loaded:
+        _load_last_confident()
 
     def _carry_over(reason: str) -> str | None:
         if _last_confident and time.time() - _last_confident[1] < _CONTINUITY_SECS:
@@ -355,28 +436,36 @@ def identify_speaker(wav_bytes: bytes) -> str | None:
 
     try:
         voiced = _voiced_features(wav_bytes)
+        secs = len(voiced) / 100
         if len(voiced) < _MIN_SPEECH_FRAMES:
-            return _carry_over(f"Only {len(voiced) / 100:.1f}s of speech")
+            return _carry_over(f"Only {secs:.1f}s of speech")
+        # Too little speech to disprove an identity, but enough to confirm one.
+        short = len(voiced) < _SHORT_SPEECH_FRAMES
 
         if _ubm is None:  # no background model: legacy absolute threshold
             name, score = max(((n, float(g.score(voiced))) for n, g in _speaker_models.items()),
                               key=lambda t: t[1])
             if score < config.SPEAKER_ID_THRESHOLD:
-                return None
-            _last_confident = (name, time.time())
+                return _carry_over(f"Below the absolute threshold on {secs:.1f}s") if short else None
+            _remember_confident(name)
             return name
 
         background = float(_ubm.score(voiced))
         name, llr = max(((n, float(g.score(voiced)) - background) for n, g in _speaker_models.items()),
                         key=lambda t: t[1])
-        print(f"[speaker_id] Best match '{name}' LLR {llr:.2f} (threshold {_llr_threshold:.2f})")
+        print(f"[speaker_id] Best match '{name}' LLR {llr:.2f} (threshold {_llr_threshold:.2f}"
+              f"{', short clip' if short else ''})")
         if llr >= _llr_threshold:
-            _last_confident = (name, time.time())
+            _remember_confident(name)
             print(f"[speaker_id] Identified speaker: {name}")
             return name
         if llr >= _llr_threshold - _AMBIGUITY_BAND:
             return _carry_over("Borderline match")
-        _last_confident = None  # clearly not an enrolled voice
+        if short:
+            # A half-second of audio scoring low says more about the sample than the
+            # speaker, so it must not evict whoever was just confidently identified.
+            return _carry_over(f"Low score on only {secs:.1f}s of speech")
+        _forget_confident()  # clearly not an enrolled voice
         return None
     except Exception as e:
         print(f"[speaker_id] Speaker identification error: {e}")

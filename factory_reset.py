@@ -29,6 +29,7 @@ _TARGETS = [
     "reminders.json",        # pending timers/reminders
     "mood.json",             # current disposition
     "quiet.json",            # silent-mode flag
+    "last_speaker.json",     # whoever was last identified by voice
     ".spotify_cache",        # Spotify OAuth token cache
 ]
 # Corruption-recovery sidecars for any of the above.

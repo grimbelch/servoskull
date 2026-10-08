@@ -342,12 +342,27 @@ def set_speech_active(active: bool) -> None:
         _speech_activation_active = bool(active)
 
 
-# Identification needs 0.8 s of voiced speech (speaker_id._MIN_SPEECH_FRAMES). A
-# barged-in command rarely has it: the summons eats the front of the utterance, so
+# Identification needs half a second of voiced speech (speaker_id._MIN_SPEECH_FRAMES).
+# A barged-in command rarely has it: the summons eats the front of the utterance, so
 # "Servitor, stand down" reaches the recogniser as a fragment. Rather than let the
 # owner become "Unknown voice" mid-conversation, reuse who was just identified.
+# speaker_id keeps its own, longer window on disk; this is the second net, in memory.
 SPEAKER_CARRY_SECS = 90.0
 _last_identified: tuple[str, float] | None = None
+
+# A barged-in command is recorded while the reply is still playing out, so the front
+# of the capture is whatever the echo canceller could not subtract of the skull's own
+# voice. Whisper copes — it has the whole utterance to work with — but the recogniser
+# averages over every frame it is given, and that residue dragged a clean 2.6 s of the
+# owner's voice down to an LLR of 0.69 against a 0.94 threshold. Drop the contaminated
+# head before scoring, and only for scoring: transcription still sees the full audio.
+# Held as a timestamp rather than a flag: an interruption does not always lead to a
+# recorded command (a yes/no answer, a turn the model drives), and a flag left standing
+# would trim the front off some later, innocent capture. Recording follows a barge-in
+# within a few seconds, so anything older than this was a barge-in that went nowhere.
+_BARGE_IN_TRIM_SECS = 0.3
+_BARGE_IN_RECENT_SECS = 30.0
+_barge_in_at = 0.0
 
 
 def _carry_speaker_forward(speaker_name: str | None) -> str | None:
@@ -667,6 +682,8 @@ def _speak_clips(clips, on_wake) -> bool:
             _cancel_listener.set()
             int_thread.join(timeout=1.0)
         if _interrupted.is_set():
+            global _barge_in_at
+            _barge_in_at = time.time()
             # Leave the eyes lit — on_wake() already turned them on for the next command.
             return True
         if played:
@@ -1899,11 +1916,20 @@ def main():
                 # Speaker ID (local, full-rate audio) runs alongside the Whisper upload,
                 # which only needs 16 kHz audio (3x smaller than the mic's native rate).
                 _spk_result = [None]
+                _spk_wav = wav
+                global _barge_in_at
+                if time.time() - _barge_in_at < _BARGE_IN_RECENT_SECS:
+                    _barge_in_at = 0.0
+                    _trimmed = audio.drop_leading(pcm, pcm_rate, _BARGE_IN_TRIM_SECS)
+                    if len(_trimmed) < len(pcm):
+                        _spk_wav = audio.pcm_to_wav_bytes(_trimmed, pcm_rate)
+                        print(f"[skull] Barged-in command: scoring the voice without its "
+                              f"first {_BARGE_IN_TRIM_SECS:.1f}s of echo residue.")
 
                 def _identify_speaker():
                     try:
                         from core import speaker_id
-                        _spk_result[0] = speaker_id.identify_speaker(wav)
+                        _spk_result[0] = speaker_id.identify_speaker(_spk_wav)
                     except Exception as e:
                         print(f"[skull] Speaker identification error: {e}")
 

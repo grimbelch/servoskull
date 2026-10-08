@@ -1,7 +1,7 @@
 """Carrying a speaker across a turn too short to identify.
 
 A barged-in command loses its front to the summons, so it often lands under
-speaker_id's 0.8 s minimum and the owner silently becomes "Unknown voice"
+speaker_id's half-second minimum and the owner silently becomes "Unknown voice"
 mid-conversation. The carry-forward fills that gap without ever overriding a
 real identification (run on the Pi: python -m pytest tests).
 """
