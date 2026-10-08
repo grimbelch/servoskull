@@ -151,6 +151,11 @@ CREATE TABLE IF NOT EXISTS rule_skills (
     slug        TEXT NOT NULL,
     name        TEXT NOT NULL,
     skill_set   TEXT DEFAULT '',   -- agility|brawn|combat|cunning|savant|shooting|inherent
+    -- The D6 a model rolls to generate this skill from its set. The summary
+    -- table that carries it prints three sets side by side, so it is read off
+    -- the page rather than parsed. NULL for the Inherent skills, which are not
+    -- rolled for.
+    roll        INTEGER,
     -- Who may take it, parsed out of the printed name: a skill is headed
     -- "CATFALL (FIGHTER OR WALKER ONLY)". Left inside the name, "which skills
     -- can a Vehicle take?" cannot be asked at all.
@@ -340,7 +345,7 @@ _SHAPE_SENTINELS = {
     "rule_sections": "path",
     "rule_weapons": "lethality",
     "rule_traits": "takes_value",
-    "rule_skills": "usable_by",
+    "rule_skills": "roll",
     "rule_equipment": "variant",
     "rule_conditions": "kind",
     "rule_actions": "cost",

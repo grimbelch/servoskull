@@ -6,7 +6,7 @@ Rows keep their span parsed, so resolving a roll is an index lookup.
 
 import pytest
 
-from games.necromunda.extract import equipment, randtables
+from games.necromunda.extract import equipment, ingest, randtables
 
 
 # ── reading a roll off the page ───────────────────────────────────────────────
@@ -208,3 +208,40 @@ def test_results_are_ordered_by_their_roll():
     }])
     assert [r["roll_label"] for r in tables[0]["rows"]] == ["1", "2", "3", "4", "5", "6"]
     assert tables[0]["missing"] == []
+
+
+# ── tables whose rules sit in three or four columns ───────────────────────────
+
+def test_a_multi_column_row_is_rendered_with_its_columns_labelled():
+    """Gang Tactics is D66 x Name x Timing x Effect.
+
+    The row reader's shape is one roll and one result, so the third and fourth
+    columns were flattened into the result in reading order: "Thundering Play
+    this Gang Tactic when Roll two D6 instead of the usual one when Charge a
+    friendly Fighter declares a determining how far the Fighter can charge".
+    Those tables are read off the page instead, and each column is named so the
+    two cannot run back into each other.
+    """
+    text = ingest._row_text({
+        "roll_label": "43-44", "name": "Thundering Charge",
+        "timing": "Play this Gang Tactic when a friendly Fighter declares a "
+                  "Charge action.",
+        "effect": "Roll two D6 instead of the usual one.",
+    })
+    assert text.startswith("Thundering Charge")
+    assert "Timing: Play this Gang Tactic" in text
+    assert "Effect: Roll two D6" in text
+    assert text.index("Timing:") < text.index("Effect:")
+
+
+def test_the_insanity_rows_keep_one_action_per_status():
+    """Four action columns, and attaching one to the wrong Status misplays it."""
+    text = ingest._row_text({
+        "roll_label": "6", "name": "Hide!",
+        "unengaged": "Dash, out of Line of Sight.",
+        "engaged": "Retreat, directly away.",
+        "seriously_injured": "Crawl, out of Line of Sight.",
+    })
+    for label in ("Unengaged:", "Engaged:", "Seriously Injured:"):
+        assert label in text
+    assert text.index("Unengaged:") < text.index("Engaged:")

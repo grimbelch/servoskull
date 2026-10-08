@@ -90,7 +90,14 @@ def extract(doc) -> list[dict]:
                 # "(Fighter or Walker Only)".
                 if (current is not None and not body
                         and entries._QUALIFIER.match(text)):
-                    current["name"] = f"{current['name']} {text}"
+                    # Split it off again once the two lines are joined. Just
+                    # appending it left four skills called "MIGHTY LEAP
+                    # (FIGHTER OR WALKER ONLY)", with the restriction stuck in
+                    # the name and usable_by empty.
+                    bare, usable_by = entries.split_qualifier(
+                        f"{current['name']} {text}")
+                    current["name"] = bare
+                    current["usable_by"] = usable_by or current["usable_by"]
                     continue
                 # Stat table headers sit in the same type as a name.
                 if len(text) < 4 or text.upper() in _TABLE_TOKENS:

@@ -418,11 +418,106 @@ def ingest(pdf_path: pathlib.Path, slug: str = DEFAULT_SLUG,
                          json.dumps([row["roll_label"], row["result"]])))
                     counts["table_rows"] += 1
 
+            counts.update(_apply_corrections(conn, book_id, pdf_path))
             _build_search_index(conn, book_id)
         return counts
     finally:
         conn.close()
         doc.close()
+
+
+# Four of the book's tables print three or four columns of rules text. The row
+# reader's shape is one roll and one result, so a third and fourth column are
+# flattened into the result in reading order, which interleaved the Gang
+# Tactics' Timing and Effect into each other and truncated both. Those are read
+# off the page images and kept here instead of parsed.
+_CORRECTIONS = "corrections.json"
+
+
+def _corrections_path(pdf_path) -> pathlib.Path:
+    return pathlib.Path(pdf_path).parent.parent / _CORRECTIONS
+
+
+def _apply_corrections(conn, book_id: int, pdf_path) -> dict:
+    """Replace the tables that cannot be read by column geometry.
+
+    The file sits beside the rulebook, outside the repository, because it is
+    the book's own text. Without it the extraction still runs; it just leaves
+    the mangled versions in place, so say so loudly rather than quietly
+    shipping word salad with a page citation on it.
+    """
+    path = _corrections_path(pdf_path)
+    if not path.exists():
+        print(f"[necromunda] WARNING: {path} is missing. The Gang Tactics and"
+              " Insanity tables will be left as the row reader produced them,"
+              " which is three columns interleaved. Do not ship this build.")
+        return {}
+    data = json.loads(path.read_text())
+    counts = {"corrected_tables": 0, "corrected_rows": 0, "skill_rolls": 0}
+
+    for name in data.get("drop_tables", []):
+        conn.execute(
+            "DELETE FROM rule_tables WHERE rulebook_id = ? AND title = ?",
+            (book_id, name))
+
+    for old, new in data.get("retitle_tables", {}).items():
+        conn.execute(
+            "UPDATE rule_tables SET title = ?, slug = ? WHERE rulebook_id = ?"
+            " AND title = ?",
+            (new, sections_mod.slugify(new), book_id, old))
+
+    offset = conn.execute(
+        "SELECT page_offset FROM rulebooks WHERE id = ?",
+        (book_id,)).fetchone()["page_offset"]
+    for table in data.get("replace_tables", []):
+        conn.execute(
+            "DELETE FROM rule_tables WHERE rulebook_id = ? AND title = ?",
+            (book_id, table["title"]))
+        table_id = conn.execute(
+            "INSERT INTO rule_tables (rulebook_id, slug, title, kind, dice,"
+            " columns_json, notes, page) VALUES (?,?,?,?,?,?,'',?)",
+            (book_id, sections_mod.slugify(table["title"]), table["title"],
+             table["kind"], table["dice"], json.dumps(table["columns"]),
+             table["printed_page"] + offset)).lastrowid
+        counts["corrected_tables"] += 1
+        for ordinal, row in enumerate(table["rows"]):
+            span = randtables_mod._parse_roll(row["roll_label"])
+            cells = [row[key] for key in _CELL_KEYS if key in row]
+            conn.execute(
+                "INSERT INTO rule_table_rows (table_id, ordinal, roll_min,"
+                " roll_max, roll_label, result, detail, cells_json)"
+                " VALUES (?,?,?,?,?,?,?,?)",
+                (table_id, ordinal, span[0] if span else None,
+                 span[1] if span else None, row["roll_label"],
+                 _row_text(row), row.get("timing", ""),
+                 json.dumps([row["roll_label"]] + cells)))
+            counts["corrected_rows"] += 1
+
+    for skill_set, names in data.get("skill_rolls", {}).items():
+        for number, name in enumerate(names, start=1):
+            counts["skill_rolls"] += conn.execute(
+                "UPDATE rule_skills SET roll = ? WHERE rulebook_id = ?"
+                " AND LOWER(skill_set) = ? AND LOWER(name) = ?",
+                (number, book_id, skill_set.lower(), name.lower())).rowcount
+    return counts
+
+
+# The cells of a corrected row, in the order the book prints its columns.
+_CELL_KEYS = ("name", "timing", "effect",
+              "unengaged", "engaged", "seriously_injured")
+_CELL_LABELS = {"timing": "Timing", "effect": "Effect",
+                "unengaged": "Unengaged", "engaged": "Engaged",
+                "seriously_injured": "Seriously Injured"}
+
+
+def _row_text(row: dict) -> str:
+    """One readable line for a row whose rules sit in several columns."""
+    parts = [row["name"]] if row.get("name") else []
+    for key in _CELL_KEYS:
+        if key in ("name",) or key not in row:
+            continue
+        parts.append(f"{_CELL_LABELS[key]}: {row[key]}")
+    return " ".join(parts)
 
 
 def _build_search_index(conn, book_id: int) -> None:
