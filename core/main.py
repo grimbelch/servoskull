@@ -586,7 +586,7 @@ def _load_or_record_boot_wav() -> bytes:
 _speak_seq_lock = threading.RLock()
 
 
-def _speak_clips(clips, on_wake) -> bool:
+def _speak_clips(clips, on_wake, suppress_barge_in=None) -> bool:
     """Play a sequence of WAV clips while listening for the wake word so the user
     can barge in. `clips` is any iterable; it may block between items while the
     next clip is still being synthesized.
@@ -609,6 +609,14 @@ def _speak_clips(clips, on_wake) -> bool:
         def _interrupt_listener():
             if wake_word.wait_for_wake_word(cancel=_cancel_listener,
                                             threshold=config.WAKE_WORD_THRESHOLD_BARGE_IN):
+                # The barge-in listener hears the raw mic, so the echo canceller is
+                # not there to keep the skull from rousing itself. It is told never
+                # to say the wake word and the model scores its voice at 0.02, but if
+                # a line does contain the word, a detection while it plays is far
+                # more likely to be the skull than a person.
+                if suppress_barge_in is not None and suppress_barge_in.is_set():
+                    print("[skull] Ignoring a wake word heard while speaking the wake word.")
+                    return
                 print("[skull] Interrupted — new command incoming.")
                 _stop_play.set()
                 _interrupted.set()
@@ -692,9 +700,9 @@ def _speak_clips(clips, on_wake) -> bool:
         return False
 
 
-def _speak_interruptible(wav_bytes: bytes, on_wake) -> bool:
+def _speak_interruptible(wav_bytes: bytes, on_wake, suppress_barge_in=None) -> bool:
     """Play one clip with barge-in; see _speak_clips."""
-    return _speak_clips([wav_bytes], on_wake)
+    return _speak_clips([wav_bytes], on_wake, suppress_barge_in=suppress_barge_in)
 
 
 class _ReplyStreamer:
@@ -718,6 +726,8 @@ class _ReplyStreamer:
         self._abort = False
         self.interrupted = False  # the wake word cut playback short
         self.spoke = False        # at least one clip was played
+        # Set if any sentence of this reply says the wake word; see _wake_word_guard.
+        self._wake_guard = threading.Event()
         threading.Thread(target=self._synth_loop, daemon=True).start()
         threading.Thread(target=self._play_loop, daemon=True).start()
 
@@ -752,6 +762,9 @@ class _ReplyStreamer:
                 break
             if self._abort or self.interrupted or not tts.has_speech(sentence):
                 continue
+            if wake_word.text_contains_wake_word(sentence):
+                self._wake_guard.set()
+                print("[skull] Reply says the wake word; barge-in is off for the rest of it.")
             try:
                 self._clips.put(tts.synthesize(sentence))
             except Exception as e:
@@ -772,7 +785,8 @@ class _ReplyStreamer:
 
     def _play_loop(self) -> None:
         try:
-            self.interrupted = _speak_clips(self._clip_iter(), self._on_wake)
+            self.interrupted = _speak_clips(self._clip_iter(), self._on_wake,
+                                            suppress_barge_in=self._wake_guard)
         except Exception as e:
             print(f"[skull] Streamed playback error: {e}")
         finally:
@@ -1113,6 +1127,15 @@ class _Turn:
     pending_maintenance: tuple | None = None   # (action, arg, expires_at)
 
 
+def _wake_word_guard(text: str):
+    """An Event, already set if speaking `text` would say the wake word aloud."""
+    guard = threading.Event()
+    if wake_word.text_contains_wake_word(text):
+        guard.set()
+        print("[skull] This line contains the wake word; barge-in is off while it plays.")
+    return guard
+
+
 def _is_dog() -> bool:
     return config.PERSONALITY.get("eye_animation") == "dog"
 
@@ -1121,7 +1144,8 @@ def _say(turn: _Turn, text: str) -> bool:
     """Speak a line with barge-in; an interruption skips the next wake-word wait."""
     try:
         eyes.on()
-        if _speak_interruptible(tts.synthesize(text), turn.on_wake):
+        if _speak_interruptible(tts.synthesize(text), turn.on_wake,
+                                suppress_barge_in=_wake_word_guard(text)):
             turn.skip_wake_word = True
             return True
     except Exception as e:

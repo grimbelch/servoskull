@@ -338,6 +338,27 @@ WAKE_WORD_THRESHOLD = float(_cfg("WAKE_WORD_THRESHOLD", "0.65"))
 # triggering on itself (check AUDIO_DEBUG scores before assuming it is the model —
 # a mis-seated echo_cancel.source will do it at any threshold).
 WAKE_WORD_THRESHOLD_BARGE_IN = float(_cfg("WAKE_WORD_THRESHOLD_BARGE_IN", "0.40"))
+# Which microphone the barge-in listener uses. Measured on this unit: the same
+# summons scores 0.914 into silence and 0.09-0.21 while the skull is talking, on the
+# echo-cancelled source. There is almost nothing to cancel -- the raw mic hears the
+# skull's own speaker at only 4.3% peak -- but WebRTC's residual suppressor attenuates
+# the whole near-end path whenever the reference is active, and a human cutting in
+# goes with it. PipeWire's module exposes no control over that, and noise suppression,
+# AGC and voice detection are already off.
+#
+# So barge-in listens to the raw source instead, where a human arrives unsuppressed.
+# What stops the skull waking itself there is the wake-word model, not the canceller:
+# 29 s of its own speech scored 0.020 at the top, at every gain from 1x to 16x, against
+# a 0.40 threshold. Set to "" to fall back to the default (echo-cancelled) source.
+BARGE_IN_SOURCE = _cfg(
+    "BARGE_IN_SOURCE",
+    "alsa_input.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.mono-fallback",
+).strip()
+# The raw source does not get MIC_SOFT_GAIN, which PipeWire applies to the
+# echo-cancelled source only, so the same lift is applied in software. PipeWire's
+# volume is a cubic curve, so MIC_SOFT_GAIN 2.0 is about x8 linear; the skull's own
+# voice still peaks at only 35% of full scale there, so nothing clips.
+BARGE_IN_SOURCE_GAIN = float(_cfg("BARGE_IN_SOURCE_GAIN", "8.0"))
 
 
 
