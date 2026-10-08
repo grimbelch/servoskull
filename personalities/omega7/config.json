@@ -5,6 +5,7 @@
   "wake_word_model": "models/servitor.onnx",
   "wake_word_phrase": "Omega-7",
   "elevenlabs_voice_id": "vBdCQX5p68m6c9bZ1DP0",
+  "elevenlabs_stability": 0.2,
   "display_fine_rotation": 0.0,
   "eye_animation": "skull",
   "eye_style": "shuffle",
