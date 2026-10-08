@@ -8,12 +8,49 @@ from core import config
 
 # ── ElevenLabs (cloud, quota-limited) ─────────────────────────────────────────
 
-def _preprocess_text(text: str) -> str:
-    """Preprocess text for TTS: strip stage directions/actions, Markdown formatting, and brackets so descriptions and symbols aren't spoken aloud."""
+# Eleven v3/v4 read bracketed "audio tags" as performance direction rather than as
+# words: "[whispers] The Emperor hears you." is spoken in a whisper, and the
+# direction carries forward until the next tag. They are not a fixed vocabulary —
+# any short lowercase direction works, and combinations like "[whispering,
+# reverent]" are allowed — so rather than keep an allowlist of tags we recognise
+# their *shape*. Every other bracketed token (the [SPOTIFY: …] command family,
+# citation markers, stray brackets) is still stripped so it is never spoken.
+# The directions the skull is told to use live in personalities/*/persona.txt.
+_AUDIO_TAG = re.compile(r"\[([a-z][a-z \-,']{0,38})\]")
+# Older models (flash/turbo/multilingual) have no notion of tags and would read the
+# bracket contents aloud, so for those they are stripped like any other bracket.
+_AUDIO_TAG_MODELS = ("eleven_v3", "eleven_v4")
+# A stage direction the brain writes as "*sighs*" means the same thing as the tag,
+# so a short one is promoted rather than dropped; "*the lenses dim*" is narration
+# about the skull, not a delivery note, and is too long to qualify.
+_STAGE_DIRECTION = re.compile(r"\*([a-z][a-z \-,']{0,24})\*")
+
+
+def audio_tags_supported(model_id: str | None = None) -> bool:
+    """True if the ElevenLabs model in play performs audio tags (and they're enabled)."""
+    model = (model_id if model_id is not None else config.ELEVENLABS_MODEL) or ""
+    return bool(config.ELEVENLABS_AUDIO_TAGS) and model.lower().startswith(_AUDIO_TAG_MODELS)
+
+
+def _preprocess_text(text: str, keep_audio_tags: bool = False) -> str:
+    """Preprocess text for TTS: strip stage directions/actions, Markdown formatting, and brackets so descriptions and symbols aren't spoken aloud.
+
+    With `keep_audio_tags` (ElevenLabs v3/v4 only) tag-shaped brackets survive as
+    performance direction and short asterisked stage directions are promoted into
+    them; everything else is stripped exactly as it was before."""
     if not text:
         return ""
     # Strip leading markdown category prefixes like "**WEATHER:**" or "**SUMMARY:**"
     text = re.sub(r"^\s*\*{0,2}[A-Z\s]{2,15}:\*{0,2}\s*", "", text)
+    tags: list[str] = []
+    if keep_audio_tags:
+        text = _STAGE_DIRECTION.sub(lambda m: f"[{m.group(1)}]", text)
+        # Park the tags out of reach of the strippers below, which remove every
+        # asterisk, underscore and bracket in the text.
+        def _park(m):
+            tags.append(m.group(1))
+            return f"\x00{len(tags) - 1}\x00"
+        text = _AUDIO_TAG.sub(_park, text)
     # Strip stage directions / action descriptions enclosed in asterisks (*wags tail*, *yawns*, etc.)
     text = re.sub(r"\*[^*]+\*", "", text)
     # Strip stage directions / action descriptions enclosed in underscores (_soft bark_, etc.)
@@ -28,6 +65,11 @@ def _preprocess_text(text: str) -> str:
     text = re.sub(r"[*_]+", "", text)
     # Normalize multiple spaces and whitespace
     text = re.sub(r"\s+", " ", text).strip()
+    if tags:
+        text = re.sub(r"\x00(\d+)\x00", lambda m: f"[{tags[int(m.group(1))]}]", text)
+        # A promoted direction can be left hugging the punctuation it replaced.
+        text = re.sub(r"\s+([,.!?;:])", r"\1", text)
+        text = re.sub(r"\s+", " ", text).strip()
     return text
 
 _eleven_client = None
@@ -52,7 +94,7 @@ def _elevenlabs_client():
     return _eleven_client
 
 def _synthesize_elevenlabs(text: str) -> bytes:
-    text = _preprocess_text(text)
+    text = _preprocess_text(text, keep_audio_tags=audio_tags_supported())
     client = _elevenlabs_client()
     voice_id = config.ELEVENLABS_VOICE_ID if config.ELEVENLABS_VOICE_ID else "21m00Tcm4TlvDq8ikWAM"
     audio_iter = client.text_to_speech.convert(

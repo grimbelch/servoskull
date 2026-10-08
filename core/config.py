@@ -281,8 +281,15 @@ STT_STREAMING_MODEL = _cfg("STT_STREAMING_MODEL", "gpt-4o-mini-transcribe")
 # "piper" (local, free) or "elevenlabs" (cloud, quota-limited)
 TTS_BACKEND = _cfg("TTS_BACKEND", "elevenlabs")
 PIPER_MODEL_PATH = _cfg("PIPER_MODEL_PATH", "models/servoskull.onnx")
-# ElevenLabs model: eleven_turbo_v2 (default) or eleven_flash_v2_5 for the lowest latency.
-ELEVENLABS_MODEL = _cfg("ELEVENLABS_MODEL", "eleven_turbo_v2")
+# ElevenLabs model. eleven_v4_turbo (default) is the expressive generation: it acts
+# on the bracketed audio tags the persona writes ("[whispers]", "[reverent]") and
+# still answers in ~100ms, so the skull gained delivery without losing its pace.
+# eleven_v3_conversational also performs tags; eleven_flash_v2_5 is faster but
+# would speak the brackets aloud (core.tts strips them for any such model).
+ELEVENLABS_MODEL = _cfg("ELEVENLABS_MODEL", "eleven_v4_turbo")
+# Pass the persona's audio tags through to ElevenLabs instead of stripping them.
+# Turn off to get flat delivery from a tag-capable model without changing models.
+ELEVENLABS_AUDIO_TAGS = _cfg("ELEVENLABS_AUDIO_TAGS", "true").lower() == "true"
 # Wipe cached canned-phrase audio for one run after changing the ElevenLabs voice.
 RESET_VOICE_CACHE = _cfg("RESET_VOICE_CACHE", "false").lower() == "true"
 
