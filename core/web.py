@@ -953,6 +953,29 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         }
         self._send_asset(json.dumps(manifest).encode("utf-8"), "application/manifest+json", 3600)
 
+    def _handle_camera_capture(self) -> None:
+        """Take a fresh frame through the optic and return it as a JPEG.
+
+        A POST because it works the hardware: it wakes the sensor, waits for
+        auto-exposure to settle and publishes the frame, so the ocular feed and
+        anything else watching see the same picture.
+        """
+        try:
+            from core import camera
+            data, reason = camera.capture_still()
+        except Exception as e:
+            self._send_json({"status": "error", "message": str(e)}, 503)
+            return
+        if not data:
+            self._send_json({"status": "error", "message": reason}, 503)
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "image/jpeg")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.end_headers()
+        self.wfile.write(data)
+
     def _handle_app_js(self) -> None:
         import os
         try:
@@ -1607,6 +1630,7 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             "/api/wifi/hotspot": self._handle_wifi_hotspot,
             "/api/wake": self._handle_wake,
             "/api/screensaver": self._handle_screensaver,
+            "/api/camera/capture": self._handle_camera_capture,
             "/api/command": self._handle_command,
             "/api/upload_audio": self._handle_upload_audio,
             "/api/game/start": self._handle_game_start,
@@ -1788,7 +1812,8 @@ HTML_CLIENT = """<!DOCTYPE html>
            ══════════════════════════════════════════════════════════════════ */
         .o7,
         .o7-modal,
-        .o7-toast {
+        .o7-toast,
+        .o7-lightbox {
             /* spacing + radii */
             --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;
             --sp-4: 16px; --sp-5: 24px; --sp-6: 36px;
@@ -1902,14 +1927,12 @@ HTML_CLIENT = """<!DOCTYPE html>
         }
 
         /* ── focus ring: visible for keyboards, quiet for mice ─────────── */
-        .o7 :focus-visible,
-        .o7-modal :focus-visible {
+        :is(.o7, .o7-modal, .o7-lightbox) :focus-visible {
             outline: 2px solid var(--acc);
             outline-offset: 2px;
             border-radius: var(--r-1);
         }
-        .o7 :focus:not(:focus-visible),
-        .o7-modal :focus:not(:focus-visible) { outline: none; }
+        :is(.o7, .o7-modal, .o7-lightbox) :focus:not(:focus-visible) { outline: none; }
 
         /* ── shell ────────────────────────────────────────────────────── */
         .o7-shell {
@@ -2495,8 +2518,7 @@ HTML_CLIENT = """<!DOCTYPE html>
         }
 
         /* ── buttons (override the global chamfered rule inside .o7) ──── */
-        .o7 .o7-btn,
-        .o7-modal .o7-btn {
+        :is(.o7, .o7-modal, .o7-lightbox) .o7-btn {
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -2516,52 +2538,42 @@ HTML_CLIENT = """<!DOCTYPE html>
             clip-path: none;
             transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.08s ease;
         }
-        .o7 .o7-btn:hover,
-        .o7-modal .o7-btn:hover {
+        :is(.o7, .o7-modal, .o7-lightbox) .o7-btn:hover {
             background: rgba(70, 255, 120, 0.18);
             border-color: var(--acc);
             color: var(--ink);
             box-shadow: none;
         }
-        .o7 .o7-btn:active,
-        .o7-modal .o7-btn:active { transform: translateY(1px); }
-        .o7 .o7-btn[disabled],
-        .o7-modal .o7-btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+        :is(.o7, .o7-modal, .o7-lightbox) .o7-btn:active { transform: translateY(1px); }
+        :is(.o7, .o7-modal, .o7-lightbox) .o7-btn[disabled] { opacity: 0.45; cursor: not-allowed; }
 
-        .o7 .o7-btn-primary,
-        .o7-modal .o7-btn-primary {
+        :is(.o7, .o7-modal, .o7-lightbox) .o7-btn-primary {
             background: var(--acc);
             border-color: var(--acc);
             color: #021007;
         }
-        .o7 .o7-btn-primary:hover,
-        .o7-modal .o7-btn-primary:hover {
+        :is(.o7, .o7-modal, .o7-lightbox) .o7-btn-primary:hover {
             background: #6bffa0;
             border-color: #6bffa0;
             color: #021007;
         }
-        .o7 .o7-btn-ghost,
-        .o7-modal .o7-btn-ghost {
+        :is(.o7, .o7-modal, .o7-lightbox) .o7-btn-ghost {
             background: transparent;
             border-color: var(--hairline);
             color: var(--ink-2);
         }
-        .o7 .o7-btn-ghost:hover,
-        .o7-modal .o7-btn-ghost:hover { background: var(--acc-soft); color: var(--ink); }
-        .o7 .o7-btn-danger,
-        .o7-modal .o7-btn-danger {
+        :is(.o7, .o7-modal, .o7-lightbox) .o7-btn-ghost:hover { background: var(--acc-soft); color: var(--ink); }
+        :is(.o7, .o7-modal, .o7-lightbox) .o7-btn-danger {
             background: rgba(255, 95, 74, 0.12);
             border-color: rgba(255, 95, 74, 0.5);
             color: #ffb8ae;
         }
-        .o7 .o7-btn-danger:hover,
-        .o7-modal .o7-btn-danger:hover {
+        :is(.o7, .o7-modal, .o7-lightbox) .o7-btn-danger:hover {
             background: rgba(255, 95, 74, 0.25);
             border-color: var(--crit);
             color: #fff;
         }
-        .o7 .o7-btn-sm,
-        .o7-modal .o7-btn-sm {
+        :is(.o7, .o7-modal, .o7-lightbox) .o7-btn-sm {
             min-height: 30px;
             padding: 6px 10px;
             font-size: 10.5px;
@@ -2819,6 +2831,49 @@ HTML_CLIENT = """<!DOCTYPE html>
             opacity: 1;
         }
 
+        /* ── snapshot viewer ──────────────────────────────────────────── */
+        .o7-lightbox {
+            position: fixed;
+            inset: 0;
+            z-index: 20500;
+            display: none;
+            place-items: center;
+            padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px
+                     calc(env(safe-area-inset-bottom, 0px) + 16px);
+            background: rgba(1, 6, 3, 0.92);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+        .o7-lightbox[data-open="true"] { display: grid; }
+
+        .o7-lightbox-panel {
+            display: flex;
+            flex-direction: column;
+            gap: var(--sp-3);
+            max-width: min(900px, 100%);
+            max-height: 100%;
+            padding: var(--sp-3);
+            border: 1px solid var(--hairline-2);
+            border-radius: var(--r-2);
+            background: linear-gradient(180deg, var(--surface-2), var(--surface-1));
+            box-shadow: 0 40px 80px -30px #000;
+        }
+        .o7-lightbox-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--sp-3);
+        }
+        .o7-lightbox img {
+            display: block;
+            min-height: 0;
+            max-width: 100%;
+            max-height: 70vh;
+            object-fit: contain;
+            border-radius: var(--r-1);
+            background: #000;
+        }
+
         /* ── narrow screens ───────────────────────────────────────────── */
         @media (max-width: 680px) {
             .o7 { font-size: 14px; }
@@ -2921,7 +2976,7 @@ HTML_CLIENT = """<!DOCTYPE html>
                         <div class="o7-card-head">
                             <h2>Sensor Feeds</h2>
                             <div class="o7-card-tools">
-                                <button type="button" class="o7-btn o7-btn-ghost o7-btn-sm" onclick="o7Snapshot()" title="Open the current camera frame in a new tab">Snapshot</button>
+                                <button type="button" class="o7-btn o7-btn-ghost o7-btn-sm" id="snapshot-btn" onclick="o7Snapshot()" title="Take a fresh frame through the camera optic">Snapshot</button>
                             </div>
                         </div>
 
@@ -3129,6 +3184,20 @@ HTML_CLIENT = """<!DOCTYPE html>
     </div>
 
     <div class="o7-toast" id="o7-toast" role="status" aria-live="polite"></div>
+
+    <div class="o7-lightbox" id="o7-lightbox" data-open="false" role="dialog" aria-modal="true"
+         aria-label="Pict-capture snapshot" onclick="if (event.target === this) o7CloseSnapshot()">
+        <div class="o7-lightbox-panel">
+            <div class="o7-lightbox-head">
+                <span class="o7-label" id="o7-lightbox-cap">Pict-capture</span>
+                <div class="o7-card-tools">
+                    <a class="o7-btn o7-btn-ghost o7-btn-sm" id="o7-lightbox-download" download="omega7-snapshot.jpg" href="#">Save</a>
+                    <button type="button" class="o7-btn o7-btn-ghost o7-btn-sm" onclick="o7CloseSnapshot()">Close</button>
+                </div>
+            </div>
+            <img id="o7-lightbox-img" alt="The most recent frame from the servo-skull camera">
+        </div>
+    </div>
 
 
     <!-- ROLEPLAYING CAMPAIGN DASHBOARD VIEW -->

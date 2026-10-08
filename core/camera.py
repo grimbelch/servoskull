@@ -410,6 +410,45 @@ import atexit
 atexit.register(release_camera_backend)
 
 
+def capture_still() -> tuple[bytes | None, str]:
+    """Grab one fresh frame and publish it, without asking the vision model.
+
+    This is what the web remote's snapshot button runs: the point is to see
+    through the optic now, not to spend a vision call describing it. Returns
+    (jpeg_bytes, reason) — the bytes are None when the reason explains why.
+    """
+    if not config.CAMERA_ENABLED:
+        return None, "The camera interface is disabled in configuration."
+
+    backend = get_camera_backend()
+    if backend is None:
+        return None, "No camera backend could be initialized."
+    read, _ = backend
+
+    import cv2
+    from core import display as _display
+
+    # The eye shows a targeting sweep while the sensor wakes and settles, so
+    # anyone in the room can see the skull is looking.
+    _display.set_targeting(True)
+    try:
+        with _camera_lock:
+            frame = read()
+        if frame is None:
+            return None, "The optic returned no frame."
+        ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        if not ok:
+            return None, "The frame could not be encoded."
+        data = buf.tobytes()
+        publish_camera_frame(data, 5.0)
+        return data, "ok"
+    except Exception as e:
+        print(f"[camera] Snapshot failed: {e}")
+        return None, f"Snapshot failed: {e}"
+    finally:
+        _display.set_targeting(False)
+
+
 def capture_on_demand() -> str:
     """Capture a single frame using the active camera backend and describe it."""
     if not config.CAMERA_ENABLED:

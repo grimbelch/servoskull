@@ -4104,8 +4104,67 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 // ── Camera snapshot ──────────────────────────────────────────────────────
-function o7Snapshot() {
-    window.open('/api/camera_frame.jpg?t=' + Date.now(), '_blank', 'noopener');
+// Takes a new frame through the optic rather than showing whatever happens to
+// be in memory, so the button answers "what is in front of you now". The
+// sensor sleeps when idle and needs a moment to wake and settle, hence the
+// busy state. Shown inline rather than in a tab, which also survives a phone's
+// popup blocker and never leaves a dead tab behind when the capture fails.
+let _o7SnapshotUrl = null;
+let _o7Capturing = false;
+
+async function o7Snapshot() {
+    const box = document.getElementById('o7-lightbox');
+    const img = document.getElementById('o7-lightbox-img');
+    if (!box || !img || _o7Capturing) return;
+
+    const btn = document.getElementById('snapshot-btn');
+    _o7Capturing = true;
+    if (btn) { btn.disabled = true; btn.textContent = 'Capturing...'; }
+
+    try {
+        const res = await fetch('/api/camera/capture', { method: 'POST', cache: 'no-store' });
+        if (!res.ok) {
+            let why = `Pict-capture failed (${res.status}).`;
+            try {
+                const err = await res.json();
+                if (err && err.message) why = err.message;
+            } catch (e) {}
+            o7Toast(why);
+            return;
+        }
+        const blob = await res.blob();
+        if (!blob.size) { o7Toast('The optic returned an empty frame.'); return; }
+
+        if (_o7SnapshotUrl) URL.revokeObjectURL(_o7SnapshotUrl);
+        _o7SnapshotUrl = URL.createObjectURL(blob);
+        img.src = _o7SnapshotUrl;
+
+        const link = document.getElementById('o7-lightbox-download');
+        if (link) {
+            link.href = _o7SnapshotUrl;
+            link.download = 'omega7-' + new Date().toISOString().replace(/[:.]/g, '-') + '.jpg';
+        }
+        const cap = document.getElementById('o7-lightbox-cap');
+        if (cap) cap.textContent = 'Pict-capture ' + new Date().toLocaleTimeString();
+
+        box.dataset.open = 'true';
+    } catch (err) {
+        o7Toast('Pict-capture failed: the link may be down.');
+    } finally {
+        _o7Capturing = false;
+        if (btn) { btn.disabled = false; btn.textContent = 'Snapshot'; }
+    }
+}
+
+function o7CloseSnapshot() {
+    const box = document.getElementById('o7-lightbox');
+    if (box) box.dataset.open = 'false';
+    const img = document.getElementById('o7-lightbox-img');
+    if (img) img.removeAttribute('src');
+    if (_o7SnapshotUrl) {
+        URL.revokeObjectURL(_o7SnapshotUrl);
+        _o7SnapshotUrl = null;
+    }
 }
 
 // ── CRT skin ─────────────────────────────────────────────────────────────
@@ -4166,6 +4225,8 @@ function o7WizardStep(step) {
 
 document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
+    const box = document.getElementById('o7-lightbox');
+    if (box && box.dataset.open === 'true') { o7CloseSnapshot(); return; }
     const modal = document.getElementById('wizard-modal');
     if (modal && modal.style.display === 'block') o7CloseWizard();
 });
