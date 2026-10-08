@@ -2,6 +2,7 @@ from __future__ import annotations
 import json
 import pathlib
 import re
+import time
 import subprocess
 import sys
 import threading
@@ -43,6 +44,11 @@ def last_turn_tools() -> list[str]:
 
 def _load_history() -> None:
     global _history
+    # This runs at import. core.main creates the schema one line before it imports
+    # brain, but nothing else does -- a test, a game agent or a one-off script that
+    # imports brain first used to die on "no such table: history". init_db is
+    # idempotent (CREATE TABLE IF NOT EXISTS, plus migrations that check first).
+    db.init_db()
     _history = db.get_history()
     print(f"[brain] Restored {len(_history) // 2} conversation turns from history")
 
@@ -1785,65 +1791,126 @@ def _execute_tool(name: str, tool_input: dict) -> str:
     return f"Unknown tool: {name}"
 
 
+# Artwork retrieval. The eye is a 240x240 circle, so none of this needs to be big.
+_ART_PANEL_SIDE = 240
+_ART_TARGET_SIDE = 480          # twice the panel: detail to spare after the crop
+_ART_MAX_BYTES = 6 * 1024 * 1024
+_ART_FEED_TTL = 600.0           # a search feed is ~480 KB; don't refetch it per ask
+_ART_UA = "Omega-7 servo-skull (Raspberry Pi; +https://github.com/grimbelch/servoskull)"
+_art_feed_cache: dict[str, tuple[float, list[dict]]] = {}
+
+
+def _art_parse_feed(content: bytes) -> list[dict]:
+    """Candidate images from a DeviantArt RSS body.
+
+    defusedxml when it is installed: stdlib ElementTree is vulnerable to entity
+    expansion, and this is parsing a response from the open internet. The fallback
+    keeps the tool working on a unit that has not pip-installed it yet, and the
+    response is size-capped either way.
+    """
+    try:
+        from defusedxml import ElementTree as _ET
+    except ImportError:
+        import xml.etree.ElementTree as _ET
+    root = _ET.fromstring(content)
+    ns = {"media": "http://search.yahoo.com/mrss/"}
+    out = []
+    for it in root.findall(".//item")[:30]:
+        media = it.find(".//media:content", ns)
+        if media is None or not media.get("url"):
+            continue
+        try:
+            w, h = int(media.get("width") or 0), int(media.get("height") or 0)
+        except (TypeError, ValueError):
+            w, h = 0, 0
+        title_el = it.find("title")
+        out.append({"url": media.get("url"),
+                    "title": (title_el.text if title_el is not None else "Unknown") or "Unknown",
+                    "min_side": min(w, h) if w and h else 0})
+    return out
+
+
+def _art_fitness(c: dict):
+    """Rank candidates for a 240 px circle, nearest _ART_TARGET_SIDE first.
+
+    The previous order was largest-first and then weighted the random pick by area
+    again, so it reliably fetched the biggest file on offer in order to throw away
+    better than 99% of its pixels.
+    """
+    ms = c["min_side"]
+    if ms == 0:
+        return (2, 0)                        # size unstated: a last resort
+    if ms < _ART_PANEL_SIDE:
+        return (1, -ms)                      # too small to fill the panel
+    return (0, abs(ms - _ART_TARGET_SIDE))
+
+
+def _art_fetch_image(url: str):
+    """Download an image under a size cap. Returns (PIL image, None) or (None, why)."""
+    import requests
+    from io import BytesIO
+    from PIL import Image
+    with requests.get(url, timeout=8.0, stream=True,
+                      headers={"User-Agent": _ART_UA}) as resp:
+        if resp.status_code != 200:
+            return None, f"the image server answered {resp.status_code}"
+        ctype = (resp.headers.get("Content-Type") or "").lower()
+        if ctype and not ctype.startswith("image/"):
+            return None, f"that link is {ctype}, not an image"
+        buf = bytearray()
+        for chunk in resp.iter_content(64 * 1024):
+            buf.extend(chunk)
+            if len(buf) > _ART_MAX_BYTES:
+                # Unbounded before: a 40-megapixel piece was read into memory whole
+                # and decoded on the Pi, to be shrunk to 240 px.
+                return None, f"the image is larger than {_ART_MAX_BYTES // (1024 * 1024)} MB"
+    return Image.open(BytesIO(bytes(buf))), None
+
+
 def _execute_display_art(search_query: str) -> str:
     from core import display
     display.start_image_retrieval()
     try:
-        import requests
-        import xml.etree.ElementTree as ET
         import random
-        from io import BytesIO
-        from PIL import Image
+        import requests
 
-        # 1. Search DeviantArt RSS feed sorted by popularity.
-        url = (f"https://backend.deviantart.com/rss.xml"
-               f"?type=deviation&q={requests.utils.quote(search_query)}&order=9")
-        r = requests.get(url, timeout=6.0)
-        if r.status_code != 200 or b'<item>' not in r.content:
-            url = f"https://backend.deviantart.com/rss.xml?type=deviation&q={requests.utils.quote(search_query)}"
-            r = requests.get(url, timeout=6.0)
-            if r.status_code != 200:
-                return f"Failed to query DeviantArt RSS API: status code {r.status_code}"
-
-        root = ET.fromstring(r.content)
-        ns = {'media': 'http://search.yahoo.com/mrss/'}
-        items = root.findall('.//item')
-        if not items:
-            return f"No artwork found matching query: {search_query}"
-
-        candidates = []
-        for it in items[:20]:
-            media = it.find('.//media:content', ns)
-            if media is None:
-                continue
-            img_url = media.get('url', '')
-            if not img_url:
-                continue
-            try:
-                w = int(media.get('width', 0) or 0)
-                h = int(media.get('height', 0) or 0)
-            except (TypeError, ValueError):
-                w, h = 0, 0
-            score = w * h if w and h else 1
-            title_el = it.find('title')
-            title = title_el.text if title_el is not None else 'Unknown'
-            candidates.append({'url': img_url, 'title': title, 'score': score})
+        cached = _art_feed_cache.get(search_query)
+        if cached and time.time() - cached[0] < _ART_FEED_TTL:
+            candidates = cached[1]
+        else:
+            headers = {"User-Agent": _ART_UA}
+            base = "https://backend.deviantart.com/rss.xml?type=deviation&q="
+            q = requests.utils.quote(search_query)
+            r = requests.get(f"{base}{q}&order=9", timeout=6.0, headers=headers)
+            if r.status_code != 200 or b"<item>" not in r.content:
+                r = requests.get(f"{base}{q}", timeout=6.0, headers=headers)
+                if r.status_code != 200:
+                    return f"Failed to query DeviantArt RSS API: status code {r.status_code}"
+            if len(r.content) > _ART_MAX_BYTES:
+                return "The artwork search returned more than we are willing to parse."
+            candidates = _art_parse_feed(r.content)
+            if not candidates:
+                return f"No artwork found matching query: {search_query}"
+            _art_feed_cache[search_query] = (time.time(), candidates)
 
         if not candidates:
-            return "No image media links found in the search results."
+            return f"No artwork found matching query: {search_query}"
 
-        candidates.sort(key=lambda c: c['score'], reverse=True)
-        pool = candidates[:10]
-        weights = [max(c['score'], 1) for c in pool]
-        chosen = random.choices(pool, weights=weights, k=1)[0]
-
-        img_res = requests.get(chosen['url'], timeout=8.0)
-        if img_res.status_code != 200:
-            return f"Failed to download image from {chosen['url']}"
-
-        img = Image.open(BytesIO(img_res.content))
-        display.display_pil_image(img, duration=15.0)
-        return f"Successfully projected artwork: '{chosen['title']}' on the eye display."
+        # Try a few, so one dead link or one oversized file is not the whole answer.
+        pool = sorted(candidates, key=_art_fitness)[:10]
+        random.shuffle(pool)
+        last_why = "no candidate could be fetched"
+        for chosen in pool[:3]:
+            img, why = _art_fetch_image(chosen["url"])
+            if img is None:
+                last_why = why
+                print(f"[art] Skipping '{chosen['title']}': {why}")
+                continue
+            if not display.display_pil_image(img, duration=15.0):
+                # It used to report success for a picture the panel never took.
+                return f"Found '{chosen['title']}' but the eye display could not show it."
+            return f"Successfully projected artwork: '{chosen['title']}' on the eye display."
+        return f"Could not display artwork for '{search_query}': {last_why}."
     except Exception as e:
         import traceback
         traceback.print_exc()

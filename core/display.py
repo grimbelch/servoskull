@@ -486,6 +486,8 @@ def _blit(img, key=None) -> None:
     if config.DISPLAY_FINE_ROTATION != 0.0:
         # PIL rotate is counter-clockwise. Pass -angle to rotate clockwise.
         img = img.rotate(-config.DISPLAY_FINE_ROTATION, resample=Image.BICUBIC)
+    if img.mode != "RGB":
+        img = to_rgb(img)
     arr = np.asarray(img, dtype=np.uint16)
     r = (arr[..., 0] & 0xF8) << 8
     g = (arr[..., 1] & 0xFC) << 3
@@ -1913,12 +1915,47 @@ def start_omnissiah_glyph(duration: float = 4.0) -> None:
     _poke()
 
 
-def display_pil_image(pil_img, duration: float = 10.0) -> None:
+def to_rgb(img):
+    """Every image bound for the panel must end up RGB.
+
+    _blit packs three channels by indexing arr[..., 0:3]. A grayscale, palette or
+    bilevel frame is a 2-D array there, so the pack silently produces 480 bytes
+    instead of 115200 and the panel is sent garbage; an LA frame raises IndexError
+    inside the render thread. Measured: L, P, 1 and I;16 all pack short, LA throws,
+    and CMYK packs to the right size in the wrong colours. Alpha is composited onto
+    black rather than dropped, so a transparent PNG does not come out as whatever
+    happened to be in its colour channels.
+    """
+    from PIL import Image
+    if img.mode == "RGB":
+        return img
+    if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+        rgba = img.convert("RGBA")
+        flat = Image.new("RGB", rgba.size, (0, 0, 0))
+        flat.paste(rgba, mask=rgba.split()[-1])
+        return flat
+    return img.convert("RGB")
+
+
+def display_pil_image(pil_img, duration: float = 10.0) -> bool:
+    """Show an image on the eye for `duration`. True if the panel took it.
+
+    The return value matters: display_art used to announce "successfully projected"
+    for pictures that never reached the panel, because this returns early when
+    there is no panel and swallows anything that goes wrong.
+    """
     global _showing_custom_image, _custom_image, _custom_image_expiry, _custom_image_seq
     if not _available:
-        return
+        print("[display] No panel available — image not shown.")
+        return False
     try:
-        from PIL import Image
+        from PIL import Image, ImageOps
+        # A phone-shot piece carries its rotation in EXIF; without this it is sideways.
+        try:
+            pil_img = ImageOps.exif_transpose(pil_img) or pil_img
+        except Exception:
+            pass
+        pil_img = to_rgb(pil_img)
         w, h = pil_img.size
         min_side = min(w, h)
         left = (w - min_side) // 2
@@ -1933,8 +1970,10 @@ def display_pil_image(pil_img, duration: float = 10.0) -> None:
         _custom_image_expiry = time.monotonic() + duration
         _showing_custom_image = True
         _poke()
+        return True
     except Exception as e:
         print(f"[display] display_pil_image error: {e}")
+        return False
 
 
 def show_access_code(code: str, duration: float = 60.0) -> None:

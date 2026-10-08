@@ -730,13 +730,19 @@ def build_tools() -> list[dict]:
     },
     {
         "name": "display_art",
-        "description": "Search the web for Warhammer 40k or Necromunda artwork matching the query, download it, and project/display it on the skull's eye display screen.",
+        "description": (
+            "Search DeviantArt for artwork matching the query, download it, and show it on "
+            "the skull's round eye display for about 15 seconds. Use it whenever the user "
+            "asks to be shown a picture or image of something. The subject is whatever the "
+            "user asked for — Warhammer 40k and Necromunda art is the common case, not a "
+            "restriction."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "search_query": {
                     "type": "string",
-                    "description": "Specific search query for the artwork, e.g. 'Space Marine', 'Sister of Battle', 'Necromunda Escher gang'."
+                    "description": "What to find a picture of, e.g. 'Space Marine', 'Sister of Battle', 'Necromunda Escher gang', 'a barn owl'."
                 }
             },
             "required": ["search_query"]
