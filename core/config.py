@@ -290,6 +290,36 @@ ELEVENLABS_MODEL = _cfg("ELEVENLABS_MODEL", "eleven_v4_turbo")
 # Pass the persona's audio tags through to ElevenLabs instead of stripping them.
 # Turn off to get flat delivery from a tag-capable model without changing models.
 ELEVENLABS_AUDIO_TAGS = _cfg("ELEVENLABS_AUDIO_TAGS", "true").lower() == "true"
+
+
+def _voice_setting(name: str, personality_key: str) -> float | None:
+    """A 0.0–1.0 ElevenLabs voice setting, or None to leave it to the voice itself.
+
+    Unset is not the same as 0.5: with nothing sent, ElevenLabs applies the settings
+    stored on the voice in its dashboard, which is where a tuned voice is tuned. A
+    value here overrides that per request, so it is only sent when explicitly set."""
+    raw = str(_cfg(name, PERSONALITY.get(personality_key, ""))).strip()
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError:
+        print(f"[config] {name}={raw!r} is not a number; leaving it to the voice.")
+        return None
+    if not 0.0 <= value <= 1.0:
+        print(f"[config] {name}={value} is outside 0.0-1.0; leaving it to the voice.")
+        return None
+    return value
+
+
+# How much the delivery may vary between generations. Lower is more expressive and
+# more responsive to the audio tags; higher holds a fixed baseline and can flatten
+# into monotony. Eleven v4 kept only this and similarity — style and speed are gone,
+# and pacing now comes from the script (ellipses, capitals, a [slowly] tag).
+ELEVENLABS_STABILITY = _voice_setting("ELEVENLABS_STABILITY", "elevenlabs_stability")
+# How closely the output tracks the reference voice. Higher follows the clone more
+# strictly, sometimes at the cost of sounding natural.
+ELEVENLABS_SIMILARITY = _voice_setting("ELEVENLABS_SIMILARITY", "elevenlabs_similarity")
 # Wipe cached canned-phrase audio for one run after changing the ElevenLabs voice.
 RESET_VOICE_CACHE = _cfg("RESET_VOICE_CACHE", "false").lower() == "true"
 

@@ -124,3 +124,74 @@ def test_piper_never_speaks_a_tag(monkeypatch):
     monkeypatch.setattr(tts, "_get_piper_voice", lambda: _Voice())
     tts._synthesize_piper("[whispers] The Emperor protects.")
     assert spoken["text"] == "The Emperor protects."
+
+
+# ── Voice settings (stability / similarity) ───────────────────────────────────
+
+@pytest.fixture
+def capture_convert(monkeypatch):
+    """A fake ElevenLabs client that records the request kwargs."""
+    sent = {}
+
+    class _FakeTTS:
+        def convert(self, **kwargs):
+            sent.clear()
+            sent.update(kwargs)
+            return [b""]
+
+    monkeypatch.setattr(tts, "_elevenlabs_client", lambda: type("C", (), {"text_to_speech": _FakeTTS()})())
+    monkeypatch.setattr(config, "ELEVENLABS_VOICE_ID", "voice-1")
+    monkeypatch.setattr(config, "ELEVENLABS_MODEL", "eleven_v4_turbo")
+    return sent
+
+
+def _settings_dict(settings):
+    """The fake client receives either a VoiceSettings model or the plain dict."""
+    return settings if isinstance(settings, dict) else settings.__dict__
+
+
+def test_unset_voice_settings_are_not_sent(capture_convert, monkeypatch):
+    # Sending nothing is not the same as sending the defaults: it leaves the voice's
+    # own dashboard settings in force, which is where a tuned voice is tuned.
+    monkeypatch.setattr(config, "ELEVENLABS_STABILITY", None)
+    monkeypatch.setattr(config, "ELEVENLABS_SIMILARITY", None)
+    tts._synthesize_elevenlabs("Compliance.")
+    assert "voice_settings" not in capture_convert
+
+
+def test_set_voice_settings_are_sent(capture_convert, monkeypatch):
+    monkeypatch.setattr(config, "ELEVENLABS_STABILITY", 0.35)
+    monkeypatch.setattr(config, "ELEVENLABS_SIMILARITY", 0.8)
+    tts._synthesize_elevenlabs("Compliance.")
+    sent = _settings_dict(capture_convert["voice_settings"])
+    assert sent["stability"] == 0.35
+    assert sent["similarity_boost"] == 0.8
+
+
+def test_a_partial_override_leaves_the_other_to_the_voice(capture_convert, monkeypatch):
+    monkeypatch.setattr(config, "ELEVENLABS_STABILITY", 0.2)
+    monkeypatch.setattr(config, "ELEVENLABS_SIMILARITY", None)
+    tts._synthesize_elevenlabs("Compliance.")
+    sent = _settings_dict(capture_convert["voice_settings"])
+    assert sent["stability"] == 0.2
+    assert sent.get("similarity_boost") is None
+
+
+def test_style_and_speed_are_never_sent(capture_convert, monkeypatch):
+    # Eleven v4 dropped both; pacing comes from the script and the tags instead.
+    monkeypatch.setattr(config, "ELEVENLABS_STABILITY", 0.5)
+    monkeypatch.setattr(config, "ELEVENLABS_SIMILARITY", 0.5)
+    tts._synthesize_elevenlabs("Compliance.")
+    sent = _settings_dict(capture_convert["voice_settings"])
+    assert sent.get("style") in (None, 0)
+    assert sent.get("speed") in (None, 1.0)
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("", None), ("   ", None), ("0.35", 0.35), ("0", 0.0), ("1", 1.0),
+    ("1.5", None), ("-0.1", None), ("creative", None),
+])
+def test_voice_setting_parsing(monkeypatch, raw, expected):
+    monkeypatch.setitem(config.PERSONALITY, "elevenlabs_stability", raw)
+    monkeypatch.setattr(config, "_cfg", lambda name, default="": default, raising=False)
+    assert config._voice_setting("ELEVENLABS_STABILITY", "elevenlabs_stability") == expected

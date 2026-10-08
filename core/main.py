@@ -92,8 +92,9 @@ _speech_lock = threading.RLock()
 # The prerecorded phrases (wake / cogitation / search / acknowledgement / boot) are
 # spoken in the ElevenLabs voice regardless of TTS_BACKEND (which still governs the
 # dynamic conversational replies). To avoid hitting the API on every boot, each
-# phrase's WAV is cached to disk keyed by (voice id, model, text): changing
-# ELEVENLABS_VOICE_ID or ELEVENLABS_MODEL transparently regenerates them — the model
+# phrase's WAV is cached to disk keyed by (voice id, model, voice settings, text):
+# changing any of ELEVENLABS_VOICE_ID, ELEVENLABS_MODEL, ELEVENLABS_STABILITY or
+# ELEVENLABS_SIMILARITY transparently regenerates them — the model
 # belongs in the key because a new generation of it is a new performance of the same
 # words, and a cache keyed only by text would keep serving the old one forever. The
 # superseded files are left behind (one stale generation, the skull's own voice, which
@@ -107,7 +108,12 @@ _VOICE_CACHE_DIR = pathlib.Path(f"models/phrase_cache/{_persona_key}")
 
 
 def _voice_cache_path(text: str) -> pathlib.Path:
-    key = f"{config.SKULL_NAME}:{config.ELEVENLABS_VOICE_ID}:{config.ELEVENLABS_MODEL}:{text}".encode("utf-8")
+    key = f"{config.SKULL_NAME}:{config.ELEVENLABS_VOICE_ID}:{config.ELEVENLABS_MODEL}"
+    # Only tuned voice settings join the key, so adding the knobs does not invalidate
+    # a cache recorded before they existed — an untuned voice keeps its audio.
+    if config.ELEVENLABS_STABILITY is not None or config.ELEVENLABS_SIMILARITY is not None:
+        key += f":{config.ELEVENLABS_STABILITY}:{config.ELEVENLABS_SIMILARITY}"
+    key = f"{key}:{text}".encode("utf-8")
     return _VOICE_CACHE_DIR / f"{hashlib.sha1(key).hexdigest()[:16]}.wav"
 
 

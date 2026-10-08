@@ -93,15 +93,39 @@ def _elevenlabs_client():
         _eleven_client_key = config.ELEVENLABS_API_KEY
     return _eleven_client
 
+def _voice_settings():
+    """The stability/similarity overrides, or None to use the voice's own settings.
+
+    Only the keys that are actually set are sent: a partial override leaves the rest
+    to the voice. Style and speed are deliberately absent — Eleven v4 dropped both,
+    and delivery is shaped by the audio tags instead."""
+    stability, similarity = config.ELEVENLABS_STABILITY, config.ELEVENLABS_SIMILARITY
+    if stability is None and similarity is None:
+        return None
+    settings = {}
+    if stability is not None:
+        settings["stability"] = stability
+    if similarity is not None:
+        settings["similarity_boost"] = similarity
+    try:
+        from elevenlabs import VoiceSettings
+        return VoiceSettings(**settings)
+    except Exception:
+        # An SDK without the model still accepts the plain request body.
+        return settings
+
+
 def _synthesize_elevenlabs(text: str) -> bytes:
     text = _preprocess_text(text, keep_audio_tags=audio_tags_supported())
     client = _elevenlabs_client()
     voice_id = config.ELEVENLABS_VOICE_ID if config.ELEVENLABS_VOICE_ID else "21m00Tcm4TlvDq8ikWAM"
+    settings = _voice_settings()
     audio_iter = client.text_to_speech.convert(
         voice_id=voice_id,
         text=text,
         model_id=config.ELEVENLABS_MODEL,
         output_format="pcm_16000",
+        **({"voice_settings": settings} if settings is not None else {}),
     )
     pcm = b"".join(audio_iter)
     return _pcm_to_wav(pcm, sample_rate=16000)
