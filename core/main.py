@@ -9,6 +9,7 @@ import random
 import re
 import pathlib
 import queue
+import itertools
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
@@ -601,6 +602,25 @@ def _speak_clips(clips, on_wake, suppress_barge_in=None) -> bool:
     interrupted, the eyes are turned off and the display returned to idle here
     (only if something was played).
     """
+    # The first clip is awaited BEFORE the sequence lock is taken. A streamed reply
+    # starts its player thread the moment the streamer is built and then waits for
+    # the model's first sentence; holding the lock across that wait deadlocked any
+    # tool that speaks from inside the same turn. "Play a holy hymn" did exactly
+    # that: streaming is disabled for hymn requests, so the streamer was never fed
+    # and held the lock for the whole turn, while the hymn tool waited for the lock
+    # the streamer would only release once the turn ended. The main thread stopped
+    # beating and the watchdog restarted the service 190s later.
+    #
+    # _speech_lock was already changed for this reason (see the note above); this is
+    # the same hazard one lock further out.
+    clip_source = iter(clips)
+    try:
+        first_clip = next(clip_source)
+    except StopIteration:
+        return False
+    if first_clip is None:
+        return False
+
     with _speak_seq_lock:
         _stop_play = threading.Event()
         _interrupted = threading.Event()
@@ -644,7 +664,7 @@ def _speak_clips(clips, on_wake, suppress_barge_in=None) -> bool:
         eye_thread = None
         played = False
         try:
-            for wav_bytes in clips:
+            for wav_bytes in itertools.chain((first_clip,), clip_source):
                 if wav_bytes is None or _interrupted.is_set():
                     break
                 if int_thread is None:
