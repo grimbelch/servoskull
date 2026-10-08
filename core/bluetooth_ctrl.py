@@ -66,6 +66,8 @@ def scan(timeout: int = 6) -> list[dict]:
     try:
         import pexpect
         child = pexpect.spawn("bluetoothctl", encoding="utf-8", timeout=15)
+        scanning = False
+        send = None   # unbound if the first prompt never arrives
         try:
             child.expect(PROMPT)
     
@@ -74,6 +76,7 @@ def scan(timeout: int = 6) -> list[dict]:
                 child.expect(re.escape(cmd), timeout=t)
                 child.expect(PROMPT, timeout=t)
                 return child.before
+            send = send_cmd
     
             send_cmd("power on")
             send_cmd("agent on")
@@ -93,6 +96,7 @@ def scan(timeout: int = 6) -> list[dict]:
     
             # 2. Perform live RF scan
             child.sendline("scan on")
+            scanning = True
             t0 = time.time()
             while time.time() - t0 < timeout:
                 try:
@@ -105,9 +109,20 @@ def scan(timeout: int = 6) -> list[dict]:
                 except Exception:
                     pass
     
-            send_cmd("scan off")
-            send_cmd("quit")
         finally:
+            # Leaving the adapter scanning costs power and air time, so stop it
+            # however the block above was left -- and do not let one failed
+            # cleanup command skip the next.
+            if send is not None and scanning:
+                try:
+                    send("scan off")
+                except Exception as e:
+                    print(f"[bluetooth] Could not stop the scan cleanly: {e}")
+            if send is not None:
+                try:
+                    send("quit")
+                except Exception:
+                    pass
             try:
                 child.close()
             except Exception:
@@ -314,6 +329,66 @@ def disconnect(identifier: str = "all") -> bool:
         return False
 
 
+# The sink for a speaker appears a moment after the connection completes, so it is
+# waited for rather than slept on, and never guessed at.
+_SINK_WAIT_SECS = 6.0
+_SINK_POLL_SECS = 0.25
+
+
+def _bt_sink_for(mac: str, sinks_output: str) -> str | None:
+    """The sink belonging to `mac` in `pactl list short sinks` output, or None.
+
+    Matches the address alone. The previous fallback took the first line containing
+    "bluez", which is any Bluetooth sink at all -- so connecting a second speaker
+    while the first was still up sent the audio to whichever pactl listed first.
+    """
+    mac_under = mac.replace(":", "_").replace("-", "_").lower()
+    for line in sinks_output.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and mac_under in parts[1].lower():
+            return parts[1]
+    return None
+
+
+def _wait_for_bt_sink(mac: str, timeout: float | None = None) -> str | None:
+    """Poll pactl until the sink for `mac` shows up, or give up and return None.
+
+    The wait is read at call time, not bound as a default, so the constant above is
+    the single place it lives.
+    """
+    deadline = time.time() + (_SINK_WAIT_SECS if timeout is None else timeout)
+    while True:
+        try:
+            out = subprocess.run(
+                ["pactl", "list", "short", "sinks"],
+                capture_output=True, text=True, timeout=5,
+            ).stdout
+        except Exception as e:
+            print(f"[bluetooth] Could not list sinks: {e}")
+            return None
+        sink = _bt_sink_for(mac, out)
+        if sink:
+            return sink
+        if time.time() >= deadline:
+            return None
+        time.sleep(_SINK_POLL_SECS)
+
+
+def _pin_voice_to_internal() -> None:
+    """Keep TTS/SFX on Omega-7's own speaker, whatever the system default is.
+
+    The echo-cancel sink when it is loaded, not the raw USB one, so the AEC keeps
+    its reference and the skull cannot hear or wake itself. Both the connect and the
+    disconnect path call this: the disconnect path used to set the pin to None and
+    lean on the system default having just been restored, which is only correct
+    while that restore succeeds.
+    """
+    from core import config, audio
+    int_sink = audio.get_internal_speaker_sink()
+    config.VOICE_OUTPUT_DEVICE = int_sink
+    print(f"[bluetooth] Voice pinned to internal speaker sink: {int_sink}")
+
+
 def _route_audio(mac: str) -> None:
     """Route BT audio without disturbing TTS output.
 
@@ -326,21 +401,8 @@ def _route_audio(mac: str) -> None:
       connection: connect() used to query sounddevice for the pre-BT output index
       and pass it in, and this function never read it.
     """
-    time.sleep(1)  # give the sink a moment to register
-
-    mac_under = mac.replace(":", "_").lower()
     try:
-        sinks = subprocess.run(
-            ["pactl", "list", "short", "sinks"],
-            capture_output=True, text=True, timeout=5,
-        ).stdout
-        sink_name = None
-        for line in sinks.splitlines():
-            line_lower = line.lower()
-            if mac_under in line_lower or "bluez" in line_lower:
-                sink_name = line.split()[1]
-                break
-
+        sink_name = _wait_for_bt_sink(mac)
         if sink_name:
             subprocess.run(
                 ["pactl", "set-default-sink", sink_name],
@@ -348,16 +410,12 @@ def _route_audio(mac: str) -> None:
             )
             print(f"[bluetooth] System audio default → {sink_name}")
         else:
-            print(f"[bluetooth] Sink for {mac} not found — PulseAudio default unchanged")
-
+            print(f"[bluetooth] No sink for {mac} after {_SINK_WAIT_SECS:.0f}s — "
+                  f"system default left alone rather than guessed at")
     except Exception as e:
         print(f"[bluetooth] Audio routing error: {e}")
 
-    # Pin voice output explicitly to Omega-7's local speaker (echo-cancel sink if loaded)
-    from core import config, audio
-    int_sink = audio.get_internal_speaker_sink()
-    config.VOICE_OUTPUT_DEVICE = int_sink
-    print(f"[bluetooth] Voice pinned to internal speaker sink: {int_sink}")
+    _pin_voice_to_internal()
 
 
 def _restore_local_audio() -> None:
@@ -367,7 +425,7 @@ def _restore_local_audio() -> None:
     as the default would bypass the AEC, so the skull's voice would reach the mic
     uncancelled and could trigger its own wake word.
     """
-    from core import config, audio
+    from core import audio
     try:
         s_name = audio.get_pulseaudio_sinks().get("internal")
         if s_name:
@@ -378,5 +436,5 @@ def _restore_local_audio() -> None:
     except Exception as e:
         print(f"[bluetooth] Restore audio error: {e}")
 
-    config.VOICE_OUTPUT_DEVICE = None
+    _pin_voice_to_internal()
 
