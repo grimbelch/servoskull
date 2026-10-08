@@ -22,6 +22,7 @@ import time
 
 from core import config
 from core import dice_faces
+from core import dice3d
 import importlib
 
 _persona_key = config.get_personality_key() if hasattr(config, "get_personality_key") else config.SKULL_NAME.lower().replace("-", "")
@@ -1060,11 +1061,17 @@ _DIE_SETTLE = 0.28       # the bounce as they land
 _DIE_STAGGER = 0.04      # each dice leaves the hand a little after the last
 # Dice enter from beyond the aperture, but only just: thrown from much further
 # out, the eye is empty for the first tenth of a second and the roll looks like
-# a dropped frame rather than a throw.
-_DIE_THROW_FROM = 104.0
+# a dropped frame rather than a throw. A tumbling cube is smaller than the flat
+# dice it becomes, so it has to start nearer still to be in shot at all.
+_DIE_THROW_FROM = 90.0
 # Whole turns, so a dice lands upright however far it flew. Different counts
 # per dice stop them turning as one block.
 _DIE_TURNS = (3, 2, 4, 2, 3, 2)
+# Degrees turned about each axis over the throw, per dice. The path eases to
+# zero, so whatever these are the cube ends square-on with the rolled face to
+# the front -- it cannot land on a corner.
+_DIE_SPIN_3D = ((760, 520, 140), (520, 880, -180), (940, 400, 220),
+                (620, 700, -120), (840, 560, 160), (480, 820, -200))
 
 
 def _ease_out(t: float) -> float:
@@ -1159,6 +1166,11 @@ def _render_die_frame(bezel, mask, elapsed: float, result: str, kind: str = "d6"
     shown = symbols[:dice_faces.MAX_DRAWN]
     slots = dice_faces.layout(len(shown))
     pool = dice_faces.TUMBLE_POOL.get(kind, ())
+    # Cubes for the dice that carry symbols, and only where there is room for
+    # one: the five- and six-dice layouts drop the outline to keep the symbols
+    # readable, and a cube at that size would spill out of the aperture.
+    use_3d = dice3d.supports(kind) and slots[0][3]
+    sides = [dice3d.sides_for(kind, sym) for sym in shown] if use_3d else []
 
     if elapsed < _DIE_TUMBLE_END:
         # The throw: each dice comes in off the rim, turning as it goes, and
@@ -1175,6 +1187,18 @@ def _render_die_frame(bezel, mask, elapsed: float, result: str, kind: str = "d6"
             sy = _CY + _DIE_THROW_FROM * math.sin(entry)
             px = sx + (x - sx) * travel
             py = sy + (y - sy) * travel
+
+            if use_3d:
+                # A real cube, carrying the six faces the dice really has, and
+                # turning in space. It shows whichever sides happen to face the
+                # viewer, so there is no need to fake a blur of faces: the
+                # tumble IS the dice turning.
+                ease = _ease_out(flight)
+                spin = _DIE_SPIN_3D[i % len(_DIE_SPIN_3D)]
+                angles = tuple(a * (1.0 - ease) for a in spin)
+                dice3d.draw_die(d, px, py, size, base, (0, 0, 0), sides[i],
+                                details[i], angles, dice3d.SCALE_TUMBLING)
+                continue
 
             turns = _DIE_TURNS[i % len(_DIE_TURNS)]
             angle = turns * 360.0 * (1.0 - (1.0 - flight) ** 3)
@@ -1195,8 +1219,17 @@ def _render_die_frame(bezel, mask, elapsed: float, result: str, kind: str = "d6"
         # Land with a small overshoot, then hold.
         scale = 1.0 + 0.22 * (1.0 - settle) * math.cos(settle * math.pi * 1.5)
         for i, (x, y, size, with_body) in enumerate(slots):
-            _draw_one_die(d, overlay, x, y, size * scale, base, shown[i],
-                          details[i], with_body)
+            if use_3d and settle < 1.0:
+                # Still a cube, now square-on, growing into the flat dice it
+                # hands over to. Face-on they are the same silhouette, so the
+                # changeover cannot be seen.
+                grow = (dice3d.SCALE_TUMBLING
+                        + (dice3d.SCALE_LANDED - dice3d.SCALE_TUMBLING) * settle)
+                dice3d.draw_die(d, x, y, size, base, (0, 0, 0), sides[i],
+                                details[i], (0.0, 0.0, 0.0), grow)
+            else:
+                _draw_one_die(d, overlay, x, y, size * scale, base, shown[i],
+                              details[i], with_body)
 
         # The shock ring thrown off as they land.
         if settle < 1.0:

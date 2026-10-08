@@ -6,8 +6,15 @@ symbol; a Scatter dice shows arrows and a crosshair. Printing the words instead
 ("Serious Injury") wastes a round 240px panel and reads slowly across a table,
 so the eye draws the face the player would see on the dice in their hand.
 
-Every function here is pure drawing against a Pillow ImageDraw, with no display
-state, so the faces can be rendered and checked without the panel.
+Each symbol is defined once, as GEOMETRY: an ordered list of polygons in a unit
+face square running -0.5 to 0.5, each marked as ink or as a void punched out of
+what is already there. Geometry rather than drawing calls, because the same
+symbol has to be drawn two ways -- flat on the result, and projected onto the
+side of a tumbling cube (``core.dice3d``). A circle drawn by ``ImageDraw.ellipse``
+cannot be turned in three dimensions; a ring of points can.
+
+Nothing here touches display state, so the faces can be rendered and checked
+without the panel.
 
 Shapes are built for legibility at roughly 40-70px inside a 146px aperture:
 solid silhouettes, no hairlines, nothing that depends on colour to be read.
@@ -25,6 +32,9 @@ SYMBOLS = (
 )
 
 
+_CIRCLE_STEPS = 22
+
+
 def _poly(draw, points, fill=None, outline=None, width=1):
     draw.polygon([(round(x), round(y)) for x, y in points],
                  fill=fill, outline=outline, width=width)
@@ -37,138 +47,149 @@ def _rotate(points, cx, cy, degrees):
              cy + (x - cx) * sin_a + (y - cy) * cos_a) for x, y in points]
 
 
-def _jagged_circle(draw, cx, cy, radius, colour, teeth: int = 10, depth: float = 0.16):
-    """A torn bullet hole: a ring with a ragged rim and a punched-out centre.
+def _ellipse(cx, cy, rx, ry, steps: int = _CIRCLE_STEPS):
+    return [(cx + rx * math.cos(2 * math.pi * i / steps),
+             cy + ry * math.sin(2 * math.pi * i / steps)) for i in range(steps)]
+
+
+def _circle(cx, cy, r, steps: int = _CIRCLE_STEPS):
+    return _ellipse(cx, cy, r, r, steps)
+
+
+def _rect(x0, y0, x1, y1):
+    return [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+
+
+def _bar(x0, y0, x1, y1, width):
+    """A thick line as a quad, so it survives projection like everything else."""
+    dx, dy = x1 - x0, y1 - y0
+    length = math.hypot(dx, dy) or 1.0
+    nx, ny = -dy / length * width / 2, dx / length * width / 2
+    return [(x0 + nx, y0 + ny), (x1 + nx, y1 + ny),
+            (x1 - nx, y1 - ny), (x0 - nx, y0 - ny)]
+
+
+def _torn_ring(cx, cy, radius, teeth: int = 10, depth: float = 0.16):
+    """A bullet hole: a ragged rim with the middle punched out.
 
     A plain circle reads as a pip at this size, but deep teeth read as a star
     and collide with the Serious Injury burst. Shallow tearing plus a void in
     the middle is what makes it read as a hole punched THROUGH something.
     """
-    points = []
+    rim = []
     for i in range(teeth * 2):
         angle = math.pi * i / teeth
         r = radius * (1.0 - depth * (i % 2))
-        points.append((cx + r * math.cos(angle), cy + r * math.sin(angle)))
-    _poly(draw, points, fill=colour)
-    void = radius * 0.42
-    draw.ellipse([cx - void, cy - void, cx + void, cy + void], fill=(0, 0, 0))
+        rim.append((cx + r * math.cos(angle), cy + r * math.sin(angle)))
+    return [(rim, "ink"), (_circle(cx, cy, radius * 0.42), "void")]
 
 
-def draw_cross(draw, cx, cy, size, colour):
-    """Injured: a thick cross with a droplet at its heart."""
-    arm = size * 0.5
-    bar = size * 0.19
-    _poly(draw, [(cx - bar, cy - arm), (cx + bar, cy - arm), (cx + bar, cy - bar),
-                 (cx + arm, cy - bar), (cx + arm, cy + bar), (cx + bar, cy + bar),
-                 (cx + bar, cy + arm), (cx - bar, cy + arm), (cx - bar, cy + bar),
-                 (cx - arm, cy + bar), (cx - arm, cy - bar), (cx - bar, cy - bar)],
-          fill=colour)
-    # The droplet is punched out of the cross, so it has to be the background.
-    drop = size * 0.15
-    draw.ellipse([cx - drop, cy - drop * 0.6, cx + drop, cy + drop * 1.3], fill=(0, 0, 0))
-    _poly(draw, [(cx, cy - drop * 1.9), (cx - drop * 0.95, cy + drop * 0.3),
-                 (cx + drop * 0.95, cy + drop * 0.3)], fill=(0, 0, 0))
+def _geom_cross():
+    """Injured: a thick cross with a droplet punched out of its heart."""
+    arm, bar, drop = 0.50, 0.19, 0.15
+    shape = [(-bar, -arm), (bar, -arm), (bar, -bar), (arm, -bar), (arm, bar),
+             (bar, bar), (bar, arm), (-bar, arm), (-bar, bar), (-arm, bar),
+             (-arm, -bar), (-bar, -bar)]
+    return [
+        (shape, "ink"),
+        (_ellipse(0.0, drop * 0.35, drop, drop * 0.95), "void"),
+        ([(0.0, -drop * 1.9), (-drop * 0.95, drop * 0.3), (drop * 0.95, drop * 0.3)],
+         "void"),
+    ]
 
 
-def draw_starburst(draw, cx, cy, size, colour, spikes: int = 6):
+def _geom_starburst(spikes: int = 6):
     """Serious Injury: a splintered impact burst.
 
     Few and fat, not many and fine: thin spikes read as a sparkle and, worse,
-    look like the Firepower dice's torn bullet holes at a glance. The two
-    symbols have to be separable across a table.
+    look like the Firepower dice's torn bullet holes at a glance.
     """
-    outer = size * 0.50
-    spread = 0.62
+    outer, spread = 0.50, 0.62
+    out = []
     for i in range(spikes):
         angle = 2 * math.pi * i / spikes - math.pi / 2
         length = outer if i % 2 == 0 else outer * 0.74
-        tip = (cx + length * math.cos(angle), cy + length * math.sin(angle))
-        left = (cx + outer * 0.34 * math.cos(angle - spread),
-                cy + outer * 0.34 * math.sin(angle - spread))
-        right = (cx + outer * 0.34 * math.cos(angle + spread),
-                 cy + outer * 0.34 * math.sin(angle + spread))
-        _poly(draw, [tip, left, right], fill=colour)
-    core = size * 0.22
-    draw.ellipse([cx - core, cy - core, cx + core, cy + core], fill=colour)
+        tip = (length * math.cos(angle), length * math.sin(angle))
+        left = (outer * 0.34 * math.cos(angle - spread),
+                outer * 0.34 * math.sin(angle - spread))
+        right = (outer * 0.34 * math.cos(angle + spread),
+                 outer * 0.34 * math.sin(angle + spread))
+        out.append(([tip, left, right], "ink"))
+    out.append((_circle(0.0, 0.0, 0.22), "ink"))
+    return out
 
 
-def draw_skull(draw, cx, cy, size, colour):
+def _geom_skull():
     """Out of Action."""
-    half = size * 0.40
-    draw.ellipse([cx - half, cy - half * 1.08, cx + half, cy + half * 0.72], fill=colour)
-    jaw_w, jaw_top, jaw_h = half * 0.58, cy + half * 0.46, half * 0.52
-    draw.rounded_rectangle([cx - jaw_w, jaw_top, cx + jaw_w, jaw_top + jaw_h],
-                           radius=max(2, int(size * 0.07)), fill=colour)
-    # Sockets and nose are voids, so they are cut in the background colour.
-    eye_r = half * 0.30
+    half = 0.40
+    jaw_w, jaw_top, jaw_h = half * 0.58, half * 0.46, half * 0.52
+    out = [
+        (_ellipse(0.0, -half * 0.18, half, half * 0.90), "ink"),
+        (_rect(-jaw_w, jaw_top, jaw_w, jaw_top + jaw_h), "ink"),
+    ]
     for sign in (-1, 1):
-        ex = cx + sign * half * 0.40
-        draw.ellipse([ex - eye_r, cy - half * 0.36, ex + eye_r, cy + half * 0.12],
-                     fill=(0, 0, 0))
+        out.append((_ellipse(sign * half * 0.40, -half * 0.12,
+                             half * 0.30, half * 0.24), "void"))
     nose = half * 0.15
-    _poly(draw, [(cx, cy + half * 0.08), (cx - nose, cy + half * 0.40),
-                 (cx + nose, cy + half * 0.40)], fill=(0, 0, 0))
+    out.append(([(0.0, half * 0.08), (-nose, half * 0.40), (nose, half * 0.40)],
+                "void"))
     for sign in (-1, 0, 1):
-        tx = cx + sign * half * 0.30
-        draw.line([(tx, jaw_top), (tx, jaw_top + jaw_h)], fill=(0, 0, 0),
-                  width=max(1, int(size * 0.035)))
+        tx = sign * half * 0.30
+        out.append((_bar(tx, jaw_top, tx, jaw_top + jaw_h, 0.035), "void"))
+    return out
 
 
-def draw_holes(draw, cx, cy, size, colour, count: int = 1):
-    """Firepower: one, two or three bullet holes, as the die shows them."""
+def _geom_holes(count: int = 1):
+    """Firepower: one, two or three bullet holes, as the dice shows them."""
     count = max(1, min(3, int(count)))
     if count == 1:
-        _jagged_circle(draw, cx, cy, size * 0.30, colour)
-        return
+        return _torn_ring(0.0, 0.0, 0.30)
     if count == 2:
-        offset, radius = size * 0.24, size * 0.22
-        _jagged_circle(draw, cx - offset, cy - offset * 0.5, radius, colour)
-        _jagged_circle(draw, cx + offset, cy + offset * 0.5, radius, colour)
-        return
-    radius = size * 0.19
+        out = []
+        for sign in (-1, 1):
+            out += _torn_ring(sign * 0.24, sign * 0.12, 0.22)
+        return out
+    out = []
     for angle in (-90, 30, 150):
         rad = math.radians(angle)
-        _jagged_circle(draw, cx + size * 0.27 * math.cos(rad),
-                       cy + size * 0.27 * math.sin(rad), radius, colour)
+        out += _torn_ring(0.27 * math.cos(rad), 0.27 * math.sin(rad), 0.19)
+    return out
 
 
-def draw_ammo(draw, cx, cy, size, colour):
+def _geom_ammo():
     """Firepower: the ammo symbol, drawn as a shell casing."""
-    body_w, body_h = size * 0.20, size * 0.30
-    draw.rounded_rectangle([cx - body_w, cy - body_h * 0.2, cx + body_w, cy + body_h * 1.3],
-                           radius=max(2, int(size * 0.05)), fill=colour)
-    _poly(draw, [(cx, cy - size * 0.50), (cx - body_w, cy - body_h * 0.1),
-                 (cx + body_w, cy - body_h * 0.1)], fill=colour)
-    draw.line([(cx - body_w, cy + body_h * 0.95), (cx + body_w, cy + body_h * 0.95)],
-              fill=(0, 0, 0), width=max(1, int(size * 0.045)))
+    body_w, body_h = 0.20, 0.30
+    return [
+        (_rect(-body_w, -body_h * 0.2, body_w, body_h * 1.3), "ink"),
+        ([(0.0, -0.50), (-body_w, -body_h * 0.1), (body_w, -body_h * 0.1)], "ink"),
+        (_bar(-body_w, body_h * 0.95, body_w, body_h * 0.95, 0.045), "void"),
+    ]
 
 
-def draw_crosshair(draw, cx, cy, size, colour):
+def _geom_crosshair():
     """Scatter: the Hit face."""
-    r = size * 0.38
-    line_w = max(2, int(size * 0.07))
-    draw.ellipse([cx - r, cy - r, cx + r, cy + r], outline=colour, width=line_w)
+    r, line_w = 0.38, 0.07
+    out = [(_circle(0.0, 0.0, r + line_w / 2), "ink"),
+           (_circle(0.0, 0.0, r - line_w / 2), "void")]
     for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-        draw.line([(cx + dx * r * 0.55, cy + dy * r * 0.55),
-                   (cx + dx * r * 1.42, cy + dy * r * 1.42)], fill=colour, width=line_w)
-    dot = size * 0.09
-    draw.ellipse([cx - dot, cy - dot, cx + dot, cy + dot], fill=colour)
+        out.append((_bar(dx * r * 0.55, dy * r * 0.55,
+                         dx * r * 1.42, dy * r * 1.42, line_w), "ink"))
+    out.append((_circle(0.0, 0.0, 0.09), "ink"))
+    return out
 
 
-def draw_arrow(draw, cx, cy, size, colour, degrees: float = 0.0):
+def _geom_arrow(degrees: float = 0.0):
     """Scatter: a direction arrow, pointing ``degrees`` clockwise from up."""
-    head, shaft = size * 0.26, size * 0.11
-    points = [(cx, cy - size * 0.48), (cx - head, cy - size * 0.06),
-              (cx - shaft, cy - size * 0.06), (cx - shaft, cy + size * 0.46),
-              (cx + shaft, cy + size * 0.46), (cx + shaft, cy - size * 0.06),
-              (cx + head, cy - size * 0.06)]
-    _poly(draw, _rotate(points, cx, cy, degrees), fill=colour)
+    head, shaft = 0.26, 0.11
+    points = [(0.0, -0.48), (-head, -0.06), (-shaft, -0.06), (-shaft, 0.46),
+              (shaft, 0.46), (shaft, -0.06), (head, -0.06)]
+    return [(_rotate(points, 0.0, 0.0, degrees), "ink")]
 
 
-def draw_pips(draw, cx, cy, size, colour, value: int = 1):
+def _geom_pips(value: int = 1):
     """A plain D6 face, for the rolls that use ordinary dice."""
     value = max(1, min(6, int(value)))
-    step, r = size * 0.26, max(2, size * 0.085)
+    step, r = 0.26, 0.085
     layouts = {
         1: [(0, 0)],
         2: [(-1, -1), (1, 1)],
@@ -177,43 +198,49 @@ def draw_pips(draw, cx, cy, size, colour, value: int = 1):
         5: [(-1, -1), (1, -1), (0, 0), (-1, 1), (1, 1)],
         6: [(-1, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (1, 1)],
     }
-    for gx, gy in layouts[value]:
-        px, py = cx + gx * step, cy + gy * step
-        draw.ellipse([px - r, py - r, px + r, py + r], fill=colour)
+    return [(_circle(gx * step, gy * step, r), "ink") for gx, gy in layouts[value]]
 
 
-def draw_face(draw, symbol: str, cx: float, cy: float, size: float, colour,
-              detail=None) -> None:
-    """Draw one die face by the symbol name ``dice.face_symbol()`` returns.
+def face_geometry(symbol: str, detail=None) -> list:
+    """The polygons for one face, in a unit square running -0.5 to 0.5.
 
-    Unknown symbols fall back to a single pip rather than drawing nothing, so a
-    face this module has not been taught still shows that a dice was rolled.
+    Each entry is (points, role), in draw order; "void" punches back out of the
+    ink already laid down. Unknown symbols fall back to a single pip rather than
+    nothing, so a face this module has not been taught still shows that a dice
+    was rolled.
     """
     symbol = (symbol or "").strip()
     if symbol == "cross":
-        draw_cross(draw, cx, cy, size, colour)
-    elif symbol == "starburst":
-        draw_starburst(draw, cx, cy, size, colour)
-    elif symbol == "skull":
-        draw_skull(draw, cx, cy, size, colour)
-    elif symbol.startswith("holes"):
-        draw_holes(draw, cx, cy, size, colour, int(symbol[5:] or 1))
-    elif symbol == "ammo":
-        draw_ammo(draw, cx, cy, size, colour)
-    elif symbol == "crosshair":
-        draw_crosshair(draw, cx, cy, size, colour)
-    elif symbol == "arrow":
-        # A scatter dice is read at whatever rotation it landed in, so the
-        # bearing is any angle, not one of four headings.
+        return _geom_cross()
+    if symbol == "starburst":
+        return _geom_starburst()
+    if symbol == "skull":
+        return _geom_skull()
+    if symbol.startswith("holes"):
+        return _geom_holes(int(symbol[5:] or 1))
+    if symbol == "ammo":
+        return _geom_ammo()
+    if symbol == "crosshair":
+        return _geom_crosshair()
+    if symbol == "arrow":
         try:
             bearing = float(detail)
         except (TypeError, ValueError):
             bearing = 0.0
-        draw_arrow(draw, cx, cy, size, colour, bearing)
-    elif symbol == "pip":
-        draw_pips(draw, cx, cy, size, colour, int(detail or 1))
-    else:
-        draw_pips(draw, cx, cy, size, colour, 1)
+        # A scatter dice is read at whatever rotation it landed in, so the
+        # bearing is any angle, not one of four headings.
+        return _geom_arrow(bearing)
+    if symbol == "pip":
+        return _geom_pips(int(detail or 1))
+    return _geom_pips(1)
+
+
+def draw_face(draw, symbol: str, cx: float, cy: float, size: float, colour,
+              detail=None, void=(0, 0, 0)) -> None:
+    """Draw one face flat, by the symbol name ``dice.face_symbol()`` returns."""
+    for points, role in face_geometry(symbol, detail):
+        _poly(draw, [(cx + px * size, cy + py * size) for px, py in points],
+              fill=colour if role == "ink" else void)
 
 
 def draw_die_body(draw, cx, cy, size, colour, fill=(0, 0, 0), width: int = 3):

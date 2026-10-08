@@ -12,9 +12,10 @@ word → Whisper → Claude with tools → ElevenLabs/Piper speech, plus a round
   conversation and tool handlers; `tools_schema.py` the tool definitions; `llm.py`
   the API client (streaming, prompt caching); `display.py` the eye;
   `dice_faces.py` the symbols Necromunda's dice carry (a cross, a splintered
-  burst, a skull, bullet holes, a crosshair, an arrow at any bearing), drawn by
-  the eye instead of spelling the result out; `web.py` the web remote;
-  `config.py` all settings.
+  burst, a skull, bullet holes, a crosshair, an arrow at any bearing), held as
+  polygon geometry so `dice3d.py` can tumble them on the sides of a real cube
+  and land it on the rolled face; `web.py` the web remote; `config.py` all
+  settings.
 - The web remote is one page: `web.py`'s `HTML_CLIENT` string (markup and all CSS)
   plus `core/app.js`. Omega-7's own views — the terminal, the memory bank, the
   setup wizard — are styled by the `.o7`/`.o7-modal` design system in that style
