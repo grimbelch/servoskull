@@ -409,6 +409,7 @@ def get_active_tools_for_game(game_name: str) -> list[dict]:
     w40k_tools = {"warhammer40k_rules", "roll_dice"}
     necro_tools = {"necromunda_rules", "necromunda_weapon", "necromunda_attack",
                    "necromunda_rule", "necromunda_skills", "necromunda_table",
+                   "necromunda_actions", "necromunda_territory",
                    "roll_necromunda_dice"}
     # roll_epic_dice resolves Epic's firefights and close assaults, which has
     # nothing to do with any other game on the shelf. Like roll_dice it is

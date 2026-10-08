@@ -83,13 +83,15 @@ def _raw_lines(page) -> list[dict]:
     return raw
 
 
-def page_lines(page) -> list[dict]:
+def page_lines(page, split: float | None = None) -> list[dict]:
     """Every text line on the page with the attributes the parsers need.
 
-    Returned in reading order: column, then y, then x.
+    Returned in reading order: column, then y, then x. A caller that knows
+    better than the measurement may supply its own ``split``.
     """
     raw = _raw_lines(page)
-    split = column_split(page, raw)
+    if split is None:
+        split = column_split(page, raw)
     for item in raw:
         item["column"] = 1 if split and item["x0"] >= split else 0
     raw.sort(key=lambda d: (d["column"], round(d["y"]), d["x0"]))
@@ -117,39 +119,59 @@ def column_split(page, lines: list[dict] | None = None) -> float | None:
     if len(lines) < 8:
         return None
     width = page.rect.width
-    # Coverage is measured per WORD, not per line. The OCR frequently groups a
-    # line's text right across the gutter, so a line's own extent spans both
-    # columns and hides the very gap being looked for; a word never does.
+    height = page.rect.height
     words = page.get_text("words")
     if len(words) < 20:
         return None
-    covered = bytearray(int(width) + 2)
-    for word in words:
-        start = max(0, int(word[0]))
-        end = min(len(covered) - 1, int(word[2]) + 1)
-        for x in range(start, end):
-            covered[x] = 1
 
-    # Only a gap spanning the middle of the page can be the gutter; a gap at the
-    # margins is just the page edge.
-    low, high = int(width * 0.3), int(width * 0.7)
-    best_start = best_len = 0
-    run_start = None
-    for x in range(low, high):
-        if not covered[x]:
-            if run_start is None:
-                run_start = x
-        else:
-            if run_start is not None and x - run_start > best_len:
-                best_start, best_len = run_start, x - run_start
-            run_start = None
-    if run_start is not None and high - run_start > best_len:
-        best_start, best_len = run_start, high - run_start
+    # The gutter is measured band by band down the page, not over the page as a
+    # whole. Many pages here are mixed: a full-width heading and introduction
+    # across the top, two columns beneath. Measured whole, the full-width part
+    # fills the channel and the page reads as one column, which interleaves the
+    # two columns below it -- on the Actions pages that gave every action the
+    # previous one's rules.
+    # A two-column gutter sits near the middle. Searching wider than this finds
+    # the ragged right edge of a column and the margin inside a table, and
+    # splitting there is worse than not splitting at all.
+    low, high = int(width * 0.42), int(width * 0.58)
+    bands = max(6, int(height // 60))
+    band_height = height / bands
+    votes: dict[int, int] = {}
+    for band in range(bands):
+        top, bottom = band * band_height, (band + 1) * band_height
+        covered = bytearray(int(width) + 2)
+        seen = 0
+        for word in words:
+            if not (top <= (word[1] + word[3]) / 2 < bottom):
+                continue
+            seen += 1
+            start = max(0, int(word[0]))
+            end = min(len(covered) - 1, int(word[2]) + 1)
+            for x in range(start, end):
+                covered[x] = 1
+        if seen < 6:                       # too little on this band to judge
+            continue
+        best_start = best_len = 0
+        run_start = None
+        for x in range(low, high):
+            if not covered[x]:
+                if run_start is None:
+                    run_start = x
+            else:
+                if run_start is not None and x - run_start > best_len:
+                    best_start, best_len = run_start, x - run_start
+                run_start = None
+        if run_start is not None and high - run_start > best_len:
+            best_start, best_len = run_start, high - run_start
+        if best_len >= 12:
+            edge = int((best_start + best_len) / 4) * 4   # 4pt buckets
+            votes[edge] = votes.get(edge, 0) + 1
 
-    # A true gutter is a clear channel. Narrower than this and it is more likely
-    # word spacing in a full-width line.
-    if best_len >= 12:
-        return float(best_start + best_len)
+    if votes:
+        edge, count = max(votes.items(), key=lambda kv: kv[1])
+        # A real gutter runs down most of the text, not one or two stray bands.
+        if count >= 5:
+            return float(edge)
     return _split_by_line_starts(lines)
 
 

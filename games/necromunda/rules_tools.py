@@ -7,6 +7,7 @@ does this work" questions; these are for "what is this weapon's AP".
 """
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 
@@ -181,6 +182,7 @@ _NAMED_TABLES = (
     ("rule_skills", "skill", "skill_set"),
     ("rule_conditions", "condition", "kind"),
     ("rule_equipment", "equipment", "creds_text"),
+    ("rule_actions", "action", "cost"),
 )
 
 
@@ -222,6 +224,8 @@ def named_rule(name: str) -> str:
                     detail = f", {row['extra']}"
                 elif table == "rule_equipment":
                     detail = f", {row['extra']}"
+                elif table == "rule_actions":
+                    detail = f", {row['extra']} action"
                 out.append(
                     f"{row['name']} ({label}{detail} — {book['title']}, "
                     f"p{printed_page(row['page'], book)})\n{row['description']}")
@@ -287,7 +291,7 @@ def weapon_traits(traits: str) -> str:
 def _find_table(conn, book_id: int, name: str):
     wanted = (name or "").strip().lower()
     return conn.execute(
-        "SELECT id, title, dice, page FROM rule_tables WHERE rulebook_id = ?"
+        "SELECT id, title, dice, notes, page FROM rule_tables WHERE rulebook_id = ?"
         " AND (LOWER(title) = ? OR LOWER(title) LIKE ?)"
         " ORDER BY LENGTH(title) LIMIT 1",
         (book_id, wanted, f"%{wanted}%")).fetchone()
@@ -326,8 +330,12 @@ def table_result(name: str, roll: int | None = None) -> str:
             " AND roll_min <= ? AND roll_max >= ? ORDER BY ordinal LIMIT 1",
             (table["id"], int(roll), int(roll))).fetchone()
         if row is None:
+            # Say when the row is missing from OUR copy rather than from the
+            # book: answering "not on the table" for a result that is printed
+            # there is worse than admitting the gap.
+            caveat = f" {table['notes']}." if table["notes"] else ""
             return (f"{roll} is not on the {table['title']} ({table['dice']}) — "
-                    f"{cite}.")
+                    f"{cite}.{caveat}")
         return (f"{table['title']}, {table['dice']} {roll}: {row['result']} "
                 f"({cite})")
     finally:
@@ -358,3 +366,77 @@ def roll_on_table(name: str) -> str:
     else:
         value = dice.d6(1)[0]
     return table_result(name, value)
+
+
+# ── actions and territories ───────────────────────────────────────────────────
+
+def actions_available(status: str = "active", cost: str = "") -> str:
+    """What a model may do, given its status and how much it can spend.
+
+    The question at the table is "it is Seriously Injured, what can it do?" --
+    which needs the status and the cost as columns, not as words inside a
+    heading.
+    """
+    conn = _open()
+    if conn is None:
+        return _NOT_INSTALLED
+    try:
+        book = current_rulebook(conn)
+        wanted = (status or "active").strip().lower().replace(" ", "_")
+        sql = ("SELECT name, cost, usable_by, description, page FROM rule_actions"
+               " WHERE rulebook_id = ? AND status LIKE ?")
+        args: list = [book["id"], f"%{wanted}%"]
+        if cost:
+            sql += " AND cost = ?"
+            args.append(cost.strip().lower())
+        rows = conn.execute(sql + " ORDER BY name", args).fetchall()
+        if not rows:
+            states = ", ".join(r["status"] for r in conn.execute(
+                "SELECT DISTINCT status FROM rule_actions WHERE rulebook_id = ?",
+                (book["id"],)))
+            return f"No actions for '{status}'. The book covers: {states}."
+        lines = [f"{len(rows)} action(s) for a {wanted.replace('_', ' ')} model"
+                 + (f", {cost}" if cost else "") + ":"]
+        for row in rows:
+            who = f" [{row['usable_by']}]" if row["usable_by"] else ""
+            lines.append(f"  {row['name']} ({row['cost']}){who}: "
+                         f"{row['description']} (p{printed_page(row['page'], book)})")
+        return "\n".join(lines)
+    finally:
+        conn.close()
+
+
+def territory(name: str) -> str:
+    """A Territory's Boons and its battlefield effect.
+
+    Boons are reported by type, because the campaign rules act on the type: a
+    gang takes the Recruit Boon INSTEAD of the Income Boon.
+    """
+    conn = _open()
+    if conn is None:
+        return _NOT_INSTALLED
+    try:
+        book = current_rulebook(conn)
+        wanted = (name or "").strip().lower()
+        if not wanted:
+            listed = ", ".join(r["name"].title() for r in conn.execute(
+                "SELECT name FROM rule_territories WHERE rulebook_id = ? ORDER BY name",
+                (book["id"],)))
+            return f"The campaign Territories are: {listed}."
+        row = conn.execute(
+            "SELECT * FROM rule_territories WHERE rulebook_id = ? AND"
+            " (LOWER(name) = ? OR LOWER(name) LIKE ?) ORDER BY LENGTH(name) LIMIT 1",
+            (book["id"], wanted, f"%{wanted}%")).fetchone()
+        if row is None:
+            listed = ", ".join(r["name"].title() for r in conn.execute(
+                "SELECT name FROM rule_territories WHERE rulebook_id = ? ORDER BY name",
+                (book["id"],)))
+            return f"No Territory called '{name}'. The book has: {listed}."
+        out = [f"{row['name']} ({book['title']}, p{printed_page(row['page'], book)})"]
+        for boon in json.loads(row["boons_json"] or "[]"):
+            out.append(f"  {boon['type']} Boon: {boon['text']}")
+        if row["battlefield_effect"]:
+            out.append(f"  Battlefield effect: {row['battlefield_effect']}")
+        return "\n".join(out)
+    finally:
+        conn.close()

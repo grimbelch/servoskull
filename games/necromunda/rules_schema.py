@@ -151,6 +151,10 @@ CREATE TABLE IF NOT EXISTS rule_skills (
     slug        TEXT NOT NULL,
     name        TEXT NOT NULL,
     skill_set   TEXT DEFAULT '',   -- agility|brawn|combat|cunning|savant|shooting|inherent
+    -- Who may take it, parsed out of the printed name: a skill is headed
+    -- "CATFALL (FIGHTER OR WALKER ONLY)". Left inside the name, "which skills
+    -- can a Vehicle take?" cannot be asked at all.
+    usable_by   TEXT DEFAULT '',
     description TEXT DEFAULT '',
     page        INTEGER DEFAULT 0,
     FOREIGN KEY (rulebook_id) REFERENCES rulebooks (id)     ON DELETE CASCADE,
@@ -165,6 +169,12 @@ CREATE TABLE IF NOT EXISTS rule_equipment (
     slug        TEXT NOT NULL,
     name        TEXT NOT NULL,
     category    TEXT DEFAULT '',   -- armour|field_armour|personal|gang|accessory
+    -- Some wargear prints two prices under one name: carapace armour is Light
+    -- 100/TP1 and Heavy 140/TP3. Each is its own row, sharing a parent, the way
+    -- a weapon's special ammunition does.
+    parent_slug TEXT DEFAULT '',
+    variant     TEXT DEFAULT '',
+    usable_by   TEXT DEFAULT '',
     creds_text  TEXT DEFAULT '',
     tp_text     TEXT DEFAULT '',
     creds       INTEGER,
@@ -193,6 +203,46 @@ CREATE TABLE IF NOT EXISTS rule_conditions (
     FOREIGN KEY (section_id)  REFERENCES rule_sections (id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS idx_necro_conditions_book ON rule_conditions (rulebook_id, kind, slug);
+
+-- An action is the unit of play: a model performs one or two per activation,
+-- and each costs Single, Double or Free. The cost and the restriction are
+-- printed inside the heading -- "COUP DE GRACE (SINGLE)", "REPAIR (SINGLE)",
+-- Fighter only -- so as prose nobody can ask what a Seriously Injured Fighter
+-- is allowed to do, which is the question actually asked mid-turn.
+CREATE TABLE IF NOT EXISTS rule_actions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    rulebook_id INTEGER NOT NULL,
+    section_id  INTEGER,
+    slug        TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    cost        TEXT DEFAULT '',   -- single|double|free
+    usable_by   TEXT DEFAULT '',   -- fighter, vehicle, walker...
+    status      TEXT DEFAULT '',   -- active|engaged|seriously_injured
+    description TEXT DEFAULT '',
+    page        INTEGER DEFAULT 0,
+    FOREIGN KEY (rulebook_id) REFERENCES rulebooks (id)     ON DELETE CASCADE,
+    FOREIGN KEY (section_id)  REFERENCES rule_sections (id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_necro_actions_book ON rule_actions (rulebook_id, cost, slug);
+
+-- A Territory is a campaign holding, printed as a card: what it grants between
+-- battles (its Boons, each of a named type) and what it does to the battlefield
+-- when it is the stake. Boons are typed because the campaign rules act on the
+-- type -- a gang may take the Recruit Boon INSTEAD of the Income Boon.
+CREATE TABLE IF NOT EXISTS rule_territories (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    rulebook_id  INTEGER NOT NULL,
+    section_id   INTEGER,
+    slug         TEXT NOT NULL,
+    name         TEXT NOT NULL,
+    flavour      TEXT DEFAULT '',
+    boons_json   TEXT DEFAULT '[]',  -- [{type, text}]
+    battlefield_effect TEXT DEFAULT '',
+    page         INTEGER DEFAULT 0,
+    FOREIGN KEY (rulebook_id) REFERENCES rulebooks (id)     ON DELETE CASCADE,
+    FOREIGN KEY (section_id)  REFERENCES rule_sections (id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_necro_territories_book ON rule_territories (rulebook_id, slug);
 
 -- `dice` records what the table is rolled on ("D6", "D66", "2D6"); `kind`
 -- groups the tables the engine resolves for itself.
@@ -248,6 +298,8 @@ CREATE VIRTUAL TABLE IF NOT EXISTS rule_search USING fts5 (
 CONTENT_TABLES = [
     "rule_table_rows",
     "rule_tables",
+    "rule_territories",
+    "rule_actions",
     "rule_conditions",
     "rule_equipment",
     "rule_skills",
@@ -265,9 +317,11 @@ _SHAPE_SENTINELS = {
     "rule_sections": "path",
     "rule_weapons": "lethality",
     "rule_traits": "takes_value",
-    "rule_skills": "skill_set",
-    "rule_equipment": "category",
+    "rule_skills": "usable_by",
+    "rule_equipment": "variant",
     "rule_conditions": "kind",
+    "rule_actions": "cost",
+    "rule_territories": "boons_json",
     "rule_tables": "dice",
     "rule_table_rows": "roll_min",
 }

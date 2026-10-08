@@ -83,3 +83,37 @@ def pages_with_header(doc, needle: str, limit: int | None = None) -> list[int]:
         if needle.upper() in header.upper():
             found.append(page_no)
     return found
+
+
+# An action's cost is printed in brackets after its name; a restriction on who
+# may use it is printed the same way. They have to be told apart, because
+# "(SINGLE)" is how much it costs and "(FIGHTER ONLY)" is who may pay.
+_COST = re.compile(r"\((SINGLE|DOUBLE|FREE|BASIC)\)\s*$", re.I)
+_QUALIFIER_WORDS = ("ONLY", "FIGHTER", "VEHICLE", "WALKER", "ANY MODEL",
+                    "CHAMPION", "LEADER", "GANGER", "PROSPECT")
+_TRAILING_BRACKET = re.compile(r"\s*\(([^()]*)\)\s*$")
+
+
+def split_cost(name: str) -> tuple[str, str]:
+    """("COUP DE GRACE (SINGLE)") -> ("COUP DE GRACE", "single")."""
+    match = _COST.search(name or "")
+    if not match:
+        return (name or "").strip(), ""
+    return name[:match.start()].strip(), match.group(1).lower()
+
+
+def split_qualifier(name: str) -> tuple[str, str]:
+    """("CATFALL (FIGHTER OR WALKER ONLY)") -> ("CATFALL", "Fighter or Walker only").
+
+    Left inside the name, the restriction cannot be queried: "which skills can a
+    Vehicle take?" has to read every name as prose and guess.
+    """
+    name = (name or "").strip()
+    match = _TRAILING_BRACKET.search(name)
+    if not match:
+        return name, ""
+    inner = match.group(1).strip()
+    if not any(word in inner.upper() for word in _QUALIFIER_WORDS):
+        return name, ""          # a value like (X+) or (3"/5"), not a restriction
+    return (name[:match.start()].strip(),
+            inner.title().replace(" Or ", " or ").replace(" Only", " only"))

@@ -260,6 +260,42 @@ def get_tools():
         },
     },
 {
+        "name": "necromunda_actions",
+        "description": (
+            "List the actions a Necromunda model may perform, given its status. "
+            "Status is 'active' (the normal list), 'engaged' (in close combat), "
+            "'seriously_injured' or 'seriously_damaged'. Optionally filter by "
+            "cost: single, double or free. Use this for 'what can it do?' rather "
+            "than searching the rules text."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "status": {"type": "string",
+                           "description": "active | engaged | seriously_injured | seriously_damaged"},
+                "cost": {"type": "string",
+                         "description": "Optional: single, double or free."},
+            },
+            "required": ["status"],
+        },
+    },
+{
+        "name": "necromunda_territory",
+        "description": (
+            "A campaign Territory's Boons and its battlefield effect. Boons are "
+            "typed - Income, Recruit, Equipment, Reputation or Special - and a "
+            "gang takes one INSTEAD of another, so report the type. Call with no "
+            "name to list every Territory."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string",
+                         "description": "Territory name, e.g. 'Rogue Doc Shop'. Omit to list all."},
+            },
+        },
+    },
+{
         "name": "necromunda_table",
         "description": (
             "Look up or roll on one of Necromunda's random tables - Lasting "
@@ -586,6 +622,20 @@ def _tool_necromunda_rule(i):
     return rules_tools.named_rule(name)
 
 
+def _tool_necromunda_actions(i):
+    from games.necromunda import rules_tools
+    status = i.get("status", "active")
+    print(f"[skull] Necromunda actions for: {status}")
+    return rules_tools.actions_available(status, i.get("cost", ""))
+
+
+def _tool_necromunda_territory(i):
+    from games.necromunda import rules_tools
+    name = i.get("name", "")
+    print(f"[skull] Necromunda territory: {name or '(all)'}")
+    return rules_tools.territory(name)
+
+
 def _tool_necromunda_table(i):
     table = i.get("table", "")
     roll = i.get("roll")
@@ -729,6 +779,8 @@ def get_handlers():
         "necromunda_rule": _tool_necromunda_rule,
         "necromunda_skills": _tool_necromunda_skills,
         "necromunda_table": _tool_necromunda_table,
+        "necromunda_actions": _tool_necromunda_actions,
+        "necromunda_territory": _tool_necromunda_territory,
         "warhammer40k_rules": _tool_warhammer40k_rules,
         "netepic_rules": _tool_netepic_rules,
         "netea_rules": _tool_netea_rules,

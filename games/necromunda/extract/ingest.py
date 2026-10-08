@@ -40,12 +40,14 @@ _NO_PYMUPDF = "PyMuPDF is required to build the rules database: pip install pymu
 
 from .. import db as necro_db
 from .. import rules_schema
+from . import actions as actions_mod
 from . import conditions as conditions_mod
 from . import equipment as equipment_mod
 from . import randtables as randtables_mod
 from . import sections as sections_mod
 from . import skills as skills_mod
 from . import tables
+from . import territories as territories_mod
 from . import traits as traits_mod
 
 EXTRACTOR_VERSION = "1.0"
@@ -210,7 +212,8 @@ def ingest(pdf_path: pathlib.Path, slug: str = DEFAULT_SLUG,
             book_id = cur.lastrowid
 
             counts = {"sections": 0, "weapons": 0, "traits": 0, "skills": 0,
-                      "conditions": 0, "equipment": 0, "tables": 0, "table_rows": 0}
+                      "conditions": 0, "equipment": 0, "actions": 0,
+                      "territories": 0, "tables": 0, "table_rows": 0}
             section_ids: dict[tuple[str, str, str], int] = {}
 
             # --- prose layer -------------------------------------------------
@@ -296,9 +299,10 @@ def ingest(pdf_path: pathlib.Path, slug: str = DEFAULT_SLUG,
             for skill in skills_mod.extract(doc):
                 conn.execute(
                     "INSERT INTO rule_skills (rulebook_id, slug, name, skill_set,"
-                    " description, page) VALUES (?,?,?,?,?,?)",
+                    " usable_by, description, page) VALUES (?,?,?,?,?,?,?)",
                     (book_id, sections_mod.slugify(skill["name"]), skill["name"],
-                     skill["skill_set"], skill["description"], skill["page"]))
+                     skill["skill_set"], skill.get("usable_by", ""),
+                     skill["description"], skill["page"]))
                 counts["skills"] += 1
 
             for condition in conditions_mod.extract(doc):
@@ -314,13 +318,41 @@ def ingest(pdf_path: pathlib.Path, slug: str = DEFAULT_SLUG,
             for item in equipment_mod.extract(doc, tree):
                 conn.execute(
                     "INSERT INTO rule_equipment (rulebook_id, slug, name, category,"
-                    " creds_text, tp_text, creds, trading_post, description, page)"
-                    " VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    " parent_slug, variant, usable_by, creds_text, tp_text, creds,"
+                    " trading_post, description, page)"
+                    " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (book_id, sections_mod.slugify(item["name"]), item["name"],
-                     item["category"], item["creds_text"], item["tp_text"],
-                     item["creds"], item["trading_post"], item["description"],
-                     item["page"]))
+                     item["category"],
+                     sections_mod.slugify(item.get("base_name", item["name"]))
+                     if item.get("variant") else "",
+                     item.get("variant", ""), item.get("usable_by", ""),
+                     item["creds_text"], item["tp_text"], item["creds"],
+                     item["trading_post"], item["description"], item["page"]))
                 counts["equipment"] += 1
+
+            # --- actions -----------------------------------------------------
+            for action in actions_mod.extract(doc):
+                conn.execute(
+                    "INSERT INTO rule_actions (rulebook_id, slug, name, cost,"
+                    " usable_by, status, description, page)"
+                    " VALUES (?,?,?,?,?,?,?,?)",
+                    (book_id, sections_mod.slugify(
+                        f"{action['name']}-{action['status']}"),
+                     action["name"], action["cost"], action["usable_by"],
+                     action["status"], action["description"], action["page"]))
+                counts["actions"] += 1
+
+            # --- territories -------------------------------------------------
+            for territory in territories_mod.extract(doc):
+                conn.execute(
+                    "INSERT INTO rule_territories (rulebook_id, slug, name,"
+                    " flavour, boons_json, battlefield_effect, page)"
+                    " VALUES (?,?,?,?,?,?,?)",
+                    (book_id, sections_mod.slugify(territory["name"]),
+                     territory["name"], territory["flavour"],
+                     json.dumps(territory["boons"]),
+                     territory["battlefield_effect"], territory["page"]))
+                counts["territories"] += 1
 
             # --- random tables -----------------------------------------------
             # Rows keep their parsed span, so resolving a roll is an index
@@ -328,10 +360,14 @@ def ingest(pdf_path: pathlib.Path, slug: str = DEFAULT_SLUG,
             for table in randtables_mod.extract(doc):
                 table_id = conn.execute(
                     "INSERT INTO rule_tables (rulebook_id, slug, title, kind,"
-                    " dice, columns_json, page) VALUES (?,?,?,?,?,?,?)",
+                    " dice, columns_json, notes, page) VALUES (?,?,?,?,?,?,?,?)",
                     (book_id, sections_mod.slugify(table["title"]), table["title"],
                      _table_kind(table["title"]), table["dice"],
-                     json.dumps(table["columns"]), table["page"])).lastrowid
+                     json.dumps(table["columns"]),
+                     ("No row was recovered for: "
+                      + ", ".join(str(m) for m in table["missing"]))
+                     if table.get("missing") else "",
+                     table["page"])).lastrowid
                 counts["tables"] += 1
                 for ordinal, row in enumerate(table["rows"]):
                     conn.execute(
@@ -371,12 +407,18 @@ def _build_search_index(conn, book_id: int) -> None:
         )
     # The named rules go in too, so a search for a trait finds the trait and
     # not merely a weapon that happens to carry it.
-    for table, kind, extra in (("rule_traits", "trait", "description"),
-                               ("rule_skills", "skill", "skill_set"),
-                               ("rule_conditions", "condition", "kind")):
+    # Each table names its own body column: a Territory has no "description",
+    # it has a battlefield effect and its Boons.
+    for table, kind, extra, body in (
+            ("rule_traits", "trait", "takes_value", "description"),
+            ("rule_skills", "skill", "skill_set", "description"),
+            ("rule_conditions", "condition", "kind", "description"),
+            ("rule_actions", "action", "cost", "description"),
+            ("rule_equipment", "equipment", "category", "description"),
+            ("rule_territories", "territory", "boons_json", "battlefield_effect")):
         for row in conn.execute(
-                f"SELECT id, name, description, page, {extra} AS extra FROM {table}"
-                f" WHERE rulebook_id = ?", (book_id,)):
+                f"SELECT id, name, {body} AS description, page, {extra} AS extra"
+                f" FROM {table} WHERE rulebook_id = ?", (book_id,)):
             conn.execute(
                 "INSERT INTO rule_search (title, body, kind, rulebook_id,"
                 " section_id, ref_table, ref_id, page) VALUES (?,?,?,?,NULL,?,?,?)",

@@ -96,7 +96,8 @@ def extract(doc) -> list[dict]:
                 if len(text) < 4 or text.upper() in _TABLE_TOKENS:
                     continue
                 flush()
-                current = {"name": entries._clean_name(text),
+                bare, usable_by = entries.split_qualifier(entries._clean_name(text))
+                current = {"name": bare, "usable_by": usable_by,
                            "skill_set": current_set.title(),
                            "description": "", "page": page_no}
                 continue

@@ -131,3 +131,34 @@ def test_an_unknown_table_lists_what_there_is(table_db):
 def test_a_cited_table_names_the_printed_page(table_db):
     from games.necromunda import rules_tools
     assert "p78" in rules_tools.table_result("lasting injury", 54)
+
+
+# ── a partly recovered table ──────────────────────────────────────────────────
+
+def test_a_table_that_misses_results_its_dice_can_roll_is_flagged():
+    """A partial table is the dangerous kind.
+
+    Asked for a roll that went missing it answers "not on the table" with as
+    much confidence as a real answer, so the gap has to be recorded.
+    """
+    table = {"dice": "D6", "rows": [
+        {"roll_label": "1", "roll_min": 1, "roll_max": 1, "result": "a"},
+        {"roll_label": "2", "roll_min": 2, "roll_max": 2, "result": "b"},
+        {"roll_label": "3", "roll_min": 3, "roll_max": 3, "result": "c"},
+        {"roll_label": "5", "roll_min": 5, "roll_max": 5, "result": "e"}]}
+    assert randtables._missing_results(table) == [4, 6]
+
+
+def test_a_complete_table_is_not_flagged():
+    table = {"dice": "D6", "rows": [
+        {"roll_label": "1-3", "roll_min": 1, "roll_max": 3, "result": "a"},
+        {"roll_label": "4-6", "roll_min": 4, "roll_max": 6, "result": "b"}]}
+    assert randtables._missing_results(table) == []
+
+
+def test_a_d66_table_is_not_expected_to_cover_every_number():
+    """D66 tables are legitimately sparse and span ranges."""
+    table = {"dice": "D66", "rows": [
+        {"roll_label": "11", "roll_min": 11, "roll_max": 11, "result": "a"},
+        {"roll_label": "21-26", "roll_min": 21, "roll_max": 26, "result": "b"}]}
+    assert randtables._missing_results(table) == []

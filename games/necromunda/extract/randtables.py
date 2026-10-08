@@ -19,7 +19,10 @@ from . import layout
 _DICE = re.compile(r"^(D3|D6|D66|D100|2D6|3D6)$", re.I)
 # A roll: a single result, a span, or an open top end.
 _ROLL = re.compile(r"^(?P<lo>\d{1,3})\s*(?:[-–—]\s*(?P<hi>\d{1,3})|(?P<plus>\+))?$")
-_TITLE = re.compile(r"\bTABLE\b", re.I)
+# A table's title is a heading, not any sentence that happens to mention one.
+# Matching prose gave a table called "the Perils of the Warp table." -- lifted
+# out of "...must roll on the Perils of the Warp table below".
+_TITLE = re.compile(r"^[A-Z0-9][A-Z0-9 '’&()/\-]*\bTABLE\b[A-Z0-9 '’&()/\-]*$")
 
 
 def _parse_roll(label: str):
@@ -35,34 +38,89 @@ def _parse_roll(label: str):
     return low, low
 
 
+def _side_by_side_split(rows) -> float | None:
+    """Where to cut a page that prints two tables beside each other.
+
+    A header naming its dice twice -- "D6 Deployment Zone D6 Deployment Zone"
+    -- is two tables level with each other, and read as one row their results
+    merge into each other. The second dice token marks the second table's left
+    edge. The Deployment table was lost to this entirely: merged, it had a
+    single row and fell under the minimum.
+    """
+    for row in rows:
+        dice_at = [x0 for x0, _x1, text in row if _DICE.match(text)]
+        if len(dice_at) >= 2:
+            return dice_at[1] - 4
+    return None
+
+
 def extract(doc) -> list[dict]:
     """Every random table in the book, with its rows."""
     out: list[dict] = []
+    previous: dict | None = None
     for page_no in range(doc.page_count):
         page = doc.load_page(page_no)
         rows = layout.word_rows(page)
+        split = _side_by_side_split(rows)
+        if split is not None:
+            rows = layout.word_rows(page, split=split)
         title = ""
+        heading = ""
         current: dict | None = None
+        row_index = -1
 
         for row in rows:
+            row_index += 1
             words = [t for _, _, t in row]
             if not words:
                 continue
             text = " ".join(words).strip()
 
-            # A heading naming a table applies to the next header row seen.
+            # A heading naming a table applies to the next header row seen;
+            # any other heading is remembered as a fallback, because plenty of
+            # tables are introduced by a heading that does not say "table".
             if _TITLE.search(text) and len(text) < 60:
                 title = text
+                continue
+            if layout.is_heading({"text": text, "size": 12, "bold": 1.0,
+                                  "display": 1.0}) and len(text) < 60:
+                heading = text
                 continue
 
             # The header row opens a table and names its dice.
             if _DICE.match(words[0]):
                 if current and current["rows"]:
                     out.append(current)
+                    previous = current
+                columns = words[1:]
+                # A table running on over the page break repeats its header and
+                # is given no title of its own; without this the second half
+                # becomes a separate, nameless table.
+                # A repeated header continues the table before it only while
+                # no new heading has intervened. The Deployment table is five
+                # headers under one heading -- printed two cards to a row over
+                # two pages -- and must come back as one table of six. The
+                # Escape and Medical Escort tables are also both "D6 | Result",
+                # but each sits under its own heading, and merging those put
+                # one table's results under the other's name.
+                # Either no heading has been seen on this page -- the Gang
+                # Tactics table simply repeats its header at the top of the
+                # next page -- or the heading is still the one the previous
+                # table sat under, which is the Deployment table printed as
+                # five side-by-side blocks beneath a single heading.
+                same_heading = previous is not None and (
+                    heading == "" or heading == previous.get("heading", ""))
+                if (not title and same_heading and previous is not None
+                        and previous["dice"] == words[0].upper()
+                        and previous["columns"] == columns):
+                    current = previous
+                    out.remove(previous) if previous in out else None
+                    continue
                 current = {
-                    "title": title or f"{words[0].upper()} table",
+                    "title": title or heading or f"{words[0].upper()} table",
                     "dice": words[0].upper(),
-                    "columns": words[1:],
+                    "columns": columns,
+                    "heading": heading,
                     "page": page_no,
                     "rows": [],
                 }
@@ -91,4 +149,61 @@ def extract(doc) -> list[dict]:
             })
         if current and current["rows"]:
             out.append(current)
-    return [t for t in out if len(t["rows"]) >= 3]
+            # A table running on to the next page needs this as its anchor; the
+            # end-of-page flush used not to set it, so the Gang Tactics table's
+            # second half became a separate, nameless table.
+            previous = current
+    return _merge_fragments([t for t in out if t["rows"]])
+
+
+def _is_generic(title: str) -> bool:
+    return title.endswith(" table") and title.split()[0].upper() == title.split()[0]
+
+
+def _merge_fragments(tables: list[dict]) -> list[dict]:
+    """Join the pieces of a table printed as several blocks.
+
+    The Deployment table is six results printed two to a row across a spread,
+    so it arrives as six one-row tables. Pieces are joined when they share
+    their dice and columns, sit on the same page or the next, and do not each
+    carry a title of their own. A partially recovered table is worse than none:
+    a lookup would confidently answer "not on the table" for the rolls that
+    went missing.
+    """
+    merged: list[dict] = []
+    for table in tables:
+        host = merged[-1] if merged else None
+        if (host is not None
+                and host["dice"] == table["dice"]
+                and host["columns"] == table["columns"]
+                and 0 <= table["page"] - host["page"] <= 1
+                and (_is_generic(table["title"]) or table["title"] == host["title"])):
+            seen = {r["roll_label"] for r in host["rows"]}
+            host["rows"] += [r for r in table["rows"] if r["roll_label"] not in seen]
+            continue
+        merged.append(table)
+    kept = [t for t in merged if len(t["rows"]) >= 3]
+    for table in kept:
+        table["missing"] = _missing_results(table)
+    return kept
+
+
+# What each dice can actually produce, for checking a table covers it.
+_RANGES = {"D3": range(1, 4), "D6": range(1, 7), "2D6": range(2, 13)}
+
+
+def _missing_results(table: dict) -> list[int]:
+    """Results the dice can roll that the table has no row for.
+
+    A partly recovered table is the dangerous kind: asked for a roll that went
+    missing it answers "not on the table" with as much confidence as a real
+    answer. Recording the gap lets a lookup say so instead. D66 is left alone
+    -- its tables are legitimately sparse and span ranges.
+    """
+    span = _RANGES.get(table["dice"].upper())
+    if not span:
+        return []
+    covered = set()
+    for row in table["rows"]:
+        covered.update(range(row["roll_min"], min(row["roll_max"], max(span)) + 1))
+    return [value for value in span if value not in covered]

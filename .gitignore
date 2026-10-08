@@ -103,6 +103,9 @@ games/wfrp/rules/modules/
 # the device; never commit it. Our own LLM rules summaries are the exception.
 games/warhammer40k/rules/
 games/necromunda/rules/
+# The page map is the book's own heading structure, read off the scans. It is
+# as much the publisher's text as the rules are, so it stays on the device.
+games/necromunda/extract/pagemap/
 games/wfrp/rules/*
 !games/wfrp/rules/llm_*.md
 
