@@ -104,10 +104,12 @@
                 const res = await fetch('/api/state?t=' + Date.now());
                 if (!res.ok) {
                     console.error("fetchState HTTP error:", res.status);
+                    o7MarkLink(false);
                     return;
                 }
                 const data = await res.json();
                 if (!data) return;
+                o7MarkLink(true);
                 
                 // Stream Web Vox Audio if new speech generated
                 if (data.audio_id && data.audio_id > lastAudioId) {
@@ -175,6 +177,7 @@
                 const cpuValEl = document.getElementById('cpu-val');
                 if (cpuValEl && data.cpu) cpuValEl.innerText = String(data.cpu);
                 if (cpuPie) cpuPie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, cpuFloat))}, 100`);
+                o7MeterState('meter-cpu', cpuFloat, 75, 92);
 
                 // Update CORE TEMP pie
                 const tempFloat = parseFloat(data.temperature) || 0;
@@ -182,6 +185,8 @@
                 const tempValEl = document.getElementById('temp-val');
                 if (tempValEl && data.temperature) tempValEl.innerText = String(data.temperature);
                 if (tempPie) tempPie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, tempFloat))}, 100`);
+                // The Pi 5 soft-throttles at 80°C, so amber well before that.
+                o7MeterState('meter-temp', tempFloat, 70, 80);
 
                 // Power supply health (under-voltage causes brown-out crashes)
                 const pwrEl = document.getElementById('power-status');
@@ -209,6 +214,7 @@
                 if (ramValEl && data.ram) ramValEl.innerText = String(data.ram);
                 if (ramLabelEl && data.ram_total) ramLabelEl.innerText = `RAM: ${data.ram_total}`;
                 if (ramPie) ramPie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, ramFloat))}, 100`);
+                o7MeterState('meter-ram', ramFloat, 80, 92);
 
                 // Update STORAGE pie & label
                 const storageFloat = parseFloat(data.storage) || 0;
@@ -218,6 +224,7 @@
                 if (storageValEl && data.storage) storageValEl.innerText = String(data.storage);
                 if (storageLabelEl && data.storage_total) storageLabelEl.innerText = `STORAGE: ${data.storage_total}`;
                 if (storagePie) storagePie.setAttribute('stroke-dasharray', `${Math.min(100, Math.max(0, storageFloat))}, 100`);
+                o7MeterState('meter-storage', storageFloat, 80, 93);
 
                 // Update FABRICATOR pie
                 let fabPercent = 0;
@@ -282,14 +289,20 @@
                 // Update Logs Console (Telemetry Console Feed)
                 const elConsoleBox = document.getElementById('console-box');
                 if (elConsoleBox && data.logs) {
-                    elConsoleBox.innerHTML = '';
-                    data.logs.forEach(line => {
-                        const div = document.createElement('div');
-                        div.className = 'console-line';
-                        div.innerText = line;
-                        elConsoleBox.appendChild(div);
-                    });
-                    elConsoleBox.scrollTop = elConsoleBox.scrollHeight;
+                    const logHash = data.logs.join('\u0001');
+                    if (window._lastLogHash !== logHash) {
+                        window._lastLogHash = logHash;
+                        const frag = document.createDocumentFragment();
+                        data.logs.forEach(line => {
+                            const div = document.createElement('div');
+                            div.className = 'console-line';
+                            div.innerText = line;
+                            frag.appendChild(div);
+                        });
+                        elConsoleBox.innerHTML = '';
+                        elConsoleBox.appendChild(frag);
+                        if (_o7Follow) elConsoleBox.scrollTop = elConsoleBox.scrollHeight;
+                    }
                 }
 
                 // Update Vox Channel Logs
@@ -342,38 +355,28 @@
                 // Update Warning/Status Banner (Secret Level Style)
                 let headerTitle = "SYSTEM STATUS";
                 let headerValue = "SYSTEM OPTIMAL";
-                let bannerBg = "rgba(56, 255, 88, 0.07)";
-                let bannerBorder = "2px solid var(--bright-green)";
 
                 if (currentState && currentState.thinking) {
                     headerTitle = "COGITATION PROTOCOL";
                     headerValue = "ACTIVE";
-                    bannerBg = "rgba(56, 255, 88, 0.15)";
                 } else if (currentState && currentState.speaking) {
                     headerTitle = "VOCAL TRANSMISSION";
                     headerValue = "ACTIVE";
-                    bannerBg = "rgba(56, 255, 88, 0.25)";
-                    bannerBorder = "3px double var(--bright-green)";
                 } else if (currentState && currentState.searching_web) {
                     headerTitle = "NOOSPHERE SEARCH";
                     headerValue = "QUERYING NETWORK";
-                    bannerBg = "rgba(56, 255, 88, 0.2)";
                 } else if (currentState && currentState.looking_up_rules) {
                     headerTitle = "LIBRARIUM CODEX";
                     headerValue = "RULES DATABASE";
-                    bannerBg = "rgba(56, 255, 88, 0.2)";
                 } else if (currentState && currentState.fetching_news) {
                     headerTitle = "VOX TRANSMISSION";
                     headerValue = "SCANNING BROADCASTS";
-                    bannerBg = "rgba(56, 255, 88, 0.2)";
                 } else if (currentState && currentState.retrieving_image) {
                     headerTitle = "PICT-FEED RASTER";
                     headerValue = "FETCHING ARTWORK";
-                    bannerBg = "rgba(56, 255, 88, 0.2)";
                 } else if (currentState && (currentState.scanning_auspex || currentState.scanning_noosphere)) {
                     headerTitle = "AUSPEX SCANNING MODE";
                     headerValue = "ACTIVE";
-                    bannerBg = "rgba(56, 255, 88, 0.15)";
                 } else if (currentState && currentState.active_idle_anim) {
                     headerTitle = "VISUAL EMULATION";
                     headerValue = currentState.active_idle_anim.toUpperCase().replace(/_/g, ' ');
@@ -384,8 +387,14 @@
                 const elAlertBanner = document.getElementById('alert-banner');
                 if (elAlertTitle) elAlertTitle.innerText = headerTitle;
                 if (elAlertValue) elAlertValue.innerText = headerValue;
-                if (elAlertBanner) elAlertBanner.style.background = bannerBg;
-                if (elAlertBanner) elAlertBanner.style.border = bannerBorder;
+                if (elAlertBanner) {
+                    // The stylesheet owns the paint; this only says what is going on.
+                    const busy = !!(currentState && (currentState.thinking || currentState.speaking
+                        || currentState.searching_web || currentState.looking_up_rules
+                        || currentState.fetching_news || currentState.retrieving_image
+                        || currentState.scanning_auspex || currentState.scanning_noosphere));
+                    elAlertBanner.dataset.state = busy ? 'busy' : 'idle';
+                }
 
                 // Adjust glows/shadows based on speech amplitude
                 const amp = (currentState && currentState.amplitude) || 0;
@@ -409,6 +418,7 @@
 
             } catch (err) {
                 console.warn("State fetch failed. Backend may be offline or sleeping.", err);
+                o7MarkLink(false);
             }
         }
 
@@ -3741,14 +3751,14 @@ function renderMemories() {
 
     if (ltList) {
         if (_memoryData.longterm.length === 0) {
-            ltList.innerHTML = `<div style="font-size: 12px; opacity: 0.6; padding: 8px;">No explicit long-term facts stored.</div>`;
+            ltList.innerHTML = `<div class="o7-mem-empty">No explicit long-term facts stored.</div>`;
         } else {
             ltList.innerHTML = _memoryData.longterm.map((fact, idx) => `
-                <div style="background: rgba(0, 43, 17, 0.4); border: 1px solid var(--border-color, #00441b); border-radius: 3px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
-                    <span id="lt-text-${idx}" style="font-size: 12px; flex: 1; word-break: break-word;">${escapeHtml(fact)}</span>
-                    <div id="lt-actions-${idx}" style="display: flex; gap: 6px;">
-                        <button onclick="editMemoryItem(${idx}, true)" style="background: #003314; color: var(--bright-green, #00ff66); border: 1px solid var(--border-color, #00441b); padding: 3px 8px; font-size: 11px; cursor: pointer; border-radius: 3px;">✏️ EDIT</button>
-                        <button onclick="deleteMemoryFactAt(${idx}, true)" style="background: #330000; color: #ff6666; border: 1px solid #660000; padding: 3px 8px; font-size: 11px; cursor: pointer; border-radius: 3px;">🗑️ DELETE</button>
+                <div class="o7-mem-item">
+                    <span id="lt-text-${idx}" class="o7-mem-text">${escapeHtml(fact)}</span>
+                    <div id="lt-actions-${idx}" class="o7-mem-actions">
+                        <button type="button" class="o7-btn o7-btn-ghost o7-btn-sm" onclick="editMemoryItem(${idx}, true)">Edit</button>
+                        <button type="button" class="o7-btn o7-btn-danger o7-btn-sm" onclick="deleteMemoryFactAt(${idx}, true)">Delete</button>
                     </div>
                 </div>
             `).join('');
@@ -3757,14 +3767,14 @@ function renderMemories() {
 
     if (stList) {
         if (_memoryData.shortterm.length === 0) {
-            stList.innerHTML = `<div style="font-size: 12px; opacity: 0.6; padding: 8px;">No auto-extracted world facts stored.</div>`;
+            stList.innerHTML = `<div class="o7-mem-empty">No auto-extracted world facts stored.</div>`;
         } else {
             stList.innerHTML = _memoryData.shortterm.map((fact, idx) => `
-                <div style="background: rgba(0, 30, 45, 0.4); border: 1px solid #005577; border-radius: 3px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
-                    <span id="st-text-${idx}" style="font-size: 12px; flex: 1; word-break: break-word; color: #b3ecff;">${escapeHtml(fact)}</span>
-                    <div id="st-actions-${idx}" style="display: flex; gap: 6px;">
-                        <button onclick="editMemoryItem(${idx}, false)" style="background: #002233; color: #00ccff; border: 1px solid #005577; padding: 3px 8px; font-size: 11px; cursor: pointer; border-radius: 3px;">✏️ EDIT</button>
-                        <button onclick="deleteMemoryFactAt(${idx}, false)" style="background: #330000; color: #ff6666; border: 1px solid #660000; padding: 3px 8px; font-size: 11px; cursor: pointer; border-radius: 3px;">🗑️ DELETE</button>
+                <div class="o7-mem-item o7-mem-auto">
+                    <span id="st-text-${idx}" class="o7-mem-text">${escapeHtml(fact)}</span>
+                    <div id="st-actions-${idx}" class="o7-mem-actions">
+                        <button type="button" class="o7-btn o7-btn-ghost o7-btn-sm" onclick="editMemoryItem(${idx}, false)">Edit</button>
+                        <button type="button" class="o7-btn o7-btn-danger o7-btn-sm" onclick="deleteMemoryFactAt(${idx}, false)">Delete</button>
                     </div>
                 </div>
             `).join('');
@@ -3827,11 +3837,13 @@ function editMemoryItem(idx, isLongterm) {
     if (!textEl || !actionsEl) return;
 
     const currentFact = isLongterm ? _memoryData.longterm[idx] : _memoryData.shortterm[idx];
-    textEl.innerHTML = `<input type="text" id="${prefix}-edit-input-${idx}" value="${escapeHtml(currentFact)}" style="width: 100%; background: #001206; border: 1px solid var(--border-color, #00441b); color: #fff; padding: 4px 8px; font-family: monospace; font-size: 12px; border-radius: 3px;" onkeydown="if(event.key==='Enter') saveMemoryItemEdit(${idx}, ${!!isLongterm})">`;
+    textEl.innerHTML = `<input type="text" id="${prefix}-edit-input-${idx}" style="width: 100%;" value="${escapeHtml(currentFact)}" onkeydown="if(event.key==='Enter') saveMemoryItemEdit(${idx}, ${!!isLongterm})">`;
     actionsEl.innerHTML = `
-        <button onclick="saveMemoryItemEdit(${idx}, ${!!isLongterm})" style="background: var(--bright-green, #00ff66); color: #000; border: none; padding: 3px 8px; font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 3px;">💾 SAVE</button>
-        <button onclick="renderMemories()" style="background: #333; color: #ccc; border: none; padding: 3px 8px; font-size: 11px; cursor: pointer; border-radius: 3px;">CANCEL</button>
+        <button type="button" class="o7-btn o7-btn-primary o7-btn-sm" onclick="saveMemoryItemEdit(${idx}, ${!!isLongterm})">Save</button>
+        <button type="button" class="o7-btn o7-btn-ghost o7-btn-sm" onclick="renderMemories()">Cancel</button>
     `;
+    const inputEl = document.getElementById(`${prefix}-edit-input-${idx}`);
+    if (inputEl) inputEl.focus();
 }
 
 async function saveMemoryItemEdit(idx, isLongterm) {
@@ -3887,3 +3899,273 @@ async function deleteMemoryFact(fact, isLongterm) {
         console.error("deleteMemoryFact exception:", e);
     }
 }
+
+
+// ═════════════════════════════════════════════════════════════════════════
+// OMEGA-7 TERMINAL SHELL
+// Link health, command history, quick rites, console follow and the
+// home-screen chrome. Everything here is additive: the functions are
+// globals so the markup's inline handlers can reach them.
+// ═════════════════════════════════════════════════════════════════════════
+
+// ── Toast ────────────────────────────────────────────────────────────────
+let _o7ToastTimer = null;
+
+function o7Toast(message) {
+    const el = document.getElementById('o7-toast');
+    if (!el) return;
+    el.textContent = message;
+    el.classList.add('show');
+    clearTimeout(_o7ToastTimer);
+    _o7ToastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+// ── Link health ──────────────────────────────────────────────────────────
+// fetchState() reports every poll. The pill tells you whether what is on
+// screen is current — the thing you most want to know when you opened this
+// from a phone on the far side of a flaky link.
+var _o7LastContact = 0;   // var: fetchState may touch this before this block is evaluated
+
+function o7MarkLink(ok) {
+    if (ok) {
+        _o7LastContact = Date.now();
+        const stamp = document.getElementById('vitals-stamp');
+        if (stamp) stamp.textContent = new Date().toLocaleTimeString();
+    }
+    o7RenderLink();
+}
+
+function o7RenderLink() {
+    const pill = document.getElementById('conn-pill');
+    const label = document.getElementById('conn-label');
+    if (!pill || !label) return;
+
+    if (!_o7LastContact) {
+        pill.dataset.link = 'stale';
+        label.textContent = 'Linking';
+        return;
+    }
+    const age = Math.round((Date.now() - _o7LastContact) / 1000);
+    if (age > 12) {
+        pill.dataset.link = 'offline';
+        label.textContent = `Offline ${age}s`;
+    } else if (age > 6) {
+        pill.dataset.link = 'stale';
+        label.textContent = `Stale ${age}s`;
+    } else {
+        pill.dataset.link = 'live';
+        label.textContent = 'Live';
+    }
+}
+
+setInterval(o7RenderLink, 2000);
+
+// ── Meter thresholds ─────────────────────────────────────────────────────
+// A gauge that is the same green at 40°C and 82°C is decoration. These
+// turn amber then red so a hot or full unit is obvious at a glance.
+function o7MeterState(id, percent, warn, crit) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const p = parseFloat(percent);
+    if (!isFinite(p)) { el.dataset.state = 'ok'; return; }
+    el.dataset.state = p >= crit ? 'crit' : (p >= warn ? 'warn' : 'ok');
+}
+
+// ── Command history ──────────────────────────────────────────────────────
+let _o7History = [];
+let _o7HistoryIdx = -1;
+
+try {
+    _o7History = JSON.parse(localStorage.getItem('omega7_cmd_history') || '[]');
+    if (!Array.isArray(_o7History)) _o7History = [];
+} catch (e) { _o7History = []; }
+
+function o7PushHistory(text) {
+    if (!text) return;
+    if (_o7History[_o7History.length - 1] !== text) _o7History.push(text);
+    if (_o7History.length > 50) _o7History = _o7History.slice(-50);
+    _o7HistoryIdx = -1;
+    try { localStorage.setItem('omega7_cmd_history', JSON.stringify(_o7History)); } catch (e) {}
+}
+
+function o7CommandKey(event) {
+    const input = document.getElementById('command-input');
+    if (!input) return;
+
+    if (event.key === 'Enter') {
+        sendCommand();
+        return;
+    }
+    if (event.key === 'ArrowUp') {
+        if (!_o7History.length) return;
+        event.preventDefault();
+        _o7HistoryIdx = _o7HistoryIdx < 0 ? _o7History.length - 1 : Math.max(0, _o7HistoryIdx - 1);
+        input.value = _o7History[_o7HistoryIdx];
+        input.setSelectionRange(input.value.length, input.value.length);
+    } else if (event.key === 'ArrowDown') {
+        if (_o7HistoryIdx < 0) return;
+        event.preventDefault();
+        _o7HistoryIdx += 1;
+        if (_o7HistoryIdx >= _o7History.length) {
+            _o7HistoryIdx = -1;
+            input.value = '';
+        } else {
+            input.value = _o7History[_o7HistoryIdx];
+        }
+    } else if (event.key === 'Escape') {
+        input.value = '';
+        _o7HistoryIdx = -1;
+    }
+}
+
+// Record what gets sent, however it was sent, then hand off to the original.
+const _o7SendCommand = sendCommand;
+window.sendCommand = function () {
+    const input = document.getElementById('command-input');
+    const text = input ? input.value.trim() : '';
+    if (text) o7PushHistory(text);
+    return _o7SendCommand();
+};
+
+function o7Quick(text) {
+    const input = document.getElementById('command-input');
+    if (!input) return;
+    input.value = text;
+    sendCommand();
+}
+
+// "/" focuses the command line, the way every console the skull imitates does.
+document.addEventListener('keydown', function (e) {
+    if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    const input = document.getElementById('command-input');
+    const term = document.getElementById('view-terminal');
+    if (!input || !term || term.style.display === 'none') return;
+    e.preventDefault();
+    input.focus();
+});
+
+// ── Transcript ───────────────────────────────────────────────────────────
+function o7CopyTranscript() {
+    const box = document.getElementById('chat-container');
+    if (!box) return;
+    const text = Array.from(box.querySelectorAll('.chat-bubble'))
+        .map(el => el.innerText.trim())
+        .join('\n');
+    if (!text) { o7Toast('Nothing to copy yet.'); return; }
+
+    const done = () => o7Toast('Transcript copied.');
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(done, () => o7Toast('Copy refused by the browser.'));
+    } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); done(); } catch (e) { o7Toast('Copy refused by the browser.'); }
+        document.body.removeChild(ta);
+    }
+}
+
+// ── Console follow ───────────────────────────────────────────────────────
+// Freezing the tail matters when you are reading an error that the next
+// poll would otherwise scroll away.
+var _o7Follow = true;   // var: fetchState reads it on the first poll
+
+function o7ToggleFollow() {
+    _o7Follow = !_o7Follow;
+    const btn = document.getElementById('console-follow-btn');
+    if (btn) {
+        btn.textContent = _o7Follow ? 'Following' : 'Frozen';
+        btn.classList.toggle('o7-btn-ghost', _o7Follow);
+    }
+    if (_o7Follow) {
+        const box = document.getElementById('console-box');
+        if (box) box.scrollTop = box.scrollHeight;
+    }
+    o7Toast(_o7Follow ? 'Console follows the tail.' : 'Console frozen.');
+}
+
+// Scrolling up by hand freezes the tail; scrolling back to the bottom resumes.
+document.addEventListener('DOMContentLoaded', function () {
+    const box = document.getElementById('console-box');
+    if (!box) return;
+    box.addEventListener('scroll', function () {
+        const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
+        if (atBottom !== _o7Follow) {
+            _o7Follow = atBottom;
+            const btn = document.getElementById('console-follow-btn');
+            if (btn) btn.textContent = _o7Follow ? 'Following' : 'Frozen';
+        }
+    }, { passive: true });
+});
+
+// ── Camera snapshot ──────────────────────────────────────────────────────
+function o7Snapshot() {
+    window.open('/api/camera_frame.jpg?t=' + Date.now(), '_blank', 'noopener');
+}
+
+// ── CRT skin ─────────────────────────────────────────────────────────────
+// The scanline overlay is atmosphere, not information. On a phone in
+// daylight it only costs legibility, so it can be switched off and the
+// choice is remembered.
+function o7ApplySkin(skin) {
+    document.querySelectorAll('.o7').forEach(el => { el.dataset.skin = skin; });
+    const label = skin === 'clean' ? 'Clean' : 'CRT';
+    ['skin-btn', 'skin-btn-mem'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) {
+            const text = btn.querySelector('.o7-nav-text');
+            if (text) text.textContent = label;
+            const short = btn.querySelector('.o7-nav-short');
+            if (short) short.textContent = label;
+            btn.title = skin === 'clean' ? 'Turn the CRT scanline overlay on' : 'Turn the CRT scanline overlay off';
+        }
+    });
+}
+
+function o7ToggleSkin() {
+    const current = document.querySelector('.o7') && document.querySelector('.o7').dataset.skin;
+    const next = current === 'clean' ? 'crt' : 'clean';
+    try { localStorage.setItem('omega7_skin', next); } catch (e) {}
+    o7ApplySkin(next);
+}
+
+(function o7RestoreSkin() {
+    let skin = 'crt';
+    try { skin = localStorage.getItem('omega7_skin') || 'crt'; } catch (e) {}
+    const apply = () => o7ApplySkin(skin);
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply);
+    else apply();
+})();
+
+// ── Wizard ───────────────────────────────────────────────────────────────
+function o7OpenWizard() {
+    const modal = document.getElementById('wizard-modal');
+    if (!modal) return;
+    modal.style.display = 'block';
+    o7WizardStep(1);
+}
+
+function o7CloseWizard() {
+    const modal = document.getElementById('wizard-modal');
+    if (!modal) return;
+    // Remember the dismissal so the auto-open in fetchState does not fight it.
+    window.wizardClosedManually = true;
+    modal.style.display = 'none';
+}
+
+function o7WizardStep(step) {
+    nextWizardStep(step);
+    const dots = document.querySelectorAll('#wizard-dots span');
+    dots.forEach((dot, i) => dot.classList.toggle('active', i === step - 1));
+}
+
+document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    const modal = document.getElementById('wizard-modal');
+    if (modal && modal.style.display === 'block') o7CloseWizard();
+});

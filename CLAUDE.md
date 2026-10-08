@@ -12,6 +12,14 @@ word → Whisper → Claude with tools → ElevenLabs/Piper speech, plus a round
   conversation and tool handlers; `tools_schema.py` the tool definitions; `llm.py`
   the API client (streaming, prompt caching); `display.py` the eye; `web.py` the
   web remote; `config.py` all settings.
+- The web remote is one page: `web.py`'s `HTML_CLIENT` string (markup and all CSS)
+  plus `core/app.js`. Omega-7's own views — the terminal, the memory bank, the
+  setup wizard — are styled by the `.o7`/`.o7-modal` design system in that style
+  block and use `o7-*` classes. The WFRP campaign view is inline-styled instead
+  and inherits only the `:root` tokens, the global `button` rule and the body
+  font, so those three stay as they are and new terminal styling goes under `.o7`.
+  `app.js` reaches the markup by element id: keep the ids when rearranging it.
+  Home-screen icons come from `generate_icons.py` into `core/static/`.
 - `personalities/<key>/` — `persona.txt`, `config.json` (phrases, voice, wake-word
   model), `brain.py` (extra tools), `display.py`, screensavers. Omega-7's
   screensavers are one module each in `personalities/omega7/classic/` (green

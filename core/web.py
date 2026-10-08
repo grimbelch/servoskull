@@ -42,6 +42,17 @@ _audio_lock = threading.Lock()
 # browser its own random session key (HttpOnly cookie, valid a year), so the short
 # code is only ever used to sign in. Scripts can send "Authorization: Bearer <key>".
 _AUTH_COOKIE = "omega7_session"
+# Branding assets served without a session, so a phone can install the
+# terminal to its home screen from the login screen itself. None of them
+# reveal anything about the unit beyond its name.
+_PUBLIC_ASSETS = frozenset({
+    "/manifest.webmanifest",
+    "/favicon.svg",
+    "/static/icon-180.png",
+    "/static/icon-192.png",
+    "/static/icon-512.png",
+    "/static/icon-maskable-512.png",
+})
 ACCESS_CODE_TTL = 600.0
 ACCESS_CODE_MAX_TRIES = 5
 _SESSION_MAX_AGE = 365 * 24 * 3600
@@ -141,18 +152,60 @@ def _record_login_failure() -> None:
         _login_failures.append(time.time())
 
 
-_LOGIN_PAGE = """<!doctype html><html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Omega-7 Access</title>
-<style>body{background:#000a04;color:#28e664;font-family:monospace;display:flex;min-height:100vh;
-align-items:center;justify-content:center;margin:0}form{border:1px solid #145028;padding:28px;max-width:340px;
-width:90%}h1{font-size:18px;letter-spacing:2px}input{width:100%;box-sizing:border-box;background:#001a08;
-color:#aaffbe;border:1px solid #28e664;padding:10px;font:16px monospace;letter-spacing:2px;margin:12px 0}
-button{background:#28e664;color:#000;border:0;padding:10px 16px;font:bold 14px monospace;cursor:pointer}
-.err{color:#ff4030}.hint{color:#148c3c;font-size:12px}</style></head><body>
-<form method="post" action="/login"><h1>OMEGA-7 // ACCESS</h1>__MESSAGE__
-<input name="code" placeholder="0000" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" autofocus>
-<input type="hidden" name="next" value="__NEXT__"><button type="submit">AUTHENTICATE</button>
-<p class="hint">Ask the skull: "show the web access code". The code lasts 10 minutes.</p></form></body></html>"""
+_LOGIN_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark"><meta name="theme-color" content="#04120a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Omega-7">
+<title>Omega-7 Access</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/icon-180.png">
+<style>
+:root{--acc:#46ff78;--ink:#dcffe6;--ink-3:#65b47e;--line:rgba(70,255,120,.22)}
+*{box-sizing:border-box;margin:0}
+body{min-height:100svh;display:grid;place-items:center;padding:24px;
+background:radial-gradient(900px 560px at 50% -10%,rgba(70,255,120,.07),transparent 70%),#020a05;
+color:var(--ink);font-family:'Share Tech Mono',ui-monospace,'Courier New',monospace}
+.crt{position:fixed;inset:0;pointer-events:none;z-index:2;
+background:repeating-linear-gradient(180deg,rgba(0,0,0,0) 0 2px,rgba(0,0,0,.22) 2px 4px)}
+form{position:relative;z-index:3;width:min(380px,100%);display:flex;flex-direction:column;gap:14px;
+padding:28px;border:1px solid var(--line);border-radius:12px;
+background:linear-gradient(180deg,#0a1d10,#061308);box-shadow:0 30px 70px -40px #000}
+.sigil{width:46px;height:46px;fill:var(--acc);filter:drop-shadow(0 0 10px rgba(70,255,120,.45));
+animation:spin 24s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.sigil{animation:none}}
+h1{font-size:15px;letter-spacing:.18em;text-transform:uppercase}
+.sub{font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3)}
+input{width:100%;background:rgba(0,0,0,.6);color:var(--ink);border:1px solid var(--line);
+border-radius:6px;padding:14px;font:600 24px/1 'Share Tech Mono',monospace;letter-spacing:.5em;
+text-align:center;text-indent:.5em}
+input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px rgba(70,255,120,.16)}
+button{background:var(--acc);color:#021007;border:0;border-radius:6px;padding:13px 16px;
+font:700 12px/1 'Share Tech Mono',monospace;letter-spacing:.16em;text-transform:uppercase;cursor:pointer}
+button:hover{background:#6bffa0}
+button:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
+.err{color:#ff5f4a;font-size:12px;line-height:1.5}
+.hint{color:var(--ink-3);font-size:11.5px;line-height:1.6}
+</style></head><body>
+<div class="crt" aria-hidden="true"></div>
+<form method="post" action="/login">
+<div style="display:flex;align-items:center;gap:14px">
+<svg class="sigil" viewBox="0 0 100 100" aria-hidden="true">
+<path d="M50 20c-16.5 0-30 13.5-30 30s13.5 30 30 30 30-13.5 30-30-13.5-30-30-30zm0 10c11 0 20 9 20 20s-9 20-20 20-20-9-20-20 9-20 20-20z"/>
+<path d="M50 0l6 14h-12zM50 100l6-14h-12zM0 50l14-6v12zM100 50l-14-6v12zM15 15l10 10-8 8zM85 85l-10-10 8-8zM15 85l10-10-8-8zM85 15l-10 10 8 8z"/>
+</svg>
+<div><h1>Omega-7</h1><div class="sub">Access rite</div></div>
+</div>
+__MESSAGE__
+<label for="code" class="sub">Four-digit access code</label>
+<input id="code" name="code" placeholder="0000" inputmode="numeric" pattern="[0-9]*" maxlength="4"
+ autocomplete="one-time-code" autofocus aria-describedby="code-hint">
+<input type="hidden" name="next" value="__NEXT__">
+<button type="submit">Authenticate</button>
+<p class="hint" id="code-hint">Ask the skull: &ldquo;show the web access code&rdquo;. The code lasts 10 minutes.</p>
+</form></body></html>"""
 
 
 def publish_web_audio(wav_bytes: bytes) -> None:
@@ -657,6 +710,8 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             # Login link, e.g. https://omega7:8080/?code=XXXX-XXXX-XXXX-XXXX
             self._attempt_login(query["code"][0], path)
             return True
+        if method == "GET" and path in _PUBLIC_ASSETS:
+            return False
         if self._is_authenticated():
             return False
         if method == "GET" and not (path.startswith("/api/") or path.startswith("/static/")
@@ -853,6 +908,50 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
         except Exception:
             self.send_response(500)
             self.end_headers()
+
+    _FAVICON = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+        '<rect width="100" height="100" rx="18" fill="#04120a"/>'
+        '<g fill="#46ff78">'
+        '<path d="M50 24c-14.4 0-26 11.6-26 26s11.6 26 26 26 26-11.6 26-26-11.6-26-26-26zm0 9'
+        'c9.4 0 17 7.6 17 17s-7.6 17-17 17-17-7.6-17-17 7.6-17 17-17z"/>'
+        '<path d="M50 6l5 13H45zM50 94l5-13H45zM6 50l13-5v10zM94 50l-13-5v10z'
+        'M19 19l9 9-7 7zM81 81l-9-9 7-7zM19 81l9-9-7-7zM81 19l-9 9 7 7z"/>'
+        '<circle cx="50" cy="50" r="8"/>'
+        '</g></svg>'
+    )
+
+    def _send_asset(self, body: bytes, content_type: str, max_age: int = 86400) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", f"public, max-age={max_age}")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _handle_favicon(self) -> None:
+        self._send_asset(self._FAVICON.encode("utf-8"), "image/svg+xml")
+
+    def _handle_manifest(self) -> None:
+        """The web-app manifest, so the terminal installs to a phone home screen."""
+        name = str(config.SKULL_NAME or "Omega-7")
+        manifest = {
+            "name": f"{name} Cogitator Terminal",
+            "short_name": name,
+            "description": f"Remote terminal for the {name} servo-skull.",
+            "start_url": "/",
+            "scope": "/",
+            "display": "standalone",
+            "background_color": "#020a05",
+            "theme_color": "#04120a",
+            "icons": [
+                {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png"},
+                {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png"},
+                {"src": "/static/icon-maskable-512.png", "sizes": "512x512",
+                 "type": "image/png", "purpose": "maskable"},
+            ],
+        }
+        self._send_asset(json.dumps(manifest).encode("utf-8"), "application/manifest+json", 3600)
 
     def _handle_app_js(self) -> None:
         import os
@@ -1289,6 +1388,8 @@ class WebRequestHandler(http.server.BaseHTTPRequestHandler):
             "/api/campaign": self._handle_campaign_get,
             "/api/memory": self._handle_memory_get,
             "/api/app.js": self._handle_app_js,
+            "/manifest.webmanifest": self._handle_manifest,
+            "/favicon.svg": self._handle_favicon,
             "/api/state": self._handle_api_state,
             "/api/wifi/status": self._handle_wifi_status,
             "/api/wifi/scan": self._handle_wifi_scan,
@@ -1594,15 +1695,29 @@ def start() -> None:
 
 # Embedded Single-File HTML / CSS / JS Client
 HTML_CLIENT = """<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="color-scheme" content="dark">
+    <meta name="theme-color" content="#04120a">
+    <meta name="description" content="Remote cogitator terminal for the Omega-7 servo-skull.">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Omega-7">
     <title>Omega-7 Cogitator Terminal</title>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/static/icon-180.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=IM+Fell+English:ital@0;1&family=MedievalSharp&family=Share+Tech+Mono&display=swap">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=IM+Fell+English:ital@0;1&family=MedievalSharp&family=Share+Tech+Mono&display=swap');
-
-
+        /* ══════════════════════════════════════════════════════════════════
+           Legacy tokens. The WFRP campaign view and the global button rule
+           below inherit these, so the values stay exactly as they were.
+           ══════════════════════════════════════════════════════════════════ */
         :root {
             --bg-color: #020803;
             --card-color: #030f05;
@@ -1628,531 +1743,7 @@ HTML_CLIENT = """<!DOCTYPE html>
             min-height: 100vh;
         }
 
-        /* CRT Screen Filter & Glass Effects */
-        .screen {
-            position: relative;
-            width: 100%;
-            min-height: 100vh;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-
-        .screen::after {
-            content: " ";
-            display: block;
-            position: fixed;
-            top: 0; left: 0; bottom: 0; right: 0;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
-                        linear-gradient(90deg, rgba(56, 255, 88, 0.04), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
-            background-size: 100% 4px, 6px 100%;
-            z-index: 9999;
-            pointer-events: none;
-            animation: crt-flicker 0.25s infinite;
-        }
-
-        .screen::before {
-            content: " ";
-            display: block;
-            position: fixed;
-            top: 0; left: 0; bottom: 0; right: 0;
-            background: radial-gradient(circle, rgba(56, 255, 88, 0.03) 0%, rgba(0, 0, 0, 0.75) 120%);
-            z-index: 10000;
-            pointer-events: none;
-        }
-
-        @keyframes crt-flicker {
-            0% { opacity: 0.985; }
-            50% { opacity: 1; }
-            100% { opacity: 0.978; }
-        }
-
-        /* Page Layout Container */
-        .container {
-            width: 100%;
-            max-width: 1000px;
-            margin: 0 auto;
-            border: 2px solid var(--border-color);
-            background-color: var(--card-color);
-            padding: 24px;
-            position: relative;
-            box-shadow: 0 0 30px rgba(17, 120, 35, 0.15);
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 24px;
-            box-sizing: border-box;
-        }
-
-        /* Diagonal corner cuts for AdMech framing */
-        .container::before, .container::after, .frame-bracket::before, .frame-bracket::after {
-            content: "";
-            position: absolute;
-            width: 16px;
-            height: 16px;
-            border-color: var(--bright-green);
-            border-style: solid;
-            pointer-events: none;
-        }
-
-        .container::before { top: -2px; left: -2px; border-width: 4px 0 0 4px; }
-        .container::after { top: -2px; right: -2px; border-width: 4px 4px 0 0; }
-        
-        .frame-bracket {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            pointer-events: none;
-        }
-        .frame-bracket::before { bottom: -2px; left: -2px; border-width: 0 0 4px 4px; }
-        .frame-bracket::after { bottom: -2px; right: -2px; border-width: 0 4px 4px 0; }
-
-
-        /* Heading & Telemetry Section */
-        .header {
-            grid-column: 1 / -1;
-            border-bottom: 2px solid var(--border-color);
-            padding-bottom: 16px;
-            margin-bottom: 10px;
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 10px;
-            width: 100%;
-        }
-
-        .header-title-row {
-            width: 100%;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 12px;
-        }
-
-        .header h1 {
-            color: var(--bright-green);
-            font-size: 26px;
-            letter-spacing: 3px;
-            text-shadow: 0 0 10px var(--glow-color);
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .master-header-tag {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 14px;
-            letter-spacing: 2px;
-            color: var(--bright-green);
-            text-shadow: 0 0 8px var(--glow-color);
-        }
-
-        .master-header-tag .master-label {
-            color: var(--dim-green);
-            font-size: 12px;
-            letter-spacing: 1.5px;
-        }
-
-        .master-header-tag .master-value {
-            color: var(--bright-green);
-            font-weight: bold;
-        }
-
-        /* SVG AdMech Logo */
-        .cog-logo {
-            width: 28px;
-            height: 28px;
-            fill: var(--bright-green);
-            filter: drop-shadow(0 0 4px var(--glow-color));
-            animation: slow-spin 20s linear infinite;
-        }
-
-        @keyframes slow-spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .telemetry {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            width: 100%;
-            margin-top: 10px;
-        }
-
-        .pie-gauge-row {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 10px;
-            width: 100%;
-            border: 2px double var(--border-color);
-            background: rgba(17, 120, 35, 0.03);
-            padding: 12px;
-            box-sizing: border-box;
-            border-radius: 4px;
-        }
-
-        .pie-gauge-item {
-            border: 1px solid var(--border-color);
-            background: rgba(17, 120, 35, 0.05);
-            padding: 10px 4px;
-            border-radius: 2px;
-            box-shadow: inset 0 0 8px rgba(0,0,0,0.8);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .gauge-label {
-            color: rgba(56, 255, 88, 0.85);
-            font-size: 10px;
-            letter-spacing: 1.5px;
-            font-weight: bold;
-            text-align: center;
-            text-shadow: 0 0 3px rgba(56, 255, 88, 0.4);
-            white-space: nowrap;
-        }
-
-        .pie-chart-container {
-            position: relative;
-            width: 58px;
-            height: 58px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .pie-chart {
-            width: 100%;
-            height: 100%;
-            transform: rotate(-90deg);
-        }
-
-        .pie-bg {
-            fill: rgba(0, 0, 0, 0.6);
-            stroke: rgba(17, 120, 35, 0.3);
-            stroke-width: 3.5;
-        }
-
-        .pie-fill {
-            fill: none;
-            stroke: var(--bright-green);
-            stroke-width: 3.8;
-            stroke-linecap: round;
-            filter: drop-shadow(0 0 3px var(--bright-green));
-            transition: stroke-dasharray 0.4s ease;
-        }
-
-        .gauge-val {
-            position: absolute;
-            font-size: 11px;
-            font-weight: bold;
-            color: var(--bright-green);
-            text-shadow: 0 0 4px var(--glow-color);
-            text-align: center;
-        }
-
-        .status-row {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            width: 100%;
-        }
-
-        .telemetry-item {
-            border: 1px solid var(--border-color);
-            background: rgba(17, 120, 35, 0.05);
-            padding: 10px 14px;
-            border-radius: 2px;
-            box-shadow: inset 0 0 5px rgba(0,0,0,0.8);
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .telemetry-item.text-only {
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .telemetry-label {
-            color: rgba(56, 255, 88, 0.75);
-            font-size: 11px;
-            letter-spacing: 1.5px;
-            font-weight: bold;
-            text-shadow: 0 0 2px rgba(56, 255, 88, 0.3);
-        }
-
-        .telemetry-value {
-            color: var(--bright-green);
-            font-weight: bold;
-            text-shadow: 0 0 4px var(--glow-color);
-            font-size: 13px;
-        }
-
-        .sensor-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .sensor-bar-container {
-            width: 100%;
-            height: 6px;
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid var(--border-color);
-            border-radius: 1px;
-            overflow: hidden;
-            box-shadow: inset 0 0 4px rgba(0,0,0,0.9);
-        }
-
-        .sensor-bar {
-            height: 100%;
-            background: var(--bright-green);
-            box-shadow: 0 0 8px var(--glow-color);
-            width: 0%;
-            transition: width 0.4s cubic-bezier(0.1, 0.8, 0.3, 1);
-        }
-
-        /* Immersive Top Alert Banner */
-        .alert-banner {
-            grid-column: 1 / -1;
-            border: 2px solid var(--bright-green);
-            background-color: rgba(56, 255, 88, 0.07);
-            box-shadow: 0 0 15px rgba(56, 255, 88, 0.15), inset 0 0 10px rgba(56, 255, 88, 0.08);
-            padding: 18px 20px 14px 20px;
-            text-align: center;
-            border-radius: 2px;
-            position: relative;
-            margin-bottom: 5px;
-        }
-
-        .alert-banner::before {
-            content: "◆ COGITATOR MONITORING ACTIVE ◆";
-            position: absolute;
-            top: -10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: var(--card-color);
-            padding: 0 8px;
-            font-size: 11px;
-            color: var(--bright-green);
-            letter-spacing: 2px;
-            white-space: nowrap;
-            z-index: 5;
-        }
-
-        .alert-title {
-            font-size: 12px;
-            color: var(--bright-green);
-            letter-spacing: 4px;
-            opacity: 0.8;
-            margin-bottom: 4px;
-            text-transform: uppercase;
-        }
-
-        .alert-value {
-            font-size: 24px;
-            font-weight: 900;
-            letter-spacing: 6px;
-            color: var(--bright-green);
-            text-shadow: 0 0 10px var(--glow-color);
-            text-transform: uppercase;
-        }
-
-        /* Left Column: Tactical Ocular Display Feed */
-        .ocular-pane {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 20px;
-            padding: 15px;
-            border: 1px solid var(--border-color);
-            background: rgba(0,0,0,0.4);
-            position: relative;
-        }
-
-        .ocular-ring {
-            width: 270px;
-            height: 270px;
-            border: 4px double var(--bright-green);
-            position: relative;
-            background-color: #000200;
-            box-shadow: 0 0 20px rgba(56, 255, 88, 0.1), inset 0 0 25px rgba(0,0,0,0.95);
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        /* Right Column: Camera Optic Feed (Placeholder) */
-        .camera-pane {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 20px;
-            padding: 15px;
-            border: 1px solid var(--border-color);
-            background: rgba(0,0,0,0.4);
-            position: relative;
-        }
-
-        .camera-screen {
-            width: 270px;
-            height: 270px;
-            border: 4px double var(--border-color);
-            position: relative;
-            background-color: #000200;
-            box-shadow: 0 0 20px rgba(56, 255, 88, 0.05), inset 0 0 25px rgba(0,0,0,0.95);
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .camera-placeholder-text {
-            color: var(--dim-green);
-            font-size: 11px;
-            letter-spacing: 2px;
-            text-align: center;
-            line-height: 1.6;
-            opacity: 0.7;
-        }
-
-        .camera-canvas {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: block;
-        }
-
-        /* Ocular & Camera Bezel Tech Details */
-        .ocular-bezel-text {
-            position: absolute;
-            font-size: 9px;
-            color: var(--dim-green);
-            z-index: 10;
-        }
-        .bezel-tl { top: 6px; left: 6px; }
-        .bezel-tr { top: 6px; right: 6px; }
-        .bezel-bl { bottom: 6px; left: 6px; }
-        .bezel-br { bottom: 6px; right: 6px; }
-
-        .ocular-canvas {
-            width: 240px;
-            height: 240px;
-            border-radius: 50%;
-            display: block;
-        }
-
-        /* Monochromatic Green night vision filter for custom image uploads */
-        .custom-image-display {
-            position: absolute;
-            width: 240px;
-            height: 240px;
-            border-radius: 50%;
-            object-fit: cover;
-            display: none;
-            filter: sepia(1) hue-rotate(85deg) saturate(2.5) contrast(1.2) brightness(0.95);
-            opacity: 0.95;
-        }
-
-        /* Full Width Section: Vox Control Panel (Under feeds) */
-        .control-pane {
-            grid-column: 1 / -1;
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            border: 1px solid var(--border-color);
-            padding: 15px;
-            background: rgba(0,0,0,0.4);
-        }
-
-        .pane-title {
-            font-size: 13px;
-            letter-spacing: 2px;
-            color: var(--bright-green);
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 6px;
-            margin-bottom: 4px;
-            text-transform: uppercase;
-        }
-
-        /* Chat feed / console interface */
-        .chat-container {
-            flex-grow: 1;
-            height: 320px;
-            min-height: 300px;
-            border: 1px solid var(--border-color);
-            background: rgba(0, 0, 0, 0.6);
-            padding: 12px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            font-size: 13px;
-            box-shadow: inset 0 0 10px rgba(0,0,0,0.9);
-        }
-
-        .chat-bubble {
-            max-width: 90%;
-            padding: 8px 12px;
-            border-radius: 2px;
-            line-height: 1.4;
-            border-left: 3px solid;
-            white-space: pre-wrap;
-        }
-
-        .chat-user {
-            align-self: flex-end;
-            background-color: rgba(56, 255, 88, 0.05);
-            border-color: var(--dim-green);
-            color: var(--bright-green);
-        }
-
-        .chat-skull {
-            align-self: flex-start;
-            background-color: rgba(56, 255, 88, 0.1);
-            border-color: var(--bright-green);
-            color: var(--bright-green);
-            text-shadow: 0 0 4px var(--glow-color);
-        }
-
-        .input-bar {
-            display: flex;
-            gap: 8px;
-        }
-
-        .input-bar input {
-            flex-grow: 1;
-            background-color: rgba(0,0,0,0.7);
-            border: 1px solid var(--border-color);
-            padding: 10px;
-            color: var(--bright-green);
-            font-family: inherit;
-            font-size: 14px;
-        }
-
-        .input-bar input:focus {
-            outline: none;
-            border-color: var(--bright-green);
-            box-shadow: 0 0 5px var(--glow-color);
-        }
-
-        /* High-tech chamfered button style */
+        /* High-tech chamfered button style (campaign buttons inherit this) */
         button {
             background-color: rgba(17, 120, 35, 0.15);
             border: 1px solid var(--bright-green);
@@ -2174,167 +1765,6 @@ HTML_CLIENT = """<!DOCTYPE html>
             box-shadow: 0 0 10px var(--glow-color);
         }
 
-        /* Small Icon Buttons for Mic Controls */
-        .icon-btn {
-            width: 38px;
-            height: 38px;
-            padding: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-
-        .btn-svg {
-            width: 16px;
-            height: 16px;
-            fill: var(--bright-green);
-            transition: fill 0.2s ease;
-        }
-
-        button:hover .btn-svg {
-            fill: #000;
-        }
-
-        button.mic-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            padding: 10px 14px;
-            background-color: rgba(56, 255, 88, 0.08);
-            border-color: var(--bright-green);
-            flex-shrink: 0;
-        }
-
-        button.mic-btn.recording {
-            background-color: #ff3838;
-            border-color: #ff3838;
-            color: #ffffff;
-            text-shadow: none;
-            animation: pulse-red 1.5s infinite;
-        }
-
-        button.mic-btn.recording .btn-svg {
-            fill: #ffffff;
-        }
-
-        @keyframes pulse-red {
-            0% { box-shadow: 0 0 0 0 rgba(255, 56, 56, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(255, 56, 56, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(255, 56, 56, 0); }
-        }
-
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(56, 255, 88, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(56, 255, 88, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(56, 255, 88, 0); }
-        }
-
-        /* Console Output Logs Pane */
-        .console-container {
-            grid-column: 1 / -1;
-            border: 1px solid var(--border-color);
-            background: rgba(0,0,0,0.5);
-            padding: 16px;
-        }
-
-        .console-box {
-            background: rgba(0, 0, 0, 0.8);
-            border: 1px solid var(--border-color);
-            height: 130px;
-            padding: 8px 12px;
-            overflow-y: auto;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 11px;
-            color: var(--bright-green);
-            line-height: 1.5;
-            box-shadow: inset 0 0 10px rgba(0,0,0,0.95);
-        }
-
-        .console-line {
-            white-space: pre-wrap;
-            border-bottom: 1px dashed rgba(56, 255, 88, 0.08);
-            padding: 2px 0;
-            opacity: 1.0;
-            text-shadow: 0 0 3px var(--glow-color);
-        }
-
-        .controls-row {
-            display: flex;
-            gap: 10px;
-        }
-
-        .controls-row select {
-            flex-grow: 1;
-            background-color: rgba(0,0,0,0.7);
-            border: 1px solid var(--border-color);
-            color: var(--bright-green);
-            padding: 8px;
-            font-family: inherit;
-        }
-        
-        .controls-row select:focus {
-            outline: none;
-            border-color: var(--bright-green);
-        }
-
-        .aux-panel {
-            grid-column: 1 / -1;
-            width: 100%;
-            border: 1px solid var(--border-color);
-            background: rgba(17, 120, 35, 0.04);
-            padding: 12px 16px;
-            box-sizing: border-box;
-            border-radius: 2px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-top: 4px;
-        }
-
-        .aux-title {
-            color: rgba(56, 255, 88, 0.85);
-            font-size: 11px;
-            letter-spacing: 2px;
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-
-        .aux-controls {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 16px;
-            align-items: center;
-        }
-
-        .aux-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .aux-label {
-            font-size: 11px;
-            letter-spacing: 1.5px;
-            color: var(--dim-green);
-            white-space: nowrap;
-        }
-
-        .aux-panel select {
-            background-color: rgba(0,0,0,0.7);
-            border: 1px solid var(--border-color);
-            color: var(--bright-green);
-            padding: 6px 10px;
-            font-family: inherit;
-            font-size: 12px;
-        }
-
-        .aux-panel select:focus {
-            outline: none;
-            border-color: var(--bright-green);
-        }
-
         /* Custom Scrollbars */
         ::-webkit-scrollbar {
             width: 8px;
@@ -2351,368 +1781,1354 @@ HTML_CLIENT = """<!DOCTYPE html>
             background: var(--bright-green);
         }
 
-        /* Mobile Responsive Overrides (Must stay at bottom of style block) */
-        @media (max-width: 768px) {
-            html, body {
-                overflow-x: hidden !important;
-                overflow-y: auto !important;
-                touch-action: pan-y !important;
-                -webkit-overflow-scrolling: touch !important;
+        /* ══════════════════════════════════════════════════════════════════
+           OMEGA-7 COGITATOR TERMINAL — design system
+           Everything below is scoped to .o7 (the terminal and memory views)
+           so none of it can reach the WFRP campaign pages.
+           ══════════════════════════════════════════════════════════════════ */
+        .o7,
+        .o7-modal,
+        .o7-toast {
+            /* spacing + radii */
+            --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;
+            --sp-4: 16px; --sp-5: 24px; --sp-6: 36px;
+            --r-1: 3px;   --r-2: 6px;   --r-3: 12px;
+
+            /* surfaces */
+            --surface-0: #020a05;
+            --surface-1: #061308;
+            --surface-2: #0a1d10;
+            --surface-3: #0f2a17;
+            --hairline: rgba(70, 255, 120, 0.15);
+            --hairline-2: rgba(70, 255, 120, 0.32);
+
+            /* ink — raised contrast over the old #117823 on near-black */
+            --ink: #dcffe6;
+            --ink-2: #93dfa8;
+            --ink-3: #65b47e;
+
+            /* signal colours */
+            --acc: #46ff78;
+            --acc-soft: rgba(70, 255, 120, 0.12);
+            --acc-glow: rgba(70, 255, 120, 0.40);
+            --ok: #46ff78;
+            --warn: #ffc152;
+            --crit: #ff5f4a;
+            --info: #5cd8ff;
+
+            --font-ui: 'Share Tech Mono', ui-monospace, 'SF Mono', 'Courier New', monospace;
+            --shadow-1: 0 1px 0 rgba(70, 255, 120, 0.05) inset, 0 16px 36px -26px #000;
+            --shadow-2: 0 0 0 1px var(--hairline), 0 24px 50px -30px #000;
+
+            /* iOS home-screen / notch padding */
+            --gutter: clamp(10px, 2.2vw, 28px);
+        }
+
+        .o7 {
+            position: relative;
+            min-height: 100vh;
+            color: var(--ink);
+            font-family: var(--font-ui);
+            font-size: 15px;
+            line-height: 1.5;
+            background:
+                radial-gradient(1200px 700px at 50% -8%, rgba(70, 255, 120, 0.055), transparent 70%),
+                var(--surface-0);
+            padding:
+                calc(env(safe-area-inset-top, 0px) + var(--sp-3))
+                calc(env(safe-area-inset-right, 0px) + var(--gutter))
+                calc(env(safe-area-inset-bottom, 0px) + var(--sp-6))
+                calc(env(safe-area-inset-left, 0px) + var(--gutter));
+        }
+
+        /* ── CRT atmosphere ───────────────────────────────────────────────
+           One fixed, non-interactive layer instead of two stacked
+           pseudo-elements. Switched off by the DISPLAY toggle and whenever
+           the reader asks for reduced motion. */
+        .o7-crt {
+            position: fixed;
+            inset: 0;
+            z-index: 900;
+            pointer-events: none;
+            background:
+                repeating-linear-gradient(180deg, rgba(0,0,0,0) 0 2px, rgba(0,0,0,0.20) 2px 4px),
+                radial-gradient(130% 110% at 50% 45%, rgba(70,255,120,0.028) 0%, rgba(0,0,0,0.55) 100%);
+            mix-blend-mode: normal;
+            animation: o7-flicker 4s steps(2, end) infinite;
+        }
+
+        @keyframes o7-flicker {
+            0%, 97% { opacity: 1; }
+            98%     { opacity: 0.94; }
+            100%    { opacity: 1; }
+        }
+
+        .o7[data-skin="clean"] .o7-crt { display: none; }
+
+        @media (prefers-reduced-motion: reduce) {
+            .o7-crt { animation: none; }
+            .o7 *, .o7 *::before, .o7 *::after {
+                animation-duration: 0.001s !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.001s !important;
             }
-            .screen {
-                padding: 4px 2px !important;
-                overflow: visible !important;
-                touch-action: pan-y !important;
-            }
-            .container {
-                grid-template-columns: 1fr !important;
-                padding: 8px 4px !important;
-                gap: 10px !important;
-                width: 100% !important;
-                max-width: 100% !important;
-                overflow: visible !important;
-                touch-action: pan-y !important;
-            }
-            .header {
-                padding-bottom: 8px !important;
-                margin-bottom: 6px !important;
-                gap: 6px !important;
-            }
-            .header h1 {
-                font-size: 13px !important;
-                letter-spacing: 0px !important;
-                flex-wrap: wrap !important;
-                line-height: 1.2 !important;
-                word-break: break-word !important;
-            }
-            .cog-logo {
-                width: 16px !important;
-                height: 16px !important;
-                flex-shrink: 0 !important;
-            }
-            .telemetry {
-                display: flex !important;
-                flex-direction: column !important;
-                gap: 8px !important;
-                width: 100% !important;
-                padding: 4px !important;
-            }
-            .pie-gauge-row {
-                grid-template-columns: repeat(5, 1fr) !important;
-                gap: 4px !important;
-                padding: 6px 2px !important;
-            }
-            .pie-chart-container {
-                width: 44px !important;
-                height: 44px !important;
-            }
-            .gauge-label {
-                font-size: 8px !important;
-                letter-spacing: 0px !important;
-            }
-            .gauge-val {
-                font-size: 9px !important;
-            }
-            .status-row {
-                grid-template-columns: 1fr !important;
-                gap: 6px !important;
-            }
-            .telemetry-item, .telemetry-item.text-only {
-                width: 100% !important;
-                min-width: 0 !important;
-                max-width: 100% !important;
-                box-sizing: border-box !important;
-                padding: 10px 12px !important;
-                display: flex !important;
-                flex-direction: column !important;
-                gap: 6px !important;
-            }
-            .sensor-header {
-                display: flex !important;
-                flex-direction: row !important;
-                justify-content: space-between !important;
-                align-items: center !important;
-                gap: 4px !important;
-            }
-            .telemetry-label {
-                font-size: 11px !important;
-                letter-spacing: 1px !important;
-            }
-            .telemetry-value {
-                font-size: 12px !important;
-                letter-spacing: 0px !important;
-                word-break: break-word !important;
-            }
-            .alert-banner {
-                padding: 12px 4px 8px 4px !important;
-                width: 100% !important;
-                box-sizing: border-box !important;
-            }
-            .alert-banner::before {
-                font-size: 8px !important;
-                letter-spacing: 0.5px !important;
-                top: -9px !important;
-                content: "◆ MONITORING ACTIVE ◆" !important;
-            }
-            .alert-title {
-                font-size: 9px !important;
-                letter-spacing: 0.5px !important;
-            }
-            .alert-value {
-                font-size: 13px !important;
-                letter-spacing: 0px !important;
-                word-break: break-word !important;
-                white-space: normal !important;
-            }
-            .ocular-pane, .camera-pane, .control-pane, .console-container {
-                padding: 8px 6px !important;
-            }
-            .ocular-ring, .camera-screen {
-                width: 220px !important;
-                height: 220px !important;
-                max-width: 100% !important;
-            }
-            .aux-panel {
-                padding: 6px 6px !important;
-            }
-            .aux-controls {
-                flex-direction: column !important;
-                align-items: stretch !important;
-            }
-            .input-bar {
-                flex-wrap: wrap !important;
-                gap: 6px !important;
-            }
-            .input-bar input {
-                width: 100% !important;
-                flex: 1 1 100% !important;
-                box-sizing: border-box !important;
-            }
-            .send-btn, .mic-btn {
-                flex: 1 1 calc(50% - 4px) !important;
-                text-align: center !important;
-                justify-content: center !important;
-                padding: 10px 6px !important;
-            }
-            .pane-title, .aux-title {
-                font-size: 10px !important;
-                letter-spacing: 0px !important;
-                word-break: break-word !important;
-            }
+        }
+
+        /* ── typography ───────────────────────────────────────────────── */
+        .o7 h1, .o7 h2, .o7 h3,
+        .o7-modal h1, .o7-modal h2, .o7-modal h3 {
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            line-height: 1.2;
+            text-transform: uppercase;
+        }
+        .o7-label {
+            font-size: 10.5px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--ink-3);
+            font-weight: 700;
+        }
+        .o7-num {
+            font-variant-numeric: tabular-nums;
+            font-feature-settings: "tnum" 1;
+        }
+        .o7-sr {
+            position: absolute;
+            width: 1px; height: 1px;
+            overflow: hidden;
+            clip-path: inset(50%);
+            white-space: nowrap;
+        }
+
+        /* ── focus ring: visible for keyboards, quiet for mice ─────────── */
+        .o7 :focus-visible,
+        .o7-modal :focus-visible {
+            outline: 2px solid var(--acc);
+            outline-offset: 2px;
+            border-radius: var(--r-1);
+        }
+        .o7 :focus:not(:focus-visible),
+        .o7-modal :focus:not(:focus-visible) { outline: none; }
+
+        /* ── shell ────────────────────────────────────────────────────── */
+        .o7-shell {
+            width: 100%;
+            max-width: 1480px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: var(--sp-4);
+        }
+
+        /* ── top bar ──────────────────────────────────────────────────── */
+        .o7-topbar {
+            position: sticky;
+            top: calc(env(safe-area-inset-top, 0px) - var(--sp-3));
+            z-index: 800;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: var(--sp-3) var(--sp-4);
+            padding: var(--sp-3) var(--sp-4);
+            border: 1px solid var(--hairline-2);
+            border-radius: var(--r-2);
+            background: linear-gradient(180deg, rgba(10, 32, 18, 0.96), rgba(4, 14, 8, 0.96));
+            backdrop-filter: blur(10px) saturate(130%);
+            -webkit-backdrop-filter: blur(10px) saturate(130%);
+            box-shadow: var(--shadow-2);
+        }
+
+        .o7-brand {
+            display: flex;
+            align-items: center;
+            gap: var(--sp-3);
+            min-width: 0;
+            margin-right: auto;
+        }
+
+        .o7-brand h1 {
+            font-size: clamp(13px, 1.5vw, 17px);
+            color: var(--ink);
+            text-shadow: 0 0 14px var(--acc-glow);
+            white-space: nowrap;
+        }
+        .o7-brand .o7-brand-sub {
+            display: block;
+            font-size: 9.5px;
+            letter-spacing: 0.22em;
+            color: var(--ink-3);
+            text-shadow: none;
+            margin-top: 2px;
+        }
+
+        .cog-logo {
+            width: 30px;
+            height: 30px;
+            flex-shrink: 0;
+            fill: var(--acc);
+            filter: drop-shadow(0 0 6px var(--acc-glow));
+            animation: slow-spin 24s linear infinite;
+        }
+
+        @keyframes slow-spin {
+            0%   { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* ── nav rail ─────────────────────────────────────────────────── */
+        .o7-nav {
+            display: flex;
+            align-items: center;
+            gap: var(--sp-1);
+            padding: 3px;
+            border: 1px solid var(--hairline);
+            border-radius: var(--r-2);
+            background: rgba(0, 0, 0, 0.45);
+        }
+
+        .o7-nav-short { display: none; }
+
+        .o7-nav a, .o7-nav button {
+            all: unset;
+            box-sizing: border-box;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 12px;
+            min-height: 36px;
+            border-radius: var(--r-1);
+            font: 700 11.5px/1 var(--font-ui);
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--ink-2);
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.18s ease, color 0.18s ease;
+        }
+
+        .o7-nav a:hover, .o7-nav button:hover {
+            background: var(--acc-soft);
+            color: var(--ink);
+        }
+
+        .o7-nav a[aria-current="page"] {
+            background: var(--acc);
+            color: #021007;
+            text-shadow: none;
+        }
+
+        /* ── connection pill ──────────────────────────────────────────── */
+        .o7-conn {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--sp-2);
+            padding: 7px 12px;
+            border: 1px solid var(--hairline-2);
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.45);
+            font-size: 10.5px;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--ink-2);
+            white-space: nowrap;
+        }
+        .o7-conn .o7-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            background: var(--ok);
+            box-shadow: 0 0 8px var(--ok);
+            animation: o7-pulse-dot 2.4s ease-in-out infinite;
+        }
+        .o7-conn[data-link="stale"] { color: var(--warn); border-color: rgba(255, 193, 82, 0.5); }
+        .o7-conn[data-link="stale"] .o7-dot { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+        .o7-conn[data-link="offline"] { color: var(--crit); border-color: rgba(255, 95, 74, 0.55); }
+        .o7-conn[data-link="offline"] .o7-dot { background: var(--crit); box-shadow: 0 0 8px var(--crit); animation: none; }
+
+        @keyframes o7-pulse-dot {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0.35; }
+        }
+
+        /* ── cards ────────────────────────────────────────────────────── */
+        .o7-card {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            gap: var(--sp-3);
+            padding: var(--sp-4);
+            border: 1px solid var(--hairline);
+            border-radius: var(--r-2);
+            background: linear-gradient(180deg, var(--surface-2), var(--surface-1));
+            box-shadow: var(--shadow-1);
+        }
+
+        /* corner brackets, drawn without extra markup */
+        .o7-card::before, .o7-card::after {
+            content: "";
+            position: absolute;
+            width: 12px; height: 12px;
+            border: 2px solid var(--hairline-2);
+            pointer-events: none;
+        }
+        .o7-card::before { top: -1px;    left: -1px;  border-width: 2px 0 0 2px; border-radius: var(--r-2) 0 0 0; }
+        .o7-card::after  { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; border-radius: 0 0 var(--r-2) 0; }
+
+        .o7-card-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--sp-3);
+            flex-wrap: wrap;
+            padding-bottom: var(--sp-2);
+            border-bottom: 1px solid var(--hairline);
+        }
+
+        .o7-card-head h2 {
+            display: flex;
+            align-items: center;
+            gap: var(--sp-2);
+            font-size: 11.5px;
+            letter-spacing: 0.18em;
+            color: var(--ink-2);
+        }
+        .o7-card-head h2::before {
+            content: "";
+            width: 3px;
+            height: 13px;
+            background: var(--acc);
+            box-shadow: 0 0 8px var(--acc-glow);
+            border-radius: 1px;
+        }
+        .o7-card-tools {
+            display: flex;
+            align-items: center;
+            gap: var(--sp-2);
+            flex-wrap: wrap;
+        }
+
+        /* ── layout ───────────────────────────────────────────────────── */
+        .o7-main {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: var(--sp-4);
+            align-items: start;
+        }
+        .o7-col {
+            display: grid;
+            gap: var(--sp-4);
+            min-width: 0;
+            align-content: start;
+        }
+        .o7-feeds {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: var(--sp-4);
+        }
+
+        @media (min-width: 1080px) {
+            .o7-main { grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); }
+        }
+
+        /* Below the two-column break the columns dissolve, so the cards can be
+           ordered for a phone: talk first, then look, then read. */
+        @media (max-width: 1079px) {
+            .o7-col { display: contents; }
+            .o7-card-vox      { order: 1; }
+            .o7-card-feeds    { order: 2; }
+            .o7-card-vitals   { order: 3; }
+            .o7-card-console  { order: 4; }
+            .o7-card-aux      { order: 5; }
+        }
+
+        /* ── status strip ─────────────────────────────────────────────── */
+        .o7-status {
+            display: grid;
+            gap: var(--sp-3);
+            grid-template-columns: minmax(0, 1fr);
+        }
+        @media (min-width: 640px) {
+            .o7-status { grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1.1fr); align-items: center; }
+        }
+
+        .alert-banner {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            padding: var(--sp-3) var(--sp-4);
+            border: 1px solid var(--hairline-2);
+            border-left: 3px solid var(--acc);
+            border-radius: var(--r-2);
+            background: var(--acc-soft);
+            transition: background 0.3s ease, border-color 0.3s ease;
+        }
+        .alert-banner[data-state="busy"] {
+            background: rgba(70, 255, 120, 0.17);
+            border-left-color: var(--acc);
+        }
+        .alert-banner[data-state="busy"]::after {
+            content: "";
+            position: absolute;
+            left: 0; right: 0; bottom: 0;
+            height: 2px;
+            border-radius: 0 0 var(--r-2) var(--r-2);
+            background: linear-gradient(90deg, transparent, var(--acc), transparent);
+            background-size: 220% 100%;
+            animation: o7-sweep 1.6s linear infinite;
+        }
+        @keyframes o7-sweep {
+            0%   { background-position: -110% 0; }
+            100% { background-position: 110% 0; }
+        }
+
+        .alert-title {
+            font-size: 10px;
+            letter-spacing: 0.2em;
+            color: var(--ink-3);
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+        .alert-value {
+            font-size: clamp(16px, 2.4vw, 23px);
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: var(--ink);
+            text-shadow: 0 0 14px var(--acc-glow);
+            text-transform: uppercase;
+            word-break: break-word;
+        }
+
+        /* ── chips ────────────────────────────────────────────────────── */
+        .o7-chips {
+            display: grid;
+            /* 165px keeps the four chips to 4-up, 2-up or 1-up — never a ragged 3+1 */
+            grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+            gap: var(--sp-2);
+            align-content: start;
+        }
+        .o7-chip {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            padding: var(--sp-2) var(--sp-3);
+            border: 1px solid var(--hairline);
+            border-radius: var(--r-1);
+            background: rgba(0, 0, 0, 0.35);
+            min-width: 0;
+        }
+        .o7-chip .telemetry-value,
+        .o7-chip .o7-chip-val {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--ink);
+            word-break: break-word;
+        }
+        .o7-chip a { color: var(--acc); }
+
+        /* ── meters ───────────────────────────────────────────────────── */
+        .o7-meters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+            gap: var(--sp-2);
+        }
+
+        .o7-meter {
+            --meter: var(--ok);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: var(--sp-2);
+            padding: var(--sp-3) var(--sp-2);
+            border: 1px solid var(--hairline);
+            border-radius: var(--r-1);
+            background: rgba(0, 0, 0, 0.35);
+            min-width: 0;
+        }
+        .o7-meter[data-state="warn"] { --meter: var(--warn); border-color: rgba(255, 193, 82, 0.4); }
+        .o7-meter[data-state="crit"] { --meter: var(--crit); border-color: rgba(255, 95, 74, 0.5); background: rgba(255, 95, 74, 0.07); }
+
+        .gauge-label {
+            font-size: 9.5px;
+            letter-spacing: 0.1em;
+            font-weight: 700;
+            color: var(--ink-3);
+            text-align: center;
+            line-height: 1.3;
+            word-break: break-word;
+        }
+
+        .pie-chart-container {
+            position: relative;
+            width: clamp(52px, 6vw, 66px);
+            aspect-ratio: 1;
+            display: grid;
+            place-items: center;
+        }
+        .pie-chart {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+        .pie-bg {
+            fill: none;
+            stroke: rgba(70, 255, 120, 0.14);
+            stroke-width: 3.2;
+        }
+        .pie-fill {
+            fill: none;
+            stroke: var(--meter);
+            stroke-width: 3.6;
+            stroke-linecap: round;
+            filter: drop-shadow(0 0 4px var(--meter));
+            transition: stroke-dasharray 0.5s cubic-bezier(0.2, 0.8, 0.25, 1), stroke 0.3s ease;
+        }
+        .gauge-val {
+            position: absolute;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--ink);
+            text-align: center;
+            line-height: 1.1;
+            max-width: 90%;
+            word-break: break-word;
+        }
+        #power-status {
+            font-size: 9px;
+            letter-spacing: 0.06em;
+            text-align: center;
+        }
+
+        /* ── rangefinder ──────────────────────────────────────────────── */
+        .o7-range {
+            display: flex;
+            flex-direction: column;
+            gap: var(--sp-2);
+            padding: var(--sp-3);
+            border: 1px solid var(--hairline);
+            border-radius: var(--r-1);
+            background: rgba(0, 0, 0, 0.35);
+        }
+        .sensor-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--sp-2);
+            flex-wrap: wrap;
+        }
+        .sensor-header .telemetry-value {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--ink);
+        }
+        .sensor-bar-container {
+            position: relative;
+            height: 10px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid var(--hairline);
+            overflow: hidden;
+        }
+        .sensor-bar {
+            height: 100%;
+            width: 0%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(70, 255, 120, 0.5), var(--acc));
+            box-shadow: 0 0 10px var(--acc-glow);
+            transition: width 0.45s cubic-bezier(0.1, 0.8, 0.3, 1);
+        }
+        .o7-ticks {
+            display: flex;
+            justify-content: space-between;
+            font-size: 9px;
+            font-weight: 700;
+            color: var(--ink-3);
+        }
+
+        /* ── feeds ────────────────────────────────────────────────────── */
+        .o7-feed-frame {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 1;
+            max-width: 340px;
+            margin: 0 auto;
+            display: grid;
+            place-items: center;
+            overflow: hidden;
+            border-radius: var(--r-2);
+            background: #000402;
+            box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.95);
+        }
+        .ocular-ring {
+            border: 2px solid var(--hairline-2);
+            border-radius: 50%;
+            box-shadow: 0 0 24px rgba(70, 255, 120, 0.12), inset 0 0 30px rgba(0, 0, 0, 0.95);
+            transition: box-shadow 0.2s ease;
+        }
+        .camera-screen {
+            border: 2px solid var(--hairline);
+        }
+        .ocular-canvas {
+            width: 94%;
+            aspect-ratio: 1;
+            border-radius: 50%;
+            display: block;
+        }
+        .camera-canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .camera-placeholder-text {
+            color: var(--ink-3);
+            font-size: 10.5px;
+            letter-spacing: 0.14em;
+            text-align: center;
+            line-height: 1.8;
+        }
+        .ocular-bezel-text {
+            position: absolute;
+            font-size: 8.5px;
+            letter-spacing: 0.08em;
+            color: var(--ink-3);
+            z-index: 10;
+            pointer-events: none;
+        }
+        .bezel-tl { top: 8px;    left: 10px; }
+        .bezel-tr { top: 8px;    right: 10px; }
+        .bezel-bl { bottom: 8px; left: 10px; }
+        .bezel-br { bottom: 8px; right: 10px; }
+
+        .custom-image-display {
+            position: absolute;
+            width: 94%;
+            aspect-ratio: 1;
+            border-radius: 50%;
+            object-fit: cover;
+            display: none;
+            filter: sepia(1) hue-rotate(85deg) saturate(2.5) contrast(1.2) brightness(0.95);
+            opacity: 0.95;
+        }
+
+        /* ── vox channel ──────────────────────────────────────────────── */
+        .o7-vox { flex: 1; }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            gap: var(--sp-2);
+            height: clamp(260px, 40vh, 460px);
+            padding: var(--sp-3);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            border: 1px solid var(--hairline);
+            border-radius: var(--r-1);
+            background: rgba(0, 0, 0, 0.5);
+            font-size: 13.5px;
+            scroll-behavior: smooth;
+        }
+
+        .chat-bubble {
+            max-width: 88%;
+            padding: var(--sp-2) var(--sp-3);
+            border-radius: var(--r-2);
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-break: break-word;
+            animation: o7-rise 0.22s ease-out;
+        }
+        @keyframes o7-rise {
+            from { opacity: 0; transform: translateY(4px); }
+            to   { opacity: 1; transform: none; }
+        }
+        .chat-user {
+            align-self: flex-end;
+            background: rgba(70, 255, 120, 0.1);
+            border: 1px solid var(--hairline-2);
+            border-bottom-right-radius: var(--r-1);
+            color: var(--ink);
+        }
+        .chat-skull {
+            align-self: flex-start;
+            background: linear-gradient(180deg, rgba(70, 255, 120, 0.16), rgba(70, 255, 120, 0.07));
+            border: 1px solid var(--hairline-2);
+            border-bottom-left-radius: var(--r-1);
+            color: var(--ink);
+            text-shadow: 0 0 10px rgba(70, 255, 120, 0.25);
+        }
+
+        .o7-quick {
+            display: flex;
+            gap: var(--sp-2);
+            flex-wrap: wrap;
+        }
+
+        .input-bar {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto auto;
+            gap: var(--sp-2);
+        }
+        .input-bar input {
+            min-width: 0;
+            padding: 11px var(--sp-3);
+            border: 1px solid var(--hairline-2);
+            border-radius: var(--r-1);
+            background: rgba(0, 0, 0, 0.6);
+            color: var(--ink);
+            font-family: inherit;
+            font-size: 16px; /* 16px keeps iOS from zooming on focus */
+        }
+        .input-bar input::placeholder { color: var(--ink-3); }
+        .input-bar input:focus {
+            outline: none;
+            border-color: var(--acc);
+            box-shadow: 0 0 0 3px rgba(70, 255, 120, 0.14);
+        }
+
+        @media (max-width: 520px) {
+            .input-bar { grid-template-columns: minmax(0, 1fr) auto; }
+            .input-bar .mic-btn { grid-column: 1 / -1; }
+        }
+
+        /* ── buttons (override the global chamfered rule inside .o7) ──── */
+        .o7 .o7-btn,
+        .o7-modal .o7-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-height: 38px;
+            padding: 9px 14px;
+            border: 1px solid var(--hairline-2);
+            border-radius: var(--r-1);
+            background: rgba(70, 255, 120, 0.07);
+            color: var(--ink);
+            font: 700 11.5px/1 var(--font-ui);
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            text-shadow: none;
+            text-decoration: none;
+            cursor: pointer;
+            clip-path: none;
+            transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.08s ease;
+        }
+        .o7 .o7-btn:hover,
+        .o7-modal .o7-btn:hover {
+            background: rgba(70, 255, 120, 0.18);
+            border-color: var(--acc);
+            color: var(--ink);
+            box-shadow: none;
+        }
+        .o7 .o7-btn:active,
+        .o7-modal .o7-btn:active { transform: translateY(1px); }
+        .o7 .o7-btn[disabled],
+        .o7-modal .o7-btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+
+        .o7 .o7-btn-primary,
+        .o7-modal .o7-btn-primary {
+            background: var(--acc);
+            border-color: var(--acc);
+            color: #021007;
+        }
+        .o7 .o7-btn-primary:hover,
+        .o7-modal .o7-btn-primary:hover {
+            background: #6bffa0;
+            border-color: #6bffa0;
+            color: #021007;
+        }
+        .o7 .o7-btn-ghost,
+        .o7-modal .o7-btn-ghost {
+            background: transparent;
+            border-color: var(--hairline);
+            color: var(--ink-2);
+        }
+        .o7 .o7-btn-ghost:hover,
+        .o7-modal .o7-btn-ghost:hover { background: var(--acc-soft); color: var(--ink); }
+        .o7 .o7-btn-danger,
+        .o7-modal .o7-btn-danger {
+            background: rgba(255, 95, 74, 0.12);
+            border-color: rgba(255, 95, 74, 0.5);
+            color: #ffb8ae;
+        }
+        .o7 .o7-btn-danger:hover,
+        .o7-modal .o7-btn-danger:hover {
+            background: rgba(255, 95, 74, 0.25);
+            border-color: var(--crit);
+            color: #fff;
+        }
+        .o7 .o7-btn-sm,
+        .o7-modal .o7-btn-sm {
+            min-height: 30px;
+            padding: 6px 10px;
+            font-size: 10.5px;
+        }
+
+        .btn-svg {
+            width: 15px;
+            height: 15px;
+            fill: currentColor;
+            flex-shrink: 0;
+        }
+
+        .o7 button.mic-btn.recording {
+            background: var(--crit);
+            border-color: var(--crit);
+            color: #fff;
+            animation: pulse-red 1.6s infinite;
+        }
+        @keyframes pulse-red {
+            0%   { box-shadow: 0 0 0 0 rgba(255, 95, 74, 0.6); }
+            70%  { box-shadow: 0 0 0 10px rgba(255, 95, 74, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 95, 74, 0); }
+        }
+
+        /* ── form controls ────────────────────────────────────────────── */
+        .o7 select,
+        .o7 textarea,
+        .o7 input[type="text"],
+        .o7 input[type="password"],
+        .o7-modal select,
+        .o7-modal textarea,
+        .o7-modal input[type="text"],
+        .o7-modal input[type="password"] {
+            min-width: 0;
+            padding: 9px var(--sp-3);
+            border: 1px solid var(--hairline-2);
+            border-radius: var(--r-1);
+            background: rgba(0, 0, 0, 0.6);
+            color: var(--ink);
+            font-family: inherit;
+            font-size: 14px;
+        }
+        .o7 select,
+        .o7-modal select { padding-right: var(--sp-5); cursor: pointer; }
+        .o7 select:focus,
+        .o7 textarea:focus,
+        .o7 input[type="text"]:focus,
+        .o7 input[type="password"]:focus,
+        .o7-modal select:focus,
+        .o7-modal textarea:focus,
+        .o7-modal input[type="text"]:focus,
+        .o7-modal input[type="password"]:focus {
+            outline: none;
+            border-color: var(--acc);
+            box-shadow: 0 0 0 3px rgba(70, 255, 120, 0.14);
+        }
+        .o7 label,
+        .o7-modal label { font-size: 11px; letter-spacing: 0.1em; color: var(--ink-2); font-weight: 700; }
+
+        /* ── auxiliary controls ───────────────────────────────────────── */
+        .o7-aux-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: var(--sp-3);
+        }
+        .o7-aux-item {
+            display: flex;
+            flex-direction: column;
+            gap: var(--sp-2);
+            padding: var(--sp-3);
+            border: 1px solid var(--hairline);
+            border-radius: var(--r-1);
+            background: rgba(0, 0, 0, 0.3);
+            min-width: 0;
+        }
+        .o7-aux-row {
+            display: flex;
+            gap: var(--sp-2);
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .o7-aux-row > select { flex: 1 1 130px; }
+
+        /* ── console ──────────────────────────────────────────────────── */
+        .console-box {
+            height: clamp(140px, 22vh, 260px);
+            padding: var(--sp-2) var(--sp-3);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            border: 1px solid var(--hairline);
+            border-radius: var(--r-1);
+            background: rgba(0, 0, 0, 0.6);
+            font-size: 11.5px;
+            line-height: 1.6;
+            color: var(--ink-2);
+        }
+        .console-line {
+            white-space: pre-wrap;
+            word-break: break-word;
+            padding: 2px 0;
+            border-bottom: 1px solid rgba(70, 255, 120, 0.06);
+        }
+        .console-line:last-child { border-bottom: 0; }
+
+        /* ── memory bank view ─────────────────────────────────────────── */
+        .o7-mem-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: var(--sp-4);
+        }
+        .o7-mem-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--sp-2);
+            max-height: 52vh;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+        .o7-mem-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--sp-3);
+            padding: var(--sp-2) var(--sp-3);
+            border: 1px solid var(--hairline);
+            border-left: 3px solid var(--acc);
+            border-radius: var(--r-1);
+            background: rgba(0, 0, 0, 0.35);
+        }
+        .o7-mem-item.o7-mem-auto { border-left-color: var(--info); }
+        .o7-mem-item.o7-mem-auto .o7-mem-text { color: #bfeeff; }
+        .o7-mem-text {
+            flex: 1;
+            min-width: 0;
+            font-size: 13px;
+            word-break: break-word;
+        }
+        .o7-mem-actions {
+            display: flex;
+            gap: var(--sp-1);
+            flex-shrink: 0;
+        }
+        .o7-mem-empty {
+            padding: var(--sp-3);
+            font-size: 12.5px;
+            color: var(--ink-3);
+        }
+        .o7-count {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--ink-3);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* ── wizard modal ─────────────────────────────────────────────── */
+        .o7-modal {
+            position: fixed;
+            color: var(--ink);
+            font-family: var(--font-ui);
+            font-size: 15px;
+            line-height: 1.5;
+            inset: 0;
+            z-index: 20000;
+            padding: calc(env(safe-area-inset-top, 0px) + var(--sp-4)) 16px
+                     calc(env(safe-area-inset-bottom, 0px) + 16px);
+            background: rgba(1, 6, 3, 0.9);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            overflow-y: auto;
+        }
+        .o7-modal-panel {
+            max-width: 660px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: var(--sp-4);
+            padding: var(--sp-5);
+            border: 1px solid var(--hairline-2);
+            border-radius: var(--r-3);
+            background: linear-gradient(180deg, var(--surface-3), var(--surface-1));
+            box-shadow: 0 40px 80px -30px #000, 0 0 0 1px rgba(70, 255, 120, 0.1);
+        }
+        .o7-modal-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--sp-3);
+            flex-wrap: wrap;
+            padding-bottom: var(--sp-3);
+            border-bottom: 1px solid var(--hairline);
+        }
+        .o7-steps {
+            display: flex;
+            gap: var(--sp-1);
+        }
+        .o7-steps span {
+            width: 30px;
+            height: 3px;
+            border-radius: 999px;
+            background: var(--hairline);
+        }
+        .o7-steps span.active { background: var(--acc); box-shadow: 0 0 8px var(--acc-glow); }
+        .o7-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .o7-field .o7-aux-row > input { flex: 1 1 160px; }
+        .o7-field-note {
+            font-size: 11px;
+            color: var(--ink-3);
+            min-height: 14px;
+        }
+        .o7-wizard-body {
+            display: flex;
+            flex-direction: column;
+            gap: var(--sp-4);
+        }
+        .o7-wizard-actions {
+            display: flex;
+            justify-content: space-between;
+            gap: var(--sp-2);
+            flex-wrap: wrap;
+            padding-top: var(--sp-2);
+            border-top: 1px solid var(--hairline);
+        }
+        .o7-lede {
+            font-size: 13px;
+            line-height: 1.6;
+            color: var(--ink-2);
+        }
+
+        /* ── toast ────────────────────────────────────────────────────── */
+        .o7-toast {
+            position: fixed;
+            left: 50%;
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+            transform: translate(-50%, 140%);
+            z-index: 21000;
+            max-width: min(92vw, 420px);
+            padding: 11px 18px;
+            border: 1px solid var(--hairline-2);
+            border-radius: 999px;
+            background: rgba(6, 22, 12, 0.96);
+            color: var(--ink);
+            font-size: 12px;
+            letter-spacing: 0.06em;
+            box-shadow: 0 20px 40px -20px #000;
+            opacity: 0;
+            transition: transform 0.26s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.26s ease;
+            pointer-events: none;
+        }
+        .o7-toast.show {
+            transform: translate(-50%, 0);
+            opacity: 1;
+        }
+
+        /* ── narrow screens ───────────────────────────────────────────── */
+        @media (max-width: 680px) {
+            .o7 { font-size: 14px; }
+            .o7-topbar { padding: var(--sp-2) var(--sp-3); gap: var(--sp-2); }
+            .o7-brand h1 { font-size: 12.5px; letter-spacing: 0.04em; white-space: normal; }
+            .o7-brand .o7-brand-sub { display: none; }
+            .cog-logo { width: 22px; height: 22px; }
+            .o7-nav { flex: 1 1 100%; justify-content: space-between; }
+            .o7-nav a, .o7-nav button { flex: 1; justify-content: center; padding: 8px 6px; letter-spacing: 0.04em; }
+            .o7-card { padding: var(--sp-3); }
+            .o7-meters { grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); }
+            .o7-modal-panel { padding: var(--sp-4); }
+        }
+
+        @media (max-width: 430px) {
+            .o7-nav .o7-nav-icon, .o7-nav .o7-nav-text { display: none; }
+            .o7-nav .o7-nav-short { display: inline; }
+            .o7-nav a, .o7-nav button { padding: 8px 4px; }
         }
     </style>
 </head>
 <body>
-    <div id="view-terminal" class="screen">
-        <div class="container">
-            <div class="frame-bracket"></div>
+    <div id="view-terminal" class="o7">
+        <div class="o7-crt" aria-hidden="true"></div>
 
-            <!-- Header -->
-            <div class="header">
-                <div class="header-title-row">
+        <div class="o7-shell">
+
+            <!-- ── Top bar: identity, navigation, link health ───────────── -->
+            <header class="o7-topbar">
+                <div class="o7-brand">
+                    <svg class="cog-logo" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+                        <path d="M50 20c-16.5 0-30 13.5-30 30s13.5 30 30 30 30-13.5 30-30-13.5-30-30-30zm0 10c11 0 20 9 20 20s-9 20-20 20-20-9-20-20 9-20 20-20z"/>
+                        <path d="M50 0l6 14h-12zM50 100l6-14h-12zM0 50l14-6v12zM100 50l-14-6v12zM15 15l10 10-8 8zM85 85l-10-10 8-8zM15 85l10-10-8-8zM85 15l-10 10 8 8z"/>
+                    </svg>
                     <h1>
-                        <!-- Wireframe SVG Cog Logo -->
-                        <svg class="cog-logo" viewBox="0 0 100 100">
-                            <path d="M50 20c-16.5 0-30 13.5-30 30s13.5 30 30 30 30-13.5 30-30-13.5-30-30-30zm0 10c11 0 20 9 20 20s-9 20-20 20-20-9-20-20 9-20 20-20z"/>
-                            <path d="M50 0l6 14h-12zM50 100l6-14h-12zM0 50l14-6v12zM100 50l-14-6v12zM15 15l10 10-8 8zM85 85l-10-10 8-8zM15 85l10-10-8-8zM85 15l-10 10 8 8z"/>
-                        </svg>
-                        OMEGA-7 COGITATOR TERMINAL
+                        Omega-7 Cogitator Terminal
+                        <span class="o7-brand-sub">Adeptus Mechanicus remote rite</span>
                     </h1>
-                    <div class="master-header-tag" style="display: flex; gap: 10px; align-items: center;">
-                        <div>
-                            <span class="master-label">MASTER:</span>
-                            <span id="master-val" class="master-value">UNKNOWN</span>
-                        </div>
-                        <button onclick="document.getElementById('wizard-modal').style.display='block'; nextWizardStep(1);" style="background: rgba(56,255,88,0.15); border: 1px solid var(--border-color); color: var(--bright-green); padding: 4px 10px; font-size: 11px; font-weight: bold; cursor: pointer; letter-spacing: 1px;">⚙ WIZARD</button>
-                    </div>
                 </div>
 
-                <div class="telemetry">
-                    <div class="pie-gauge-row">
-                        <div class="pie-gauge-item">
-                            <span class="gauge-label">CPU</span>
-                            <div class="pie-chart-container">
-                                <svg class="pie-chart" viewBox="0 0 36 36">
-                                    <path class="pie-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                    <path id="cpu-pie" class="pie-fill" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                </svg>
-                                <span id="cpu-val" class="gauge-val">0%</span>
-                            </div>
-                        </div>
-                        <div class="pie-gauge-item">
-                            <span class="gauge-label">CORE TEMP</span>
-                            <div class="pie-chart-container">
-                                <svg class="pie-chart" viewBox="0 0 36 36">
-                                    <path class="pie-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                    <path id="temp-pie" class="pie-fill" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                </svg>
-                                <span id="temp-val" class="gauge-val">0°C</span>
-                            </div>
-                            <span id="power-status" class="gauge-label" style="display:none"></span>
-                        </div>
-                        <div class="pie-gauge-item">
-                            <span class="gauge-label" id="ram-label">RAM</span>
-                            <div class="pie-chart-container">
-                                <svg class="pie-chart" viewBox="0 0 36 36">
-                                    <path class="pie-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                    <path id="ram-pie" class="pie-fill" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                </svg>
-                                <span id="ram-val" class="gauge-val">0%</span>
-                            </div>
-                        </div>
-                        <div class="pie-gauge-item">
-                            <span class="gauge-label" id="storage-label">STORAGE</span>
-                            <div class="pie-chart-container">
-                                <svg class="pie-chart" viewBox="0 0 36 36">
-                                    <path class="pie-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                    <path id="storage-pie" class="pie-fill" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                </svg>
-                                <span id="storage-val" class="gauge-val">0%</span>
-                            </div>
-                        </div>
-                        <div class="pie-gauge-item">
-                            <span class="gauge-label">FABRICATOR</span>
-                            <div class="pie-chart-container">
-                                <svg class="pie-chart" viewBox="0 0 36 36">
-                                    <path class="pie-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                    <path id="fabricator-pie" class="pie-fill" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                </svg>
-                                <span id="fabricator-val" class="gauge-val">0%</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="status-row">
-                        <div class="telemetry-item text-only">
-                            <span class="telemetry-label">SILENT MODE</span>
-                            <span id="silent-val" class="telemetry-value">INACTIVE</span>
-                        </div>
-                        <div class="telemetry-item text-only">
-                            <span class="telemetry-label">DISPOSITION / MOOD</span>
-                            <span id="mood-val" class="telemetry-value">DUTIFUL</span>
-                        </div>
-                        <div class="telemetry-item text-only">
-                            <span class="telemetry-label">ACTIVE GAME</span>
-                            <span id="game-val" class="telemetry-value">NONE</span>
-                        </div>
-                    </div>
-
-                    <div class="telemetry-item" style="margin-top: 6px;">
-                        <div class="sensor-header">
-                            <span class="telemetry-label">LASER RANGEFINDER (MAX 8.0 METERS)</span>
-                            <span id="range-val" class="telemetry-value">-- cm (-- m)</span>
-                        </div>
-                        <div class="sensor-bar-container" style="height: 10px; margin-top: 4px;">
-                            <div id="range-bar" class="sensor-bar" style="width: 0%;"></div>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; font-size: 9px; color: var(--dim-green); margin-top: 2px; font-weight: bold;">
-                            <span>0m</span>
-                            <span>2m</span>
-                            <span>4m</span>
-                            <span>6m</span>
-                            <span>8m</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Thematic Warning/Status Banner (Secret Level Style) -->
-            <div class="alert-banner" id="alert-banner">
-                <div class="alert-title" id="alert-title">SYSTEM STATUS</div>
-                <div class="alert-value" id="alert-value">SYSTEM OPTIMAL</div>
-            </div>
-
-
-            <!-- Left column: Ocular Feed -->
-            <div class="ocular-pane">
-                <div class="pane-title" style="width: 100%;">[ OCULAR SENSOR FEED ]</div>
-                <div class="ocular-ring" id="eye-ring">
-                    <!-- Overlay Bezel Telemetry -->
-                    <div class="ocular-bezel-text bezel-tl">TGT: LOCK</div>
-                    <div class="ocular-bezel-text bezel-tr">Z: 4.0X</div>
-                    <div class="ocular-bezel-text bezel-bl">SENS: IR/NV</div>
-                    <div class="ocular-bezel-text bezel-br">RA: 18h36m</div>
-
-                    <img class="ocular-canvas" id="eye-stream" src="/api/ocular_stream.mjpeg" alt="Ocular View">
-
-                </div>
-            </div>
-
-            <!-- Right column: Camera Optic Feed -->
-            <div class="camera-pane">
-                <div class="pane-title" style="width: 100%;">[ CAMERA OPTIC FEED ]</div>
-                <div class="camera-screen" id="camera-screen">
-                    <!-- Overlay Bezel Telemetry -->
-                    <div class="ocular-bezel-text bezel-tl">CAM: 01</div>
-                    <div class="ocular-bezel-text bezel-tr" id="cam-bezel-tr">FPS: --</div>
-                    <div class="ocular-bezel-text bezel-bl" id="cam-bezel-bl">MODE: STANDBY</div>
-                    <div class="ocular-bezel-text bezel-br">RESOL: 640x480</div>
-
-                    <img class="camera-canvas" id="camera-stream" alt="Camera Feed" style="display: none;">
-                    <div class="camera-placeholder-text" id="camera-standby">[ NO CAMERA STREAM ]<br>STANDBY</div>
-                </div>
-            </div>
-
-            <!-- Right column: Control Room -->
-            <div class="control-pane">
-                <div class="pane-title">[ VOX CHANNEL LOGS ]</div>
-                <div class="chat-container" id="chat-container">
-                    <div class="chat-bubble chat-skull">System initialized. Awaiting commands, master.</div>
-                </div>
-                
-                <div class="input-bar">
-                    <input type="text" id="command-input" placeholder="Enter high-level command..." onkeydown="if(event.key === 'Enter') sendCommand()">
-                    <button class="send-btn" onclick="sendCommand()">SEND</button>
-
-                    <button class="mic-btn" id="mic-btn" onclick="toggleMicRecording()" title="Click to Record Web Mic Audio">
-                        <svg class="btn-svg" viewBox="0 0 24 24" style="vertical-align: middle;">
-                            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
-                            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
-                        </svg>
-                        <span id="mic-btn-label">REC</span>
+                <nav class="o7-nav" aria-label="Terminal sections">
+                    <a href="/" aria-current="page" onclick="event.preventDefault(); navigateToView('/');" title="Cogitator terminal">
+                        <span class="o7-nav-icon" aria-hidden="true">▣</span><span class="o7-nav-text">Terminal</span><span class="o7-nav-short" aria-hidden="true">Term</span>
+                    </a>
+                    <a href="/memory" onclick="event.preventDefault(); navigateToView('/memory');" title="Long-term memory bank">
+                        <span class="o7-nav-icon" aria-hidden="true">🧠</span><span class="o7-nav-text">Memory</span><span class="o7-nav-short" aria-hidden="true">Mem</span>
+                    </a>
+                    <a href="/campaign" title="Roleplaying campaign">
+                        <span class="o7-nav-icon" aria-hidden="true">🎲</span><span class="o7-nav-text">Campaign</span><span class="o7-nav-short" aria-hidden="true">Camp</span>
+                    </a>
+                    <button type="button" onclick="o7OpenWizard()" title="Appliance initialization wizard">
+                        <span class="o7-nav-icon" aria-hidden="true">⚙</span><span class="o7-nav-text">Setup</span><span class="o7-nav-short" aria-hidden="true">Setup</span>
                     </button>
-                </div>
-            </div>
+                    <button type="button" id="skin-btn" onclick="o7ToggleSkin()" title="Toggle the CRT scanline overlay">
+                        <span class="o7-nav-icon" aria-hidden="true">◐</span><span class="o7-nav-text">CRT</span><span class="o7-nav-short" aria-hidden="true">CRT</span>
+                    </button>
+                </nav>
 
-            <!-- Auxiliary Controls Section (Above Telemetry Console Feed) -->
-            <div class="aux-panel">
-                <div class="aux-title">[ AUXILIARY COGITATOR CONTROLS ]</div>
-                <div class="aux-controls">
-                    <div class="aux-item">
-                        <span class="aux-label">LONG-TERM MEMORY:</span>
-                        <a href="/memory" onclick="event.preventDefault(); navigateToView('/memory');" style="background: var(--bright-green); color: #000; font-size: 11px; font-weight: bold; padding: 4px 10px; text-decoration: none; border-radius: 3px; display: inline-block;">🧠 MEMORY BANK</a>
+                <div class="o7-conn" id="conn-pill" data-link="live" role="status" aria-live="polite">
+                    <span class="o7-dot" aria-hidden="true"></span>
+                    <span id="conn-label">Linking</span>
+                </div>
+            </header>
+
+            <!-- ── Machine state + at-a-glance disposition ──────────────── -->
+            <section class="o7-card" aria-label="Machine spirit status">
+                <div class="o7-status">
+                    <div class="alert-banner" id="alert-banner" data-state="idle" role="status" aria-live="polite">
+                        <div class="alert-title" id="alert-title">System Status</div>
+                        <div class="alert-value" id="alert-value">System Optimal</div>
                     </div>
-                    <div class="aux-item">
-                        <span class="aux-label">VISUAL EMULATION:</span>
-                        <select id="screensaver-select">
-                            <option value="">-- Select Screensaver --</option>
-                        </select>
-                        <button onclick="playScreensaver()">RUN</button>
-                    </div>
-                    <div class="aux-item">
-                        <span class="aux-label">VOX AUDIO OUTPUT:</span>
-                        <button id="web-audio-btn" onclick="toggleWebAudio()">🔊 WEB AUDIO: ENABLED</button>
-                    </div>
-                    <div class="aux-item">
-                        <span class="aux-label">WI-FI PROVISIONING:</span>
-                        <span id="wifi-status-text" style="font-size: 11px; margin-right: 8px;">[ DISCONNECTED ]</span>
-                        <button onclick="scanWifiNetworks()">📶 SCAN</button>
-                        <button onclick="toggleHotspot()">📡 AP HOTSPOT</button>
+
+                    <div class="o7-chips">
+                        <div class="o7-chip">
+                            <span class="o7-label">Master</span>
+                            <span id="master-val" class="o7-chip-val">Unknown</span>
+                        </div>
+                        <div class="o7-chip">
+                            <span class="o7-label">Disposition</span>
+                            <span id="mood-val" class="telemetry-value">Dutiful</span>
+                        </div>
+                        <div class="o7-chip">
+                            <span class="o7-label">Silent mode</span>
+                            <span id="silent-val" class="telemetry-value">Inactive</span>
+                        </div>
+                        <div class="o7-chip">
+                            <span class="o7-label">Active game</span>
+                            <span id="game-val" class="telemetry-value">None</span>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </section>
 
+            <main class="o7-main">
 
-            <!-- Console Log Panel -->
-            <div class="console-container">
-                <div class="pane-title">[ TELEMETRY CONSOLE FEED ]</div>
-                <div class="console-box" id="console-box">
-                    <div class="console-line">[SYSTEM] Remote connection established via Tailscale link.</div>
+                <!-- ── Left column: senses and vitals ───────────────────── -->
+                <div class="o7-col">
+
+                    <section class="o7-card o7-card-feeds" aria-label="Sensor feeds">
+                        <div class="o7-card-head">
+                            <h2>Sensor Feeds</h2>
+                            <div class="o7-card-tools">
+                                <button type="button" class="o7-btn o7-btn-ghost o7-btn-sm" onclick="o7Snapshot()" title="Open the current camera frame in a new tab">Snapshot</button>
+                            </div>
+                        </div>
+
+                        <div class="o7-feeds">
+                            <figure>
+                                <div class="o7-feed-frame ocular-ring" id="eye-ring">
+                                    <div class="ocular-bezel-text bezel-tl">TGT: LOCK</div>
+                                    <div class="ocular-bezel-text bezel-tr">Z: 4.0X</div>
+                                    <div class="ocular-bezel-text bezel-bl">SENS: IR/NV</div>
+                                    <div class="ocular-bezel-text bezel-br">RA: 18h36m</div>
+                                    <img class="ocular-canvas" id="eye-stream" src="/api/ocular_stream.mjpeg" alt="Live view of the servo-skull eye display">
+                                </div>
+                                <figcaption class="o7-label" style="text-align:center; margin-top:8px;">Ocular display</figcaption>
+                            </figure>
+
+                            <figure>
+                                <div class="o7-feed-frame camera-screen" id="camera-screen">
+                                    <div class="ocular-bezel-text bezel-tl">CAM: 01</div>
+                                    <div class="ocular-bezel-text bezel-tr" id="cam-bezel-tr">FPS: --</div>
+                                    <div class="ocular-bezel-text bezel-bl" id="cam-bezel-bl">MODE: STANDBY</div>
+                                    <div class="ocular-bezel-text bezel-br">RESOL: 640x480</div>
+                                    <img class="camera-canvas" id="camera-stream" alt="Live camera feed" style="display: none;">
+                                    <div class="camera-placeholder-text" id="camera-standby">[ No camera stream ]<br>Standby</div>
+                                </div>
+                                <figcaption class="o7-label" style="text-align:center; margin-top:8px;">Pict-capture optic</figcaption>
+                            </figure>
+                        </div>
+                    </section>
+
+                    <section class="o7-card o7-card-vitals" aria-label="Machine vitals">
+                        <div class="o7-card-head">
+                            <h2>Vitals</h2>
+                            <span class="o7-label" id="vitals-stamp">--</span>
+                        </div>
+
+                        <div class="o7-meters">
+                            <div class="o7-meter" id="meter-cpu">
+                                <span class="gauge-label">CPU</span>
+                                <div class="pie-chart-container">
+                                    <svg class="pie-chart" viewBox="0 0 36 36" aria-hidden="true">
+                                        <path class="pie-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                        <path id="cpu-pie" class="pie-fill" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                    </svg>
+                                    <span id="cpu-val" class="gauge-val o7-num">0%</span>
+                                </div>
+                            </div>
+
+                            <div class="o7-meter" id="meter-temp">
+                                <span class="gauge-label">Core temp</span>
+                                <div class="pie-chart-container">
+                                    <svg class="pie-chart" viewBox="0 0 36 36" aria-hidden="true">
+                                        <path class="pie-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                        <path id="temp-pie" class="pie-fill" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                    </svg>
+                                    <span id="temp-val" class="gauge-val o7-num">0°C</span>
+                                </div>
+                                <span id="power-status" class="gauge-label" style="display:none"></span>
+                            </div>
+
+                            <div class="o7-meter" id="meter-ram">
+                                <span class="gauge-label" id="ram-label">RAM</span>
+                                <div class="pie-chart-container">
+                                    <svg class="pie-chart" viewBox="0 0 36 36" aria-hidden="true">
+                                        <path class="pie-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                        <path id="ram-pie" class="pie-fill" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                    </svg>
+                                    <span id="ram-val" class="gauge-val o7-num">0%</span>
+                                </div>
+                            </div>
+
+                            <div class="o7-meter" id="meter-storage">
+                                <span class="gauge-label" id="storage-label">Storage</span>
+                                <div class="pie-chart-container">
+                                    <svg class="pie-chart" viewBox="0 0 36 36" aria-hidden="true">
+                                        <path class="pie-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                        <path id="storage-pie" class="pie-fill" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                    </svg>
+                                    <span id="storage-val" class="gauge-val o7-num">0%</span>
+                                </div>
+                            </div>
+
+                            <div class="o7-meter" id="meter-fabricator">
+                                <span class="gauge-label">Fabricator</span>
+                                <div class="pie-chart-container">
+                                    <svg class="pie-chart" viewBox="0 0 36 36" aria-hidden="true">
+                                        <path class="pie-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                        <path id="fabricator-pie" class="pie-fill" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                    </svg>
+                                    <span id="fabricator-val" class="gauge-val o7-num">0%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="o7-range">
+                            <div class="sensor-header">
+                                <span class="o7-label">Laser rangefinder &mdash; max 8.0 m</span>
+                                <span id="range-val" class="telemetry-value o7-num">-- cm (-- m)</span>
+                            </div>
+                            <div class="sensor-bar-container">
+                                <div id="range-bar" class="sensor-bar"></div>
+                            </div>
+                            <div class="o7-ticks" aria-hidden="true">
+                                <span>0m</span><span>2m</span><span>4m</span><span>6m</span><span>8m</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="o7-card o7-card-aux" aria-label="Auxiliary controls">
+                        <div class="o7-card-head">
+                            <h2>Auxiliary Controls</h2>
+                        </div>
+
+                        <div class="o7-aux-grid">
+                            <div class="o7-aux-item">
+                                <span class="o7-label">Visual emulation</span>
+                                <div class="o7-aux-row">
+                                    <label class="o7-sr" for="screensaver-select">Screensaver</label>
+                                    <select id="screensaver-select">
+                                        <option value="">-- Select screensaver --</option>
+                                    </select>
+                                    <button type="button" class="o7-btn" onclick="playScreensaver()">Run</button>
+                                </div>
+                            </div>
+
+                            <div class="o7-aux-item">
+                                <span class="o7-label">Vox audio output</span>
+                                <div class="o7-aux-row">
+                                    <button type="button" class="o7-btn" id="web-audio-btn" onclick="toggleWebAudio()">🔊 Web audio: enabled</button>
+                                </div>
+                            </div>
+
+                            <div class="o7-aux-item">
+                                <span class="o7-label">Wi-Fi provisioning</span>
+                                <div class="o7-aux-row">
+                                    <span id="wifi-status-text" style="font-size: 11px;">[ Disconnected ]</span>
+                                </div>
+                                <div class="o7-aux-row">
+                                    <button type="button" class="o7-btn o7-btn-sm" onclick="scanWifiNetworks()">📶 Scan</button>
+                                    <button type="button" class="o7-btn o7-btn-sm" onclick="toggleHotspot()">📡 AP hotspot</button>
+                                </div>
+                            </div>
+
+                            <div class="o7-aux-item">
+                                <span class="o7-label">Long-term memory</span>
+                                <div class="o7-aux-row">
+                                    <a class="o7-btn" href="/memory" onclick="event.preventDefault(); navigateToView('/memory');">🧠 Memory bank</a>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
                 </div>
-            </div>
+
+                <!-- ── Right column: conversation and telemetry log ─────── -->
+                <div class="o7-col">
+
+                    <section class="o7-card o7-vox o7-card-vox" aria-label="Vox channel">
+                        <div class="o7-card-head">
+                            <h2>Vox Channel</h2>
+                            <div class="o7-card-tools">
+                                <button type="button" class="o7-btn o7-btn-ghost o7-btn-sm" onclick="o7CopyTranscript()" title="Copy the transcript to the clipboard">Copy</button>
+                                <button type="button" class="o7-btn o7-btn-ghost o7-btn-sm" onclick="triggerWake()" title="Wake the skull and have it listen">Wake</button>
+                            </div>
+                        </div>
+
+                        <div class="chat-container" id="chat-container" role="log" aria-live="polite" aria-label="Vox transcript">
+                            <div class="chat-bubble chat-skull">System initialized. Awaiting commands, master.</div>
+                        </div>
+
+                        <div class="o7-quick" role="group" aria-label="Quick commands">
+                            <button type="button" class="o7-btn o7-btn-ghost o7-btn-sm" onclick="o7Quick('Give me a status report.')">Status report</button>
+                            <button type="button" class="o7-btn o7-btn-ghost o7-btn-sm" onclick="o7Quick('What do you see right now?')">What do you see</button>
+                            <button type="button" class="o7-btn o7-btn-ghost o7-btn-sm" onclick="o7Quick('What is the weather today?')">Weather</button>
+                            <button type="button" class="o7-btn o7-btn-ghost o7-btn-sm" onclick="o7Quick('Enter silent mode.')">Silence</button>
+                        </div>
+
+                        <div class="input-bar">
+                            <label class="o7-sr" for="command-input">Command</label>
+                            <input type="text" id="command-input" autocomplete="off" placeholder="Enter high-level command..." onkeydown="o7CommandKey(event)">
+                            <button type="button" class="o7-btn o7-btn-primary send-btn" onclick="sendCommand()">Send</button>
+                            <button type="button" class="o7-btn mic-btn" id="mic-btn" onclick="toggleMicRecording()" title="Click to record web mic audio">
+                                <svg class="btn-svg" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                                    <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                                </svg>
+                                <span id="mic-btn-label">Rec</span>
+                            </button>
+                        </div>
+                        <p class="o7-label" style="color:var(--ink-3)">Press / to focus &middot; up and down arrows recall earlier commands</p>
+                    </section>
+
+                    <section class="o7-card o7-card-console" aria-label="Telemetry console">
+                        <div class="o7-card-head">
+                            <h2>Telemetry Console</h2>
+                            <div class="o7-card-tools">
+                                <button type="button" class="o7-btn o7-btn-ghost o7-btn-sm" id="console-follow-btn" onclick="o7ToggleFollow()" title="Follow or freeze the log tail">Following</button>
+                            </div>
+                        </div>
+                        <div class="console-box" id="console-box" role="log" aria-label="Telemetry log" tabindex="0">
+                            <div class="console-line">[SYSTEM] Remote connection established.</div>
+                        </div>
+                    </section>
+                </div>
+            </main>
         </div>
     </div>
 
+    <div class="o7-toast" id="o7-toast" role="status" aria-live="polite"></div>
 
 
     <!-- ROLEPLAYING CAMPAIGN DASHBOARD VIEW -->
@@ -3710,118 +4126,126 @@ HTML_CLIENT = """<!DOCTYPE html>
     </div>
 
     <!-- Onboarding Setup Wizard Overlay Modal -->
-    <div id="wizard-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.92); z-index: 20000; padding: 20px; box-sizing: border-box; overflow-y: auto;">
-        <div style="max-width: 650px; margin: 40px auto; border: 2px solid var(--bright-green); background-color: var(--card-color); padding: 24px; box-shadow: 0 0 25px var(--glow-color);">
-            <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
-                <div style="font-weight: bold; font-size: 16px; color: var(--bright-green); letter-spacing: 1.5px;">◆ APPLIANCE INITIALIZATION WIZARD ◆</div>
-                <div id="wizard-step-label" style="font-size: 11px; color: rgba(56,255,88,0.8); font-weight: bold;">STEP 1 OF 4</div>
+    <div id="wizard-modal" class="o7-modal" style="display: none;" role="dialog" aria-modal="true" aria-label="Appliance initialization wizard">
+        <div class="o7-modal-panel">
+            <div class="o7-modal-head">
+                <div>
+                    <h2 style="font-size:14px; letter-spacing:0.12em; color:var(--ink);">Appliance Initialization</h2>
+                    <div id="wizard-step-label" class="o7-label" style="margin-top:4px;">Step 1 of 4</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <div class="o7-steps" id="wizard-dots" aria-hidden="true">
+                        <span class="active"></span><span></span><span></span><span></span>
+                    </div>
+                    <button type="button" class="o7-btn o7-btn-ghost o7-btn-sm" onclick="o7CloseWizard()" aria-label="Close the wizard">Close</button>
+                </div>
             </div>
 
-            <!-- Step 1: Wi-Fi Setup -->
-            <div class="wizard-step" id="w-step-1">
-                <p style="margin-bottom: 16px; font-size: 13px; color: rgba(56,255,88,0.9);">Welcome! Connect your Servo Skull to your home Wi-Fi network to enable remote access and machine spirit updates.</p>
-                <div style="margin-bottom: 14px;">
-                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">WI-FI NETWORK (SSID):</label>
-                    <div style="display: flex; gap: 8px;">
-                        <input type="text" id="w-wifi-ssid" placeholder="Home Wi-Fi Name" style="flex-grow: 1; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
-                        <button onclick="scanWizardWifi()">📶 SCAN</button>
+            <!-- Step 1: Wi-Fi -->
+            <div class="wizard-step o7-wizard-body" id="w-step-1">
+                <p class="o7-lede">Connect the servo-skull to your home Wi-Fi so it can be reached remotely and receive machine-spirit updates.</p>
+                <div class="o7-field">
+                    <label for="w-wifi-ssid">Wi-Fi network (SSID)</label>
+                    <div class="o7-aux-row">
+                        <input type="text" id="w-wifi-ssid" placeholder="Home Wi-Fi name">
+                        <button type="button" class="o7-btn" onclick="scanWizardWifi()">📶 Scan</button>
                     </div>
                 </div>
-                <div style="margin-bottom: 14px;">
-                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">WI-FI PASSWORD:</label>
-                    <input type="password" id="w-wifi-pass" placeholder="Network Password" style="width: 100%; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
+                <div class="o7-field">
+                    <label for="w-wifi-pass">Wi-Fi password</label>
+                    <input type="password" id="w-wifi-pass" placeholder="Network password">
                 </div>
-                <div id="w-wifi-result" style="font-size: 11px; margin-bottom: 14px; min-height: 16px;"></div>
-                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
-                    <button style="background: rgba(56,255,88,0.2);" onclick="nextWizardStep(2)">NEXT: IDENTITY ➔</button>
+                <div id="w-wifi-result" class="o7-field-note"></div>
+                <div class="o7-wizard-actions">
+                    <span></span>
+                    <button type="button" class="o7-btn o7-btn-primary" onclick="o7WizardStep(2)">Next: identity &gt;</button>
                 </div>
             </div>
 
-            <!-- Step 2: Skull Identity & Archetype -->
-            <div class="wizard-step" id="w-step-2" style="display: none;">
-                <p style="margin-bottom: 16px; font-size: 13px; color: rgba(56,255,88,0.9);">Designate the unit's name and primary vocal personality archetype.</p>
-                <div style="margin-bottom: 14px;">
-                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">SKULL NAME / DESIGNATION:</label>
-                    <input type="text" id="w-skull-name" value="Omega-7" style="width: 100%; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
+            <!-- Step 2: Identity -->
+            <div class="wizard-step o7-wizard-body" id="w-step-2" style="display: none;">
+                <p class="o7-lede">Designate the unit's name and its primary vocal personality archetype.</p>
+                <div class="o7-field">
+                    <label for="w-skull-name">Skull name / designation</label>
+                    <input type="text" id="w-skull-name" value="Omega-7">
                 </div>
-                <div style="margin-bottom: 14px;">
-                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">PERSONALITY ARCHETYPE:</label>
-                    <select id="w-personality" style="width: 100%; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
+                <div class="o7-field">
+                    <label for="w-personality">Personality archetype</label>
+                    <select id="w-personality">
                         <option value="Imperial Servo Skull">Imperial Servo Skull (Adeptus Mechanicus / Warhammer 40k)</option>
-                        <option value="Golden Retriever">Golden Retriever (Upbeat, Loyal & Enthusiastic)</option>
-                        <option value="Custom Archetype">Custom Archetype</option>
+                        <option value="Golden Retriever">Golden Retriever (upbeat, loyal, enthusiastic)</option>
+                        <option value="Custom Archetype">Custom archetype</option>
                     </select>
                 </div>
-                <div style="display: flex; justify-content: space-between; margin-top: 20px;">
-                    <button onclick="nextWizardStep(1)">⬅ BACK</button>
-                    <button style="background: rgba(56,255,88,0.2);" onclick="nextWizardStep(3)">NEXT: MASTER PROFILE ➔</button>
+                <div class="o7-wizard-actions">
+                    <button type="button" class="o7-btn o7-btn-ghost" onclick="o7WizardStep(1)">&lt; Back</button>
+                    <button type="button" class="o7-btn o7-btn-primary" onclick="o7WizardStep(3)">Next: master profile &gt;</button>
                 </div>
             </div>
 
-            <!-- Step 3: Master Personalization Profile -->
-            <div class="wizard-step" id="w-step-3" style="display: none;">
-                <p style="margin-bottom: 16px; font-size: 13px; color: rgba(56,255,88,0.9);">Tell the skull who it serves so it can address you by name and provide localized information.</p>
-                <div style="margin-bottom: 14px;">
-                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">YOUR NAME:</label>
-                    <input type="text" id="w-master-name" placeholder="e.g. Sean, Sarah" style="width: 100%; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
+            <!-- Step 3: Master profile -->
+            <div class="wizard-step o7-wizard-body" id="w-step-3" style="display: none;">
+                <p class="o7-lede">Tell the skull who it serves, so it can address you properly and localise what it reports.</p>
+                <div class="o7-field">
+                    <label for="w-master-name">Your name</label>
+                    <input type="text" id="w-master-name" placeholder="e.g. Sean, Sarah">
                 </div>
-                <div style="margin-bottom: 14px;">
-                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">PREFERRED HONORIFIC / TITLE:</label>
-                    <input type="text" id="w-master-honorific" placeholder="e.g. Master, Mistress, Lord, Captain, Magos" style="width: 100%; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
+                <div class="o7-field">
+                    <label for="w-master-honorific">Preferred honorific / title</label>
+                    <input type="text" id="w-master-honorific" placeholder="e.g. Master, Mistress, Lord, Captain, Magos">
                 </div>
-                <div style="margin-bottom: 14px;">
-                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">CITY / LOCATION (FOR WEATHER):</label>
-                    <input type="text" id="w-master-city" placeholder="e.g. Seattle, WA" style="width: 100%; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
+                <div class="o7-field">
+                    <label for="w-master-city">City / location (for weather)</label>
+                    <input type="text" id="w-master-city" placeholder="e.g. Seattle, WA">
                 </div>
-                <div style="margin-bottom: 14px;">
-                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">PRIMARY INTERESTS / HOBBIES:</label>
-                    <input type="text" id="w-master-interests" placeholder="e.g. 3D Printing, Warhammer 40k" style="width: 100%; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
+                <div class="o7-field">
+                    <label for="w-master-interests">Primary interests / hobbies</label>
+                    <input type="text" id="w-master-interests" placeholder="e.g. 3D printing, Warhammer 40k">
                 </div>
-                <div style="display: flex; justify-content: space-between; margin-top: 20px;">
-                    <button onclick="nextWizardStep(2)">⬅ BACK</button>
-                    <button style="background: rgba(56,255,88,0.2);" onclick="nextWizardStep(4)">NEXT: API CREDENTIALS ➔</button>
+                <div class="o7-wizard-actions">
+                    <button type="button" class="o7-btn o7-btn-ghost" onclick="o7WizardStep(2)">&lt; Back</button>
+                    <button type="button" class="o7-btn o7-btn-primary" onclick="o7WizardStep(4)">Next: API credentials &gt;</button>
                 </div>
             </div>
 
-            <!-- Step 4: API Credentials (BYO-Keys) -->
-            <div class="wizard-step" id="w-step-4" style="display: none;">
-                <p style="margin-bottom: 16px; font-size: 13px; color: rgba(56,255,88,0.9);">Enter your cloud API keys. Test each key to verify before finishing initialization.</p>
-                
-                <div style="margin-bottom: 14px;">
-                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">ANTHROPIC API KEY (REQUIRED FOR CLAUDE BRAIN):</label>
-                    <div style="display: flex; gap: 8px;">
-                        <input type="password" id="w-key-anthropic" placeholder="sk-ant-api03-..." style="flex-grow: 1; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
-                        <button onclick="testWizardKey('anthropic')">TEST KEY</button>
+            <!-- Step 4: API credentials -->
+            <div class="wizard-step o7-wizard-body" id="w-step-4" style="display: none;">
+                <p class="o7-lede">Enter your cloud API keys. Test each one to verify it before finishing initialization. Keys stay on the unit.</p>
+
+                <div class="o7-field">
+                    <label for="w-key-anthropic">Anthropic API key &mdash; required for the Claude brain</label>
+                    <div class="o7-aux-row">
+                        <input type="password" id="w-key-anthropic" placeholder="sk-ant-api03-...">
+                        <button type="button" class="o7-btn" onclick="testWizardKey('anthropic')">Test key</button>
                     </div>
-                    <div id="w-res-anthropic" style="font-size: 11px; margin-top: 4px; min-height: 14px;"></div>
+                    <div id="w-res-anthropic" class="o7-field-note"></div>
                 </div>
 
-                <div style="margin-bottom: 14px;">
-                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">ELEVENLABS API KEY (OPTIONAL CLOUD VOICE):</label>
-                    <div style="display: flex; gap: 8px;">
-                        <input type="password" id="w-key-elevenlabs" placeholder="Optional ElevenLabs API Key" style="flex-grow: 1; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
-                        <button onclick="testWizardKey('elevenlabs')">TEST KEY</button>
+                <div class="o7-field">
+                    <label for="w-key-elevenlabs">ElevenLabs API key &mdash; optional cloud voice</label>
+                    <div class="o7-aux-row">
+                        <input type="password" id="w-key-elevenlabs" placeholder="Optional ElevenLabs API key">
+                        <button type="button" class="o7-btn" onclick="testWizardKey('elevenlabs')">Test key</button>
                     </div>
-                    <div id="w-res-elevenlabs" style="font-size: 11px; margin-top: 4px; min-height: 14px;"></div>
+                    <div id="w-res-elevenlabs" class="o7-field-note"></div>
                 </div>
 
-                <div style="margin-bottom: 14px;">
-                    <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">OPENAI API KEY (OPTIONAL):</label>
-                    <div style="display: flex; gap: 8px;">
-                        <input type="password" id="w-key-openai" placeholder="Optional OpenAI API Key" style="flex-grow: 1; background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 8px; color: var(--bright-green);">
-                        <button onclick="testWizardKey('openai')">TEST KEY</button>
+                <div class="o7-field">
+                    <label for="w-key-openai">OpenAI API key &mdash; optional transcription</label>
+                    <div class="o7-aux-row">
+                        <input type="password" id="w-key-openai" placeholder="Optional OpenAI API key">
+                        <button type="button" class="o7-btn" onclick="testWizardKey('openai')">Test key</button>
                     </div>
-                    <div id="w-res-openai" style="font-size: 11px; margin-top: 4px; min-height: 14px;"></div>
+                    <div id="w-res-openai" class="o7-field-note"></div>
                 </div>
 
-                <div style="display: flex; justify-content: space-between; margin-top: 20px;">
-                    <button onclick="nextWizardStep(3)">⬅ BACK</button>
-                    <button style="background: var(--bright-green); color: #000; font-size: 13px;" onclick="finishWizard()">⚙️ INITIALIZE MACHINE SPIRIT</button>
+                <div class="o7-wizard-actions">
+                    <button type="button" class="o7-btn o7-btn-ghost" onclick="o7WizardStep(3)">&lt; Back</button>
+                    <button type="button" class="o7-btn o7-btn-primary" onclick="finishWizard()">⚙ Initialize machine spirit</button>
                 </div>
             </div>
         </div>
     </div>
-
 
 
 <!-- WFRP 4E SPELL & PRAYER SELECTION MODAL -->
@@ -3905,61 +4329,67 @@ HTML_CLIENT = """<!DOCTYPE html>
 
 
     <!-- LONG-TERM MEMORY BANK VIEW -->
-    <div id="view-memory" style="display: none; min-height: 100vh; background: var(--bg-color, #020803); color: var(--text-color, #00ff66); font-family: var(--font-body, monospace); padding: 30px 15px; box-sizing: border-box;">
-        <div style="max-width: 1240px; margin: 0 auto; background: rgba(5, 18, 8, 0.95); border: 2px solid var(--border-color, #00441b); border-radius: 4px; padding: 30px; box-shadow: 0 0 30px rgba(0,255,102,0.1); position: relative;">
-            
-            <!-- Header Bar -->
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-color, #00441b); padding-bottom: 12px; margin-bottom: 24px;">
-                <div style="font-family: var(--font-title, monospace); font-size: 16px; font-weight: bold; color: var(--bright-green, #00ff66); letter-spacing: 2px;">
-                    [ COGITATOR LONG-TERM MEMORY BANK ]
+    <div id="view-memory" class="o7" style="display: none;">
+        <div class="o7-crt" aria-hidden="true"></div>
+
+        <div class="o7-shell">
+            <header class="o7-topbar">
+                <div class="o7-brand">
+                    <svg class="cog-logo" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+                        <path d="M50 20c-16.5 0-30 13.5-30 30s13.5 30 30 30 30-13.5 30-30-13.5-30-30-30zm0 10c11 0 20 9 20 20s-9 20-20 20-20-9-20-20 9-20 20-20z"/>
+                        <path d="M50 0l6 14h-12zM50 100l6-14h-12zM0 50l14-6v12zM100 50l-14-6v12zM15 15l10 10-8 8zM85 85l-10-10 8-8zM15 85l10-10-8-8zM85 15l-10 10 8 8z"/>
+                    </svg>
+                    <h1>
+                        Long-term Memory Bank
+                        <span class="o7-brand-sub">What the machine spirit keeps</span>
+                    </h1>
                 </div>
-                <div>
-                    <button onclick="navigateToView('/')" style="background: #002b11; color: var(--bright-green, #00ff66); border: 1.5px solid var(--border-color, #00441b); padding: 6px 16px; font-family: var(--font-title, monospace); font-size: 12px; font-weight: bold; cursor: pointer; border-radius: 3px;">⬅ TERMINAL</button>
+
+                <nav class="o7-nav" aria-label="Terminal sections">
+                    <a href="/" onclick="event.preventDefault(); navigateToView('/');" title="Cogitator terminal">
+                        <span class="o7-nav-icon" aria-hidden="true">▣</span><span class="o7-nav-text">Terminal</span><span class="o7-nav-short" aria-hidden="true">Term</span>
+                    </a>
+                    <a href="/memory" aria-current="page" onclick="event.preventDefault(); navigateToView('/memory');" title="Long-term memory bank">
+                        <span class="o7-nav-icon" aria-hidden="true">🧠</span><span class="o7-nav-text">Memory</span><span class="o7-nav-short" aria-hidden="true">Mem</span>
+                    </a>
+                    <a href="/campaign" title="Roleplaying campaign">
+                        <span class="o7-nav-icon" aria-hidden="true">🎲</span><span class="o7-nav-text">Campaign</span><span class="o7-nav-short" aria-hidden="true">Camp</span>
+                    </a>
+                    <button type="button" id="skin-btn-mem" onclick="o7ToggleSkin()" title="Toggle the CRT scanline overlay">
+                        <span class="o7-nav-icon" aria-hidden="true">◐</span><span class="o7-nav-text">CRT</span><span class="o7-nav-short" aria-hidden="true">CRT</span>
+                    </button>
+                </nav>
+            </header>
+
+            <section class="o7-card" aria-label="Commit a new memory">
+                <div class="o7-card-head">
+                    <h2>Commit New Explicit Memory</h2>
                 </div>
+                <div class="o7-aux-row">
+                    <label class="o7-sr" for="new-memory-input">New memory</label>
+                    <input type="text" id="new-memory-input" style="flex: 1 1 260px;" placeholder="e.g. Master Sean prefers black coffee..." onkeydown="if(event.key==='Enter') addMemoryFact()">
+                    <button type="button" class="o7-btn o7-btn-primary" onclick="addMemoryFact()">Commit fact</button>
+                </div>
+                <p class="o7-label" style="color:var(--ink-3)">Explicit facts are remembered verbatim. Auto-extracted facts are what the skull inferred on its own.</p>
+            </section>
+
+            <div class="o7-mem-grid">
+                <section class="o7-card" aria-label="Explicit long-term memories">
+                    <div class="o7-card-head">
+                        <h2>🧠 Explicit Long-term</h2>
+                        <span id="longterm-count" class="o7-count">[ 0 ]</span>
+                    </div>
+                    <div id="longterm-memory-list" class="o7-mem-list"></div>
+                </section>
+
+                <section class="o7-card" aria-label="Auto-extracted world facts">
+                    <div class="o7-card-head">
+                        <h2>🔍 Auto-extracted Facts</h2>
+                        <span id="shortterm-count" class="o7-count">[ 0 ]</span>
+                    </div>
+                    <div id="shortterm-memory-list" class="o7-mem-list"></div>
+                </section>
             </div>
-
-            <!-- Add New Memory Bar -->
-            <div style="background: rgba(0, 43, 17, 0.5); border: 1px solid var(--border-color, #00441b); border-radius: 4px; padding: 16px; margin-bottom: 28px;">
-                <div style="font-size: 12px; font-weight: bold; color: var(--bright-green, #00ff66); margin-bottom: 8px; letter-spacing: 1px;">
-                    ➕ COMMIT NEW EXPLICIT MEMORY
-                </div>
-                <div style="display: flex; gap: 12px;">
-                    <input type="text" id="new-memory-input" placeholder="e.g. Master Sean prefers black coffee..." style="flex: 1; background: #001206; border: 1px solid var(--border-color, #00441b); color: var(--text-color, #00ff66); padding: 8px 12px; font-family: monospace; font-size: 13px; border-radius: 3px;" onkeydown="if(event.key==='Enter') addMemoryFact()">
-                    <button onclick="addMemoryFact()" style="background: var(--bright-green, #00ff66); color: #000; border: none; padding: 8px 18px; font-weight: bold; cursor: pointer; border-radius: 3px; font-size: 12px;">COMMIT FACT</button>
-                </div>
-            </div>
-
-            <!-- Two-Column Memory Layout -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
-                
-                <!-- Explicit Long-Term Memories -->
-                <div style="background: rgba(0, 20, 8, 0.8); border: 1px solid var(--border-color, #00441b); border-radius: 4px; padding: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color, #00441b); padding-bottom: 10px; margin-bottom: 14px;">
-                        <span style="font-family: var(--font-title, monospace); font-size: 13px; font-weight: bold; color: var(--bright-green, #00ff66); letter-spacing: 1px;">
-                            🧠 EXPLICIT LONG-TERM MEMORIES
-                        </span>
-                        <span id="longterm-count" style="font-size: 11px; opacity: 0.8;">[ 0 ]</span>
-                    </div>
-                    <div id="longterm-memory-list" style="display: flex; flex-direction: column; gap: 10px; max-height: 500px; overflow-y: auto;">
-                        <!-- Rendered dynamically -->
-                    </div>
-                </div>
-
-                <!-- Auto-Extracted World Facts -->
-                <div style="background: rgba(0, 20, 8, 0.8); border: 1px solid var(--border-color, #00441b); border-radius: 4px; padding: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color, #00441b); padding-bottom: 10px; margin-bottom: 14px;">
-                        <span style="font-family: var(--font-title, monospace); font-size: 13px; font-weight: bold; color: #00ccff; letter-spacing: 1px;">
-                            🔍 AUTO-EXTRACTED WORLD FACTS
-                        </span>
-                        <span id="shortterm-count" style="font-size: 11px; opacity: 0.8;">[ 0 ]</span>
-                    </div>
-                    <div id="shortterm-memory-list" style="display: flex; flex-direction: column; gap: 10px; max-height: 500px; overflow-y: auto;">
-                        <!-- Rendered dynamically -->
-                    </div>
-                </div>
-
-            </div>
-
         </div>
     </div>
 
