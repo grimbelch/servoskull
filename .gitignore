@@ -1,5 +1,9 @@
 # Secrets — never commit
 .env
+# ...and every variant (.env.omega7, .env.bak, .env.local-...). The bare ".env"
+# rule matched only the exact name, leaving real secrets one "git add -A" away.
+.env.*
+!.env.example
 .spotify_cache
 # TLS key/cert are generated per unit into USER_DATA_DIR; never commit one.
 *.pem

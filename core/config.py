@@ -9,7 +9,16 @@ import tempfile
 import threading
 from dotenv import load_dotenv
 
-load_dotenv(override=True)
+# override=False so a real environment variable beats the file, which is the
+# convention everywhere else and the only way to override a setting per-run:
+# `AUDIO_DEBUG=true python -m core.main`, or a systemd drop-in on the appliance.
+# With override=True the file silently won, so a drop-in for any key named in
+# .env did nothing at all and left no trace of why.
+#
+# Nothing is lost by this: keys absent from the environment are still loaded from
+# the file exactly as before. On the Pi, systemd already reads the same file via
+# EnvironmentFile=, so the values reach the process either way.
+load_dotenv(override=False)
 
 # ── Writable user-config layer ───────────────────────────────────────────────────
 # Everything the OWNER personalizes (API keys, persona, voice, personalization) is
@@ -19,8 +28,9 @@ load_dotenv(override=True)
 #
 # Resolution order for any user-facing setting (see `_cfg`):
 #   1. settings.json in USER_DATA_DIR   (written by the setup wizard)
-#   2. environment / .env               (developer convenience)
-#   3. hardcoded default                (last resort)
+#   2. environment variable             (per-run override, systemd drop-in)
+#   3. .env file                        (developer convenience, persistent)
+#   4. hardcoded default                (last resort)
 #
 # USER_DATA_DIR defaults to ~/.config/omega7. On an appliance image, set
 # OMEGA7_DATA_DIR to another writable path such as /var/lib/omega7.
