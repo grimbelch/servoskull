@@ -72,7 +72,7 @@ word → Whisper → Claude with tools → ElevenLabs/Piper speech, plus a round
 - `python -m pytest tests` (a Python ≥ 3.10 venv with `pytest` and `python-dotenv`).
 - `python -m pyflakes` and `python -m py_compile` on every file touched.
 - New screensavers: render a full 5-minute showing (9000 frames) and time it; keep
-  the average under ~5 ms and p95 under ~12 ms on the Pi 5.
+  p95 under ~12 ms on the Pi 5.
 
 ## Deploy
 
