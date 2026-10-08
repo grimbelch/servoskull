@@ -21,7 +21,11 @@ import statistics
 # body lines bold at 14pt, and those are mixed case, so the caps test is what
 # actually separates "SERIOUSLY INJURED FIGHTERS" from "Note that a Seriously
 # Injured/Damaged model...".
-_MIN_HEADING_SIZE = 12
+# 11, not 12. The book sets a step heading at either size -- "1. DETERMINE WHO
+# CAN FIGHT" is 12pt and "2. CHOOSE WEAPONS" on the same page is 11pt -- so a
+# 12pt floor drops half the steps of a sequence and buries their rules inside
+# whichever section came before.
+_MIN_HEADING_SIZE = 11
 _MIN_BOLD_RATIO = 0.6
 _MIN_CAPS_RATIO = 0.75
 _MAX_HEADING_CHARS = 70

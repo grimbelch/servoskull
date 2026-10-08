@@ -116,9 +116,18 @@ def page_sections(page, page_no: int) -> list[dict]:
             # not a subsection of itself.
             if text in (chapter, section):
                 continue
+            # A heading too long for its column is printed over two or three
+            # lines. Read separately they become sections titled "LINE OF
+            # SIGHT &" and "SOLID TERRAIN FEATURES", and the rule is filed
+            # under the second half of its own name.
+            if (current is not None and not body_lines
+                    and abs(line["size"] - current.get("size", 0)) <= 2):
+                current["title"] = f"{current['title']} {text}".strip()
+                continue
             flush()
             current = {"chapter": chapter, "section": section, "title": text,
-                       "level": 3, "body": "", "page": page_no}
+                       "level": 3, "body": "", "page": page_no,
+                       "size": line["size"]}
             continue
         if _is_tabular(text):
             continue
@@ -165,6 +174,15 @@ def build_tree(doc) -> list[dict]:
 
     merged: list[dict] = []
     for item in flat:
+        # Prose before the first heading on a page is the previous section
+        # running on across the page break, not a section of its own. Left
+        # standing it becomes an untitled entry that search can surface with
+        # no way to say what rule it belongs to.
+        if not item["title"].strip() and merged:
+            prev = merged[-1]
+            prev["body"] = f"{prev['body']}\n\n{item['body']}".strip()
+            prev["page_end"] = item["page"]
+            continue
         if (merged and item["title"] == merged[-1]["title"]
                 and item["chapter"] == merged[-1]["chapter"]
                 and item["section"] == merged[-1]["section"]):

@@ -432,3 +432,57 @@ def test_a_lookup_never_quotes_another_rulebooks_rows(rules_db):
     out = rules_tools.weapon_profile("test pistol")
     assert "999" not in out            # the other book's copy is not quoted
     assert out.count("Test pistol") == 1
+
+
+# ── headings the size floor was hiding ────────────────────────────────────────
+
+def heading_line(text, size, bold=1.0):
+    return {"text": text, "size": size, "bold": bold, "display": bold,
+            "x0": 60.0, "x1": 300.0, "y": 100.0}
+
+
+def test_a_step_heading_at_eleven_point_is_a_heading():
+    """The book sets the steps of one sequence at both 11pt and 12pt.
+
+    On the Close Combat page "1. DETERMINE WHO CAN FIGHT" is 12pt while
+    "2. CHOOSE WEAPONS" is 11pt. A 12pt floor dropped half the steps and buried
+    their rules inside whichever section came before them.
+    """
+    assert layout.is_heading(heading_line("1. DETERMINE WHO CAN FIGHT", 12))
+    assert layout.is_heading(heading_line("2. CHOOSE WEAPONS", 11))
+    assert layout.is_heading(heading_line("3. DETERMINE ATTACK DICE", 11))
+
+
+def test_body_text_is_still_not_a_heading_at_that_size():
+    """Body is 11pt too, so the floor alone cannot be what separates them."""
+    assert not layout.is_heading(heading_line(
+        "Each model selects which weapon they will use", 11, bold=0.0))
+    assert not layout.is_heading(heading_line("Hand Weapons: If a Fighter", 11,
+                                              bold=0.31))
+
+
+def test_a_heading_split_over_two_lines_is_read_as_one():
+    """A heading too long for its column is printed over two or three lines.
+
+    Read separately they become sections called "LINE OF SIGHT &" and "SOLID
+    TERRAIN FEATURES", filing the rule under the second half of its own name.
+    """
+    class FakePage:
+        rect = type("R", (), {"width": 568.0, "height": 780.0})()
+
+        def get_text(self, kind):
+            if kind == "words":
+                return []
+            return {"blocks": [{"lines": [
+                {"bbox": (60, y, 300, y + 12), "spans": [
+                    {"text": t, "size": s, "font": "Arial-BoldMT"}]}
+                for t, s, y in (("CORE RULES - MOVEMENT", 16, 55),
+                                ("LINE OF SIGHT &", 11, 100),
+                                ("SOLID TERRAIN FEATURES", 11, 112),
+                                ("A model can see through a gap.", 11, 130))
+            ]}]}
+
+    found = sections.page_sections(FakePage(), 36)
+    titles = [s["title"] for s in found]
+    assert "LINE OF SIGHT & SOLID TERRAIN FEATURES" in titles
+    assert "SOLID TERRAIN FEATURES" not in titles
