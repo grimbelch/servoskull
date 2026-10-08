@@ -216,3 +216,25 @@ def test_the_throw_overshoots_and_settles():
 def test_the_eye_is_not_blank_when_a_roll_starts():
     """Dice thrown from too far out leave the eye empty, which reads as a fault."""
     assert lit_pixels(_frame(0.05)) > 300
+
+
+def test_the_result_stays_up_long_enough_to_read():
+    """A roll that vanishes in three seconds is gone before anyone looks down."""
+    from core import display
+    assert display._DIE_HOLD >= 10.0
+
+
+def test_the_throw_lasts_long_enough_to_be_seen():
+    """At the configured frame rate the throw has to be more than a few frames.
+
+    The first version ran 0.8s, which is twelve frames at 15 fps -- two of them
+    with the dice still outside the aperture -- and was missed entirely.
+    """
+    from core import config, display
+    frames = display._DIE_TUMBLE_END * max(config.DISPLAY_FPS, display._DIE_MOTION_FPS)
+    assert frames >= 25
+
+
+def test_the_dice_are_still_moving_well_into_the_throw():
+    """Nothing should be parked on its final slot while the throw is running."""
+    assert _differing(_frame(0.9), _frame(2.0)) > 2000

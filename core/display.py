@@ -1047,7 +1047,15 @@ def _draw_vector_digit(draw, x, y, width, height, char: str, color, thickness=3)
             draw.line([p1, p2], fill=color, width=thickness)
 
 
-_DIE_TUMBLE_END = 0.80   # seconds in the air before the dice land
+# The throw has to last long enough to be seen. At the default 15 fps the first
+# version's 0.8s was twelve frames, two of them with the dice still outside the
+# aperture, and the roll was over before anyone looked down.
+_DIE_TUMBLE_END = 1.30   # seconds in the air before the dice land
+_DIE_HOLD = 10.0         # how long the result stays up if nothing interrupts
+# The motion is rendered faster than the rest of the eye. Dice in flight are the
+# one thing here worth the extra SPI, and it is paid for just over a second;
+# the result that follows goes back to the configured rate.
+_DIE_MOTION_FPS = 30.0
 _DIE_SETTLE = 0.28       # the bounce as they land
 _DIE_STAGGER = 0.04      # each dice leaves the hand a little after the last
 # Dice enter from beyond the aperture, but only just: thrown from much further
@@ -1572,7 +1580,15 @@ def _render_loop():
 
         if _rolling_die:
             roll_elapsed = now - _die_start_time
-            if roll_elapsed >= 3.5:
+            landed = roll_elapsed > _DIE_TUMBLE_END + _DIE_SETTLE
+            # Something else wanting the panel takes it -- but never until the
+            # dice have landed, so a roll is always seen through to its result.
+            preempted = landed and (
+                _scanning_auspex or _scanning_noosphere or searching_web_active
+                or rules_lookup_active or news_fetch_active
+                or image_retrieval_active or _showing_custom_image
+                or _showing_alignment or _targeting or _visualizing_music)
+            if roll_elapsed >= _DIE_HOLD or preempted:
                 _rolling_die = False
             else:
                 try:
@@ -1581,7 +1597,8 @@ def _render_loop():
                                             _die_chosen))
                 except Exception as e:
                     _render_error("die render", e)
-                pace(config.DISPLAY_FPS)
+                pace(config.DISPLAY_FPS if landed
+                     else max(config.DISPLAY_FPS, _DIE_MOTION_FPS))
                 continue
 
         if _scanning_auspex:

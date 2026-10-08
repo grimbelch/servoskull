@@ -485,8 +485,10 @@ def _trigger_dice_effects(display_val: int | str | None = None) -> None:
     except Exception as e:
         print(f"[brain] Display roll failed: {e}")
 
+    # Let the dice land before the skull starts talking over them. The throw
+    # plus its settle is ~1.6s; the result then stays up on its own.
     import time as _time
-    _time.sleep(1.5)
+    _time.sleep(1.7)
 
 
 def _simulate_necromunda(dice_type: str, count: int, target: int | None = None) -> str:
