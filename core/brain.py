@@ -1980,13 +1980,32 @@ _MOOD_KEYWORDS = {
 }
 
 
+# "mode" is deliberate: the transcriber reliably hears "mood" as "mode", and
+# "Change mode to contemplative" matched nothing before — "mood" was absent and
+# "change to" is not contiguous in it. The verb branch therefore tolerates words
+# between the verb and its "to". A mood keyword must still appear for any of this
+# to fire, so the looser context cannot shift the disposition on its own.
+_MOOD_CONTEXT_RE = re.compile(
+    r"\b(?:mood|mode|disposition|temperament)\b"
+    r"|\b(?:change|set|shift|switch|turn|revert|return|go\s+back)\b(?:\s+\S+){0,3}\s+to\b"
+    r"|\bbe\b",
+    re.I,
+)
+
+
 def _mood_intent(text: str) -> str | None:
+    """The deterministic path for an explicit mood request.
+
+    This must not depend on the model choosing to call shift_mood: the tool is
+    described as something to use sparingly, so left to itself the model will
+    happily narrate a disposition change it never made.
+    """
     t = text.lower()
-    triggers = ("mood", "disposition", "be ", "go back to", "return to", "set to", "shift to", "change to", "switch to")
-    if any(tr in t for tr in triggers):
-        for word, m in _MOOD_KEYWORDS.items():
-            if word in t:
-                return m
+    if not _MOOD_CONTEXT_RE.search(t):
+        return None
+    for word, m in _MOOD_KEYWORDS.items():
+        if word in t:
+            return m
     return None
 
 

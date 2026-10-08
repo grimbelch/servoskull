@@ -507,7 +507,11 @@ def build_tools() -> list[dict]:
             "of Chaos threats → SUSPICIOUS or VIGILANT; ancient history or lore → "
             "CONTEMPLATIVE; dark or tragic news → MELANCHOLIC; completing a task well → "
             "DUTIFUL; Imperial devotion or praise → FERVENT. Do not call this every turn. "
-            "Mood should shift rarely and feel earned."
+            "Mood should shift rarely and feel earned — but that governs shifts YOU "
+            "initiate. If the user asks for a disposition outright (\"change mode to "
+            "contemplative\", \"be more vigilant\"), call this immediately. Never say the "
+            "disposition has changed without calling it: the iris colour and eye design "
+            "follow this tool, so claiming it without calling leaves them contradicting you."
         ),
         "input_schema": {
             "type": "object",
