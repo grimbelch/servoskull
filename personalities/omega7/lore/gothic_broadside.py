@@ -33,6 +33,13 @@ ORK_COL = (120, 215, 70)
 SHIELD_COL = (90, 170, 255)
 HUD_COL = (120, 220, 150)
 HUD_DIM = (50, 110, 70)
+# Centroid depth sorting fails locally between a big hull panel and the small
+# superstructure bolted to it: a hexagonal hull's upper side panel has centroid
+# z about half a beam-width off the spine, so it sorts nearer than a spire
+# standing on that spine and paints over it. Biasing superstructure and loose
+# spars a few units towards the camera beats the panel they sit on (~5 units)
+# without beating the far side of the ship (~20+), so the hull still occludes.
+SURFACE_BIAS = 7.0
 
 _IMP_NAMES = ["FIDELITAS", "DIVINE RIGHT", "LORD SOLAR", "HAMMER OF THRACE", "EMPEROR'S WRATH",
               "SWORD OF RETRIBUTION", "MACHARIUS", "DOMINUS ASTRA", "INVINCIBLE", "RIGHTEOUS FURY"]
@@ -73,9 +80,18 @@ def _unit(v):
 # --------------------------------------------------------------------------- ship models
 
 class _Model:
+    """Wireframe plus the faces needed to occlude what is behind the hull.
+
+    Faces are never shaded - they are filled with a near-black hull colour so
+    the far side of a ship, and the starfield, stop showing through the near
+    side. Cross-section rings and loose spars stay as bare edges.
+    """
+
     def __init__(self):
         self.v = []
         self.s = []
+        self.f = []
+        self.fb = []        # per-face depth bias; superstructure sits proud
 
     def p(self, x, y, z):
         self.v.append((x, y, z))
@@ -90,6 +106,16 @@ class _Model:
         if closed:
             self.s.append((idx[-1], idx[0]))
 
+    def face(self, idx, bias=0.0):
+        self.f.append(tuple(idx))
+        self.fb.append(bias)
+
+    def fan(self, ids, tip, bias=0.0):
+        """Triangles from a closed ring to one apex - prow rams, spire tips."""
+        n = len(ids)
+        for k in range(n):
+            self.face((ids[k], ids[(k + 1) % n], tip), bias)
+
     def ring(self, x, prof):
         r = [self.p(x, y, z) for (y, z) in prof]
         self.poly(r)
@@ -99,6 +125,9 @@ class _Model:
         for a, b in zip(rings, rings[1:]):
             for i, j in zip(a, b):
                 self.line(i, j)
+            n = len(a)
+            for k in range(n):
+                self.face((a[k], a[(k + 1) % n], b[(k + 1) % n], b[k]))
 
     def spire(self, x, y0, z, bw, h):
         base = [self.p(x - bw, y0, z - bw), self.p(x + bw, y0, z - bw),
@@ -107,6 +136,8 @@ class _Model:
         apex = self.p(x, y0 + h, z)
         for b in base:
             self.line(b, apex)
+        self.face(base, SURFACE_BIAS)
+        self.fan(base, apex, SURFACE_BIAS)
 
     def box(self, x0, x1, y0, y1, z0, z1):
         lo = [self.p(x0, y0, z0), self.p(x1, y0, z0), self.p(x1, y0, z1), self.p(x0, y0, z1)]
@@ -115,12 +146,17 @@ class _Model:
         self.poly(hi)
         for a, b in zip(lo, hi):
             self.line(a, b)
+        self.face(lo, SURFACE_BIAS)
+        self.face(hi, SURFACE_BIAS)
+        for k in range(4):
+            self.face((lo[k], lo[(k + 1) % 4], hi[(k + 1) % 4], hi[k]), SURFACE_BIAS)
         return hi
 
     def octagon(self, x, y, z, r):
         idx = [self.p(x, y + r * math.sin(a), z + r * math.cos(a))
                for a in np.linspace(0, 2 * math.pi, 8, endpoint=False)]
         self.poly(idx)
+        self.face(idx, SURFACE_BIAS)
 
 
 def _hex(w, h):
@@ -136,6 +172,8 @@ def _build_imperial(r):
     tip = m.p(76, -4, 0)
     for i in rings[-1]:
         m.line(i, tip)
+    m.fan(rings[-1], tip)          # the ram closes the bow
+    m.face(rings[0])               # stern plate
     crest = m.p(56, 8, 0)
     m.line(rings[-1][0], crest)
     m.line(crest, tip)
@@ -177,6 +215,8 @@ def _build_chaos(r):
         prof = [(y + r.uniform(-1, 1), z + r.uniform(-1, 1)) for (y, z) in _hex(w, h)]
         rings.append(m.ring(x, prof))
     m.loft(rings)
+    m.face(rings[0])               # stern plate
+    m.face(rings[-1])              # bow plate; the claws hang off it as spars
     # forked claw prow
     for zt in (-7, 7):
         tip = m.p(68 + r.uniform(-3, 3), 1, zt)
@@ -223,6 +263,8 @@ def _build_ork(r):
         prof = [(h2, -w2 * 0.8), (h2 + r.uniform(-1, 2), w2 * 0.8), (-h2, w2), (-h2, -w2)]
         rings.append(m.ring(x + r.uniform(-2, 2), prof))
     m.loft(rings)
+    m.face(rings[0])               # stern plate
+    m.face(rings[-1])              # bow plate; the ram teeth hang off it
     # massive toothed ram
     tipt = m.p(70, 2, 0)
     tipb = m.p(66, -10, 0)
@@ -300,10 +342,31 @@ def _burst(pos, n, speed, life, cols, big_frac=0.2, drag=0.3):
     _spawn(pos, d * sp, lf, cl, big, drag)
 
 
+def _loose_segments(Sg, Fg):
+    """Segments bounding no face: spars, gun ports, rigging, keel polylines.
+
+    Every other segment is stroked as a face outline, so drawing it again would
+    be redundant - and wrong, since a face's fill covers its own boundary.
+    """
+    faced = set()
+    for f in Fg:
+        n = len(f)
+        for k in range(n):
+            faced.add(frozenset((f[k], f[(k + 1) % n])))
+    return np.array([frozenset((int(u), int(v))) not in faced for u, v in Sg], bool)
+
+
 def _make_ship(kind, side, t):
     m, engines, xs, ws, prow = _BUILD[kind](_rng)
     V = np.array(m.v, dtype=np.float64)
     Sg = np.array(m.s, dtype=np.int32)
+    # Faces vary in length, so flatten them once; np.add/minimum.reduceat then
+    # gives per-face centroids and near-clip tests without a Python loop.
+    Fg = m.f
+    F_bias = np.array(m.fb, float)
+    F_flat = np.array([i for f in Fg for i in f], np.int32)
+    F_off = np.cumsum([0] + [len(f) for f in Fg[:-1]]).astype(np.int32)
+    F_len = np.array([len(f) for f in Fg], np.float64)
     xmin, xmax = float(V[:, 0].min()), float(V[:, 0].max())
     L = xmax - xmin
     cuts = [xmin + L * _rng.uniform(0.30, 0.38), xmin + L * _rng.uniform(0.60, 0.68)]
@@ -327,6 +390,10 @@ def _make_ship(kind, side, t):
         kind=kind, name=name, cls=cls, col=col, beam=beam,
         V=V, Sg=Sg, vsect=vsect, sidx=sidx, centers=centers, cuts=cuts,
         seg_same=vsect[Sg[:, 0]] == vsect[Sg[:, 1]],
+        Fg=Fg, F_flat=F_flat, F_off=F_off, F_len=F_len, F_bias=F_bias,
+        fsect=np.array([vsect[f[0]] for f in Fg], np.int32),
+        face_same=np.array([len(set(vsect[list(f)])) == 1 for f in Fg], bool),
+        loose=_loose_segments(Sg, Fg),
         engines=np.array([e[:3] for e in engines], float), prow=np.array(prow, float),
         xs=xs, ws=ws,
         P=np.array([_rng.uniform(-8, 8), _rng.uniform(-6, 6), side * _rng.uniform(38, 46)]),
@@ -707,6 +774,12 @@ class _Cam:
 
 
 def _draw_ship(d, cam, sh, t, reveal):
+    """Hidden-line pass: opaque plates and bright edges in one depth sort.
+
+    Plates are filled with a near-black wash of the ship's own colour, never
+    lit, so the vector look survives while the far side of the hull - and the
+    starfield behind it - stop showing through.
+    """
     V = sh["V"]
     W = np.empty_like(V)
     for s in range(3):
@@ -715,10 +788,11 @@ def _draw_ship(d, cam, sh, t, reveal):
             W[idx] = V[idx] @ sh["Rt"][s].T + sh["off"][s]
     sx, sy, z = cam.proj(W)
     Sg = sh["Sg"]
+    det = np.array(sh["det"])
+
     keep = np.ones(len(Sg), dtype=bool)
     if sh["broken"]:
         keep &= sh["seg_same"]
-    det = np.array(sh["det"])
     if det.any():
         keep &= ~det[sh["vsect"][Sg[:, 0]]]
     if reveal < 1.0:
@@ -732,9 +806,46 @@ def _draw_ship(d, cam, sh, t, reveal):
         fade = max(0.25, 1.0 - (t - sh["break_t"]) / 10.0)
         col = col * fade + np.array([120, 30, 10]) * (1 - fade) * 0.6
     cols = (k[:, None] * col[None, :]).astype(np.int32)
-    rows = np.column_stack([sx[a], sy[a], sx[b], sy[b], cols])[ok].tolist()
-    for x1, y1, x2, y2, r, g, bb in rows:
-        d.line((x1, y1, x2, y2), fill=(int(r), int(g), int(bb)))
+
+    # plates, masked exactly as their segments are
+    F_flat, F_off, F_len = sh["F_flat"], sh["F_off"], sh["F_len"]
+    nf = len(sh["Fg"])
+    fkeep = np.ones(nf, dtype=bool)
+    if sh["broken"]:
+        fkeep &= sh["face_same"]
+    if det.any():
+        fkeep &= ~det[sh["fsect"]]
+    if reveal < 1.0:
+        fkeep[int(nf * reveal):] = False
+    if nf:
+        fz = np.add.reduceat(z[F_flat], F_off) / F_len
+        fkeep &= np.minimum.reduceat(z[F_flat], F_off) > 5
+    else:
+        fz = np.zeros(0)
+    fill = tuple(int(c * 0.08) for c in col)
+
+    # One sort over plates and loose spars together, far to near. Each plate
+    # strokes its own outline, because a convex face's centroid sorts nearer
+    # than the edges bounding it and its fill would otherwise erase them.
+    kf = np.clip(1.15 - (fz - (cam.dist - 90)) / 180.0 * 0.75, 0.35, 1.0) if nf else np.zeros(0)
+    fcols = (kf[:, None] * col[None, :]).astype(np.int32) if nf else np.zeros((0, 3), np.int32)
+
+    sidx_seg = np.nonzero(ok & sh["loose"][keep])[0]
+    fidx = np.nonzero(fkeep)[0]
+    keys = np.concatenate([(fz - sh["F_bias"])[fidx], zm[sidx_seg] - SURFACE_BIAS])
+    order = np.argsort(-keys)
+    nF = len(fidx)
+    Fg = sh["Fg"]
+    for oi in order.tolist():
+        if oi < nF:
+            fi = fidx[oi]
+            r, g, bb = fcols[fi]
+            d.polygon([(sx[i], sy[i]) for i in Fg[fi]], fill=fill,
+                      outline=(int(r), int(g), int(bb)))
+        else:
+            e = sidx_seg[oi - nF]
+            r, g, bb = cols[e]
+            d.line((sx[a[e]], sy[a[e]], sx[b[e]], sy[b[e]]), fill=(int(r), int(g), int(bb)))
     vis = z > 5
     if vis.any():
         sh["bbox"] = (float(sx[vis].min()), float(sy[vis].min()), float(sx[vis].max()), float(sy[vis].max()))

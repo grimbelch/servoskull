@@ -65,6 +65,9 @@ RED = (255, 60, 40)
 ENEMY = (255, 96, 50)
 FIELD = (130, 255, 90)
 WHITE = (255, 255, 255)
+VOID = (4, 6, 8)        # frame background
+HULL = (12, 15, 18)      # opaque Gargant plate for hidden-line fills
+DETAIL_BIAS = 0.015      # pull detail lines in front of their own surface
 
 _NAMES = ["DA MEGA STOMPA", "GORK'Z FIST", "DA BIG KRUMPA", "MORK'Z GAZE", "DA IRON GOB",
           "DA DEFF BELLY", "KRUMPSMASHA", "DA RED STOMPA"]
@@ -75,7 +78,13 @@ _ENEMY_GUNS = ["MEGA-KANNON", "DEFF KANNON", "GAZE BEAM", "SUPA-ZZAP", "ROKKIT B
 # ------------------------------------------------------------- model ---
 
 def _build_model():
-    pts, edges = [], []
+    """Vertices, edges and filled faces for the Gargant.
+
+    Faces exist purely so the hull can occlude what is behind it (hidden-line
+    rendering); they are filled with an opaque plate colour, never shaded.
+    Fine detail - jaw, eyes, barrels, struts - stays as bare edges.
+    """
+    pts, edges, faces = [], [], []
 
     def add(p):
         pts.append(p)
@@ -89,52 +98,70 @@ def _build_model():
         return ids
 
     def join(a, b):
+        # a lofted quad strip: ladder edges, plus one face per quad
         for i, j in zip(a, b):
             edges.append((i, j))
+        n = len(a)
+        for k in range(n):
+            faces.append((a[k], a[(k + 1) % n], b[(k + 1) % n], b[k]))
+
+    def cap(ids):
+        # close an open ring so you cannot see in through the end of a tube
+        faces.append(tuple(ids))
 
     def seg(p, q):
         edges.append((add(p), add(q)))
 
     # pot-bellied hull
     prof = [(-22, 26), (-8, 36), (8, 42), (26, 42), (42, 36), (54, 28)]
-    prev = None
+    hull, prev = [], None
     for y, r in prof:
         cur = ring(y, r, rot=math.pi / 8)
+        hull.append(cur)
         if prev:
             join(prev, cur)
         prev = cur
-    # armour bands on belly
+    cap(hull[-1])                              # underside
+    # armour bands on belly (a surface band, not a disc - left unfilled)
     ring(17, 43, n=12)
     # riveted belly plate / reactor hatch
     hatch = [add((12 * math.cos(k * math.pi / 3), 18 + 12 * math.sin(k * math.pi / 3), -43)) for k in range(6)]
     for k in range(6):
         edges.append((hatch[k], hatch[(k + 1) % 6]))
+    cap(hatch)
     seg((-8, 18, -43), (8, 18, -43))
     # head / cupola with jaw
-    h0 = ring(-22, 18, n=6, rot=math.pi / 6)
-    h1 = ring(-36, 14, n=6, rot=math.pi / 6)
-    h2 = ring(-44, 8, n=6, rot=math.pi / 6)
+    h0 = ring(-22, 18, n=8, rot=math.pi / 8)
+    h1 = ring(-36, 14, n=8, rot=math.pi / 8)
+    h2 = ring(-44, 8, n=8, rot=math.pi / 8)
+    join(hull[0], h0)                          # shoulder deck, as an annulus
     join(h0, h1)
     join(h1, h2)
+    cap(h2)
     seg((-10, -30, -13), (10, -30, -13))       # jaw line
     seg((-8, -34, -12), (-3, -32, -13))        # eyes
     seg((3, -32, -13), (8, -34, -12))
-    # smokestacks
+    # smokestacks (solid tubes: a bare line reads as a crack once the hull fills)
     for sx in (-18, 18):
-        seg((sx, -22, 12), (sx, -48, 12))
-        ring(-48, 4, n=6, cx=sx, cz=12)
+        s0 = ring(-22, 4, n=6, cx=sx, cz=12)
+        s1 = ring(-48, 4, n=6, cx=sx, cz=12)
+        join(s0, s1)
+        cap(s1)
     # banner pole and flag
     seg((0, -44, 4), (0, -70, 4))
     a, b, c = add((0, -70, 4)), add((22, -64, 4)), add((0, -58, 4))
     edges += [(a, b), (b, c)]
+    faces.append((a, b, c))
     # left arm: shoulder, forearm, triple-barrelled kannon pointing at viewer
     seg((-34, -14, 0), (-58, -6, 0))
     la = ring(-6, 9, n=6, cx=-60, cz=0)
     lb = ring(-6, 9, n=6, cx=-60, cz=-26)
     join(la, lb)
+    cap(la)
+    cap(lb)
     for dx, dy in ((-4, -3), (4, -3), (0, 4)):
         seg((-60 + dx, -6 + dy, -26), (-60 + dx, -6 + dy, -50))
-    ring(-6, 7, n=6, cx=-60, cz=-50)
+    cap(ring(-6, 7, n=6, cx=-60, cz=-50))
     # right arm: massive deff kannon block
     seg((34, -14, 0), (56, -4, 0))
     box = [add((52 + x, -14 + y, z)) for x in (0, 16) for y in (0, 22) for z in (6, -40)]
@@ -142,19 +169,42 @@ def _build_model():
         for j in range(i + 1, 8):
             if bin(i ^ j).count("1") == 1:
                 edges.append((box[i], box[j]))
+    # box index bits are (x, y, z); each face fixes one bit
+    for quad in ((0, 1, 3, 2), (4, 5, 7, 6), (0, 1, 5, 4),
+                 (2, 3, 7, 6), (0, 2, 6, 4), (1, 3, 7, 5)):
+        faces.append(tuple(box[i] for i in quad))
     seg((60, -3, -40), (60, -3, -56))
     # feet
     for fx in (-20, 20):
         f0 = ring(56, 12, n=4, cx=fx, cz=-4, rot=math.pi / 4)
         f1 = ring(64, 14, n=4, cx=fx, cz=-8, rot=math.pi / 4)
         join(f0, f1)
+        cap(f0)
+        cap(f1)
     P = np.array(pts, dtype=np.float32)
     E = np.array(edges, dtype=np.int32)
-    return P, E
+    return P, E, faces
 
 
-_P, _E = _build_model()
+_P, _E, _F = _build_model()
 _MID = (_P[_E[:, 0]] + _P[_E[:, 1]]) * 0.5
+
+# Faces vary in length, so flatten them once for vectorised centroid means via
+# np.add.reduceat instead of a per-frame Python loop.
+_F_IDX = [list(f) for f in _F]
+_F_FLAT = np.array([i for f in _F_IDX for i in f], np.int32)
+_F_OFF = np.cumsum([0] + [len(f) for f in _F_IDX[:-1]]).astype(np.int32)
+_F_LEN = np.array([len(f) for f in _F_IDX], np.float32)
+_FCEN = (np.add.reduceat(_P[_F_FLAT], _F_OFF, axis=0) / _F_LEN[:, None]).astype(np.float32)
+
+# Edges that bound no face (jaw, eyes, barrels, struts, belly band) must be
+# stroked on their own; every other edge is stroked as a face outline.
+_faced = set()
+for _f in _F:
+    for _i in range(len(_f)):
+        _faced.add(frozenset((_f[_i], _f[(_i + 1) % len(_f)])))
+_LOOSE = np.array([_i for _i in range(len(_E))
+                   if frozenset((int(_E[_i, 0]), int(_E[_i, 1]))) not in _faced], np.int32)
 
 _LOCS = {
     "HEAD":    (0.0, -33.0, -14.0),
@@ -164,9 +214,12 @@ _LOCS = {
     "STACKS":  (0.0, -40.0, 12.0),
 }
 _LOC_EDGES = {}
+_LOC_FACES = {}
 for _k, _p in _LOCS.items():
-    _dd = np.linalg.norm(_MID - np.array(_p, np.float32), axis=1)
-    _LOC_EDGES[_k] = np.nonzero(_dd < (26 if _k != "BELLY" else 30))[0]
+    _r = 30 if _k == "BELLY" else 26
+    _q = np.array(_p, np.float32)
+    _LOC_EDGES[_k] = np.nonzero(np.linalg.norm(_MID - _q, axis=1) < _r)[0]
+    _LOC_FACES[_k] = np.nonzero(np.linalg.norm(_FCEN - _q, axis=1) < _r)[0]
 
 
 # ------------------------------------------------------------- state ---
@@ -484,41 +537,86 @@ def _draw_hud_static(d, st, t):
 
 
 def _draw_gargant(d, st, t, jx, jy, explode_age=None):
+    """Hidden-line render: opaque plates painted back-to-front, edges on top.
+
+    Faces are filled with HULL rather than lit, so the vector-cogitator look
+    survives while the far side of the hull stops showing through the near one.
+    Loose detail edges are interleaved into the same depth sort, so they are
+    occluded by any plate in front of them.
+    """
     sx, sy, z = _project(_P, t, jx, jy)
     zmin, zmax = float(z.min()), float(z.max())
     depth = 1.0 - (z - zmin) / max(1.0, zmax - zmin)   # 1 near, 0 far
-    e0, e1 = _E[:, 0], _E[:, 1]
-    x0, y0, x1, y1 = sx[e0], sy[e0], sx[e1], sy[e1]
-    dep = (depth[e0] + depth[e1]) * 0.5
+
+    # damage highlighting, carried over to faces as well as edges
     hot = np.zeros(len(_E), np.float32)
+    fhot = np.zeros(len(_F), np.float32)
     for loc, v in st.loc_dmg.items():
         if v > 0:
-            hot[_LOC_EDGES[loc]] = np.maximum(hot[_LOC_EDGES[loc]], v / 100.0)
+            k = v / 100.0
+            ei, fi = _LOC_EDGES[loc], _LOC_FACES[loc]
+            hot[ei] = np.maximum(hot[ei], k)
+            fhot[fi] = np.maximum(fhot[fi], k)
+
+    fx = np.add.reduceat(sx[_F_FLAT], _F_OFF) / _F_LEN
+    fy = np.add.reduceat(sy[_F_FLAT], _F_OFF) / _F_LEN
+    fdep = np.add.reduceat(depth[_F_FLAT], _F_OFF) / _F_LEN
+
+    e0, e1 = _E[:, 0], _E[:, 1]
+    ex0, ey0, ex1, ey1 = sx[e0], sy[e0], sx[e1], sy[e1]
+    edep = (depth[e0] + depth[e1]) * 0.5
+
+    fdx = fdy = None
+    fill = HULL
     if explode_age is not None:
-        mx, my = (x0 + x1) * 0.5 - GX, (y0 + y1) * 0.5 - GY
-        rng = np.random.default_rng(len(_E))
-        vx = mx * 1.2 + rng.uniform(-40, 40, len(_E))
-        vy = my * 1.2 + rng.uniform(-60, 20, len(_E))
         a = explode_age
-        x0 = x0 + vx * a
-        x1 = x1 + vx * a
-        y0 = y0 + vy * a + 30 * a * a
-        y1 = y1 + vy * a + 30 * a * a
+        # plates and loose spars fly apart from their own centres
+        rng = np.random.default_rng(len(_F))
+        fdx = ((fx - GX) * 1.2 + rng.uniform(-40, 40, len(_F))) * a
+        fdy = ((fy - GY) * 1.2 + rng.uniform(-60, 20, len(_F))) * a + 30 * a * a
+        rng = np.random.default_rng(len(_E))
+        mx, my = (ex0 + ex1) * 0.5 - GX, (ey0 + ey1) * 0.5 - GY
+        evx = (mx * 1.2 + rng.uniform(-40, 40, len(_E))) * a
+        evy = (my * 1.2 + rng.uniform(-60, 20, len(_E))) * a + 30 * a * a
+        ex0, ex1 = ex0 + evx, ex1 + evx
+        ey0, ey1 = ey0 + evy, ey1 + evy
+        # plates cool to the void as they scatter, so they stop occluding
+        fill = lerp_color(HULL, VOID, min(1.0, a / 2.5))
+
     flick = int(t * 12) % 2
-    order = np.argsort(dep)
-    for i in order.tolist():
-        k = 0.35 + 0.65 * float(dep[i])
-        h = float(hot[i])
+    dying = st.ending == "gargant" and explode_age is None
+    if dying:
+        fill = lerp_color(HULL, WHITE, 0.10 + 0.18 * flick)
+
+    def _edge_col(h, dep):
         if h > 0:
             col = lerp_color(ENEMY, (255, 230, 120) if flick else (255, 140, 40), h)
         else:
             col = ENEMY
-        if st.ending == "gargant" and explode_age is None:
+        if dying:
             col = lerp_color(col, WHITE, 0.3 + 0.5 * flick)
+        k = 0.35 + 0.65 * dep
         if explode_age is not None:
             k *= max(0.0, 1.0 - explode_age / 2.5)
             col = lerp_color(col, WHITE, max(0.0, 0.6 - explode_age))
-        d.line([(float(x0[i]), float(y0[i])), (float(x1[i]), float(y1[i]))], fill=scale(col, k))
+        return scale(col, k)
+
+    # one painter's sort over plates and loose edges together, far to near
+    nf = len(_F)
+    order = np.argsort(np.concatenate([fdep, edep[_LOOSE] + DETAIL_BIAS]))
+    for oi in order.tolist():
+        if oi < nf:
+            idx = _F_IDX[oi]
+            if fdx is None:
+                poly = [(float(sx[i]), float(sy[i])) for i in idx]
+            else:
+                ddx, ddy = float(fdx[oi]), float(fdy[oi])
+                poly = [(float(sx[i]) + ddx, float(sy[i]) + ddy) for i in idx]
+            d.polygon(poly, fill=fill, outline=_edge_col(float(fhot[oi]), float(fdep[oi])))
+        else:
+            ei = int(_LOOSE[oi - nf])
+            d.line([(float(ex0[ei]), float(ey0[ei])), (float(ex1[ei]), float(ey1[ei]))],
+                   fill=_edge_col(float(hot[ei]), float(edep[ei])))
     return sx, sy
 
 
