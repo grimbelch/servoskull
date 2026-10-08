@@ -241,6 +241,40 @@ def get_tools():
         },
     },
 {
+        "name": "necromunda_rule",
+        "description": (
+            "Look up a named Necromunda rule by name: a weapon trait (Blaze, "
+            "Rapid Fire, Knockback), a skill (Backstab, Overwatch), or a "
+            "condition or model status (Suppressed, Webbed, Seriously Injured). "
+            "Reads the rule's own entry, so prefer it over necromunda_rules "
+            "whenever the question is 'what does X do'. The bracketed value is "
+            "ignored, so 'Blaze (5+)' as printed on a weapon finds the trait."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string",
+                         "description": "The trait, skill or condition name."},
+            },
+            "required": ["name"],
+        },
+    },
+{
+        "name": "necromunda_skills",
+        "description": (
+            "List every skill in one of Necromunda's seven skill sets: Agility, "
+            "Brawn, Combat, Cunning, Savant, Shooting or Inherent."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "skill_set": {"type": "string",
+                              "description": "The set, e.g. 'Cunning'."},
+            },
+            "required": ["skill_set"],
+        },
+    },
+{
         "name": "necromunda_attack",
         "description": (
             "Resolve a complete Necromunda attack and play it out on the eye, one "
@@ -522,6 +556,20 @@ def _tool_roll_dice(i):
     _trigger_dice_effects()
     return res
 
+def _tool_necromunda_rule(i):
+    name = i.get("name", "")
+    print(f"[skull] Looking up Necromunda rule: {name}")
+    from games.necromunda import rules_tools
+    return rules_tools.named_rule(name)
+
+
+def _tool_necromunda_skills(i):
+    skill_set = i.get("skill_set", "")
+    print(f"[skull] Listing Necromunda {skill_set} skills")
+    from games.necromunda import rules_tools
+    return rules_tools.skills_in_set(skill_set)
+
+
 def _tool_necromunda_attack(i):
     from games.necromunda import attack as _attack
     kwargs = {
@@ -639,6 +687,8 @@ def get_handlers():
         "necromunda_rules": _tool_necromunda_rules,
         "necromunda_weapon": _tool_necromunda_weapon,
         "necromunda_attack": _tool_necromunda_attack,
+        "necromunda_rule": _tool_necromunda_rule,
+        "necromunda_skills": _tool_necromunda_skills,
         "warhammer40k_rules": _tool_warhammer40k_rules,
         "netepic_rules": _tool_netepic_rules,
         "netea_rules": _tool_netea_rules,

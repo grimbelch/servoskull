@@ -40,8 +40,11 @@ _NO_PYMUPDF = "PyMuPDF is required to build the rules database: pip install pymu
 
 from .. import db as necro_db
 from .. import rules_schema
+from . import conditions as conditions_mod
 from . import sections as sections_mod
+from . import skills as skills_mod
 from . import tables
+from . import traits as traits_mod
 
 EXTRACTOR_VERSION = "1.0"
 DEFAULT_SLUG = "necromunda-skirmish-core-rulebook"
@@ -192,7 +195,8 @@ def ingest(pdf_path: pathlib.Path, slug: str = DEFAULT_SLUG,
             )
             book_id = cur.lastrowid
 
-            counts = {"sections": 0, "weapons": 0}
+            counts = {"sections": 0, "weapons": 0, "traits": 0, "skills": 0,
+                      "conditions": 0}
             section_ids: dict[tuple[str, str, str], int] = {}
 
             # --- prose layer -------------------------------------------------
@@ -261,6 +265,37 @@ def ingest(pdf_path: pathlib.Path, slug: str = DEFAULT_SLUG,
                 )
                 counts["weapons"] += 1
 
+            # --- named rules -------------------------------------------------
+            # Traits, skills and conditions are each a short name in display
+            # type with the rule beneath, which the section extractor cannot
+            # see: it looks for chapter headings at 12pt and these are set at
+            # body size. They are collected separately so that "what does Blaze
+            # do" is a row lookup rather than a search of prose.
+            for trait in traits_mod.extract(doc):
+                conn.execute(
+                    "INSERT INTO rule_traits (rulebook_id, slug, name,"
+                    " takes_value, description, page) VALUES (?,?,?,?,?,?)",
+                    (book_id, sections_mod.slugify(trait["name"]), trait["name"],
+                     int(trait["takes_value"]), trait["description"], trait["page"]))
+                counts["traits"] += 1
+
+            for skill in skills_mod.extract(doc):
+                conn.execute(
+                    "INSERT INTO rule_skills (rulebook_id, slug, name, skill_set,"
+                    " description, page) VALUES (?,?,?,?,?,?)",
+                    (book_id, sections_mod.slugify(skill["name"]), skill["name"],
+                     skill["skill_set"], skill["description"], skill["page"]))
+                counts["skills"] += 1
+
+            for condition in conditions_mod.extract(doc):
+                conn.execute(
+                    "INSERT INTO rule_conditions (rulebook_id, slug, name, kind,"
+                    " description, page) VALUES (?,?,?,?,?,?)",
+                    (book_id, sections_mod.slugify(condition["name"]),
+                     condition["name"], condition["kind"],
+                     condition["description"], condition["page"]))
+                counts["conditions"] += 1
+
             _build_search_index(conn, book_id)
         return counts
     finally:
@@ -287,6 +322,20 @@ def _build_search_index(conn, book_id: int) -> None:
             (f"{row['title']} {row['path']}", row["body_md"], row["kind"], book_id,
              row["id"], "rule_sections", row["id"], row["page_start"]),
         )
+    # The named rules go in too, so a search for a trait finds the trait and
+    # not merely a weapon that happens to carry it.
+    for table, kind, extra in (("rule_traits", "trait", "description"),
+                               ("rule_skills", "skill", "skill_set"),
+                               ("rule_conditions", "condition", "kind")):
+        for row in conn.execute(
+                f"SELECT id, name, description, page, {extra} AS extra FROM {table}"
+                f" WHERE rulebook_id = ?", (book_id,)):
+            conn.execute(
+                "INSERT INTO rule_search (title, body, kind, rulebook_id,"
+                " section_id, ref_table, ref_id, page) VALUES (?,?,?,?,NULL,?,?,?)",
+                (row["name"], f"{row['name']} {row['extra']} {row['description']}",
+                 kind, book_id, table, row["id"], row["page"]))
+
     for row in conn.execute(
             "SELECT id, name, category, traits, sr_text, lr_text, str_text, ap_text,"
             " lethality_text, creds_text, page FROM rule_weapons WHERE rulebook_id = ?",

@@ -28,6 +28,16 @@ _MAX_HEADING_CHARS = 70
 
 _WS = re.compile(r"\s+")
 
+# Body text is set in Frutiger Light or plain Arial. Anything else -- bold, or
+# the condensed face the OCR reports on some pages -- is display type, and that
+# is what marks a name in this book. Testing for the word "Bold" in the font
+# alone misses every trait on the two pages the scan read as Franklin Gothic.
+_DISPLAY_FONTS = ("Bold", "Franklin", "Black", "Heavy")
+
+
+def _is_display_font(font: str) -> bool:
+    return any(marker in font for marker in _DISPLAY_FONTS)
+
 
 def _caps_ratio(text: str) -> float:
     letters = [c for c in text if c.isalpha()]
@@ -49,9 +59,12 @@ def _raw_lines(page) -> list[dict]:
                 continue
             chars = sum(len(s["text"]) for s in spans) or 1
             bold = sum(len(s["text"]) for s in spans if "Bold" in s["font"]) / chars
+            display = sum(len(s["text"]) for s in spans
+                          if _is_display_font(s["font"])) / chars
             raw.append({
                 "text": text,
                 "bold": bold,
+                "display": display,
                 "size": max(round(s["size"]) for s in spans),
                 "x0": line["bbox"][0],
                 "x1": line["bbox"][2],
@@ -170,6 +183,27 @@ def is_heading(line: dict) -> bool:
         and len(line["text"]) <= _MAX_HEADING_CHARS
         and _caps_ratio(line["text"]) >= _MIN_CAPS_RATIO
     )
+
+
+def is_named_entry(line: dict, min_size: int = 9, max_size: int = 13,
+                   max_chars: int = 52) -> bool:
+    """True when a line names a rule rather than being part of one.
+
+    Weapon traits, skills and conditions are each printed as a short ALL CAPS
+    name in display type, at the size of body text rather than above it, with
+    their description running on beneath. ``is_heading`` will not see them: it
+    asks for 12pt and for the word "Bold" in the font, and these are 9-10pt and
+    sometimes a condensed face. That is the whole reason the trait, skill and
+    condition tables stood empty.
+    """
+    text = line["text"].strip()
+    if not text or len(text) > max_chars:
+        return False
+    if line.get("display", line["bold"]) < _MIN_BOLD_RATIO:
+        return False
+    if not (min_size <= line["size"] <= max_size):
+        return False
+    return _caps_ratio(text) >= _MIN_CAPS_RATIO
 
 
 def running_header(lines: list[dict]) -> str:

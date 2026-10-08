@@ -7,6 +7,7 @@ does this work" questions; these are for "what is this weapon's AP".
 """
 from __future__ import annotations
 
+import re
 import sqlite3
 
 from . import db as necro_db
@@ -79,6 +80,12 @@ def weapon_profile(name: str) -> str:
             if not row["is_variant"]:
                 break
             out.append(_format_weapon(row, book))
+        # A profile that names traits and explains none of them is half an
+        # answer, and the traits are the half that decides how the attack is
+        # resolved.
+        explained = weapon_traits(best["traits"])
+        if explained:
+            out.append(f"Traits in full:\n{explained}")
         if len(rows) > 1:
             others = ", ".join(f"{r['name']} (p{printed_page(r['page'], book)})"
                                for r in rows[1:4])
@@ -165,3 +172,108 @@ def describe_injury_roll(lethality: int, weapon: str = "") -> str:
     else:
         lines.append(f"Result: {result['faces'][0]}.")
     return " ".join(lines)
+
+
+# ── named rules: traits, skills, conditions ───────────────────────────────────
+
+_NAMED_TABLES = (
+    ("rule_traits", "weapon trait", "takes_value"),
+    ("rule_skills", "skill", "skill_set"),
+    ("rule_conditions", "condition", "kind"),
+)
+
+
+def _strip_value(name: str) -> str:
+    """"Blaze (5+)" as printed on a weapon is the trait "Blaze (X+)"."""
+    return re.sub(r"\s*\(.*\)\s*$", "", name or "").strip()
+
+
+def named_rule(name: str) -> str:
+    """Look up a weapon trait, skill or condition by name.
+
+    A weapon profile names its traits and explains none of them, so a profile
+    is only half an answer until the trait can be read. Matching ignores the
+    bracketed value, because a weapon prints "Blaze (5+)" while the trait is
+    printed "Blaze (X+)".
+    """
+    conn = _open()
+    if conn is None:
+        return _NOT_INSTALLED
+    try:
+        book = current_rulebook(conn)
+        wanted = (name or "").strip().lower()
+        if not wanted:
+            return "Name a trait, skill or condition to look up."
+        bare = _strip_value(wanted)
+        out = []
+        for table, label, extra in _NAMED_TABLES:
+            rows = conn.execute(
+                f"SELECT name, description, page, {extra} AS extra FROM {table}"
+                f" WHERE rulebook_id = ? AND (LOWER(name) = ? OR LOWER(name) LIKE ?"
+                f" OR LOWER(name) LIKE ?)"
+                f" ORDER BY LENGTH(name) LIMIT 3",
+                (book["id"], wanted, f"{bare}%", f"%{wanted}%")).fetchall()
+            for row in rows:
+                detail = ""
+                if table == "rule_skills":
+                    detail = f", {row['extra']} skill"
+                elif table == "rule_conditions":
+                    detail = f", {row['extra']}"
+                out.append(
+                    f"{row['name']} ({label}{detail} — {book['title']}, "
+                    f"p{printed_page(row['page'], book)})\n{row['description']}")
+        if not out:
+            return (f"No trait, skill or condition called '{name}' in "
+                    f"{book['title']}.")
+        return "\n\n".join(out[:3])
+    finally:
+        conn.close()
+
+
+def skills_in_set(skill_set: str) -> str:
+    """Every skill in one of the book's seven sets."""
+    conn = _open()
+    if conn is None:
+        return _NOT_INSTALLED
+    try:
+        book = current_rulebook(conn)
+        wanted = (skill_set or "").strip().lower()
+        rows = conn.execute(
+            "SELECT name, skill_set, description, page FROM rule_skills"
+            " WHERE rulebook_id = ? AND LOWER(skill_set) LIKE ? ORDER BY name",
+            (book["id"], f"%{wanted}%")).fetchall()
+        if not rows:
+            sets = conn.execute(
+                "SELECT DISTINCT skill_set FROM rule_skills WHERE rulebook_id = ?"
+                " ORDER BY skill_set", (book["id"],)).fetchall()
+            listed = ", ".join(r["skill_set"] for r in sets)
+            return f"No skill set matching '{skill_set}'. The sets are: {listed}."
+        lines = [f"{rows[0]['skill_set']} skills ({len(rows)}):"]
+        for row in rows:
+            lines.append(f"  {row['name']} (p{printed_page(row['page'], book)}): "
+                         f"{row['description']}")
+        return "\n".join(lines)
+    finally:
+        conn.close()
+
+
+def weapon_traits(traits: str) -> str:
+    """The rules for the traits a weapon carries, in the order printed."""
+    conn = _open()
+    if conn is None:
+        return ""
+    try:
+        book = current_rulebook(conn)
+        out = []
+        for printed in [t.strip() for t in (traits or "").split(",") if t.strip()]:
+            bare = _strip_value(printed)
+            row = conn.execute(
+                "SELECT name, description FROM rule_traits WHERE rulebook_id = ?"
+                " AND (LOWER(name) = ? OR LOWER(name) LIKE ?)"
+                " ORDER BY LENGTH(name) LIMIT 1",
+                (book["id"], printed.lower(), f"{bare.lower()}%")).fetchone()
+            if row:
+                out.append(f"  {printed}: {row['description']}")
+        return "\n".join(out)
+    finally:
+        conn.close()

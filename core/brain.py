@@ -408,7 +408,7 @@ def get_active_tools_for_game(game_name: str) -> list[dict]:
     # Necromunda attack came to be rolled with 40k arithmetic.
     w40k_tools = {"warhammer40k_rules", "roll_dice"}
     necro_tools = {"necromunda_rules", "necromunda_weapon", "necromunda_attack",
-                   "roll_necromunda_dice"}
+                   "necromunda_rule", "necromunda_skills", "roll_necromunda_dice"}
     # roll_epic_dice resolves Epic's firefights and close assaults, which has
     # nothing to do with any other game on the shelf. Like roll_dice it is
     # gated, so whichever game is active, the dice offered are that game's.
@@ -1902,6 +1902,14 @@ def _execute_purge_identity(name: str) -> str:
         except Exception as e:
             print(f"[brain] Error deleting voice dir for {name}: {e}")
             
+    # A purge must also drop the carried-over identification, or the next short
+    # command would be answered as the person whose profile just went away.
+    if voice_purged:
+        try:
+            speaker_id.forget_speaker(name)
+        except Exception as e:
+            print(f"[brain] Error clearing the last identified speaker: {e}")
+
     # Always retrain speaker_id if we deleted to update model
     if voice_purged:
         try:
