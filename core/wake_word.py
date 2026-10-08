@@ -2,6 +2,8 @@ from __future__ import annotations
 import queue
 import threading
 import time
+from collections import deque
+import pathlib
 from math import gcd
 
 import numpy as np
@@ -13,6 +15,10 @@ from core.config import WAKE_WORD_MODEL, MIC_DEVICE_INDEX, WAKE_WORD_THRESHOLD
 
 TARGET_RATE = 16000
 CHUNK = 1280  # 80 ms at 16 kHz — minimum required by openwakeword
+# Keep the last ~2 s of 16 kHz audio so a detection can be written out as a clip.
+# False triggers are only fixable by retraining the model on the room noise that
+# causes them, and that needs the actual audio, not just the score in the log.
+_CAPTURE_CHUNKS = 25
 THRESHOLD = WAKE_WORD_THRESHOLD
 
 # Build the openWakeWord model ONCE and reuse it. Constructing a Model spins up
@@ -84,6 +90,7 @@ def wait_for_wake_word(on_detected=None, cancel=None, threshold=None) -> bool:
     dev = MIC_DEVICE_INDEX if MIC_DEVICE_INDEX >= 0 else None
 
     q: queue.Queue = queue.Queue()
+    _recent: deque = deque(maxlen=_CAPTURE_CHUNKS)
 
     def _cb(indata, frames, time_info, status):
         q.put(indata.copy())
@@ -107,6 +114,7 @@ def wait_for_wake_word(on_detected=None, cancel=None, threshold=None) -> bool:
                 last_audio = time.monotonic()
                 watchdog.beat()  # audio is arriving: the mic stream is alive
                 audio = _to_target(raw.flatten(), native)
+                _recent.append(audio)
                 rms = float(np.sqrt(np.mean(audio.astype(np.float32) ** 2)))
                 predictions = oww.predict(audio)
                 score = max(predictions.values()) if predictions else 0.0
@@ -115,9 +123,17 @@ def wait_for_wake_word(on_detected=None, cancel=None, threshold=None) -> bool:
                 thr = float(getattr(_cfg, "WAKE_WORD_THRESHOLD", 0.65)) if threshold is None else threshold
                 if _cfg.AUDIO_DEBUG and (rms > 50 or score > 0.1):
                     print(f"[ww] rms={rms:.0f} score={score:.3f} (need >={thr:.2f})")
+                mode = "idle" if threshold is None else "barge-in"
                 if score >= thr:
-                    mode = "idle" if threshold is None else "barge-in"
                     print(f"[skull] Wake word detected! (score={score:.3f} >= {thr:.2f}, {mode})")
+                    if getattr(_cfg, "WAKE_CAPTURE", False):
+                        _save_trigger_clip(_recent, score, mode, fired=True)
+                elif getattr(_cfg, "WAKE_CAPTURE", False) and score >= getattr(_cfg, "WAKE_CAPTURE_FLOOR", 0.25):
+                    # A near miss. Choosing a barge-in threshold means knowing what
+                    # the summons that did NOT fire scored, and those leave no other
+                    # trace — the log only ever records successes.
+                    print(f"[ww] near miss: score={score:.3f} < {thr:.2f} ({mode})")
+                    _save_trigger_clip(_recent, score, mode, fired=False)
 
                     oww.reset()
                     if on_detected:
@@ -134,3 +150,26 @@ def wait_for_wake_word(on_detected=None, cancel=None, threshold=None) -> bool:
         time.sleep(backoff)
         return False
 
+def _save_trigger_clip(chunks, score: float, mode: str = "idle", fired: bool = True) -> None:
+    """Write the audio that just fired the model to a wav for later retraining.
+
+    Clips land in WAKE_CAPTURE_DIR named by score and timestamp. Sort the real
+    summons from the false ones by ear, then feed the false ones back to
+    openWakeWord as hard negatives — that is the only thing that actually
+    separates them, since true and false scores overlap almost completely.
+    """
+    import time
+    import scipy.io.wavfile as _wf
+    from core import config as _c
+    try:
+        if not chunks:
+            return
+        out_dir = pathlib.Path(_c.WAKE_CAPTURE_DIR).expanduser()
+        out_dir.mkdir(parents=True, exist_ok=True)
+        clip = np.concatenate(list(chunks))
+        kind = "fired" if fired else "miss"
+        path = out_dir / f"wake_{time.strftime('%Y%m%d-%H%M%S')}_{mode}_{kind}_score{score:.3f}.wav"
+        _wf.write(str(path), TARGET_RATE, clip.astype(np.int16))
+        print(f"[ww] saved trigger clip: {path}")
+    except Exception as e:
+        print(f"[ww] could not save trigger clip: {e}")

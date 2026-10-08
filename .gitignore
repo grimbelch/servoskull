@@ -105,3 +105,6 @@ games/wfrp/rules/*
 # Emulator ROMs are copyrighted system firmware: supplied by the user, never committed.
 games/roms/
 *.zip
+
+# editor/backup noise
+*.bak-*

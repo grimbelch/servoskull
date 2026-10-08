@@ -12,6 +12,7 @@ from core import search as _search
 from core import memory as _memory
 from core import reminders as _reminders
 from core import mood as _mood
+from core import verbosity as _verbosity
 from core import quiet as _quiet
 from core import candles as _candles
 from core import llm as _llm
@@ -1603,6 +1604,10 @@ def _tool_rebuild_sounds(i):
         return "Voice library and phrase cache cleared! Regenerating all phrases with my Golden Retriever voice now!"
     return f"Spoken voice phrases rebuilt successfully: {res_msg}"
 
+def _tool_set_response_length(i):
+    return _verbosity.set_mode(str(i.get("mode", "")))
+
+
 def _tool_set_honorific(i):
     honorific = str(i.get("honorific", "")).strip()
     return config.set_honorific(honorific)
@@ -1767,6 +1772,7 @@ _TOOL_REGISTRY = {
     "rebuild_sounds": _tool_rebuild_sounds,
     "self_update": _tool_self_update,
     "set_honorific": _tool_set_honorific,
+    "set_response_length": _tool_set_response_length,
     "reboot_system": _tool_reboot_system,
     "shutdown_system": _tool_shutdown_system,
     "switch_personality": _tool_switch_personality,
@@ -2078,7 +2084,8 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None,
     except Exception:
         pass
     system_suffix = (date_ctx + game_ctx + speaker_ctx + equip_hint
-                     + _memory.longterm_prompt(longterm) + _memory.facts_prompt(facts) + _mood.system_addendum())
+                     + _memory.longterm_prompt(longterm) + _memory.facts_prompt(facts) + _mood.system_addendum()
+                     + _verbosity.system_addendum())
 
 
     # Record which tools fired so we can reconcile silent mode afterwards.
@@ -2399,7 +2406,7 @@ def generate_morning_greeting(detected_name: str | None) -> str:
             greetings = [
                 f"Good morning, Master {name_clean}. The Omnissiah's light shines upon a new day. All machine spirits stand ready for your commands.",
                 f"Greetings, Master {name_clean}. Morning telemetry is nominal. The machine spirit observes your return to the cogitator.",
-                f"Good morning, {name_clean}. Rangefinder telemetry confirmed your approach. How may this servitor assist you today?",
+                f"Good morning, {name_clean}. Rangefinder telemetry confirmed your approach. How may this unit assist you today?",
             ]
         return random.choice(greetings)
     else:

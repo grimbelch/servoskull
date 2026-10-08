@@ -40,6 +40,12 @@ _retrain_attempted = False  # only try the one-off feature-version migration onc
 _MIN_SPEECH_FRAMES = 80        # 0.8 s of voiced frames needed to judge at all
 _AMBIGUITY_BAND = 0.25         # below threshold but within this band = "not sure"
 _CONTINUITY_SECS = 600.0       # a confident ID carries over unsure turns for 10 minutes
+# Enrollment clips are recorded close to the mic, in a quiet room, in long answers.
+# Real summons are shorter, further away and noisier, so they score well below what
+# calibration predicts. Calibrating without allowing for that gap overfits the
+# threshold to registration conditions and rejects the owner in normal use.
+_CHANNEL_MISMATCH_MARGIN = 0.40
+_MIN_LLR_THRESHOLD = 0.35      # never relax so far that the model accepts anything
 _last_confident: tuple[str, float] | None = None
 
 def load_model() -> bool:
@@ -302,11 +308,15 @@ def train_speaker_model() -> str:
                 # Overlap (or too little enrollment audio): reject all known non-owner
                 # sound; unsure owner turns fall back on conversational continuity.
                 threshold = worst_impostor + 0.1
+            # Allow for the enrollment-vs-live channel gap, with a floor.
+            threshold = max(_MIN_LLR_THRESHOLD, threshold - _CHANNEL_MISMATCH_MARGIN)
         calib = {"genuine": [round(float(g), 3) for g in genuine],
                  "impostor_max": round(float(max(impostor)), 3) if impostor else None,
-                 "impostor_count": len(impostor)}
+                 "impostor_count": len(impostor),
+                 "mismatch_margin": _CHANNEL_MISMATCH_MARGIN}
         print(f"[speaker_id] Calibration: genuine LLRs {calib['genuine']}, worst impostor "
-              f"{calib['impostor_max']} over {len(impostor)} clips -> threshold {threshold:.2f}")
+              f"{calib['impostor_max']} over {len(impostor)} clips, "
+              f"mismatch margin {_CHANNEL_MISMATCH_MARGIN:.2f} -> threshold {threshold:.2f}")
         if genuine and min(genuine) < threshold:
             print("[speaker_id] Some enrollment clips score below the threshold — re-register with "
                   "longer answers for more reliable recognition.")
@@ -373,7 +383,7 @@ def identify_speaker(wav_bytes: bytes) -> str | None:
         return None
 
 def register_voice(name: str) -> str:
-    """Record 3 voice samples for the given name and train the GMM classifier."""
+    """Record eight voice samples for the given name and train the GMM classifier."""
     from core import audio, sfx, tts
 
     name = config.identity_name(name)
@@ -392,14 +402,19 @@ def register_voice(name: str) -> str:
         
         print(f"[speaker_id] Starting voice registration for {name}")
         
-        # Five answers of up to 8 s each: a few seconds of speech isn't enough for a
-        # reliable voice model, so ask for more (answer in full sentences).
+        # Eight answers of up to 12 s each. The separation between the owner and a
+        # stranger is limited by how much enrollment speech there is: five 8 s answers
+        # yielded only ~21 s of voiced audio, too little to score the owner reliably
+        # once distance and room noise are in play. Ask for roughly triple that.
         questions = [
             f"First inquiry for the archives of Mars: State thy name and thy primary biological function or profession in this sector.",
             "Second inquiry: Which machine spirit or device in thy possession requires the most frequent application of sacred oils and prayers?",
             "Third inquiry: In the name of the Omnissiah, what is thy ultimate purpose or duty?",
             "Fourth inquiry: Describe the place where thou dwellest, and what lies beyond its windows.",
-            "Final inquiry: Recount what thou didst this day, from the moment thou awoke."
+            "Fifth inquiry: Recount what thou didst this day, from the moment thou awoke.",
+            "Sixth inquiry: Name the campaigns and battles that have most occupied thy cogitations of late.",
+            "Seventh inquiry: Describe those who share thy dwelling, and thy duties toward them.",
+            "Final inquiry: Speak freely for a time on any matter thou wishest the archives to remember."
         ]
         
         for i, q in enumerate(questions):
@@ -415,7 +430,7 @@ def register_voice(name: str) -> str:
             
             # Record up to 6.0 seconds, stopping early on silence
             try:
-                pcm, rate = audio.record(8.0, silence_threshold=config.SILENCE_THRESHOLD, silence_duration=1.5)
+                pcm, rate = audio.record(12.0, silence_threshold=config.SILENCE_THRESHOLD, silence_duration=2.0)
                 wav_bytes = audio.pcm_to_wav_bytes(pcm, rate)
                 # Save WAV
                 wav_path = target_dir / f"sample_{i}_{int(time.time())}.wav"

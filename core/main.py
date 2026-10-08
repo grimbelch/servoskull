@@ -332,6 +332,34 @@ def set_speech_active(active: bool) -> None:
         _speech_activation_active = bool(active)
 
 
+# Identification needs 0.8 s of voiced speech (speaker_id._MIN_SPEECH_FRAMES). A
+# barged-in command rarely has it: the summons eats the front of the utterance, so
+# "Servitor, stand down" reaches the recogniser as a fragment. Rather than let the
+# owner become "Unknown voice" mid-conversation, reuse who was just identified.
+SPEAKER_CARRY_SECS = 90.0
+_last_identified: tuple[str, float] | None = None
+
+
+def _carry_speaker_forward(speaker_name: str | None) -> str | None:
+    """Reuse the last identified speaker when this turn was too short to judge.
+
+    Only ever fills in an unknown; a positive identification always wins, so a
+    second person taking over is still recognised as themselves.
+    """
+    global _last_identified
+    now = time.time()
+    if speaker_name:
+        _last_identified = (speaker_name, now)
+        return speaker_name
+    if _last_identified is not None:
+        name, when = _last_identified
+        if now - when <= SPEAKER_CARRY_SECS:
+            print(f"[skull] Too little speech to identify — carrying {name} forward "
+                  f"({now - when:.0f}s since last positive match).")
+            return name
+    return None
+
+
 def is_speech_active() -> bool:
     with _speech_active_lock:
         return _speech_activation_active
@@ -437,12 +465,20 @@ def _acknowledge() -> None:
             print(f"[skull] Acknowledgement error: {e}")
 
 
-def _acknowledge_silence() -> None:
+def _acknowledge_silence(max_rms: float | None = None) -> None:
     """Speak a brief 'I'm waiting' line when the wake word fired but no speech followed.
 
     Replaces the old silent `continue`, and short-circuits the brain entirely so a
     silent recording can't be turned into an unprompted lore monologue.
+
+    `max_rms` is the recording's peak level, when known. A wake followed by near-total
+    silence was a false trigger on ambient noise rather than a summons, and speaking
+    into an empty room is the most visible symptom of one, so those stay silent.
     """
+    if max_rms is not None and max_rms < config.SILENCE_THRESHOLD * config.FALSE_WAKE_RMS_RATIO:
+        print(f"[skull] Peak RMS {max_rms:.1f} far below threshold "
+              f"{config.SILENCE_THRESHOLD} — treating as a false wake, staying silent.")
+        return
     with _speech_lock:
         try:
             wav = random.choice(_silence_wavs) if _silence_wavs else tts.synthesize(random.choice(config.SILENCE_PHRASES))
@@ -612,12 +648,17 @@ def _speak_clips(clips, on_wake) -> bool:
             if eye_thread is not None:
                 eye_thread.join(timeout=1.0)
 
-        if _interrupted.is_set():
-            # Leave the eyes lit — on_wake() already turned them on for the next command.
-            return True
+        # Retire the listener BEFORE reading _interrupted. Checking first left a
+        # window where a wake word landing just after playback ended would print
+        # "Interrupted", light the eyes via on_wake() and then be dropped here —
+        # the caller saw False, never set skip_wake_word, and the summons was lost.
+        # wait_for_wake_word polls cancel every 0.1s, so the join settles at once.
         if int_thread is not None:
             _cancel_listener.set()
             int_thread.join(timeout=1.0)
+        if _interrupted.is_set():
+            # Leave the eyes lit — on_wake() already turned them on for the next command.
+            return True
         if played:
             eyes.off()
             display.idle()
@@ -1228,6 +1269,14 @@ def _h_honorific(intent, turn: _Turn) -> bool:
     return True
 
 
+def _h_response_length(intent, turn: _Turn) -> bool:
+    from core import verbosity
+    result = verbosity.set_mode(intent.args["mode"])
+    print(f"[skull] {result}")
+    _say(turn, result)
+    return True
+
+
 def _h_maintenance_command(intent, turn: _Turn) -> bool:
     action = intent.args["action"]
     print(f"[skull] Local {action} intent detected — awaiting confirmation.")
@@ -1317,6 +1366,7 @@ _LOCAL_INTENTS = (
     (intents.display_rotation, _h_display_rotation),
     (intents.voice_wait, _h_voice_wait),
     (intents.honorific, _h_honorific),
+    (intents.response_length, _h_response_length),
     (intents.maintenance_command, _h_maintenance_command),
     (intents.voice_registration, _h_voice_registration),
     (intents.web_access_code, _h_web_access_code),
@@ -1814,7 +1864,7 @@ def main():
                     if _stt_stream is not None:
                         _stt_stream.abort()
                     eyes.off()
-                    _acknowledge_silence()
+                    _acknowledge_silence(max_rms)
                     continue
 
                 eyes.off()
@@ -1868,6 +1918,7 @@ def main():
                     _acknowledge_silence()
                     continue
 
+            speaker_name = _carry_speaker_forward(speaker_name)
             spk_label = speaker_name if speaker_name else "User"
             print(f"[skull] Heard ({spk_label}): {user_text}")
 

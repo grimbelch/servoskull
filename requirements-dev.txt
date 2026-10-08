@@ -1,0 +1,10 @@
+# Development-only dependencies. Not installed on the unit by pi_setup.sh and not
+# needed to run the skull — only to run the test suite:
+#
+#   .venv/bin/pip install -r requirements-dev.txt
+#   .venv/bin/python -m pytest
+#
+# pytest.ini puts the repo root on sys.path and points at tests/, so no PYTHONPATH
+# or path argument is needed.
+
+pytest>=8.0

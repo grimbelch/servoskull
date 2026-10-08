@@ -267,6 +267,45 @@ def honorific(text: str, ctx: Context) -> Intent | None:
 
 # Matched against the whole utterance (after dropping filler words), never as a
 # substring, so "turn off the music" or "restart the song" can't power the Pi down.
+# -- Response length ----------------------------------------------------------
+
+# "answers"/"responses"/"replies" phrased as a length request, or a bare directive
+# like "be brief". Anchored on those nouns or an explicit verb so "a short rest"
+# and "a long story" can't trip it.
+_LEN_SHORT = re.compile(
+    r"\b(?:short|brief|briefer|shorter|terse|concise|curt|quick|snappy)\s+"
+    r"(?:answers?|responses?|replies|reply|mode)\b"
+    r"|\b(?:be|speak|keep it|answer|respond|stay)\s+"
+    r"(?:more\s+)?(?:brief|briefly|terse|tersely|concise|concisely|curt|short|quick)\b"
+    r"|\bshort[\s-]?form\b"
+)
+_LEN_LONG = re.compile(
+    r"\b(?:long|longer|verbose|expansive|detailed|full|thorough)\s+"
+    r"(?:answers?|responses?|replies|reply|mode)\b"
+    r"|\b(?:be|speak|answer|respond|stay)\s+"
+    r"(?:more\s+)?(?:verbose|verbosely|expansive|expansively|freely|long|detailed)\b"
+    r"|\bspeak freely\b|\bat length\b|\bdon'?t hold back\b|\belaborate more\b"
+)
+_LEN_NORMAL = re.compile(
+    r"\b(?:normal|standard|default|regular|usual)\s+"
+    r"(?:answers?|responses?|replies|reply|length|mode|cadence)\b"
+    r"|\b(?:answer|respond|speak)\s+(?:normally|as usual)\b"
+)
+
+
+def response_length(text: str, ctx: Context) -> Intent | None:
+    t = normalize(text)
+    # NORMAL is tested first: it is the narrowest pattern, and "back to normal
+    # answers" would otherwise never be reached past the others.
+    if _LEN_NORMAL.search(t):
+        return Intent("response_length", {"mode": "NORMAL"})
+    if _LEN_SHORT.search(t):
+        return Intent("response_length", {"mode": "SHORT"})
+    if _LEN_LONG.search(t):
+        return Intent("response_length", {"mode": "LONG"})
+    return None
+
+
 _MAINT_COMMANDS = (
     ("update", re.compile(r"(?:run )?(?:self|system) update|update (?:your software|yourself|your system)|pull updates")),
     ("reboot", re.compile(r"reboot(?: system| yourself)?|restart (?:system|yourself)")),

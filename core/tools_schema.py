@@ -611,6 +611,29 @@ def build_tools() -> list[dict]:
         }
     },
     {
+        "name": "set_response_length",
+        "description": (
+            "Set how long the assistant's spoken answers should be. Use when the user asks for "
+            "'short answers', 'long answers', 'be brief', 'be more concise', 'speak freely', "
+            "'be verbose', or asks to go back to 'normal'/'default' answer length. The setting "
+            "persists across restarts until changed again."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "type": "string",
+                    "enum": ["SHORT", "NORMAL", "LONG"],
+                    "description": (
+                        "SHORT for one or two sentences, NORMAL for the default cadence, "
+                        "LONG to speak at length."
+                    ),
+                }
+            },
+            "required": ["mode"],
+        },
+    },
+    {
         "name": "set_honorific",
         "description": "Set or change the user's preferred honorific or title (e.g. 'Master', 'Mistress', 'Lord', 'Captain', 'Doctor', 'Magos'). Use when the user says 'change my honorific to...', 'set my title to...', 'call me...', 'address me as...', etc.",
         "input_schema": {

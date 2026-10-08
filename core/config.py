@@ -287,7 +287,7 @@ WAKE_WORD_THRESHOLD = float(_cfg("WAKE_WORD_THRESHOLD", "0.65"))
 # silence. Listen harder while the skull is talking. Raise this if Omega-7 starts
 # triggering on itself (check AUDIO_DEBUG scores before assuming it is the model —
 # a mis-seated echo_cancel.source will do it at any threshold).
-WAKE_WORD_THRESHOLD_BARGE_IN = float(_cfg("WAKE_WORD_THRESHOLD_BARGE_IN", "0.45"))
+WAKE_WORD_THRESHOLD_BARGE_IN = float(_cfg("WAKE_WORD_THRESHOLD_BARGE_IN", "0.40"))
 
 
 
@@ -509,6 +509,20 @@ RECORD_SECONDS = 10
 # LOWER = more sensitive to quiet speech (but more prone to picking up background
 # noise); raise it if it starts transcribing ambient hum. Recorder floor is ~300.
 SILENCE_THRESHOLD = int(_cfg("SILENCE_THRESHOLD", "180"))
+# A wake followed by near-total silence was a false trigger on ambient noise, not a
+# summons. Below this fraction of SILENCE_THRESHOLD nobody spoke at all, so the skull
+# stays quiet instead of announcing itself to an empty room; above it, someone spoke
+# too quietly and still deserves an answer.
+FALSE_WAKE_RMS_RATIO = float(_cfg("FALSE_WAKE_RMS_RATIO", "0.55"))
+# Save the ~2 s of audio behind every wake detection. True and false wake scores
+# overlap almost completely, so no threshold separates them; retraining the model
+# on the room's own false triggers is the only real fix, and that needs the audio.
+WAKE_CAPTURE = _cfg("WAKE_CAPTURE", "false").strip().lower() in ("1", "true", "yes", "on")
+WAKE_CAPTURE_DIR = _cfg("WAKE_CAPTURE_DIR", str(USER_DATA_DIR / "wake_clips"))
+# With capture on, also keep the clips that scored close but did not fire. Picking
+# a barge-in threshold means knowing what the summons that failed actually scored,
+# and a miss leaves no trace otherwise — the log only ever records successes.
+WAKE_CAPTURE_FLOOR = float(_cfg("WAKE_CAPTURE_FLOOR", "0.25"))
 # Software gain applied to the microphone as PipeWire's source volume (1.0 = none).
 # The USB codec's analog gain is already at its top and speech still peaked near 5%
 # of full scale, which starved the VAD and the transcribers. PipeWire's volume
