@@ -14,7 +14,7 @@ This guide details the wiring and assembly for **2 individually addressable WS28
 | **Addressable LEDs** | BTF-LIGHTING WS2812B Pre-Soldered / Diffused 5V RGB LEDs | [Amazon Product Link](https://www.amazon.com/dp/B07C1XGD1X) |
 | **Level Shifter** | 3.3V to 5V Bi-Directional Logic Level Converter Module | [Amazon Product Link](https://www.amazon.com/dp/B08R6BCSYC) |
 | **Protection Resistor** | 330 Ω 1/4W Resistor (placed inline on 5V Data line) | Standard Electronic Component |
-| **Capacitor** | 100 µF to 1000 µF 10V/16V Electrolytic Capacitor (across 5V & GND near Pi) | Optional / Recommended |
+| **Capacitor** | 100 µF to 1000 µF 10V/16V Electrolytic Capacitor (across 5V & GND **at the LED end**) | Optional / Recommended |
 | **Heat Shrink** | 2mm & 6mm Dual-Wall Adhesive Heat Shrink Tubing | Standard Hardware |
 
 ---
