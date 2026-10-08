@@ -331,13 +331,21 @@ RESET_VOICE_CACHE = _cfg("RESET_VOICE_CACHE", "false").lower() == "true"
 # Per personality, like the voice: WAKE_WORD_MODEL_OMEGA-7, WAKE_WORD_MODEL_JAX.
 WAKE_WORD_MODEL = _cfg(f"WAKE_WORD_MODEL_{SKULL_NAME.upper()}", PERSONALITY.get("wake_word_model", "models/servitor.onnx"))
 WAKE_WORD_THRESHOLD = float(_cfg("WAKE_WORD_THRESHOLD", "0.65"))
-# Barge-in is harder than waking a silent skull: the echo canceller subtracts the
-# skull's own voice, but during double-talk WebRTC AEC attenuates the near-end
-# speaker too, so a human cutting in scores lower than the same words said into
-# silence. Listen harder while the skull is talking. Raise this if Omega-7 starts
-# triggering on itself (check AUDIO_DEBUG scores before assuming it is the model —
-# a mis-seated echo_cancel.source will do it at any threshold).
-WAKE_WORD_THRESHOLD_BARGE_IN = float(_cfg("WAKE_WORD_THRESHOLD_BARGE_IN", "0.40"))
+# Barge-in is still harder than waking a silent skull, but no longer because of the
+# echo canceller — BARGE_IN_SOURCE below takes that out of the path. What remains is
+# that the skull's own voice is additive interference in the raw capture, which costs
+# the model real confidence even though it scores that voice alone at 0.001: measured
+# on the unit, the summons that fires at 0.914 into silence peaked at 0.465 over
+# playback. 0.40 left only 16% of headroom over a successful barge-in, so a quieter
+# one or one from further off would have missed.
+#
+# 0.30 is affordable because the self-trigger risk is measured rather than guessed:
+# 29 s of the skull's own speech tops out at 0.020 on this source, at every gain from
+# 1x to 16x, which leaves a 15x margin — and a line that does contain the wake word
+# turns barge-in off while it plays (main._wake_word_guard). Raise it if Omega-7
+# starts cutting itself off, and check the saved clip's score before assuming the
+# model is at fault.
+WAKE_WORD_THRESHOLD_BARGE_IN = float(_cfg("WAKE_WORD_THRESHOLD_BARGE_IN", "0.30"))
 # Which microphone the barge-in listener uses. Measured on this unit: the same
 # summons scores 0.914 into silence and 0.09-0.21 while the skull is talking, on the
 # echo-cancelled source. There is almost nothing to cancel -- the raw mic hears the
