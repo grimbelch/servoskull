@@ -56,6 +56,8 @@ _die_kind = "d6"        # injury | firepower | scatter | d6 | num
 _die_faces: tuple = ()  # symbol per dice, from dice.face_symbol()
 _die_detail: tuple = () # per-dice extra: arrow direction, pip value, numeral
 _die_chosen = -1        # dice to ring as the one that matters, or -1
+_die_steps: list = []   # a whole attack, one roll per step; [] for a single roll
+_die_step = 0           # which step of that sequence is on screen
 _scanning_auspex = False
 _scanning_noosphere = False
 _searching_web = False
@@ -1134,8 +1136,28 @@ def _draw_one_die(draw, overlay, x, y, size, colour, symbol, detail,
     overlay.paste(tile, (int(x - side / 2), int(y - side / 2)), tile)
 
 
+def _draw_step_pips(draw, colour, index: int, total: int) -> None:
+    """Which step of an attack is on screen, as a row of ticks.
+
+    An attack is four rolls and it has to be clear which one is being watched.
+    The seven-segment face has no V or W, so "SAVE" and "WOUND" cannot be
+    written; ticks say the same thing and stay legible at this size.
+    """
+    if total < 2:
+        return
+    width, gap = 11, 6
+    span = total * width + (total - 1) * gap
+    x = _CX - span / 2
+    y = _CY + 58
+    for i in range(total):
+        bright = colour if i <= index else _scale(colour, 0.28)
+        draw.line([(x, y), (x + width, y)], fill=bright, width=4 if i == index else 2)
+        x += width + gap
+
+
 def _render_die_frame(bezel, mask, elapsed: float, result: str, kind: str = "d6",
-                      faces: tuple = (), detail: tuple = (), chosen: int = -1):
+                      faces: tuple = (), detail: tuple = (), chosen: int = -1,
+                      step: int = 0, steps: int = 1):
     """The dice roll, shown as the faces the dice actually carry.
 
     Necromunda's dice are symbols, not numbers: a cross, a splintered burst, a
@@ -1266,6 +1288,7 @@ def _render_die_frame(bezel, mask, elapsed: float, result: str, kind: str = "d6"
                 a0 = sweep + k * 90
                 d.arc([_CX - 68, _CY - 68, _CX + 68, _CY + 68], a0, a0 + 26,
                       fill=_scale(base, 0.45), width=2)
+            _draw_step_pips(d, base, step, steps)
             if extra:
                 # The seven-segment map has no '+', so the sign is drawn.
                 faint = _scale(base, 0.8)
@@ -1447,7 +1470,7 @@ def _loop():
 
 
 def _render_loop():
-    global _rolling_die, _showing_omnissiah_glyph, _showing_custom_image, _custom_image, _custom_image_expiry
+    global _rolling_die, _die_step, _showing_omnissiah_glyph, _showing_custom_image, _custom_image, _custom_image_expiry
     global _showing_alignment, _alignment_until, _showing_game
     global _last_activity_time, _active_idle_anim, _custom_idle_expiry, _requested_idle_anim
     bezel = _make_bezel()
@@ -1613,6 +1636,17 @@ def _render_loop():
 
         if _rolling_die:
             roll_elapsed = now - _die_start_time
+            # Advance an attack to its next roll once this one has been seen.
+            if _die_steps and _die_step < len(_die_steps) - 1:
+                this_step = _die_steps[_die_step]
+                shown_for = _DIE_TUMBLE_END + _DIE_SETTLE + this_step.get("hold", 1.1)
+                if roll_elapsed >= shown_for:
+                    _die_step += 1
+                    nxt = _die_steps[_die_step]
+                    start_die_roll(nxt.get("result", "0"), nxt.get("kind", "d6"),
+                                   nxt.get("faces"), nxt.get("detail"),
+                                   nxt.get("chosen", -1), _keep_sequence=True)
+                    roll_elapsed = 0.0
             landed = roll_elapsed > _DIE_TUMBLE_END + _DIE_SETTLE
             # Something else wanting the panel takes it -- but never until the
             # dice have landed, so a roll is always seen through to its result.
@@ -1627,7 +1661,8 @@ def _render_loop():
                 try:
                     _blit(_render_die_frame(bezel, mask, roll_elapsed, _die_result,
                                             _die_kind, _die_faces, _die_detail,
-                                            _die_chosen))
+                                            _die_chosen, _die_step,
+                                            len(_die_steps) or 1))
                 except Exception as e:
                     _render_error("die render", e)
                 pace(config.DISPLAY_FPS if landed
@@ -1796,8 +1831,31 @@ def _render_loop():
         pace(config.DISPLAY_FPS)
 
 
+def start_die_sequence(steps: list) -> None:
+    """Play a whole attack, one roll per step, on the display's own clock.
+
+    Each step is a dict of the same fields ``start_die_roll`` takes, plus
+    ``hold``: how long its result stays up before the next roll is thrown.
+
+    The sequence runs here rather than in the tool that ordered it, because a
+    tool that slept between steps would hold up the reply: the skull would
+    finish rolling in silence and only then say what happened. Played from the
+    render thread, the dice resolve on screen while it talks through them.
+    """
+    if not steps:
+        return
+    global _die_steps, _die_step
+    _die_steps = list(steps)
+    _die_step = 0
+    first = _die_steps[0]
+    start_die_roll(first.get("result", "0"), first.get("kind", "d6"),
+                   first.get("faces"), first.get("detail"),
+                   first.get("chosen", -1), _keep_sequence=True)
+
+
 def start_die_roll(result: int | str, kind: str = "d6", faces=None,
-                   detail=None, chosen: int = -1) -> None:
+                   detail=None, chosen: int = -1,
+                   _keep_sequence: bool = False) -> None:
     """Show a dice roll.
 
     ``faces`` are symbol names from ``games.necromunda.dice.face_symbol`` -- the
@@ -1807,9 +1865,11 @@ def start_die_roll(result: int | str, kind: str = "d6", faces=None,
     an ordinary dice shows anyway.
     """
     global _rolling_die, _die_start_time, _die_result
-    global _die_kind, _die_faces, _die_detail, _die_chosen
+    global _die_kind, _die_faces, _die_detail, _die_chosen, _die_steps, _die_step
     if not _available:
         return
+    if not _keep_sequence:      # a plain roll cancels any attack in progress
+        _die_steps, _die_step = [], 0
     _die_result = str(result)
     _die_kind = kind or "d6"
     _die_faces = tuple(faces or ())

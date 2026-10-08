@@ -404,7 +404,7 @@ def get_active_tools_for_game(game_name: str) -> list[dict]:
         name for name in (t.get("name") for t in _TOOLS) if name and name.startswith("whfrp_")
     }
     w40k_tools = {"warhammer40k_rules"}
-    necro_tools = {"necromunda_rules", "necromunda_weapon"}
+    necro_tools = {"necromunda_rules", "necromunda_weapon", "necromunda_attack"}
     netepic_tools = {"netepic_rules"}
     netea_tools = {"netea_rules"}
 

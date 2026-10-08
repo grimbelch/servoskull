@@ -120,3 +120,33 @@ def test_the_front_face_shows_the_rolled_symbol():
     cross = render(dice3d.sides_for("injury", "cross"), (0, 0, 0))
     differing = sum(1 for a, b in zip(lit(skull), lit(cross)) if a != b)
     assert differing > 100
+
+
+# ── pips on a cube ────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("front", [1, 2, 3, 4, 5, 6])
+def test_a_pip_cube_is_a_real_dice(front):
+    """All six values, opposite faces summing to seven, the roll at the front.
+
+    Numbering the faces by their index instead showed a one on the front of
+    every dice whatever had been rolled, so a D6 flashed the wrong number as it
+    came to rest.
+    """
+    values = dice3d.pip_values(front)
+    assert values[0] == front
+    assert sorted(values) == [1, 2, 3, 4, 5, 6]
+    assert values[0] + values[5] == 7   # front/back
+    assert values[1] + values[3] == 7   # right/left
+    assert values[2] + values[4] == 7   # top/bottom
+
+
+def test_a_landing_cube_shows_the_number_that_was_rolled():
+    """Square-on, the cube and the flat dice it becomes show the same face."""
+    from core import dice_faces
+    sides = dice3d.sides_for("d6", "pip")
+    five = lit(render(sides, (0, 0, 0), detail=5, scale=dice3d.SCALE_LANDED))
+    two = lit(render(sides, (0, 0, 0), detail=2, scale=dice3d.SCALE_LANDED))
+    assert len(five) > len(two)          # five pips cover more than two
+    flat = Image.new("RGB", (240, 240), (0, 0, 0))
+    dice_faces.draw_face(ImageDraw.Draw(flat), "pip", 120, 120, 88, INK, 5)
+    assert len(lit(flat)) > 0

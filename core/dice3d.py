@@ -59,6 +59,22 @@ def sides_for(kind: str, landed: str) -> list[str]:
     return [landed] + pool[:5]
 
 
+def pip_values(front: int) -> list[int]:
+    """The six pip counts in FACES order, with ``front`` facing the viewer.
+
+    Opposite faces of a real dice sum to seven, so the back is set from the
+    front and the other four are paired off the same way. Without this every
+    cube showed a one on its front face whatever had been rolled, and the dice
+    flashed the wrong number as it came to rest.
+    """
+    front = max(1, min(6, int(front)))
+    back = 7 - front
+    rest = [v for v in (1, 2, 3, 4, 5, 6) if v not in (front, back)]
+    right, top = rest[0], rest[1]
+    # FACES order: front, right, top, left, bottom, back.
+    return [front, right, top, 7 - right, 7 - top, back]
+
+
 def _rotate(point, rx: float, ry: float, rz: float):
     x, y, z = point
     cx, sx = math.cos(rx), math.sin(rx)
@@ -98,6 +114,10 @@ def draw_die(draw, cx: float, cy: float, size: float, colour, void,
     """
     rx, ry, rz = (math.radians(a) for a in angles)
     half = 0.5
+    try:
+        pips = pip_values(int(detail))
+    except (TypeError, ValueError):
+        pips = [1, 2, 3, 4, 5, 6]
     scale = size * scale_factor
 
     for index, (normal, u_axis, v_axis) in enumerate(FACES):
@@ -121,8 +141,8 @@ def draw_die(draw, cx: float, cy: float, size: float, colour, void,
                          width=max(1, int(size * 0.03)))
 
         symbol = sides[index] if index < len(sides) else "pip"
-        pip_value = index + 1 if symbol == "pip" else detail
-        for points, role in dice_faces.face_geometry(symbol, pip_value):
+        face_detail = pips[index] if symbol == "pip" else detail
+        for points, role in dice_faces.face_geometry(symbol, face_detail):
             projected = [to_screen(px, py) for px, py in points]
             dice_faces._poly(draw, projected,
                              fill=edge if role == "ink" else void)

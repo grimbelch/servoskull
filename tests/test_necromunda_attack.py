@@ -1,0 +1,166 @@
+"""Resolving a Necromunda attack step by step (run: python -m pytest tests).
+
+The sequence is the one the core rulebook prints: a Hit roll, then Resolve Hits
+as Wound, Save and Inflict Damage (p76-77). These pin the arithmetic and the
+terseness of the report -- the skull is an arbiter calling numbers, not a
+narrator.
+"""
+
+import random
+
+import pytest
+
+from games.necromunda import attack, dice
+
+
+def seeded(seed=3):
+    return random.Random(seed)
+
+
+# ── the Strength vs Toughness table ───────────────────────────────────────────
+
+@pytest.mark.parametrize("strength,toughness,needed", [
+    (8, 4, 2),   # twice the Toughness or greater
+    (9, 4, 2),
+    (4, 3, 3),   # greater than
+    (3, 3, 4),   # equal to
+    (3, 4, 5),   # lower than
+    (2, 4, 6),   # half the Toughness or lower
+    (1, 4, 6),
+])
+def test_the_wound_table_is_the_printed_one(strength, toughness, needed):
+    assert attack.wound_target(strength, toughness) == needed
+
+
+def test_doubled_strength_beats_merely_greater():
+    """S8 against T4 is both "twice or greater" and "greater"; the table means 2+.
+
+    Checking "greater than" first would quietly cost every heavy weapon a point.
+    """
+    assert attack.wound_target(8, 4) == 2
+    assert attack.wound_target(7, 4) == 3
+
+
+# ── the sequence stops where the rules stop it ────────────────────────────────
+
+def test_a_miss_ends_the_attack():
+    result = attack.resolve(shots=1, ballistic_skill=6, strength=4, toughness=3,
+                            save=5, rng=random.Random(2))
+    if result["outcome"] == "missed":
+        assert [s["name"] for s in result["steps"]] == ["hit"]
+
+
+def test_an_attack_that_wounds_nothing_stops_at_the_wound_roll():
+    # Strength 1 against Toughness 6 needs a 6; with a certain hit and a seed
+    # that rolls low, the sequence must stop there.
+    for seed in range(40):
+        result = attack.resolve(shots=1, ballistic_skill=2, strength=1,
+                                toughness=6, save=4, rng=random.Random(seed))
+        names = [s["name"] for s in result["steps"]]
+        if result["outcome"] == "no wounds":
+            assert names == ["hit", "wound"]
+            return
+    pytest.fail("no seed produced a failed wound roll")
+
+
+def test_a_saved_wound_does_no_damage():
+    for seed in range(60):
+        result = attack.resolve(shots=1, ballistic_skill=2, strength=8,
+                                toughness=3, ap=0, save=2, rng=random.Random(seed))
+        if result["outcome"] == "all saved":
+            assert [s["name"] for s in result["steps"]] == ["hit", "wound", "save"]
+            return
+    pytest.fail("no seed produced a successful save")
+
+
+def test_armour_piercing_is_applied_to_the_save_roll():
+    """AP modifies the dice, so a -4 weapon beats a 4+ save every time."""
+    result = attack.resolve(shots=4, ballistic_skill=2, strength=8, toughness=3,
+                            ap=-4, save=4, lethality=1, rng=seeded())
+    save_step = next(s for s in result["steps"] if s["name"] == "save")
+    assert save_step["passed"] == 0
+
+
+def test_a_target_with_no_save_skips_the_save_roll():
+    result = attack.resolve(shots=2, ballistic_skill=2, strength=8, toughness=3,
+                            save=None, lethality=1, rng=seeded())
+    assert "save" not in [s["name"] for s in result["steps"]]
+
+
+# ── injury ────────────────────────────────────────────────────────────────────
+
+def test_injury_dice_are_only_rolled_at_zero_wounds():
+    """A Wound is lost first; the Injury dice come when the last one goes."""
+    tough = attack.resolve(shots=1, ballistic_skill=2, strength=8, toughness=3,
+                           save=None, lethality=2, wounds=3, rng=seeded())
+    assert "injury" not in [s["name"] for s in tough["steps"]]
+    assert tough["wounds_left"] == 2
+
+    frail = attack.resolve(shots=1, ballistic_skill=2, strength=8, toughness=3,
+                           save=None, lethality=2, wounds=1, rng=seeded())
+    assert "injury" in [s["name"] for s in frail["steps"]]
+
+
+def test_the_number_of_injury_dice_is_the_weapons_lethality():
+    for lethality in (1, 2, 3):
+        result = attack.resolve(shots=1, ballistic_skill=2, strength=8,
+                                toughness=3, save=None, lethality=lethality,
+                                wounds=1, rng=seeded())
+        step = next(s for s in result["steps"] if s["name"] == "injury")
+        assert len(step["injury"]["faces"]) == lethality
+
+
+def test_the_attack_reports_the_worst_injury_available():
+    result = attack.resolve(shots=1, ballistic_skill=2, strength=8, toughness=3,
+                            save=None, lethality=3, wounds=1, rng=seeded())
+    step = next(s for s in result["steps"] if s["name"] == "injury")
+    severity = dice.INJURY_SEVERITY
+    assert result["outcome"] == step["injury"]["most_severe"]
+    assert all(severity[f] <= severity[result["outcome"]]
+               for f in step["injury"]["faces"])
+
+
+# ── the report ────────────────────────────────────────────────────────────────
+
+def test_the_report_is_one_short_line_per_step():
+    """The whole point: an arbiter calls the numbers rather than narrating.
+
+    What this replaced ran to two hundred words of prose for a single roll.
+    """
+    result = attack.resolve(shots=3, ballistic_skill=4, strength=4, toughness=3,
+                            ap=-1, save=5, lethality=2, rng=seeded())
+    lines = attack.narration(result).splitlines()
+    assert len(lines) == len(result["steps"])
+    for line in lines:
+        assert len(line) < 110
+    assert len(attack.narration(result)) < 400
+
+
+def test_the_report_names_the_number_that_was_needed():
+    """A ruling you cannot check is worth little."""
+    result = attack.resolve(shots=2, ballistic_skill=4, strength=4, toughness=3,
+                            ap=0, save=5, lethality=1, rng=seeded())
+    text = attack.narration(result)
+    assert "4+" in text and "3+" in text
+
+
+# ── what the eye plays ────────────────────────────────────────────────────────
+
+def test_each_rolled_step_becomes_a_roll_on_the_eye():
+    result = attack.resolve(shots=3, ballistic_skill=4, strength=4, toughness=3,
+                            ap=-1, save=5, lethality=2, wounds=1, rng=seeded())
+    steps = attack.display_steps(result)
+    assert steps
+    for step in steps:
+        assert step["kind"] in ("d6", "injury")
+        assert step["faces"]
+        assert step["hold"] > 0
+
+
+def test_the_injury_step_shows_injury_symbols_not_pips():
+    result = attack.resolve(shots=1, ballistic_skill=2, strength=8, toughness=3,
+                            save=None, lethality=3, wounds=1, rng=seeded())
+    last = attack.display_steps(result)[-1]
+    assert last["kind"] == "injury"
+    assert set(last["faces"]) <= {"cross", "starburst", "skull"}
+    assert last["chosen"] >= 0

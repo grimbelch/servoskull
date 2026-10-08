@@ -239,6 +239,41 @@ def get_tools():
         },
     },
 {
+        "name": "necromunda_attack",
+        "description": (
+            "Resolve a complete Necromunda attack and play it out on the eye, one "
+            "step at a time: Hit roll, Wound roll, Save roll, then Injury dice if "
+            "the target is taken to zero Wounds. Use this whenever someone is "
+            "making an actual attack, rather than rolling the steps separately. "
+            "Look the weapon up with necromunda_weapon first if you do not know "
+            "its Strength, AP or Lethality. The tool returns one short line per "
+            "step; read those lines out in order, briefly, and do not invent "
+            "additional detail about the shot."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "shots": {"type": "integer", "minimum": 1,
+                          "description": "Number of Hit rolls to make."},
+                "ballistic_skill": {
+                    "type": "integer", "minimum": 2, "maximum": 6,
+                    "description": "The attacker's BS or WS as a target number (4 for 4+)."},
+                "strength": {"type": "integer", "description": "The weapon's Strength."},
+                "toughness": {"type": "integer", "description": "The target's Toughness."},
+                "ap": {"type": "integer",
+                       "description": "The weapon's Armour Piercing, e.g. -1. 0 if none."},
+                "save": {"type": "integer", "minimum": 2, "maximum": 6,
+                         "description": "The target's Save characteristic. Omit if it has none."},
+                "lethality": {"type": "integer", "minimum": 1,
+                              "description": "The weapon's Lethality (L): how many Injury dice."},
+                "wounds": {"type": "integer", "minimum": 0,
+                           "description": "The target's remaining Wounds. Defaults to 1."},
+                "weapon": {"type": "string", "description": "Weapon name, for the report."},
+            },
+            "required": ["shots", "ballistic_skill", "strength", "toughness"],
+        },
+    },
+{
         "name": "necromunda_weapon",
         "description": (
             "Get a Necromunda weapon's printed profile: short and long range, "
@@ -485,6 +520,37 @@ def _tool_roll_dice(i):
     _trigger_dice_effects()
     return res
 
+def _tool_necromunda_attack(i):
+    from games.necromunda import attack as _attack
+    kwargs = {
+        "shots": int(i.get("shots", 1)),
+        "ballistic_skill": int(i.get("ballistic_skill", 4)),
+        "strength": int(i.get("strength", 3)),
+        "toughness": int(i.get("toughness", 3)),
+        "ap": int(i.get("ap", 0)),
+        "lethality": int(i.get("lethality", 1)),
+        "wounds": int(i.get("wounds", 1)),
+        "weapon": str(i.get("weapon", "")),
+    }
+    save = i.get("save")
+    kwargs["save"] = int(save) if save is not None else None
+    print(f"[skull] Necromunda attack: {kwargs['shots']} shot(s) at "
+          f"{kwargs['ballistic_skill']}+, S{kwargs['strength']} vs T{kwargs['toughness']}")
+    result = _attack.resolve(**kwargs)
+    # The eye plays the steps on its own clock while the skull talks through
+    # them, so this returns at once rather than sleeping between rolls.
+    try:
+        _display.start_die_sequence(_attack.display_steps(result))
+    except Exception as e:
+        print(f"[brain] Attack display failed: {e}")
+    try:
+        from core import sfx as _sfx
+        _sfx.play("dice_roll")
+    except Exception as e:
+        print(f"[brain] SFX play failed: {e}")
+    return _attack.narration(result)
+
+
 def _tool_necromunda_weapon(i):
     name = i.get("name", "")
     print(f"[skull] Looking up Necromunda weapon: {name}")
@@ -570,6 +636,7 @@ def get_handlers():
     return {
         "necromunda_rules": _tool_necromunda_rules,
         "necromunda_weapon": _tool_necromunda_weapon,
+        "necromunda_attack": _tool_necromunda_attack,
         "warhammer40k_rules": _tool_warhammer40k_rules,
         "netepic_rules": _tool_netepic_rules,
         "netea_rules": _tool_netea_rules,
