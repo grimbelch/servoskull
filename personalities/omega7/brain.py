@@ -179,9 +179,11 @@ def get_tools():
 {
         "name": "roll_dice",
         "description": (
-            "Simulate dice rolls for Warhammer 40k or Necromunda attacks. "
-            "Runs the complete roll sequence (hits, wounds, saves, and optionally Feel No Pain) "
-            "and returns a detailed step-by-step result including rerolls."
+            "Simulate a Warhammer 40,000 attack: the complete roll sequence of "
+            "hits, wounds, saves and optionally Feel No Pain, with rerolls. This "
+            "is the 40k sequence and is wrong for Necromunda, which rolls Wound "
+            "against a Strength/Toughness table, saves with Armour Piercing and "
+            "then Injury dice - use necromunda_attack for that."
         ),
         "input_schema": {
             "type": "object",

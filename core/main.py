@@ -1245,9 +1245,20 @@ def _h_spotify_volume(intent, turn: _Turn) -> bool:
 def _h_dice(intent, turn: _Turn) -> bool:
     a = intent.args
     if a["game"] == "necromunda":
-        result = brain._execute_tool("roll_necromunda_dice", {"count": a["count"], "dice_type": a["dice_type"]})
+        result = brain._execute_tool(
+            "roll_necromunda_dice",
+            {"count": a["count"], "dice_type": a["dice_type"]})
+    elif a.get("sides") == 6 and "necromunda" in brain.get_current_game().lower():
+        # While Necromunda is the active game, a plain D6 is Necromunda's D6:
+        # rolled by its own roller and shown on its own dice. Asking for "three
+        # D6" mid-game should not quietly fall through to a generic roller.
+        result = brain._execute_tool(
+            "roll_necromunda_dice",
+            {"count": a["count"], "dice_type": "d6", "target": a["target"]})
     else:
-        result = brain._execute_tool("roll_standard_dice", {"count": a["count"], "sides": a["sides"], "target": a["target"]})
+        result = brain._execute_tool(
+            "roll_standard_dice",
+            {"count": a["count"], "sides": a["sides"], "target": a["target"]})
     _say(turn, result)
     return True
 

@@ -403,10 +403,17 @@ def get_active_tools_for_game(game_name: str) -> list[dict]:
     whfrp_tools |= {
         name for name in (t.get("name") for t in _TOOLS) if name and name.startswith("whfrp_")
     }
-    w40k_tools = {"warhammer40k_rules"}
-    necro_tools = {"necromunda_rules", "necromunda_weapon", "necromunda_attack"}
-    netepic_tools = {"netepic_rules"}
-    netea_tools = {"netea_rules"}
+    # roll_dice runs the 40k hit/wound/save/FNP sequence, which is not how
+    # Necromunda resolves an attack. Offering it everywhere is how a
+    # Necromunda attack came to be rolled with 40k arithmetic.
+    w40k_tools = {"warhammer40k_rules", "roll_dice"}
+    necro_tools = {"necromunda_rules", "necromunda_weapon", "necromunda_attack",
+                   "roll_necromunda_dice"}
+    # roll_epic_dice resolves Epic's firefights and close assaults, which has
+    # nothing to do with any other game on the shelf. Like roll_dice it is
+    # gated, so whichever game is active, the dice offered are that game's.
+    netepic_tools = {"netepic_rules", "roll_epic_dice"}
+    netea_tools = {"netea_rules", "roll_epic_dice"}
 
     all_game_specific = whfrp_tools | w40k_tools | necro_tools | netepic_tools | netea_tools
 

@@ -164,3 +164,43 @@ def test_the_injury_step_shows_injury_symbols_not_pips():
     assert last["kind"] == "injury"
     assert set(last["faces"]) <= {"cross", "starburst", "skull"}
     assert last["chosen"] >= 0
+
+
+# ── the active game decides which dice are on the table ───────────────────────
+
+def dice_tools(game):
+    from core import brain
+    names = [t["name"] for t in brain.get_active_tools_for_game(game)]
+    return {n for n in names if "roll" in n or "attack" in n}
+
+
+def test_necromunda_is_offered_only_necromundas_own_dice():
+    """Another game's attack sequence is the wrong arithmetic for this one.
+
+    A Necromunda attack was being rolled with roll_dice, the 40k hit/wound/save
+    sequence, because that tool was offered whatever was being played.
+    """
+    tools = dice_tools("necromunda")
+    assert "necromunda_attack" in tools
+    assert "roll_necromunda_dice" in tools
+    assert "roll_dice" not in tools        # the 40k sequence
+    assert "roll_epic_dice" not in tools   # Epic's firefights
+
+
+def test_other_games_are_not_offered_necromundas_dice():
+    """The gate has to hold both ways: Injury dice are not a 40k concept."""
+    for game in ("warhammer 40k", "netepic", "whfrp"):
+        assert "roll_necromunda_dice" not in dice_tools(game)
+        assert "necromunda_attack" not in dice_tools(game)
+
+
+def test_each_game_keeps_its_own_attack_roller():
+    assert "roll_dice" in dice_tools("warhammer 40k")
+    assert "roll_epic_dice" in dice_tools("netepic")
+    assert "whfrp_resolve_attack" in dice_tools("whfrp")
+
+
+def test_a_plain_dice_roll_is_still_available_everywhere():
+    """"Roll a d20" should work whatever is on the table."""
+    for game in ("necromunda", "warhammer 40k", "whfrp"):
+        assert "roll_standard_dice" in dice_tools(game)
