@@ -1,6 +1,8 @@
 from __future__ import annotations
 import queue
 import threading
+from collections import deque
+import pathlib
 from math import gcd
 
 import numpy as np
@@ -12,6 +14,10 @@ from core.config import WAKE_WORD_MODEL, MIC_DEVICE_INDEX, WAKE_WORD_THRESHOLD
 
 TARGET_RATE = 16000
 CHUNK = 1280  # 80 ms at 16 kHz — minimum required by openwakeword
+# Keep the last ~2 s of 16 kHz audio so a detection can be written out as a clip.
+# False triggers are only fixable by retraining the model on the room noise that
+# causes them, and that needs the actual audio, not just the score in the log.
+_CAPTURE_CHUNKS = 25
 THRESHOLD = WAKE_WORD_THRESHOLD
 
 # Build the openWakeWord model ONCE and reuse it. Constructing a Model spins up
@@ -69,6 +75,7 @@ def wait_for_wake_word(on_detected=None, cancel=None) -> bool:
     dev = MIC_DEVICE_INDEX if MIC_DEVICE_INDEX >= 0 else None
 
     q: queue.Queue = queue.Queue()
+    _recent: deque = deque(maxlen=_CAPTURE_CHUNKS)
 
     def _cb(indata, frames, time_info, status):
         q.put(indata.copy())
@@ -87,6 +94,7 @@ def wait_for_wake_word(on_detected=None, cancel=None) -> bool:
                 except queue.Empty:
                     continue
                 audio = _to_target(raw.flatten(), native)
+                _recent.append(audio)
                 rms = float(np.sqrt(np.mean(audio.astype(np.float32) ** 2)))
                 predictions = oww.predict(audio)
                 score = max(predictions.values()) if predictions else 0.0
@@ -96,6 +104,8 @@ def wait_for_wake_word(on_detected=None, cancel=None) -> bool:
                     print(f"[ww] rms={rms:.0f} score={score:.3f} (need >={threshold:.2f})")
                 if score >= threshold:
                     print(f"[skull] Wake word detected! (score={score:.3f} >= {threshold:.2f})")
+                    if getattr(_cfg, "WAKE_CAPTURE", False):
+                        _save_trigger_clip(_recent, score)
 
                     oww.reset()
                     if on_detected:
@@ -113,3 +123,25 @@ def wait_for_wake_word(on_detected=None, cancel=None) -> bool:
         time.sleep(backoff)
         return False
 
+def _save_trigger_clip(chunks, score: float) -> None:
+    """Write the audio that just fired the model to a wav for later retraining.
+
+    Clips land in WAKE_CAPTURE_DIR named by score and timestamp. Sort the real
+    summons from the false ones by ear, then feed the false ones back to
+    openWakeWord as hard negatives — that is the only thing that actually
+    separates them, since true and false scores overlap almost completely.
+    """
+    import time
+    import scipy.io.wavfile as _wf
+    from core import config as _c
+    try:
+        if not chunks:
+            return
+        out_dir = pathlib.Path(_c.WAKE_CAPTURE_DIR).expanduser()
+        out_dir.mkdir(parents=True, exist_ok=True)
+        clip = np.concatenate(list(chunks))
+        path = out_dir / f"wake_{time.strftime('%Y%m%d-%H%M%S')}_score{score:.3f}.wav"
+        _wf.write(str(path), TARGET_RATE, clip.astype(np.int16))
+        print(f"[ww] saved trigger clip: {path}")
+    except Exception as e:
+        print(f"[ww] could not save trigger clip: {e}")

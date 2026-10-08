@@ -502,6 +502,16 @@ RECORD_SECONDS = 10
 # LOWER = more sensitive to quiet speech (but more prone to picking up background
 # noise); raise it if it starts transcribing ambient hum. Recorder floor is ~300.
 SILENCE_THRESHOLD = int(_cfg("SILENCE_THRESHOLD", "180"))
+# A wake followed by near-total silence was a false trigger on ambient noise, not a
+# summons. Below this fraction of SILENCE_THRESHOLD nobody spoke at all, so the skull
+# stays quiet instead of announcing itself to an empty room; above it, someone spoke
+# too quietly and still deserves an answer.
+FALSE_WAKE_RMS_RATIO = float(_cfg("FALSE_WAKE_RMS_RATIO", "0.55"))
+# Save the ~2 s of audio behind every wake detection. True and false wake scores
+# overlap almost completely, so no threshold separates them; retraining the model
+# on the room's own false triggers is the only real fix, and that needs the audio.
+WAKE_CAPTURE = _cfg("WAKE_CAPTURE", "false").strip().lower() in ("1", "true", "yes", "on")
+WAKE_CAPTURE_DIR = _cfg("WAKE_CAPTURE_DIR", str(USER_DATA_DIR / "wake_clips"))
 # Software gain applied to the microphone as PipeWire's source volume (1.0 = none).
 # The USB codec's analog gain is already at its top and speech still peaked near 5%
 # of full scale, which starved the VAD and the transcribers. PipeWire's volume

@@ -146,6 +146,49 @@ def test_honorific_ignores_non_titles(text):
     assert intents.honorific(text, Context()) is None
 
 
+# -- response length ----------------------------------------------------------
+
+@pytest.mark.parametrize("text,mode", [
+    ("short answers", "SHORT"),
+    ("omega 7 short answers please", "SHORT"),
+    ("give me shorter answers", "SHORT"),
+    ("be brief", "SHORT"),
+    ("keep it short", "SHORT"),
+    ("be more concise", "SHORT"),
+    ("answer concisely", "SHORT"),
+    ("terse mode", "SHORT"),
+    ("long answers", "LONG"),
+    ("long answers from now on", "LONG"),
+    ("speak freely", "LONG"),
+    ("be verbose", "LONG"),
+    ("give me detailed answers", "LONG"),
+    ("don't hold back", "LONG"),
+    ("normal answers", "NORMAL"),
+    ("back to normal answers", "NORMAL"),
+    ("default response length", "NORMAL"),
+    ("answer normally", "NORMAL"),
+    ("standard mode", "NORMAL"),
+])
+def test_response_length_forms(text, mode):
+    assert intents.response_length(text, Context()).args == {"mode": mode}
+
+
+@pytest.mark.parametrize("text", [
+    "take a short rest",                            # WFRP rules term
+    "tell me a long story",
+    "how long until the print is done",
+    "give me a brief history of the horus heresy",   # 'brief' as an adjective, not a directive
+    "what is the full name of the primarch",
+    "the detailed rules for overwatch",
+    "is that the standard pattern bolter",
+    "that was a quick game",
+    "roll a d6",
+    "set volume to 50",
+])
+def test_response_length_ignores_unrelated(text):
+    assert intents.response_length(text, Context()) is None
+
+
 # ── voice / web / cache / tts ─────────────────────────────────────────────────
 
 def test_voice_registration():

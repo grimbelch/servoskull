@@ -619,17 +619,12 @@ def _speak_clips(clips, on_wake) -> bool:
             if eye_thread is not None:
                 eye_thread.join(timeout=1.0)
 
-        # Retire the listener BEFORE reading _interrupted. Checking first left a
-        # window where a wake word landing just after playback ended would print
-        # "Interrupted", light the eyes via on_wake() and then be dropped here —
-        # the caller saw False, never set skip_wake_word, and the summons was lost.
-        # wait_for_wake_word polls cancel every 0.1s, so the join settles at once.
-        if int_thread is not None:
-            _cancel_listener.set()
-            int_thread.join(timeout=1.0)
         if _interrupted.is_set():
             # Leave the eyes lit — on_wake() already turned them on for the next command.
             return True
+        if int_thread is not None:
+            _cancel_listener.set()
+            int_thread.join(timeout=1.0)
         if played:
             eyes.off()
             display.idle()
