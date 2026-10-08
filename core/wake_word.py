@@ -128,17 +128,18 @@ def wait_for_wake_word(on_detected=None, cancel=None, threshold=None) -> bool:
                     print(f"[skull] Wake word detected! (score={score:.3f} >= {thr:.2f}, {mode})")
                     if getattr(_cfg, "WAKE_CAPTURE", False):
                         _save_trigger_clip(_recent, score, mode, fired=True)
-                elif getattr(_cfg, "WAKE_CAPTURE", False) and score >= getattr(_cfg, "WAKE_CAPTURE_FLOOR", 0.25):
-                    # A near miss. Choosing a barge-in threshold means knowing what
-                    # the summons that did NOT fire scored, and those leave no other
-                    # trace — the log only ever records successes.
-                    print(f"[ww] near miss: score={score:.3f} < {thr:.2f} ({mode})")
-                    _save_trigger_clip(_recent, score, mode, fired=False)
 
                     oww.reset()
                     if on_detected:
                         on_detected()
                     return True
+                if getattr(_cfg, "WAKE_CAPTURE", False) and score >= getattr(_cfg, "WAKE_CAPTURE_FLOOR", 0.25):
+                    # A near miss. Choosing a barge-in threshold means knowing what
+                    # the summons that did NOT fire scored, and those leave no other
+                    # trace — the log only ever records successes. Capture only:
+                    # a miss is a miss, and must never stand in for a detection.
+                    print(f"[ww] near miss: score={score:.3f} < {thr:.2f} ({mode})")
+                    _save_trigger_clip(_recent, score, mode, fired=False)
 
     except Exception as e:
         _ww_consecutive_failures += 1
