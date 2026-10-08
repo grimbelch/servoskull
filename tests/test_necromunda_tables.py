@@ -162,3 +162,49 @@ def test_a_d66_table_is_not_expected_to_cover_every_number():
         {"roll_label": "11", "roll_min": 11, "roll_max": 11, "result": "a"},
         {"roll_label": "21-26", "roll_min": 21, "roll_max": 26, "result": "b"}]}
     assert randtables._missing_results(table) == []
+
+
+# ── a printed diagram is not part of the rule ─────────────────────────────────
+
+@pytest.mark.parametrize("line", [
+    '~-+--+-+---+--+-+-+-+--+--+-1 ! 6"',
+    'l------l----+-- 1------1----+-- f---j-------f-- 6 "',
+    '___,___.. +---------t _.. _ --+',
+    '9" I', '12" 12"', '-+ -+ --', 'I I', '7-r-',
+])
+def test_a_deployment_diagram_is_recognised_as_debris(line):
+    """The scenario pages print a map beside each result.
+
+    Its rules and hatching come through the text layer. One run was appended to
+    a result; another, "9\" I", passed for a heading and titled a table with
+    itself, which split the Deployment table's last two results off and then
+    blocked them from merging back -- so the table answered "not on the table"
+    for a roll of 4 or 6.
+    """
+    assert randtables._is_rubble(line)
+
+
+@pytest.mark.parametrize("line", [
+    "Sniping Range: The winner of a roll-off chooses a battlefield edge",
+    "DEPLOYMENT TABLE",
+    "Ambush: The defender's deployment zone is anywhere on the battlefield",
+    "Status",
+    "Dash",
+])
+def test_words_are_not_debris(line):
+    assert not randtables._is_rubble(line)
+
+
+def test_results_are_ordered_by_their_roll():
+    """The Deployment table is printed two cards to a row across a spread.
+
+    Read in band order its results arrive 1, 2, 3, 5, 4, 6.
+    """
+    tables = randtables._merge_fragments([{
+        "title": "DEPLOYMENT TABLE", "dice": "D6", "columns": ["Deployment", "Zone"],
+        "heading": "", "page": 145, "result_x": 107.0,
+        "rows": [{"roll_label": str(n), "roll_min": n, "roll_max": n,
+                  "result": f"result {n}"} for n in (1, 2, 3, 5, 4, 6)],
+    }])
+    assert [r["roll_label"] for r in tables[0]["rows"]] == ["1", "2", "3", "4", "5", "6"]
+    assert tables[0]["missing"] == []

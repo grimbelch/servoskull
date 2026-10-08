@@ -296,6 +296,24 @@ def get_tools():
         },
     },
 {
+        "name": "necromunda_subtype",
+        "description": (
+            "A Fighter's or Vehicle's Subtype rule - Champion, Mounted, Pet, "
+            "Skimmer, Transport (X) and the rest. The book prints a Loner in "
+            "both lists with different rules, so pass applies_to when the "
+            "player has said which they mean. Call with no name to list them."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string",
+                         "description": "Subtype name, e.g. 'Mounted'. Omit to list all."},
+                "applies_to": {"type": "string", "enum": ["fighter", "vehicle"],
+                               "description": "Which list, when it is known."},
+            },
+        },
+    },
+{
         "name": "necromunda_table",
         "description": (
             "Look up or roll on one of Necromunda's random tables - Lasting "
@@ -636,6 +654,13 @@ def _tool_necromunda_territory(i):
     return rules_tools.territory(name)
 
 
+def _tool_necromunda_subtype(i):
+    from games.necromunda import rules_tools
+    name = i.get("name", "")
+    print(f"[skull] Necromunda subtype: {name or '(all)'}")
+    return rules_tools.model_subtype(name, i.get("applies_to", ""))
+
+
 def _tool_necromunda_table(i):
     table = i.get("table", "")
     roll = i.get("roll")
@@ -781,6 +806,7 @@ def get_handlers():
         "necromunda_table": _tool_necromunda_table,
         "necromunda_actions": _tool_necromunda_actions,
         "necromunda_territory": _tool_necromunda_territory,
+        "necromunda_subtype": _tool_necromunda_subtype,
         "warhammer40k_rules": _tool_warhammer40k_rules,
         "netepic_rules": _tool_netepic_rules,
         "netea_rules": _tool_netea_rules,

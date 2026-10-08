@@ -47,6 +47,7 @@ from . import randtables as randtables_mod
 from . import sections as sections_mod
 from . import skills as skills_mod
 from . import tables
+from . import subtypes as subtypes_mod
 from . import territories as territories_mod
 from . import traits as traits_mod
 
@@ -57,7 +58,11 @@ DEFAULT_TITLE = "Necromunda Skirmish: Core Rulebook"
 # Front and back matter carry no rules: the contents list and the index are just
 # page pointers, and indexing them would put a bare letter heading ("A", "B")
 # into search results ahead of real rules.
-_SKIP_CHAPTERS = {"contents", "index", ""}
+_SKIP_CHAPTERS = {"contents", "index", "", "model-showcase",
+                  "necromunda-battlefield-showcase"}
+# A heading with almost nothing under it is a label on a photograph or a blank
+# form, not a rule. Indexed, they answer questions with a bare caption.
+_MIN_SECTION_WORDS = 5
 
 _INT_OK = str.maketrans({'"': "", "*": "", "+": "", "’": ""})
 
@@ -193,6 +198,9 @@ def ingest(pdf_path: pathlib.Path, slug: str = DEFAULT_SLUG,
     if pymupdf is None:
         raise RuntimeError(_NO_PYMUPDF)
     doc = pymupdf.open(pdf_path)
+    # Before anything reads prose: what a hyphen at the end of a line meant is
+    # decided against the words this book uses.
+    sections_mod.load_vocabulary(doc)
     tree = sections_mod.build_tree(doc)
     offset, support = _derive_page_offset(doc, tree)
     print(f"[necromunda] Printed-page offset: {offset} (agreed by {support} contents entries)")
@@ -213,7 +221,8 @@ def ingest(pdf_path: pathlib.Path, slug: str = DEFAULT_SLUG,
 
             counts = {"sections": 0, "weapons": 0, "traits": 0, "skills": 0,
                       "conditions": 0, "equipment": 0, "actions": 0,
-                      "territories": 0, "tables": 0, "table_rows": 0}
+                      "territories": 0, "subtypes": 0,
+                      "tables": 0, "table_rows": 0}
             section_ids: dict[tuple[str, str, str], int] = {}
 
             # --- prose layer -------------------------------------------------
@@ -247,6 +256,8 @@ def ingest(pdf_path: pathlib.Path, slug: str = DEFAULT_SLUG,
                     sections_mod.slugify(item["title"]),
                 ) if p)
                 body = item["body"]
+                if len(body.split()) < _MIN_SECTION_WORDS:
+                    continue
                 sec_id = conn.execute(
                     "INSERT INTO rule_sections (rulebook_id, parent_id, chapter_id,"
                     " level, ordinal, doc_order, kind, slug, path, title, body_md,"
@@ -342,6 +353,22 @@ def ingest(pdf_path: pathlib.Path, slug: str = DEFAULT_SLUG,
                      action["status"], action["description"], action["page"]))
                 counts["actions"] += 1
 
+            # --- model subtypes ----------------------------------------------
+            for subtype in subtypes_mod.extract(doc):
+                conn.execute(
+                    "INSERT INTO rule_subtypes (rulebook_id, slug, name,"
+                    " applies_to, takes_value, description, page)"
+                    " VALUES (?,?,?,?,?,?,?)",
+                    (book_id,
+                     # Fighter and Vehicle each have a Loner, so the list has
+                     # to be part of the key.
+                     sections_mod.slugify(
+                         f"{subtype['name']}-{subtype['applies_to']}"),
+                     subtype["name"].title(), subtype["applies_to"],
+                     int(subtype["takes_value"]), subtype["description"],
+                     subtype["page"]))
+                counts["subtypes"] += 1
+
             # --- territories -------------------------------------------------
             for territory in territories_mod.extract(doc):
                 conn.execute(
@@ -357,12 +384,20 @@ def ingest(pdf_path: pathlib.Path, slug: str = DEFAULT_SLUG,
             # --- random tables -----------------------------------------------
             # Rows keep their parsed span, so resolving a roll is an index
             # lookup rather than a parse of "21-26" at the table.
-            for table in randtables_mod.extract(doc):
+            # The Panicked Pets table is a Status-to-Action lookup printed
+            # inside the Pet subtype, not a dice table, so it comes from the
+            # subtype extractor; its rows carry no roll span.
+            found_tables = randtables_mod.extract(doc)
+            panicked = subtypes_mod.panicked_table(doc)
+            if panicked is not None:
+                found_tables.append(panicked)
+            for table in found_tables:
                 table_id = conn.execute(
                     "INSERT INTO rule_tables (rulebook_id, slug, title, kind,"
                     " dice, columns_json, notes, page) VALUES (?,?,?,?,?,?,?,?)",
                     (book_id, sections_mod.slugify(table["title"]), table["title"],
-                     _table_kind(table["title"]), table["dice"],
+                     table.get("kind") or _table_kind(table["title"]),
+                     table["dice"],
                      json.dumps(table["columns"]),
                      ("No row was recovered for: "
                       + ", ".join(str(m) for m in table["missing"]))
@@ -415,6 +450,7 @@ def _build_search_index(conn, book_id: int) -> None:
             ("rule_conditions", "condition", "kind", "description"),
             ("rule_actions", "action", "cost", "description"),
             ("rule_equipment", "equipment", "category", "description"),
+            ("rule_subtypes", "subtype", "applies_to", "description"),
             ("rule_territories", "territory", "boons_json", "battlefield_effect")):
         for row in conn.execute(
                 f"SELECT id, name, {body} AS description, page, {extra} AS extra"

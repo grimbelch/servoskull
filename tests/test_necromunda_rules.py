@@ -168,6 +168,45 @@ def test_hyphenated_line_breaks_are_rejoined():
     assert "Seriously Injured instead." in joined
 
 
+def test_a_real_compound_keeps_its_hyphen():
+    """A hyphen at a line end is either a break or part of the word.
+
+    The book settles it: closed up, "In-/jured" is "injured", a word it uses
+    everywhere, while there is no such word as "Ammojack" or "stimmslug".
+    Dropping the hyphen always lost the term a reader would search for -- the
+    Post-cycle Sequence was stored as "Postcycle".
+    """
+    vocabulary = frozenset(
+        {"injured", "become", "fighter", "the", "model", "gang", "jack",
+         "off", "roll", "cycle", "post"})
+    original = sections._VOCABULARY
+    sections._VOCABULARY = vocabulary
+    try:
+        assert sections._join_prose(
+            ["hire an Ammo-", "Jack for the gang"]) == "hire an Ammo-Jack for the gang"
+        assert sections._join_prose(
+            ["a stimm-", "slug stash"]) == "a stimm-slug stash"
+        assert sections._join_prose(
+            ["during the Post-", "cycle Sequence"]) == "during the Post-cycle Sequence"
+        # Still closed up, because the book knows the closed-up word.
+        assert sections._join_prose(
+            ["they be-", "come Suppressed"]) == "they become Suppressed"
+        assert sections._join_prose(
+            ["the model is In-", "jured"]) == "the model is Injured"
+    finally:
+        sections._VOCABULARY = original
+
+
+def test_without_a_vocabulary_the_hyphen_closes_up():
+    """``_join_prose`` stays pure for anyone calling it without a document."""
+    original = sections._VOCABULARY
+    sections._VOCABULARY = frozenset()
+    try:
+        assert sections._join_prose(["an Ammo-", "Jack"]) == "an AmmoJack"
+    finally:
+        sections._VOCABULARY = original
+
+
 def test_slugify_makes_a_path_safe_token():
     assert sections.slugify("AUTO/STUB WEAPONS") == "auto-stub-weapons"
     assert sections.slugify("BATTLEFIELD SET-UP & SCENARIOS") == "battlefield-set-up-scenarios"

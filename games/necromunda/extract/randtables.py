@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 
-from . import layout
+from . import layout, sections
 
 # The dice a table is rolled on, as printed in its header cell.
 _DICE = re.compile(r"^(D3|D6|D66|D100|2D6|3D6)$", re.I)
@@ -36,6 +36,27 @@ def _parse_roll(label: str):
     if match.group("plus"):
         return low, 999
     return low, low
+
+
+def _is_rubble(text: str) -> bool:
+    """True when a line is OCR debris from a printed diagram, not words.
+
+    The scenario pages print a deployment map beside each result, and its rules,
+    arrows and hatching come through the text layer as runs like
+    ``~-+--+-+---+--+-+-+-+--+--+-1`` and ``9" I``. Two of them did real damage:
+    one was appended to a result, and one passed for a heading and took a title
+    from it -- which split the Deployment table's last two results into a
+    fragment called ``9" I`` and then blocked them from merging back, so the
+    table answered "not on the table" for a roll of 4 or 6.
+
+    Words are what a rule is made of, so the test is whether the line is mostly
+    letters.
+    """
+    dense = [c for c in text if not c.isspace()]
+    if not dense:
+        return True
+    letters = sum(1 for c in dense if c.isalpha())
+    return letters < 4 or letters < len(dense) * 0.6
 
 
 def _side_by_side_split(rows) -> float | None:
@@ -82,8 +103,13 @@ def extract(doc) -> list[dict]:
             if _TITLE.search(text) and len(text) < 60:
                 title = text
                 continue
-            if layout.is_heading({"text": text, "size": 12, "bold": 1.0,
-                                  "display": 1.0}) and len(text) < 60:
+            # Only real words can title a table. The dict handed to is_heading
+            # claims display type, because word_rows carries no font, so
+            # without this any short line at all became a heading.
+            if (not _is_rubble(text) and text == text.upper()
+                    and layout.is_heading({"text": text, "size": 12,
+                                           "bold": 1.0, "display": 1.0})
+                    and len(text) < 60):
                 heading = text
                 continue
 
@@ -110,10 +136,15 @@ def extract(doc) -> list[dict]:
                 # five side-by-side blocks beneath a single heading.
                 same_heading = previous is not None and (
                     heading == "" or heading == previous.get("heading", ""))
+                # Where this block's result column begins, for telling its own
+                # wrapped lines from a neighbour's. The cards are printed side
+                # by side, so each repeat of the header moves it.
+                result_x = row[1][0] if len(row) > 1 else None
                 if (not title and same_heading and previous is not None
                         and previous["dice"] == words[0].upper()
                         and previous["columns"] == columns):
                     current = previous
+                    current["result_x"] = result_x
                     out.remove(previous) if previous in out else None
                     continue
                 current = {
@@ -122,6 +153,7 @@ def extract(doc) -> list[dict]:
                     "columns": columns,
                     "heading": heading,
                     "page": page_no,
+                    "result_x": result_x,
                     "rows": [],
                 }
                 continue
@@ -131,9 +163,23 @@ def extract(doc) -> list[dict]:
 
             span = _parse_roll(words[0])
             if span is None:
-                # No roll of its own: the previous result running on.
+                # No roll of its own: the previous result running on. Diagram
+                # debris sits between the cards and is not part of either.
+                if _is_rubble(text):
+                    continue
+                # A wrapped line of a result sits under the result column. Text
+                # starting well away from it belongs to another block: the
+                # Deployment table's first result ran on into the right-hand
+                # half of the page's own two-column introduction.
+                anchor = current.get("result_x")
+                if anchor is not None and abs(row[0][0] - anchor) > 20:
+                    continue
                 if current["rows"] and len(text) < 120:
-                    current["rows"][-1]["result"] += f" {text}"
+                    previous_result = current["rows"][-1]["result"]
+                    match = sections._HYPHEN_BREAK.search(previous_result)
+                    current["rows"][-1]["result"] = (
+                        previous_result[: match.end()] + text
+                        if match else f"{previous_result} {text}")
                     continue
                 # Anything else ends the table.
                 if current["rows"]:
@@ -183,6 +229,11 @@ def _merge_fragments(tables: list[dict]) -> list[dict]:
             continue
         merged.append(table)
     kept = [t for t in merged if len(t["rows"]) >= 3]
+    for table in kept:
+        # Side-by-side blocks arrive in band order, not roll order, so the
+        # Deployment table came back 1, 2, 3, 5, 4, 6.
+        table["rows"].sort(
+            key=lambda r: (r["roll_min"] if r["roll_min"] is not None else 0))
     for table in kept:
         table["missing"] = _missing_results(table)
     return kept

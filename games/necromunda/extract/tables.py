@@ -105,6 +105,17 @@ def looks_contaminated(traits: str) -> bool:
     return bool(traits) and (len(traits) > 80 or bool(_PROSE_IN_CELL.search(traits)))
 
 
+# "S" means the wielder's own Strength, and "S+2" that plus a modifier. The
+# scan reads the capital as lower case on about half the close combat weapons,
+# and a profile that says "Strength: s" reads like a defect.
+_USER_STRENGTH = re.compile(r"^s(\+\d+)?$")
+
+
+def normalise_strength(text: str) -> str:
+    match = _USER_STRENGTH.match((text or "").strip())
+    return f"S{match.group(1) or ''}" if match else (text or "").strip()
+
+
 def clean_name(text: str) -> tuple[str, bool]:
     """A weapon/equipment name with OCR noise stripped, and whether it was marked.
 
@@ -267,13 +278,17 @@ def weapon_rows(doc, anchors: list[float]) -> list[dict]:
             if not name:
                 continue
             is_variant = label.lstrip(" ·•").startswith("-") or name.startswith("-")
+            # The label is cells[0] and is carried separately, so the emitted
+            # row starts at SR. Strength is its third column.
+            stats = cells[1:]
+            stats[2] = normalise_strength(stats[2])
             out.append({
                 "page": page_no,
                 "category": category,
                 "name": clean_name(name.lstrip("- "))[0] if is_variant else name,
                 "is_variant": is_variant,
                 "marked": marked,
-                "cells": cells[1:],
+                "cells": stats,
                 "raw_label": label,
                 "needs_review": False,
             })

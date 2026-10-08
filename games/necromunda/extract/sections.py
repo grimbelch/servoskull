@@ -55,6 +55,55 @@ def _is_tabular(text: str) -> bool:
     return hits >= max(3, len(tokens) * 0.6)
 
 
+# Words the book uses, lowercased, for deciding what a hyphen at the end of a
+# line meant. Set once per document by ``load_vocabulary``; empty until then,
+# which keeps ``_join_prose`` a pure function for anyone calling it directly.
+_VOCABULARY: frozenset[str] = frozenset()
+
+
+def load_vocabulary(doc) -> None:
+    """Record the words the book uses, for repairing hyphens at line ends.
+
+    A hyphen at the end of a line is ambiguous: in "Seriously In-/jured" it is
+    a word split across lines and must close up, while in "Ammo-/Jack" and
+    "Post-/cycle" it is part of the word and must stay. Dropping it always gave
+    "Ammojack" and "Postcycle" and lost the term a reader would search for;
+    keeping it always gave "In-jured".
+
+    The book itself settles each case; see ``_keeps_hyphen``. A word is only
+    counted if it appears at least twice, so a single OCR mangling cannot
+    install itself as the book's spelling.
+    """
+    global _VOCABULARY
+    counts: dict[str, int] = {}
+    strip = ".,:;()[]\"'\u201c\u201d\u2018\u2019!?*\u2022"
+    for page_no in range(doc.page_count):
+        for word in doc.load_page(page_no).get_text().split():
+            token = word.strip(strip).lower()
+            if token.isalpha():
+                counts[token] = counts.get(token, 0) + 1
+    _VOCABULARY = frozenset(w for w, n in counts.items() if n >= 2)
+
+
+def _keeps_hyphen(before: str, after: str) -> bool:
+    """True when a hyphen ending a line is part of the word, not a break.
+
+    The book settles it in one question: closed up, are the two halves a word
+    it uses? A word broken across lines is still that word, and the book will
+    have used it unbroken elsewhere -- "In-/jured" closes to "injured", which
+    appears on nearly every page of the injury rules. A real compound closes to
+    nothing: there is no "ashcaked", no "Ammojack", no "stimmslug". So the
+    hyphen stays unless closing it up produces a word the book knows.
+    """
+    if not _VOCABULARY:
+        return False
+    tail = re.search(r"(\w+)-$", before)
+    head = re.match(r"(\w+)", after)
+    if not tail or not head:
+        return False
+    return f"{tail.group(1)}{head.group(1)}".lower() not in _VOCABULARY
+
+
 def _join_prose(lines: list[str]) -> str:
     """Join wrapped lines into paragraphs, repairing hyphen breaks."""
     out: list[str] = []
@@ -68,7 +117,10 @@ def _join_prose(lines: list[str]) -> str:
             continue
         match = _HYPHEN_BREAK.search(buf)
         if match:
-            buf = buf[: match.start(1) + 1] + text
+            # Keep a hyphen that belongs to the word, close up one that only
+            # broke it across lines. See ``load_vocabulary``.
+            keep = match.end() if _keeps_hyphen(buf, text) else match.start(1) + 1
+            buf = buf[:keep] + text
         else:
             buf = f"{buf} {text}"
         # A line ending a sentence closes the paragraph, which keeps quoted

@@ -229,6 +229,28 @@ CREATE INDEX IF NOT EXISTS idx_necro_actions_book ON rule_actions (rulebook_id, 
 -- battles (its Boons, each of a named type) and what it does to the battlefield
 -- when it is the stake. Boons are typed because the campaign rules act on the
 -- type -- a gang may take the Recruit Boon INSTEAD of the Income Boon.
+-- Model subtypes: the keywords on a fighter's or vehicle's card that carry
+-- rules of their own (Champion, Mounted, Skimmer, Transport (X)...). Two lists
+-- share the name Loner, so the name alone is not a key -- `applies_to` is what
+-- separates the fighter rule from the vehicle one, and a lookup that ignored it
+-- would answer a question about a Loner gang vehicle with the fighter's rule.
+CREATE TABLE IF NOT EXISTS rule_subtypes (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    rulebook_id INTEGER NOT NULL,
+    section_id  INTEGER,
+    slug        TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    applies_to  TEXT NOT NULL DEFAULT '',  -- fighter|vehicle
+    takes_value INTEGER DEFAULT 0,         -- 1 for "Transport (X)"
+    description TEXT DEFAULT '',
+    page        INTEGER DEFAULT 0,
+    FOREIGN KEY (rulebook_id) REFERENCES rulebooks (id)     ON DELETE CASCADE,
+    FOREIGN KEY (section_id)  REFERENCES rule_sections (id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_necro_subtypes_book
+    ON rule_subtypes (rulebook_id, applies_to, slug);
+
 CREATE TABLE IF NOT EXISTS rule_territories (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     rulebook_id  INTEGER NOT NULL,
@@ -299,6 +321,7 @@ CONTENT_TABLES = [
     "rule_table_rows",
     "rule_tables",
     "rule_territories",
+    "rule_subtypes",
     "rule_actions",
     "rule_conditions",
     "rule_equipment",
@@ -322,6 +345,7 @@ _SHAPE_SENTINELS = {
     "rule_conditions": "kind",
     "rule_actions": "cost",
     "rule_territories": "boons_json",
+    "rule_subtypes": "applies_to",
     "rule_tables": "dice",
     "rule_table_rows": "roll_min",
 }

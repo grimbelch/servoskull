@@ -8,7 +8,8 @@ parsing of each; none needs the source PDF.
 
 import pytest
 
-from games.necromunda.extract import entries, equipment, territories
+from games.necromunda.extract import (
+    entries, equipment, subtypes, tables, territories)
 
 
 # ── cost and restriction are different brackets ───────────────────────────────
@@ -116,3 +117,66 @@ def test_cards_are_split_by_where_their_rules_start_not_their_names():
     assert split is not None
     assert 125.0 < split < 296.0     # both names fall on the correct side
     assert 63.0 < split < 363.0
+
+
+# ── model subtypes ────────────────────────────────────────────────────────────
+
+def test_a_sidebar_heading_is_not_a_subtype():
+    """A boxed sidebar's heading is indented inside its column.
+
+    The Pet entry carries a Panicked box with a heading of its own. Read as a
+    sibling it became a fifteenth Fighter Subtype, and the body of the entry it
+    interrupted was filed under Mounted -- which is how Mounted came to be 468
+    words and Pet came to be missing altogether.
+    """
+    lines = [{"x0": 282.3, "text": "Pets are purchased as wargear for a model and"},
+             {"x0": 282.1, "text": "such their Credits Value is on the Model Card"},
+             {"x0": 281.9, "text": "When their owner is deployed to the battlefield"},
+             {"x0": 281.6, "text": "including as part of any special rule they are"},
+             {"x0": 48.6, "text": "Many items of wargear grant a Fighter the"},
+             {"x0": 48.6, "text": "Mounted Subtype. The following rules apply to"},
+             {"x0": 48.1, "text": "Optional Equipment: When determining which"},
+             {"x0": 48.3, "text": "models are available for a scenario, the player"}]
+    lefts = subtypes.column_lefts(lines, split=280.0)
+    assert lefts == [48.0, 280.0]
+    assert subtypes._is_flush(282.3, lefts)      # PET, a real entry
+    assert not subtypes._is_flush(293.6, lefts)  # PANICKED, inside its box
+
+
+def test_a_boxs_own_body_does_not_become_a_column_edge():
+    """Only the leftmost run in each column marks that column's edge.
+
+    The Panicked box's body is long enough to look like a column of its own,
+    and taking every cluster made its indent read as a page column -- which let
+    the box's heading pass for a subtype again.
+    """
+    lines = [{"x0": 281.6, "text": "When their owner is deployed to the battlefield"},
+             {"x0": 282.1, "text": "including as part of any special rule they are"},
+             {"x0": 282.3, "text": "deployed following the rules for the deployment"},
+             {"x0": 281.9, "text": "within the Leash range of their owner always"},
+             {"x0": 293.4, "text": "When a Pet that is Panicked activates it must"},
+             {"x0": 293.1, "text": "depending on their Status perform the action"},
+             {"x0": 293.6, "text": "dictated by the table below even if another"},
+             {"x0": 292.9, "text": "rule would have them perform a different one"}]
+    assert subtypes.column_lefts(lines, split=200.0) == [280.0]
+
+
+def test_transport_x_records_that_it_takes_a_value():
+    assert subtypes._TAKES_VALUE.search("TRANSPORT (X)")
+    assert not subtypes._TAKES_VALUE.search("SKIMMER")
+    assert subtypes._TAKES_VALUE.sub("", "TRANSPORT (X)").strip() == "TRANSPORT"
+
+
+# ── the user's own Strength ───────────────────────────────────────────────────
+
+@pytest.mark.parametrize("printed,stored", [
+    ("s", "S"), ("s+2", "S+2"), ("S", "S"), ("S+1", "S+1"),
+    ("4", "4"), ("-", "-"), ("", ""),
+])
+def test_the_wielders_strength_is_a_capital_s(printed, stored):
+    """"S" means the wielder's own Strength; the scan reads it lower case.
+
+    Eleven close combat weapons printed "Strength: s", which reads like a
+    defect rather than a rule.
+    """
+    assert tables.normalise_strength(printed) == stored

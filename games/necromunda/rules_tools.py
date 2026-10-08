@@ -317,11 +317,14 @@ def table_result(name: str, roll: int | None = None) -> str:
             return f"No table matching '{name}'. The book has: {listed}."
 
         cite = f"{book['title']}, p{printed_page(table['page'], book)}"
+        # Not every table is rolled on. The Panicked Pets table is looked up by
+        # a Pet's Status, so naming dice it does not use would be wrong.
+        dice_note = f" ({table['dice']})" if table["dice"] else ""
         if roll is None:
             rows = conn.execute(
                 "SELECT roll_label, result FROM rule_table_rows WHERE table_id = ?"
                 " ORDER BY ordinal", (table["id"],)).fetchall()
-            lines = [f"{table['title']} ({table['dice']}) — {cite}"]
+            lines = [f"{table['title']}{dice_note} — {cite}"]
             lines += [f"  {r['roll_label']}: {r['result']}" for r in rows]
             return "\n".join(lines)
 
@@ -334,10 +337,10 @@ def table_result(name: str, roll: int | None = None) -> str:
             # book: answering "not on the table" for a result that is printed
             # there is worse than admitting the gap.
             caveat = f" {table['notes']}." if table["notes"] else ""
-            return (f"{roll} is not on the {table['title']} ({table['dice']}) — "
+            return (f"{roll} is not on the {table['title']}{dice_note} — "
                     f"{cite}.{caveat}")
-        return (f"{table['title']}, {table['dice']} {roll}: {row['result']} "
-                f"({cite})")
+        label = f"{table['dice']} {roll}" if table["dice"] else str(roll)
+        return f"{table['title']}, {label}: {row['result']} ({cite})"
     finally:
         conn.close()
 
@@ -351,8 +354,14 @@ def roll_on_table(name: str) -> str:
         book = current_rulebook(conn)
         table = _find_table(conn, book["id"], name)
         spec = (table["dice"] if table else "D6").upper()
+        title = table["title"] if table else name
     finally:
         conn.close()
+    # Some tables are read, not rolled: the Panicked Pets table is looked up by
+    # a Pet's Status. Rolling a D6 on one would invent a result.
+    if table is not None and not spec:
+        return (f"The {title} is not rolled on -- it is looked up. "
+                f"Ask for it by name instead.")
     if spec == "D66":
         value = dice.d66(1)[0]
     elif spec == "D3":
@@ -438,5 +447,59 @@ def territory(name: str) -> str:
         if row["battlefield_effect"]:
             out.append(f"  Battlefield effect: {row['battlefield_effect']}")
         return "\n".join(out)
+    finally:
+        conn.close()
+
+
+def model_subtype(name: str = "", applies_to: str = "") -> str:
+    """A Fighter's or Vehicle's subtype rule, or the list of them.
+
+    ``applies_to`` matters: the book prints a Loner in both lists with
+    different rules, so the name alone does not identify one. Asked for a name
+    carried by both and told neither list, this returns both rather than
+    picking one.
+    """
+    conn = _open()
+    if conn is None:
+        return _NOT_INSTALLED
+    try:
+        book = current_rulebook(conn)
+        wanted = (name or "").strip().lower()
+        which = (applies_to or "").strip().lower()
+        if which.startswith("vehicle"):
+            which = "vehicle"
+        elif which.startswith("fighter"):
+            which = "fighter"
+        else:
+            which = ""
+
+        def listing(scope: str) -> str:
+            rows = conn.execute(
+                "SELECT name FROM rule_subtypes WHERE rulebook_id = ?"
+                " AND (? = '' OR applies_to = ?) ORDER BY applies_to, name",
+                (book["id"], scope, scope)).fetchall()
+            return ", ".join(r["name"] for r in rows)
+
+        if not wanted:
+            if which:
+                return f"The {which} Subtypes are: {listing(which)}."
+            return ("The Fighter Subtypes are: " + listing("fighter")
+                    + ". The Vehicle Subtypes are: " + listing("vehicle") + ".")
+        rows = conn.execute(
+            "SELECT * FROM rule_subtypes WHERE rulebook_id = ?"
+            " AND (? = '' OR applies_to = ?)"
+            " AND (LOWER(name) = ? OR LOWER(name) LIKE ?)"
+            " ORDER BY LENGTH(name) LIMIT 2",
+            (book["id"], which, which, wanted, f"%{wanted}%")).fetchall()
+        if not rows:
+            return (f"No Subtype called '{name}' in {book['title']}. "
+                    f"The book has: {listing(which)}.")
+        out = []
+        for row in rows:
+            title = f"{row['name']} (X)" if row["takes_value"] else row["name"]
+            out.append(
+                f"{title} — {row['applies_to']} Subtype ({book['title']}, "
+                f"p{printed_page(row['page'], book)})\n{row['description']}")
+        return "\n\n".join(out)
     finally:
         conn.close()
