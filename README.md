@@ -35,7 +35,7 @@ Simply speak the wake phrase — **"Servitor"** — and it wakes, ignites its to
 | **🎵 Spotify Playback & Bluetooth Control** | Hands-free music playback, live playback status queries (*"What song is playing on Spotify?"*), volume control, and Bluetooth speaker discovery/pairing. |
 | **⚙️ Hands-Free Verbal Configuration** | Reconfigure system settings verbally: geocode weather locations (*"Set weather location to Seattle"*), adjust eye rotation, tune mic sensitivity, or change Google Home cast targets. |
 | **🧠 Proactive Memory & Reminders** | Remembers facts across conversations, tracks personal preferences, maintains drifting personality states, and delivers daily morning briefings (weather + news). |
-| **🌐 Adeptus Mechanicus Web Remote** | A retro green CRT web remote running securely over HTTPS on port 8080 with live telemetry, video feed mirror, and mic streaming. |
+| **🌐 Adeptus Mechanicus Web Remote** | A green-phosphor cogitator terminal over HTTPS on port 8080 — live telemetry, feed mirrors, vox channel and mic streaming. Installs to a phone home screen. |
 
 ---
 
@@ -45,14 +45,17 @@ Simply speak the wake phrase — **"Servitor"** — and it wakes, ignites its to
   <img src="images/web_remote_preview.jpg" width="800" alt="Adeptus Mechanicus Web Remote Terminal">
 </p>
 
-Omega-7 hosts a responsive, green-phosphor CRT tactical display accessible securely over HTTPS.
+Omega-7 hosts a responsive, green-phosphor cogitator terminal accessible securely over HTTPS.
 
 ### Remote Features:
 - **Ocular Feed Mirror**: Real-time MJPEG stream mirroring the physical circular GC9A01 eye screen (HUD states, screensavers, cog rotation, and artwork projections).
 - **Secure Audio Capture**: Capture and stream browser microphone audio (WAV PCM 16kHz) securely over the network.
-- **2-Column Telemetry Panel**: Live system monitor detailing CPU load, Core Temperature, RAM, Storage, Printer status, Master, Silent Mode, and Active Game in a clean dual-column grid.
-- **Vox Log Channel**: Live streaming transcript of all verbal interactions between the Master and Omega-7.
+- **Vitals at a Glance**: CPU, core temperature, RAM, storage and printer gauges that turn amber then red as each one approaches trouble, plus the laser rangefinder, power-supply health, master, mood, silent mode and active game.
+- **Link Health**: A pill in the top bar says whether what you are looking at is live, stale or offline — the first thing worth knowing over a flaky remote link.
+- **Vox Log Channel**: Live streaming transcript of every verbal exchange, with quick rites, a copyable transcript, and a command line that remembers what you sent (`/` to focus, up/down to recall).
 - **Remote Commands & Visual Emulation**: Inject direct text commands or trigger any of the 49 visual screensavers on demand.
+- **Telemetry Console**: The unit's live log, with a follow toggle so an error stays on screen instead of scrolling away.
+- **Install to a Home Screen**: A web-app manifest and cog icon, so the terminal opens full-screen from a phone like an app. The CRT scanline overlay can be switched off for daylight legibility, and the whole layout reorders itself for a narrow screen.
 
 ---
 
