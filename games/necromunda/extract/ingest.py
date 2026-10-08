@@ -21,15 +21,22 @@ import hashlib
 import json
 import pathlib
 import re
-import sys
 
+# PyMuPDF is a dev-time dependency: the database is built on a real computer
+# and copied to the unit, which does not carry it. Importing this module must
+# therefore not be fatal -- it is imported for its parsing helpers as well as
+# for running the extraction, and a module that calls sys.exit() on import
+# would take the whole service down with it. The absence is reported by the
+# one function that actually needs the library.
 try:
     import pymupdf
 except ImportError:  # pragma: no cover - older wheels only expose fitz
     try:
         import fitz as pymupdf
     except ImportError:
-        sys.exit("PyMuPDF is required: pip install pymupdf")
+        pymupdf = None
+
+_NO_PYMUPDF = "PyMuPDF is required to build the rules database: pip install pymupdf"
 
 from .. import db as necro_db
 from .. import rules_schema
@@ -164,6 +171,8 @@ def _weapon_class(category: str, cells: list[str]) -> str:
 def ingest(pdf_path: pathlib.Path, slug: str = DEFAULT_SLUG,
            title: str = DEFAULT_TITLE, edition: str = "2026") -> dict:
     """Extract the rulebook into the rules database, replacing any earlier copy."""
+    if pymupdf is None:
+        raise RuntimeError(_NO_PYMUPDF)
     doc = pymupdf.open(pdf_path)
     tree = sections_mod.build_tree(doc)
     offset, support = _derive_page_offset(doc, tree)
@@ -301,6 +310,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--edition", default="2026")
     args = parser.parse_args(argv)
 
+    if pymupdf is None:
+        print(f"[necromunda] {_NO_PYMUPDF}")
+        return 1
     if not args.pdf.exists():
         print(f"[necromunda] No such PDF: {args.pdf}")
         return 1
