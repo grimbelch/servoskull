@@ -1411,37 +1411,24 @@ def _tool_set_audio_sensitivity(i):
 
 
 def _tool_set_wake_word_sensitivity(i):
-    import pathlib
+    """Deferred to config, which the spoken intent in main.py also calls.
+
+    Most of these requests never reach here: intents.wake_sensitivity matches them
+    before the model is consulted, precisely because this tool would be narrated
+    rather than called. This remains for the phrasings the matcher does not catch.
+    """
     from core import config
 
     level = str(i.get("sensitivity_level", "") or "").lower().strip()
-    raw_wake = i.get("wake_word_threshold")
-
-    current_wake = config.WAKE_WORD_THRESHOLD
-
-    if raw_wake is not None:
-        new_wake = float(raw_wake)
-    elif level in ("high", "more", "sensitive", "more_sensitive"):
-        # More sensitive = lower threshold (wakes up easier)
-        new_wake = max(0.40, current_wake - 0.10)
-    elif level in ("low", "less", "quiet", "noise", "strict", "less_sensitive", "false_positives"):
-        # Less sensitive / strict = higher threshold (reduces false triggers)
-        new_wake = min(0.85, current_wake + 0.10)
-    elif level in ("medium", "default", "normal"):
-        new_wake = 0.65
-    else:
-        new_wake = current_wake
-
-    # Save to .env
-    try:
-        config.set_env_vars({"WAKE_WORD_THRESHOLD": f"{new_wake:.2f}"})
-    except Exception as e:
-        print(f"[brain] Warning: could not write WAKE_WORD_THRESHOLD to .env: {e}")
-
-    config.WAKE_WORD_THRESHOLD = new_wake
-
-    desc = "stricter / lower false positive rate" if new_wake > 0.65 else ("more sensitive / easier activation" if new_wake < 0.65 else "standard")
-    return f"Wake word trigger sensitivity updated: WAKE_WORD_THRESHOLD set to {new_wake:.2f} ({desc})."
+    raw = i.get("wake_word_threshold")
+    # The tool's vocabulary is wider than the matcher's; map the extras it accepts.
+    if level in ("quiet", "noise", "false_positives"):
+        level = "low"
+    return config.adjust_wake_word_sensitivity(
+        direction=None,
+        threshold=float(raw) if raw is not None else None,
+        level=level or None,
+    )
 
 
 

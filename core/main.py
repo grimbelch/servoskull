@@ -1300,6 +1300,17 @@ def _h_voice_wait(intent, turn: _Turn) -> bool:
     return True
 
 
+def _h_wake_sensitivity(intent, turn: _Turn) -> bool:
+    result = config.adjust_wake_word_sensitivity(
+        direction=intent.args.get("direction"),
+        threshold=intent.args.get("threshold"),
+        level=intent.args.get("level"),
+    )
+    print(f"[skull] {result}")
+    _say(turn, result)
+    return True
+
+
 def _h_honorific(intent, turn: _Turn) -> bool:
     result = config.set_honorific(intent.args["name"])
     print(f"[skull] {result}")
@@ -1403,6 +1414,7 @@ _LOCAL_INTENTS = (
     (_match_personality_switch, _h_personality_switch),
     (intents.display_rotation, _h_display_rotation),
     (intents.voice_wait, _h_voice_wait),
+    (intents.wake_sensitivity, _h_wake_sensitivity),
     (intents.honorific, _h_honorific),
     (intents.response_length, _h_response_length),
     (intents.maintenance_command, _h_maintenance_command),

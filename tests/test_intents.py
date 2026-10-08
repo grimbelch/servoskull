@@ -281,3 +281,45 @@ def test_eye_style_leaves_other_eye_talk_alone():
     assert intents.eye_style("run the auspex scan", _EYES) is None   # no eye word
     assert intents.eye_style("switch your eye to auspex", Context()) is None  # personality has one eye
     assert intents.eye_style("what is your mood", _EYES) is None
+
+
+# ── wake-word sensitivity ─────────────────────────────────────────────────────
+
+def _wake(text):
+    return intents.wake_sensitivity(text.lower(), Context())
+
+
+def test_the_request_that_the_model_only_ever_narrated():
+    # Spoken on Oct 5 and again on Oct 8; the tool never fired either time.
+    assert _wake("increase your wake word sensitivity.").args == {"direction": "more"}
+    assert _wake("decrease your wake word sensitivity.").args == {"direction": "less"}
+
+
+def test_sensitivity_and_threshold_point_opposite_ways():
+    # Raising the sensitivity lowers the number; raising the threshold raises it.
+    assert _wake("make your wake word more sensitive").args == {"direction": "more"}
+    assert _wake("raise your wake word threshold").args == {"direction": "less"}
+    assert _wake("lower your wake word threshold").args == {"direction": "more"}
+
+
+def test_an_explicit_threshold_is_taken_as_given():
+    assert _wake("set the wake word threshold to 0.5").args == {"threshold": 0.5}
+    assert _wake("set wake word sensitivity to .45").args == {"threshold": 0.45}
+    # A bare number is a percentage, not a threshold of fifty.
+    assert _wake("set wake word threshold to 50 percent").args == {"threshold": 0.5}
+
+
+def test_a_named_level_is_recognised():
+    assert _wake("set wake word sensitivity to high").args == {"level": "high"}
+    assert _wake("put the wake word threshold back to default").args == {"level": "default"}
+
+
+def test_a_question_reports_rather_than_changes():
+    assert _wake("what is your wake word sensitivity").args == {}
+
+
+def test_it_keeps_out_of_other_commands():
+    assert _wake("increase the volume") is None
+    assert _wake("set your microphone sensitivity to high") is None   # a different setting
+    assert _wake("wake me up at seven") is None
+    assert _wake("roll a d6") is None

@@ -249,6 +249,42 @@ def voice_wait(text: str, ctx: Context) -> Intent | None:
     return Intent("voice_wait", {"seconds": float(m.group(1))}) if m else None
 
 
+# Wake-word sensitivity. This went through the model, which would acknowledge the
+# request in character and change nothing: asked twice, across four days, the tool
+# never once fired. There is exactly one correct outcome, so it belongs here.
+# Both halves must be present, in either order and however far apart: "wake word
+# sensitivity", "make the wake word more sensitive", "threshold for your wake word".
+_WAKE_REF = re.compile(r"wake\s*(?:word|phrase)|how\s+(?:easily|easy)\s+you\s+wake")
+_SENS_REF = re.compile(r"sensitiv|threshold")
+_MORE_SENSITIVE = re.compile(r"\b(?:increase|raise|boost|improve|up|more|higher|better)\b")
+_LESS_SENSITIVE = re.compile(r"\b(?:decrease|reduce|lower|drop|down|less|fewer|stricter|strict)\b")
+_WAKE_LEVEL = re.compile(r"\b(?:to\s+)?(high|medium|low|maximum|minimum|default|normal|standard)\b")
+# "0.5", ".55" or "50 percent" — a bare "50" means percent, not a threshold of fifty.
+_WAKE_VALUE = re.compile(r"(?:to|at)\s+(0?\.\d+)\b|\b(\d{1,3})\s*(?:percent|%)")
+
+
+def wake_sensitivity(text: str, ctx: Context) -> Intent | None:
+    if not (_WAKE_REF.search(text) and _SENS_REF.search(text)):
+        return None
+    m = _WAKE_VALUE.search(text)
+    if m:
+        raw, pct = m.group(1), m.group(2)
+        value = float(raw) if raw else float(pct) / 100.0
+        return Intent("wake_sensitivity", {"threshold": value})
+    # "set it to high" names a level; a bare direction steps from where it is.
+    lvl = _WAKE_LEVEL.search(text)
+    if lvl and not _MORE_SENSITIVE.search(text) and not _LESS_SENSITIVE.search(text):
+        return Intent("wake_sensitivity", {"level": lvl.group(1)})
+    # A threshold is the inverse of a sensitivity: raising one lowers the other, so
+    # which noun was spoken decides which way "increase" points.
+    asked_threshold = "threshold" in text and "sensitiv" not in text
+    if _MORE_SENSITIVE.search(text):
+        return Intent("wake_sensitivity", {"direction": "less" if asked_threshold else "more"})
+    if _LESS_SENSITIVE.search(text):
+        return Intent("wake_sensitivity", {"direction": "more" if asked_threshold else "less"})
+    return Intent("wake_sensitivity", {})  # a question: report where it stands
+
+
 _HONORIFIC_RE = re.compile(
     r"(?:set|change|update|make)\s+(?:my\s+)?(?:honorific|title)\s+(?:to\s+)?(?P<a>[a-z0-9' -]+?)"
     r"(?:\s+from\s+now\s+on)?[.!?]*$"

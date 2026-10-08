@@ -590,6 +590,60 @@ VAD_THRESHOLD = float(_cfg("VAD_THRESHOLD", "0.5"))     # speech probability tha
 VAD_END_SILENCE = float(_cfg("VAD_END_SILENCE", "0.7"))  # seconds of non-speech that end a command
 
 
+# Sensitivity is the inverse of the threshold: asking the skull to listen harder
+# LOWERS the number. The arithmetic lives here so the spoken intent in main.py and
+# the model's set_wake_word_sensitivity tool cannot drift apart — the tool had been
+# the only way to reach it, and the model would narrate the change without making it.
+WAKE_SENSITIVITY_STEP = 0.10
+WAKE_THRESHOLD_FLOOR = 0.25   # below this it wakes on room noise
+WAKE_THRESHOLD_CEILING = 0.90
+WAKE_THRESHOLD_DEFAULT = 0.65
+
+
+def set_wake_word_threshold(threshold: float) -> str:
+    """Set the idle wake-word threshold outright and persist it. Returns a spoken line."""
+    global WAKE_WORD_THRESHOLD
+    value = max(WAKE_THRESHOLD_FLOOR, min(WAKE_THRESHOLD_CEILING, float(threshold)))
+    WAKE_WORD_THRESHOLD = round(value, 2)
+    _update_env_var("WAKE_WORD_THRESHOLD", f"{WAKE_WORD_THRESHOLD:.2f}")
+    if WAKE_WORD_THRESHOLD < WAKE_THRESHOLD_DEFAULT:
+        how = "more sensitive — it will wake on a quieter or less exact summons"
+    elif WAKE_WORD_THRESHOLD > WAKE_THRESHOLD_DEFAULT:
+        how = "less sensitive — fewer false wakes, and it will want a clearer summons"
+    else:
+        how = "the standard setting"
+    return f"Wake word threshold set to {WAKE_WORD_THRESHOLD:.2f}: {how}."
+
+
+def adjust_wake_word_sensitivity(direction: str | None = None, threshold: float | None = None,
+                                 level: str | None = None) -> str:
+    """Resolve a sensitivity request to a threshold and apply it.
+
+    `threshold` is absolute; `direction` is "more"/"less" and steps from where it is
+    now; `level` is "high"/"medium"/"low". Returns the line to speak.
+    """
+    if threshold is not None:
+        return set_wake_word_threshold(threshold)
+    if level:
+        lvl = str(level).lower().strip()
+        # A named level is an absolute setting, not a step. "High" lands well clear of
+        # the floor: at the floor itself the room's own noise wakes the skull.
+        named = {"high": 0.45, "more": 0.45, "sensitive": 0.45, "more_sensitive": 0.45,
+                 "low": 0.80, "less": 0.80, "strict": 0.80, "less_sensitive": 0.80,
+                 "medium": WAKE_THRESHOLD_DEFAULT, "default": WAKE_THRESHOLD_DEFAULT,
+                 "normal": WAKE_THRESHOLD_DEFAULT, "standard": WAKE_THRESHOLD_DEFAULT,
+                 "maximum": WAKE_THRESHOLD_FLOOR, "max": WAKE_THRESHOLD_FLOOR,
+                 "minimum": WAKE_THRESHOLD_CEILING, "min": WAKE_THRESHOLD_CEILING}
+        if lvl in named:
+            return set_wake_word_threshold(named[lvl])
+    if direction == "more":
+        return set_wake_word_threshold(WAKE_WORD_THRESHOLD - WAKE_SENSITIVITY_STEP)
+    if direction == "less":
+        return set_wake_word_threshold(WAKE_WORD_THRESHOLD + WAKE_SENSITIVITY_STEP)
+    return (f"Wake word threshold is {WAKE_WORD_THRESHOLD:.2f}. Say more or less sensitive, "
+            f"or name a threshold between {WAKE_THRESHOLD_FLOOR:.2f} and {WAKE_THRESHOLD_CEILING:.2f}.")
+
+
 def set_silence_duration(seconds: float) -> str:
     """Set the silence wait duration after speaking (in seconds) and persist to .env."""
     global SILENCE_DURATION
