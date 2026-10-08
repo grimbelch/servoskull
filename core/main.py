@@ -136,7 +136,9 @@ def _eleven_cached(text: str) -> bytes:
 
 
 # The sign-off, recorded at boot (see _warm_farewell) because by the time it is
-# wanted the unit is on its way down.
+# wanted the unit is on its way down. Playback is cut off after this long so the
+# rest of the teardown keeps its share of systemd's stop budget.
+FAREWELL_MAX_SECONDS = 6.0
 _farewell_wav: bytes | None = None
 
 
@@ -169,11 +171,24 @@ def _speak_farewell() -> None:
     Silent mode is deliberately not consulted: it governs unprompted speech — idle
     remarks, announcements, ambient music — and a sign-off answers the owner's own
     order to shut down. The boot phrase speaks under the same reasoning, so the unit
-    greets and takes its leave as a pair."""
+    greets and takes its leave as a pair.
+
+    Playback is capped: systemd gives the stop a fixed budget (TimeoutStopSec) and
+    kills whatever is left when it runs out, so a long or wedged clip would cost the
+    display, the LEDs and the Bard's Tale save their chance to shut down cleanly.
+    The last word is worth a few seconds, not the orderly teardown behind it."""
     if _farewell_wav is None:
         return
     try:
-        audio.play_wav_bytes(_farewell_wav, output_device=config.VOICE_OUTPUT_DEVICE)
+        cutoff = threading.Event()
+        timer = threading.Timer(FAREWELL_MAX_SECONDS, cutoff.set)
+        timer.daemon = True
+        timer.start()
+        try:
+            audio.play_wav_bytes(_farewell_wav, stop_event=cutoff,
+                                 output_device=config.VOICE_OUTPUT_DEVICE)
+        finally:
+            timer.cancel()
     except Exception as e:
         print(f"[skull] Farewell line not spoken ({e}).")
 
