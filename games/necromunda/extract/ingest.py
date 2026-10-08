@@ -388,9 +388,13 @@ def ingest(pdf_path: pathlib.Path, slug: str = DEFAULT_SLUG,
             # inside the Pet subtype, not a dice table, so it comes from the
             # subtype extractor; its rows carry no roll span.
             found_tables = randtables_mod.extract(doc)
-            panicked = subtypes_mod.panicked_table(doc)
-            if panicked is not None:
-                found_tables.append(panicked)
+            # Two tables the row reader cannot see: the Panicked Pets table is
+            # a Status lookup inside the Pet subtype, and the Pitch Black table
+            # centres its roll between the two lines of its own result.
+            for extra in (subtypes_mod.panicked_table(doc),
+                          randtables_mod.pitch_black_table(doc)):
+                if extra is not None:
+                    found_tables.append(extra)
             for table in found_tables:
                 table_id = conn.execute(
                     "INSERT INTO rule_tables (rulebook_id, slug, title, kind,"

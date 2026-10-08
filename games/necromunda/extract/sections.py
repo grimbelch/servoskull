@@ -85,6 +85,19 @@ def load_vocabulary(doc) -> None:
     _VOCABULARY = frozenset(w for w, n in counts.items() if n >= 2)
 
 
+# The scan reads the D of a dice token as a zero in one place: the Crew table's
+# "Hybrid (3+D3)" came out "Hybrid (3+03)". A plus sign followed by a zero and
+# a digit is never a number this book prints -- costs are "+5", never "+05" --
+# so the reading is unambiguous, and left alone it tells a player to take three
+# models plus three more rather than plus D3.
+_DICE_AS_ZERO = re.compile(r"\+0(?=[36]\b)")
+
+
+def repair_scan(text: str) -> str:
+    """Undo the scan misreadings that change what a rule says."""
+    return _DICE_AS_ZERO.sub("+D", text)
+
+
 def _keeps_hyphen(before: str, after: str) -> bool:
     """True when a hyphen ending a line is part of the word, not a break.
 
@@ -130,7 +143,7 @@ def _join_prose(lines: list[str]) -> str:
             buf = ""
     if buf:
         out.append(buf)
-    return "\n\n".join(out)
+    return repair_scan("\n\n".join(out))
 
 
 def page_sections(page, page_no: int) -> list[dict]:
@@ -195,6 +208,11 @@ def page_sections(page, page_no: int) -> list[dict]:
                        "x0": line["x0"]}
             continue
         if _is_tabular(text):
+            continue
+        # The scan picks up the rules, arrows and hatching that frame these
+        # pages as text: the Underhive terrain rules came through interrupted
+        # by ".I", "I· I I" and "! li", which Omega-7 would read aloud.
+        if layout.is_debris(text):
             continue
         body_lines.append(text)
     flush()

@@ -98,6 +98,48 @@ def page_lines(page, split: float | None = None) -> list[dict]:
     return raw
 
 
+def is_rubble(text: str) -> bool:
+    """True when a line is OCR debris from a printed diagram, not words.
+
+    The scenario pages print a deployment map beside each result, and its rules,
+    arrows and hatching come through the text layer as runs like
+    ``~-+--+-+---+--+-+-+-+--+--+-1`` and ``9" I``. Two of them did real damage:
+    one was appended to a result, and one passed for a heading and took a title
+    from it -- which split the Deployment table's last two results into a
+    fragment called ``9" I`` and then blocked them from merging back, so the
+    table answered "not on the table" for a roll of 4 or 6.
+
+    Words are what a rule is made of, so the test is whether the line is mostly
+    letters.
+    """
+    dense = [c for c in text if not c.isspace()]
+    if not dense:
+        return True
+    letters = sum(1 for c in dense if c.isalpha())
+    return letters < 4 or letters < len(dense) * 0.6
+
+
+def is_debris(text: str) -> bool:
+    """True when a line is a scrap of the page's printed frame, not words.
+
+    The weaker of the two tests, for prose. ``is_rubble`` asks what proportion
+    of a line is letters, which is right for a table row sitting next to a
+    diagram but far too strong for running text: the weapon reference is thick
+    with "(5+)", "-" and quoted ranges, and judging it that way cut the
+    Grenades entry from 238 words to 92.
+
+    What actually litters the prose is the rules and tick marks framing these
+    pages, which the scan reads as one or two stray letters: ".I", "I· I I",
+    "! li". A line carrying fewer than four letters altogether is one of those,
+    never a sentence.
+    """
+    return sum(1 for c in text if c.isalpha()) < 4
+
+
+# How far left of a measured gutter to look for the column's real left edge.
+_COLUMN_SNAP = 24.0
+
+
 def column_split(page, lines: list[dict] | None = None) -> float | None:
     """The x where the right column starts, or None on a single-column page.
 
@@ -171,8 +213,31 @@ def column_split(page, lines: list[dict] | None = None) -> float | None:
         edge, count = max(votes.items(), key=lambda kv: kv[1])
         # A real gutter runs down most of the text, not one or two stray bands.
         if count >= 5:
-            return float(edge)
-    return _split_by_line_starts(lines)
+            return _snap_left_of_column(float(edge), lines)
+    fallback = _split_by_line_starts(lines)
+    return None if fallback is None else _snap_left_of_column(fallback, lines)
+
+
+def _snap_left_of_column(edge: float, lines: list[dict]) -> float:
+    """Pull the split left until it is clear of the right column's own text.
+
+    The bands vote on where the blank channel ends, and they disagree: a band
+    holding a bullet sees the column start at its bullet, one holding only the
+    wrapped lines beneath sees it start at their indent. The modal answer can
+    therefore fall between the two, which cuts the right column in half -- the
+    bullets stay in the left column and interleave with it. That is how the
+    crew selection methods came out as "When the Crew table instructs players to
+    use When the Crew table instructs players to use Hybrid Selection (X+Y)".
+
+    Moving the split to just left of the leftmost line it would have cut keeps
+    the column whole. It only ever moves left, so a page the gutter was already
+    measured correctly on is unaffected.
+    """
+    candidates = [line["x0"] for line in lines
+                  if edge - _COLUMN_SNAP <= line["x0"] < edge]
+    if not candidates:
+        return edge
+    return min(candidates) - 2.0
 
 
 def _split_by_line_starts(lines: list[dict]) -> float | None:

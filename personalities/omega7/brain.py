@@ -296,6 +296,35 @@ def get_tools():
         },
     },
 {
+        "name": "necromunda_setup",
+        "description": (
+            "Walk a player through Necromunda Battlefield Set-Up one stage at "
+            "a time. Use action 'begin' to start (this rolls the four scenario "
+            "tables), 'next' when the player says they have finished the "
+            "current stage, 'repeat' to read the current stage again, 'status' "
+            "for where they are, 'goto' with a stage name to go back over one, "
+            "and 'abandon' to stop. Read out what the tool returns and then "
+            "wait for the player - do not run ahead through the stages."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string",
+                           "enum": ["begin", "next", "repeat", "status",
+                                    "goto", "abandon"]},
+                "stage": {"type": "string",
+                          "description": "For 'goto': scenario, battlefield, "
+                                         "pitch_black, crew, reinforcements "
+                                         "or deployment."},
+                "attacker": {"type": "string",
+                             "description": "For 'begin': the attacking gang's name."},
+                "defender": {"type": "string",
+                             "description": "For 'begin': the defending gang's name."},
+            },
+            "required": ["action"],
+        },
+    },
+{
         "name": "necromunda_subtype",
         "description": (
             "A Fighter's or Vehicle's Subtype rule - Champion, Mounted, Pet, "
@@ -654,6 +683,25 @@ def _tool_necromunda_territory(i):
     return rules_tools.territory(name)
 
 
+def _tool_necromunda_setup(i):
+    from games.necromunda import setup
+    action = (i.get("action") or "").strip().lower()
+    print(f"[skull] Necromunda battlefield set-up: {action or '(none)'}")
+    if action == "begin":
+        return setup.begin(i.get("attacker", ""), i.get("defender", ""))
+    if action == "next":
+        return setup.advance()
+    if action == "repeat":
+        return setup.current()
+    if action == "status":
+        return setup.status()
+    if action == "goto":
+        return setup.go_to(i.get("stage", ""))
+    if action == "abandon":
+        return setup.abandon()
+    return ("Name an action: begin, next, repeat, status, goto or abandon.")
+
+
 def _tool_necromunda_subtype(i):
     from games.necromunda import rules_tools
     name = i.get("name", "")
@@ -807,6 +855,7 @@ def get_handlers():
         "necromunda_actions": _tool_necromunda_actions,
         "necromunda_territory": _tool_necromunda_territory,
         "necromunda_subtype": _tool_necromunda_subtype,
+        "necromunda_setup": _tool_necromunda_setup,
         "warhammer40k_rules": _tool_warhammer40k_rules,
         "netepic_rules": _tool_netepic_rules,
         "netea_rules": _tool_netea_rules,

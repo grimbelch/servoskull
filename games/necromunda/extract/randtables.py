@@ -38,25 +38,9 @@ def _parse_roll(label: str):
     return low, low
 
 
-def _is_rubble(text: str) -> bool:
-    """True when a line is OCR debris from a printed diagram, not words.
-
-    The scenario pages print a deployment map beside each result, and its rules,
-    arrows and hatching come through the text layer as runs like
-    ``~-+--+-+---+--+-+-+-+--+--+-1`` and ``9" I``. Two of them did real damage:
-    one was appended to a result, and one passed for a heading and took a title
-    from it -- which split the Deployment table's last two results into a
-    fragment called ``9" I`` and then blocked them from merging back, so the
-    table answered "not on the table" for a roll of 4 or 6.
-
-    Words are what a rule is made of, so the test is whether the line is mostly
-    letters.
-    """
-    dense = [c for c in text if not c.isspace()]
-    if not dense:
-        return True
-    letters = sum(1 for c in dense if c.isalpha())
-    return letters < 4 or letters < len(dense) * 0.6
+# Kept as a local name: the table reader asks this about a row, and the prose
+# reader asks it about a line, but it is one question.
+_is_rubble = layout.is_rubble
 
 
 def _side_by_side_split(rows) -> float | None:
@@ -191,7 +175,7 @@ def extract(doc) -> list[dict]:
                 "roll_label": words[0],
                 "roll_min": span[0],
                 "roll_max": span[1],
-                "result": " ".join(words[1:]).strip(),
+                "result": sections.repair_scan(" ".join(words[1:]).strip()),
             })
         if current and current["rows"]:
             out.append(current)
@@ -258,3 +242,82 @@ def _missing_results(table: dict) -> list[int]:
     for row in table["rows"]:
         covered.update(range(row["roll_min"], min(row["roll_max"], max(span)) + 1))
     return [value for value in span if value not in covered]
+
+
+# The Pitch Black table is printed with its roll centred beside a result that
+# runs over two lines, so the roll sits on a line of its own between them:
+# "Full Night Cycle: The Visibility (3")", then "1", then "rule is in effect."
+# Read as rows that is three unrelated fragments, and the flattened prose came
+# out "Full Night Cycle: The Visibility (3") 1 rule is in effect." -- the roll
+# buried mid-sentence and nothing to look up. The roll is centred ON its own
+# result, so each line of result text belongs to the roll nearest it.
+_PITCH_BLACK_TITLE = "PITCH BLACK TABLE"
+
+
+def pitch_black_table(doc) -> dict | None:
+    """The Visibility a battle is fought in, by a D6 roll."""
+    for page_no in range(doc.page_count):
+        page = doc.load_page(page_no)
+        words = page.get_text("words")
+        heading = [w for w in words if w[4] == "PITCH"]
+        if not heading or not any(w[4] == "TABLE" for w in words):
+            continue
+        header = [w for w in words if w[4] == "D6"]
+        results = [w for w in words if w[4] == "Result"]
+        if not header or not results:
+            continue
+        roll_x, result_x = header[-1][0], results[-1][0]
+        if result_x <= roll_x:
+            continue
+        top = max(w[3] for w in heading)
+
+        def centre(word) -> float:
+            return (word[1] + word[3]) / 2
+
+        rolls: dict[float, str] = {}
+        body: list = []
+        for word in words:
+            if centre(word) <= top or word[4] in ("D6", "Result"):
+                continue
+            if roll_x - 8 <= word[0] < result_x - 20:
+                if _parse_roll(word[4]) is not None:
+                    rolls[centre(word)] = word[4]
+            elif word[0] >= result_x - 8:
+                body.append(word)
+        if len(rolls) < 3:
+            continue
+
+        # Group the result text into lines by baseline. Bucketing to a fixed
+        # width split a line wherever the scan's baseline jitter crossed a
+        # bucket edge, which shuffled "Full Night Cycle: The Visibility (3")"
+        # into "Visibility (3") Full Night Cycle: The".
+        lines: list[list] = []
+        for word in sorted(body, key=centre):
+            if lines and abs(centre(word) - centre(lines[-1][0])) <= 2.5:
+                lines[-1].append(word)
+            else:
+                lines.append([word])
+
+        # Each line of result text joins the roll centred nearest it.
+        collected: dict[str, list[tuple[float, str]]] = {}
+        for line in lines:
+            row = sorted(line, key=lambda w: w[0])
+            y = sum(centre(w) for w in row) / len(row)
+            nearest = min(rolls, key=lambda ry: abs(ry - y))
+            if abs(nearest - y) > 24:
+                continue
+            collected.setdefault(rolls[nearest], []).append(
+                (y, " ".join(w[4] for w in row)))
+        out = []
+        for label, parts in collected.items():
+            span = _parse_roll(label)
+            out.append({"roll_label": label, "roll_min": span[0],
+                        "roll_max": span[1],
+                        "result": " ".join(t for _y, t in sorted(parts))})
+        if len(out) < 3:
+            continue
+        out.sort(key=lambda r: r["roll_min"])
+        return {"title": _PITCH_BLACK_TITLE, "kind": "scenario", "dice": "D6",
+                "columns": ["D6", "Result"], "page": page_no, "rows": out,
+                "missing": []}
+    return None
