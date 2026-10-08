@@ -1,0 +1,315 @@
+"""Build the Necromunda rules database from the source PDF.
+
+Run this once, on a real computer rather than the Pi -- it needs PyMuPDF, which
+is a dev-time dependency only:
+
+    python -m games.necromunda.extract.ingest \\
+        "games/necromunda/rules/manuals/necromunda-skirmish-core-rulebook-2026.pdf"
+
+Everything written here is reproducible from the source, so the database is
+dropped and rebuilt rather than migrated. The source file's SHA-256 is recorded
+so a rebuild can be told apart from a different printing.
+
+The rules text is copyrighted. The PDF and this database stay on the device.
+"""
+from __future__ import annotations
+
+import argparse
+import collections
+import datetime
+import hashlib
+import json
+import pathlib
+import re
+import sys
+
+try:
+    import pymupdf
+except ImportError:  # pragma: no cover - older wheels only expose fitz
+    try:
+        import fitz as pymupdf
+    except ImportError:
+        sys.exit("PyMuPDF is required: pip install pymupdf")
+
+from .. import db as necro_db
+from .. import rules_schema
+from . import sections as sections_mod
+from . import tables
+
+EXTRACTOR_VERSION = "1.0"
+DEFAULT_SLUG = "necromunda-skirmish-core-rulebook"
+DEFAULT_TITLE = "Necromunda Skirmish: Core Rulebook"
+
+# Front and back matter carry no rules: the contents list and the index are just
+# page pointers, and indexing them would put a bare letter heading ("A", "B")
+# into search results ahead of real rules.
+_SKIP_CHAPTERS = {"contents", "index", ""}
+
+_INT_OK = str.maketrans({'"': "", "*": "", "+": "", "’": ""})
+
+
+_CONTENTS_PAGES = 6
+_NORM = re.compile(r"[^a-z0-9]+")
+
+
+def _normalise(text: str) -> str:
+    return _NORM.sub(" ", (text or "").lower()).strip()
+
+
+def _contents_entries(doc) -> list[tuple[str, int]]:
+    """(title, printed page) pairs read off the book's contents list.
+
+    The list prints a heading and its page number on consecutive lines, which is
+    the only place in this scan that a printed page number appears as text at
+    all -- the folios on the pages themselves did not survive the OCR.
+    """
+    entries: list[tuple[str, int]] = []
+    for page_no in range(min(_CONTENTS_PAGES, doc.page_count)):
+        lines = [l.strip() for l in doc.load_page(page_no).get_text("text").splitlines()
+                 if l.strip()]
+        if not any(_normalise(l) == "contents" for l in lines):
+            continue
+        for first, second in zip(lines, lines[1:]):
+            if not re.fullmatch(r"\d{1,3}", second) or re.fullmatch(r"\d{1,3}", first):
+                continue
+            title = re.sub(r"^[-\u2022\u00b7\s]+", "", first)
+            title = re.sub(r"[.\u00b7\s]+$", "", title)
+            if len(title) > 2:
+                entries.append((title, int(second)))
+    return entries
+
+
+def _derive_page_offset(doc, tree: list[dict]) -> tuple[int, int]:
+    """Measure how far the PDF index runs ahead of the printed page number.
+
+    Each contents entry names a heading and the page it is printed on. Finding
+    where that heading actually falls in the scan gives one measurement of the
+    offset; the modal value across every entry that can be matched is the
+    answer, and a stray mismatch cannot move it. Returns (offset, support).
+    """
+    first_seen: dict[str, int] = {}
+    for item in tree:
+        for key in (item["title"], item["section"], item["chapter"]):
+            name = _normalise(key)
+            if name and name not in first_seen:
+                first_seen[name] = item["page"]
+
+    votes: collections.Counter = collections.Counter()
+    for title, printed in _contents_entries(doc):
+        found = first_seen.get(_normalise(title))
+        if found is not None and 0 <= found - printed <= 30:
+            votes[found - printed] += 1
+    if not votes:
+        return 0, 0
+    offset, support = votes.most_common(1)[0]
+    return offset, support
+
+
+def _sha256(path: pathlib.Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _as_int(text: str) -> int | None:
+    """The numeric value of a printed cell, or None when it is not a number.
+
+    A blank or dashed cell must come back as None rather than 0: "no AP printed"
+    and "AP 0" are different claims, and only one of them is in the book.
+    """
+    cleaned = (text or "").strip().translate(_INT_OK)
+    if not cleaned or cleaned in {"-", "—"}:
+        return None
+    try:
+        return int(cleaned)
+    except ValueError:
+        return None
+
+
+def _traits_list(traits: str) -> list[str]:
+    """Split a printed trait list on commas, keeping bracketed values intact."""
+    out: list[str] = []
+    depth = 0
+    current = ""
+    for char in traits:
+        if char in "([":
+            depth += 1
+        elif char in ")]":
+            depth = max(0, depth - 1)
+        if char == "," and depth == 0:
+            if current.strip():
+                out.append(current.strip())
+            current = ""
+            continue
+        current += char
+    if current.strip():
+        out.append(current.strip())
+    return out
+
+
+def _weapon_class(category: str, cells: list[str]) -> str:
+    cat = (category or "").upper()
+    if "GRENADE" in cat:
+        return "grenade"
+    # An Engaged-range weapon ("E") with no long range is a close combat arm.
+    if (cells[0] or "").strip().upper() == "E":
+        return "close_combat"
+    if any(key in cat for key in ("CHAIN", "POWER", "SHOCK", "CLOSE COMBAT")):
+        return "close_combat"
+    return "ranged"
+
+
+def ingest(pdf_path: pathlib.Path, slug: str = DEFAULT_SLUG,
+           title: str = DEFAULT_TITLE, edition: str = "2026") -> dict:
+    """Extract the rulebook into the rules database, replacing any earlier copy."""
+    doc = pymupdf.open(pdf_path)
+    tree = sections_mod.build_tree(doc)
+    offset, support = _derive_page_offset(doc, tree)
+    print(f"[necromunda] Printed-page offset: {offset} (agreed by {support} contents entries)")
+    conn = necro_db.connect()
+    try:
+        rules_schema.reset_rulebook(conn, slug)
+        with conn:
+            cur = conn.execute(
+                "INSERT INTO rulebooks (slug, title, system, edition, source_file,"
+                " source_sha256, page_count, page_offset, extracted_at,"
+                " extractor_version) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (slug, title, "Necromunda Skirmish", edition, pdf_path.name,
+                 _sha256(pdf_path), doc.page_count, offset,
+                 datetime.datetime.now().isoformat(timespec="seconds"),
+                 EXTRACTOR_VERSION),
+            )
+            book_id = cur.lastrowid
+
+            counts = {"sections": 0, "weapons": 0}
+            section_ids: dict[tuple[str, str, str], int] = {}
+
+            # --- prose layer -------------------------------------------------
+            chapters: dict[str, int] = {}
+            doc_order = 0
+            for item in tree:
+                chapter = item["chapter"].strip()
+                if sections_mod.slugify(chapter) in _SKIP_CHAPTERS:
+                    continue
+                chapter_id = chapters.get(chapter)
+                if chapter_id is None:
+                    doc_order += 1
+                    chapter_id = conn.execute(
+                        "INSERT INTO rule_sections (rulebook_id, parent_id, chapter_id,"
+                        " level, ordinal, doc_order, kind, slug, path, title,"
+                        " body_md, page_start, page_end, word_count)"
+                        " VALUES (?,NULL,NULL,1,?,?,?,?,?,?,'',?,?,0)",
+                        (book_id, len(chapters), doc_order, "chapter",
+                         sections_mod.slugify(chapter), sections_mod.slugify(chapter),
+                         chapter, item["page"], item["page"]),
+                    ).lastrowid
+                    conn.execute("UPDATE rule_sections SET chapter_id = ? WHERE id = ?",
+                                 (chapter_id, chapter_id))
+                    chapters[chapter] = chapter_id
+                    counts["sections"] += 1
+
+                doc_order += 1
+                path = "/".join(p for p in (
+                    sections_mod.slugify(chapter),
+                    sections_mod.slugify(item["section"]),
+                    sections_mod.slugify(item["title"]),
+                ) if p)
+                body = item["body"]
+                sec_id = conn.execute(
+                    "INSERT INTO rule_sections (rulebook_id, parent_id, chapter_id,"
+                    " level, ordinal, doc_order, kind, slug, path, title, body_md,"
+                    " page_start, page_end, word_count) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (book_id, chapter_id, chapter_id, 3, doc_order, doc_order,
+                     sections_mod.slugify(chapter) or "section",
+                     sections_mod.slugify(item["title"]), path, item["title"],
+                     body, item["page"], item.get("page_end", item["page"]),
+                     len(body.split())),
+                ).lastrowid
+                section_ids[(chapter, item["section"], item["title"])] = sec_id
+                counts["sections"] += 1
+
+            # --- weapon profiles --------------------------------------------
+            anchors = tables.header_anchors(doc, tables.WEAPON_COLUMNS, ["SR", "LR"])
+            for row in tables.weapon_rows(doc, anchors):
+                cells = row["cells"]
+                traits = cells[5].strip()
+                conn.execute(
+                    "INSERT INTO rule_weapons (rulebook_id, section_id, slug, name,"
+                    " weapon_class, category, parent_slug, is_variant, sr_text, lr_text,"
+                    " str_text, ap_text, lethality_text, creds_text, tp_text, strength,"
+                    " ap, lethality, creds, trading_post, traits, traits_json,"
+                    " cells_json, needs_review, page)"
+                    " VALUES (?,NULL,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (book_id, sections_mod.slugify(row["name"]), row["name"],
+                     _weapon_class(row["category"], cells), row["category"], "",
+                     int(row["is_variant"]), cells[0], cells[1], cells[2], cells[3],
+                     cells[4], cells[6], cells[7], _as_int(cells[2]), _as_int(cells[3]),
+                     _as_int(cells[4]), _as_int(cells[6]), _as_int(cells[7]),
+                     traits, json.dumps(_traits_list(traits)),
+                     json.dumps(cells), int(row["needs_review"]), row["page"]),
+                )
+                counts["weapons"] += 1
+
+            _build_search_index(conn, book_id)
+        return counts
+    finally:
+        conn.close()
+        doc.close()
+
+
+def _build_search_index(conn, book_id: int) -> None:
+    """Populate the FTS index over prose and weapon rows.
+
+    Weapons go in alongside the prose so one query can surface both the boltgun's
+    profile and the paragraph explaining the trait it carries.
+    """
+    if not rules_schema.has_fts5(conn):
+        print("[necromunda] SQLite has no FTS5; search will fall back to LIKE.")
+        return
+    conn.execute("DELETE FROM rule_search WHERE rulebook_id = ?", (book_id,))
+    for row in conn.execute(
+            "SELECT id, title, body_md, kind, page_start, path FROM rule_sections"
+            " WHERE rulebook_id = ? AND body_md != ''", (book_id,)):
+        conn.execute(
+            "INSERT INTO rule_search (title, body, kind, rulebook_id, section_id,"
+            " ref_table, ref_id, page) VALUES (?,?,?,?,?,?,?,?)",
+            (f"{row['title']} {row['path']}", row["body_md"], row["kind"], book_id,
+             row["id"], "rule_sections", row["id"], row["page_start"]),
+        )
+    for row in conn.execute(
+            "SELECT id, name, category, traits, sr_text, lr_text, str_text, ap_text,"
+            " lethality_text, creds_text, page FROM rule_weapons WHERE rulebook_id = ?",
+            (book_id,)):
+        body = (f"{row['name']} {row['category']} SR {row['sr_text']} LR {row['lr_text']}"
+                f" Str {row['str_text']} AP {row['ap_text']} Lethality"
+                f" {row['lethality_text']} {row['traits']} {row['creds_text']} credits")
+        conn.execute(
+            "INSERT INTO rule_search (title, body, kind, rulebook_id, section_id,"
+            " ref_table, ref_id, page) VALUES (?,?,?,?,NULL,?,?,?)",
+            (row["name"], body, "weapon", book_id, "rule_weapons", row["id"], row["page"]),
+        )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("pdf", type=pathlib.Path, help="source rulebook PDF")
+    parser.add_argument("--slug", default=DEFAULT_SLUG)
+    parser.add_argument("--title", default=DEFAULT_TITLE)
+    parser.add_argument("--edition", default="2026")
+    args = parser.parse_args(argv)
+
+    if not args.pdf.exists():
+        print(f"[necromunda] No such PDF: {args.pdf}")
+        return 1
+    counts = ingest(args.pdf, args.slug, args.title, args.edition)
+    print(f"[necromunda] Ingested {args.pdf.name} -> {necro_db.db_path()}")
+    for key, value in counts.items():
+        print(f"[necromunda]   {key}: {value}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

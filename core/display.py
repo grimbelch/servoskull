@@ -21,6 +21,7 @@ _state_lock = threading.Lock()
 import time
 
 from core import config
+from core import dice_faces
 import importlib
 
 _persona_key = config.get_personality_key() if hasattr(config, "get_personality_key") else config.SKULL_NAME.lower().replace("-", "")
@@ -50,6 +51,10 @@ _mood_rgb = (255, 40, 30)  # base iris colour; default Imperial red
 _rolling_die = False
 _die_start_time = 0.0
 _die_result = "0"
+_die_kind = "d6"        # injury | firepower | scatter | d6 | num
+_die_faces: tuple = ()  # symbol per dice, from dice.face_symbol()
+_die_detail: tuple = () # per-dice extra: arrow direction, pip value, numeral
+_die_chosen = -1        # dice to ring as the one that matters, or -1
 _scanning_auspex = False
 _scanning_noosphere = False
 _searching_web = False
@@ -1042,83 +1047,192 @@ def _draw_vector_digit(draw, x, y, width, height, char: str, color, thickness=3)
             draw.line([p1, p2], fill=color, width=thickness)
 
 
-def _render_die_frame(bezel, mask, elapsed: float, result: str):
-    # Build on top of the static bezel
+_DIE_TUMBLE_END = 0.80   # seconds in the air before the dice land
+_DIE_SETTLE = 0.28       # the bounce as they land
+_DIE_STAGGER = 0.04      # each dice leaves the hand a little after the last
+# Dice enter from beyond the aperture, but only just: thrown from much further
+# out, the eye is empty for the first tenth of a second and the roll looks like
+# a dropped frame rather than a throw.
+_DIE_THROW_FROM = 104.0
+# Whole turns, so a dice lands upright however far it flew. Different counts
+# per dice stop them turning as one block.
+_DIE_TURNS = (3, 2, 4, 2, 3, 2)
+
+
+def _ease_out(t: float) -> float:
+    return 1.0 - (1.0 - min(1.0, max(0.0, t))) ** 3
+
+
+def _ease_out_back(t: float) -> float:
+    """Decelerate past the mark and come back, so a dice lands with a bounce."""
+    t = min(1.0, max(0.0, t))
+    c1, c3 = 1.22, 2.22
+    return 1.0 + c3 * (t - 1) ** 3 + c1 * (t - 1) ** 2
+
+
+def _draw_die_numeral(draw, cx, cy, size, colour, text: str) -> None:
+    """A rolled number, for the dice that show numbers rather than symbols."""
+    text = str(text)[:3]
+    w = size * (0.34 if len(text) < 3 else 0.24)
+    h = w * 1.75
+    gap = w * 0.52  # wide enough that adjacent uprights do not read as one glyph
+    total = len(text) * w + (len(text) - 1) * gap
+    x = cx - total / 2
+    for char in text:
+        _draw_vector_digit(draw, x, cy - h / 2, w, h, char, colour,
+                           thickness=max(2, int(size * 0.05)))
+        x += w + gap
+
+
+def _paint_die(draw, x, y, size, colour, symbol, detail, with_body: bool) -> None:
+    """Draw one dice upright at (x, y)."""
+    if with_body:
+        dice_faces.draw_die_body(draw, x, y, size, colour,
+                                 width=max(2, int(size * 0.035)))
+    if symbol == "num":
+        _draw_die_numeral(draw, x, y, size, colour, detail)
+    else:
+        dice_faces.draw_face(draw, symbol, x, y, size, colour, detail)
+
+
+def _draw_one_die(draw, overlay, x, y, size, colour, symbol, detail,
+                  with_body: bool, angle: float = 0.0) -> None:
+    """Draw one dice, turned ``angle`` degrees.
+
+    A turned dice is drawn to its own small tile and the tile is rotated, rather
+    than every symbol being taught to rotate itself. Most of the faces are built
+    from ellipses -- the skull, the pips, the bullet holes -- and those have no
+    rotated form; rotating the finished tile turns all of them at once, and the
+    hollows punched out of a face turn with it.
+
+    Upright dice skip the tile: that is every frame once the roll has landed,
+    and it is the common case.
+    """
+    if abs(angle) < 0.5:
+        _paint_die(draw, x, y, size, colour, symbol, detail, with_body)
+        return
+    side = int(size * 1.7) | 1
+    tile = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    _paint_die(ImageDraw.Draw(tile), side / 2, side / 2, size, colour, symbol,
+               detail, with_body)
+    tile = tile.rotate(angle, resample=Image.BILINEAR)
+    overlay.paste(tile, (int(x - side / 2), int(y - side / 2)), tile)
+
+
+def _render_die_frame(bezel, mask, elapsed: float, result: str, kind: str = "d6",
+                      faces: tuple = (), detail: tuple = (), chosen: int = -1):
+    """The dice roll, shown as the faces the dice actually carry.
+
+    Necromunda's dice are symbols, not numbers: a cross, a splintered burst, a
+    skull, bullet holes, a crosshair. Drawing the symbol is both quicker to read
+    across a table than a word and the thing a player is already looking for in
+    their own hand, so the eye shows the face rather than spelling the result
+    out. Numbered dice still get their number.
+
+    Three beats: the dice tumble, land with a shock ring, then sit under a
+    slowly turning rangefinder while the one that matters is ringed.
+    """
     img = bezel.copy()
     base = _mood_rgb
- 
     overlay = Image.new("RGB", (W, H), (0, 0, 0))
     d = ImageDraw.Draw(overlay)
- 
-    if elapsed < 1.5:
-        # Cube rotation angles
-        ax = elapsed * 480
-        ay = elapsed * 640
-        az = elapsed * 320
- 
-        # 8 Cube vertices (unit cube scaled)
-        v = [(x, y, z) for x in (-1, 1) for y in (-1, 1) for z in (-1, 1)]
- 
-        rotated_v = []
-        for vx, vy, vz in v:
-            # Scale the die size to fit nicely in the central aperture (radius 73)
-            vx, vy, vz = vx * 0.45, vy * 0.45, vz * 0.45
-            vx, vy, vz = _rotate_x(vx, vy, vz, ax)
-            vx, vy, vz = _rotate_y(vx, vy, vz, ay)
-            vx, vy, vz = _rotate_z(vx, vy, vz, az)
-            rotated_v.append((vx, vy, vz))
- 
-        proj_v = []
-        scale = 90
-        dist = 3.0
-        for vx, vy, vz in rotated_v:
-            px = _CX + int(vx * scale / (vz + dist))
-            py = _CY + int(vy * scale / (vz + dist))
-            proj_v.append((px, py))
- 
-        edges = [
-            (0, 1), (1, 3), (3, 2), (2, 0),
-            (4, 5), (5, 7), (7, 6), (6, 4),
-            (0, 4), (1, 5), (2, 6), (3, 7)
-        ]
- 
-        for start, end in edges:
-            d.line(proj_v[start] + proj_v[end], fill=base, width=2)
-    else:
-        # Draw vector 7-segment result inside circular HUD frame
-        d.ellipse([_CX - 40, _CY - 40, _CX + 40, _CY + 40], outline=base, width=2)
-        # Tech notches/tick marks
-        for deg in range(0, 360, 45):
-            rad = math.radians(deg)
-            x0, y0 = _CX + 40 * math.cos(rad), _CY + 40 * math.sin(rad)
-            x1, y1 = _CX + 46 * math.cos(rad), _CY + 46 * math.sin(rad)
-            d.line([(x0, y0), (x1, y1)], fill=base, width=2)
- 
-        # Convert result to string and clean/strip it
-        val_str = str(result).strip()
-        if val_str:
-            # Pick size based on length
-            if len(val_str) == 1:
-                w, h = 24, 42
-                gap = 8
-            elif len(val_str) == 2:
-                w, h = 18, 32
-                gap = 6
-            elif len(val_str) == 3:
-                w, h = 12, 22
-                gap = 4
+
+    symbols = list(faces) if faces else ["num"]
+    details = list(detail) if detail else [result]
+    details += [None] * (len(symbols) - len(details))
+
+    # A handful of numbered dice is better read as its total. Six pip faces
+    # shrunk to fit are just a scatter of dots, and the sum is the answer the
+    # player wanted anyway. Symbol dice never collapse: each one is a separate
+    # result that has to be seen.
+    if len(symbols) > 4 and all(sym in ("pip", "num") for sym in symbols):
+        symbols, details = ["num"], [result]
+    extra = max(0, len(symbols) - dice_faces.MAX_DRAWN)
+    shown = symbols[:dice_faces.MAX_DRAWN]
+    slots = dice_faces.layout(len(shown))
+    pool = dice_faces.TUMBLE_POOL.get(kind, ())
+
+    if elapsed < _DIE_TUMBLE_END:
+        # The throw: each dice comes in off the rim, turning as it goes, and
+        # decelerates into its slot. Every dice is given a whole number of
+        # turns so it lands upright however long it spent in the air.
+        for i, (x, y, size, with_body) in enumerate(slots):
+            launch = i * _DIE_STAGGER
+            flight = max(0.0, elapsed - launch) / max(0.01, _DIE_TUMBLE_END - launch)
+            flight = min(1.0, flight)
+            travel = _ease_out_back(flight)
+
+            entry = math.radians((i * 137.5) + 20.0)   # spread, not a line
+            sx = _CX + _DIE_THROW_FROM * math.cos(entry)
+            sy = _CY + _DIE_THROW_FROM * math.sin(entry)
+            px = sx + (x - sx) * travel
+            py = sy + (y - sy) * travel
+
+            turns = _DIE_TURNS[i % len(_DIE_TURNS)]
+            angle = turns * 360.0 * (1.0 - (1.0 - flight) ** 3)
+            if i % 2:
+                angle = -angle
+
+            # Faces blur past while it is in the air and slow as it lands, so
+            # the last face shown is nearly the one it settles on.
+            step = int(elapsed / (0.045 + 0.10 * flight))
+            if pool:
+                face, face_detail = pool[(step + i) % len(pool)], None
             else:
-                w, h = 9, 16
-                gap = 3
-                
-            total_w = len(val_str) * w + (len(val_str) - 1) * gap
-            start_x = _CX - total_w // 2
-            start_y = _CY - h // 2
-            
-            for i, char in enumerate(val_str):
-                dx = start_x + i * (w + gap)
-                _draw_vector_digit(d, dx, start_y, w, h, char, base, thickness=3 if h > 20 else 2)
- 
+                face, face_detail = "num", str(((step + i) % 6) + 1)
+            _draw_one_die(d, overlay, px, py, size, _scale(base, 0.8), face,
+                          face_detail, with_body, angle)
+    else:
+        settle = _ease_out((elapsed - _DIE_TUMBLE_END) / _DIE_SETTLE)
+        # Land with a small overshoot, then hold.
+        scale = 1.0 + 0.22 * (1.0 - settle) * math.cos(settle * math.pi * 1.5)
+        for i, (x, y, size, with_body) in enumerate(slots):
+            _draw_one_die(d, overlay, x, y, size * scale, base, shown[i],
+                          details[i], with_body)
+
+        # The shock ring thrown off as they land.
+        if settle < 1.0:
+            ring_r = 24 + settle * 58
+            d.ellipse([_CX - ring_r, _CY - ring_r, _CX + ring_r, _CY + ring_r],
+                      outline=_scale(base, 0.9 * (1.0 - settle)),
+                      width=max(1, int(5 * (1.0 - settle))))
+
+        # Mark the dice whose result is the one being applied -- with Injury
+        # dice the attacker picks one, and the eye should say which. Corner
+        # brackets rather than a ring: a ring sits just outside the dice's own
+        # rounded outline and reads as part of it.
+        if 0 <= chosen < len(slots) and settle >= 0.6:
+            x, y, size, _body = slots[chosen]
+            pulse = 0.55 + 0.45 * math.sin(elapsed * 6.0)
+            colour = _scale(base, pulse)
+            # Trace the dice's own corners. Further out and the brackets on a
+            # dice near the rim fall outside the aperture and are cut in half
+            # by the iris mask.
+            r = size * 0.56
+            arm = size * 0.22
+            thick = max(2, int(size * 0.055))
+            for sx in (-1, 1):
+                for sy in (-1, 1):
+                    cx_, cy_ = x + sx * r, y + sy * r
+                    d.line([(cx_, cy_), (cx_ - sx * arm, cy_)], fill=colour, width=thick)
+                    d.line([(cx_, cy_), (cx_, cy_ - sy * arm)], fill=colour, width=thick)
+
+        # A slow rangefinder sweep around the aperture, so the result is not a
+        # frozen image for two and a half seconds.
+        if settle >= 0.8:
+            sweep = elapsed * 42.0
+            for k in range(4):
+                a0 = sweep + k * 90
+                d.arc([_CX - 68, _CY - 68, _CX + 68, _CY + 68], a0, a0 + 26,
+                      fill=_scale(base, 0.45), width=2)
+            if extra:
+                # The seven-segment map has no '+', so the sign is drawn.
+                faint = _scale(base, 0.8)
+                py = _CY + 58
+                d.line([(_CX - 24, py), (_CX - 12, py)], fill=faint, width=2)
+                d.line([(_CX - 18, py - 6), (_CX - 18, py + 6)], fill=faint, width=2)
+                _draw_die_numeral(d, _CX + 6, py, 26, faint, str(extra))
+
     img.paste(overlay, (0, 0), mask)
     return img
 
@@ -1462,7 +1576,9 @@ def _render_loop():
                 _rolling_die = False
             else:
                 try:
-                    _blit(_render_die_frame(bezel, mask, roll_elapsed, _die_result))
+                    _blit(_render_die_frame(bezel, mask, roll_elapsed, _die_result,
+                                            _die_kind, _die_faces, _die_detail,
+                                            _die_chosen))
                 except Exception as e:
                     _render_error("die render", e)
                 pace(config.DISPLAY_FPS)
@@ -1630,11 +1746,25 @@ def _render_loop():
         pace(config.DISPLAY_FPS)
 
 
-def start_die_roll(result: int | str) -> None:
+def start_die_roll(result: int | str, kind: str = "d6", faces=None,
+                   detail=None, chosen: int = -1) -> None:
+    """Show a dice roll.
+
+    ``faces`` are symbol names from ``games.necromunda.dice.face_symbol`` -- the
+    marks the dice carry -- and ``detail`` holds whatever each symbol needs
+    (an arrow's direction, a numeral). ``chosen`` rings one dice as the result
+    being applied. Without faces the roll is drawn as its number, which is what
+    an ordinary dice shows anyway.
+    """
     global _rolling_die, _die_start_time, _die_result
+    global _die_kind, _die_faces, _die_detail, _die_chosen
     if not _available:
         return
     _die_result = str(result)
+    _die_kind = kind or "d6"
+    _die_faces = tuple(faces or ())
+    _die_detail = tuple(detail or ())
+    _die_chosen = int(chosen)
     _die_start_time = time.monotonic()
     _rolling_die = True
     _poke()

@@ -56,61 +56,9 @@ _WMO_CODES: dict[int, str] = {
     95: "thunderstorm", 96: "thunderstorm with hail", 99: "thunderstorm with heavy hail",
 }
 
-# Keyword → doc page routing. For each entry: (path, [keywords that suggest this page]).
-# Used to concept-boost the local Necromunda library: when a query hits a concept
-# whose canonical page's title doesn't contain the word (e.g. "On Fire" lives inside
-# "Conditions"), the matching page's score is boosted via its URL path.
-_NECRO_ROUTES = [
-    ("gang-fighters-and-their-weaponry/weapon-traits", [
-        "trait", "weapon trait", "paired", "blaze", "rapid fire", "blast", "template",
-        "knockback", "rending", "plentiful", "scarce", "unwieldy", "grenade",
-        "melee", "versatile", "shock", "gas", "toxin", "rad", "web",
-    ]),
-    ("general-principles/conditions", [
-        "condition", "on fire", "blind", "broken", "flesh wound",
-        "seriously injured", "pinned", "webbed", "intoxicated", "insane",
-        "seriously", "blaze", "burning",
-    ]),
-    ("gang-fighters-and-their-weaponry/skills", [
-        "skills", "agility", "brawn", "combat", "cunning", "ferocity",
-        "leadership", "savant", "shooting", "driving",
-    ]),
-    ("general-principles/fighter-actions", [
-        "action", "activate", "move", "shoot", "charge", "fight",
-        "coup de grace", "coup", "stand up", "crawl",
-    ]),
-    ("the-rules/game-structure/the-action-phase/close-combat", [
-        "close combat", "determine attack dice", "attack dice", "reaction attacks",
-        "combat sequence", "fight action", "attacks", "melee attack",
-    ]),
-    ("the-rules/game-structure/the-action-phase/shooting", [
-        "shooting", "ranged attack", "firepower", "hit roll", "wound roll",
-        "shooting sequence",
-    ]),
-    ("gang-fighters-and-their-weaponry/index", [
-        "characteristic", "strength", "toughness", "wounds", "attacks",
-        "initiative", "leadership", "cool", "willpower", "intelligence",
-    ]),
-    ("campaigns-and-scenarios/the-campaign", [
-        "campaign", "territory", "reputation", "credits", "post-battle",
-        "advancement", "experience", "xp",
-    ]),
-    ("trading-post/", [
-        "trading post", "trade", "rare trade", "black market", "rarity",
-        "availability", "rare", "illegal", "common item", "exclusive item",
-        "buy", "purchase", "shopping", "price of", "cost of", "where can i get",
-    ]),
-    ("trading-post/book-of-peril-badzones-trading-post", [
-        "book of peril", "badzone", "bad zone", "special ammunition", "special ammo",
-        "ammunition", "ammo", "wargear", "trading post equipment", "personal equipment",
-    ]),
-    ("gangs/gang-lists/house-delaque", [
-        "delaque", "nacht-ghul", "nacht ghul", "phantom", "master of shadow",
-        "from the shadows", "psychoteric", "psy-gheist",
-    ]),
-]
-
-
+# Keyword → doc page routing for the Markdown rules libraries (40k, NetEpic,
+# NetEA, WFRP). Necromunda no longer has one: its rules are a database with a
+# full-text index, so there is no page whose title needs boosting.
 def get_weather(lat: float, lon: float) -> str:
     """Fetch current conditions and 2-day forecast from Open-Meteo (no API key required)."""
     url = (
@@ -568,20 +516,14 @@ def _search_rules_library(base: pathlib.Path, query: str, routes: list | None = 
     return "\n\n---\n\n".join(out)
 
 
-# ── Local Necromunda ruleset (offline library) ────────────────────────────────
-# The full Necromunda ruleset (Rules as Written) is mirrored to
-# _rules_dir()/necromunda as one Markdown file per page. Offline-only.
-_NECRO_DIR = _game_rules_dir("necromunda")
-
-
+# ── Local Necromunda ruleset (modularised in games.necromunda) ────────────────
+# Necromunda Skirmish (2026) is extracted from the core rulebook PDF into a
+# SQLite database rather than a folder of Markdown, because its weapon tables do
+# not survive linear text extraction -- an unprinted cell leaves no token and
+# every later value shifts a column left. See games/necromunda/rules_schema.py.
 def necromunda_rules(query: str) -> str:
-    """Look up Necromunda rules from the local offline library."""
-    result = _search_rules_library(_NECRO_DIR, query, routes=_NECRO_ROUTES,
-                                   label="Necromunda")
-    if not result:
-        return ("The Necromunda rules library isn't installed on this device. "
-                "Populate _rules_dir()/necromunda with the mirrored ruleset pages.")
-    return result
+    from games.necromunda.search import necromunda_rules as _necromunda_rules
+    return _necromunda_rules(query)
 
 
 # ── Local Warhammer 40,000 ruleset (offline library) ───────────────────────────

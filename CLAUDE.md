@@ -10,8 +10,11 @@ word → Whisper → Claude with tools → ElevenLabs/Piper speech, plus a round
 - `core/` — the application. `main.py` is the orchestration loop (wake, record,
   transcribe, local intent handlers, `brain.respond`, speak); `brain.py` the Claude
   conversation and tool handlers; `tools_schema.py` the tool definitions; `llm.py`
-  the API client (streaming, prompt caching); `display.py` the eye; `web.py` the
-  web remote; `config.py` all settings.
+  the API client (streaming, prompt caching); `display.py` the eye;
+  `dice_faces.py` the symbols Necromunda's dice carry (a cross, a splintered
+  burst, a skull, bullet holes, a crosshair, an arrow at any bearing), drawn by
+  the eye instead of spelling the result out; `web.py` the web remote;
+  `config.py` all settings.
 - The web remote is one page: `web.py`'s `HTML_CLIENT` string (markup and all CSS)
   plus `core/app.js`. Omega-7's own views — the terminal, the memory bank, the
   setup wizard — are styled by the `.o7`/`.o7-modal` design system in that style
@@ -35,9 +38,15 @@ word → Whisper → Claude with tools → ElevenLabs/Piper speech, plus a round
   on every return from a screensaver and on each mood change: the mood's own eye
   a third of the time, otherwise any other (`display.pick_eye_style`).
 - `games/` — tabletop engines and rules: `wfrp/` (WFRP 4e game-master engine and
-  Foundry bridge), `bardstale/` (Apple IIe emulator agent), `netea/`, `netepic/`.
-  Copyrighted rulebook text is built locally with `games/ingest_pdf.py` and
-  git-ignored.
+  Foundry bridge), `necromunda/` (Necromunda Skirmish), `bardstale/` (Apple IIe
+  emulator agent), `netea/`, `netepic/`. Copyrighted rulebook text is built
+  locally and git-ignored: most games use `games/ingest_pdf.py` to make a folder
+  of Markdown, while `wfrp/` and `necromunda/` extract into SQLite instead
+  (`rules_schema.py` + `extract/`), because their printed tables do not survive
+  linear text extraction — an unprinted cell leaves no token and every later
+  value shifts a column left. Rebuild Necromunda with
+  `python -m games.necromunda.extract.ingest <core rulebook PDF>`; the database
+  is reproducible, so it is dropped and rebuilt rather than migrated.
 - A command's end is decided by `core/vad.py` (Silero VAD on onnxruntime) inside
   `audio.record()`; the recording is streamed to OpenAI's realtime transcription
   session by `transcribe.StreamingTranscriber` while it is captured, with the

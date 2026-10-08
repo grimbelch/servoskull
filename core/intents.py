@@ -190,16 +190,25 @@ def spotify_volume(text: str, ctx: Context) -> Intent | None:
     return None
 
 
-_DICE_NECRO = re.compile(r"roll\s+(?:a\s+|an\s+)?(\d+)?\s*(firepower|injury|scatter|hit\s+location|location)\s*d(?:ice|ie)?")
+# Necromunda Skirmish's own dice. "Hit location" is deliberately absent: it
+# belonged to the previous edition and the 2026 rulebook has no such roll.
+_DICE_NECRO = re.compile(r"roll\s+(?:a\s+|an\s+)?(\d+)?\s*(firepower|injury|scatter)\s*d(?:ice|ie)?")
+# D66 is two D6 read as tens then units, so it yields 11-66 and can never show
+# 17 or 20. It has to be caught before the generic dN pattern, which would read
+# it as a single 66-sided die and roll numbers the game cannot produce.
+_DICE_D66 = re.compile(r"roll\s+(?:a\s+|an\s+)?(\d+)?\s*d\s*66\b")
 _DICE_STD = re.compile(r"roll\s+(?:a\s+|an\s+)?(\d+)?\s*d\s*(\d+)(?:\s*(?:needing|target|against)\s+(\d+))?")
 
 
 def dice(text: str, ctx: Context) -> Intent | None:
     m = _DICE_NECRO.search(text)
     if m:
-        kind = m.group(2).strip()
         return Intent("dice", {"game": "necromunda", "count": int(m.group(1) or 1),
-                               "dice_type": "location" if "location" in kind else kind})
+                               "dice_type": m.group(2).strip()})
+    m = _DICE_D66.search(text)
+    if m:
+        return Intent("dice", {"game": "necromunda", "count": int(m.group(1) or 1),
+                               "dice_type": "d66"})
     m = _DICE_STD.search(text)
     if m:
         return Intent("dice", {"game": "standard", "count": int(m.group(1) or 1), "sides": int(m.group(2)),

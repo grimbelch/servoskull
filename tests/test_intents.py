@@ -105,8 +105,32 @@ def test_dice_forms():
     assert intents.dice("roll a d20", Context()).args == {"game": "standard", "count": 1, "sides": 20, "target": None}
     assert intents.dice("roll 3d6 needing 4", Context()).args == {"game": "standard", "count": 3, "sides": 6, "target": 4}
     assert intents.dice("roll a firepower die", Context()).args == {"game": "necromunda", "count": 1, "dice_type": "firepower"}
-    assert intents.dice("roll 2 hit location dice", Context()).args == {"game": "necromunda", "count": 2, "dice_type": "location"}
+    assert intents.dice("roll 3 injury dice", Context()).args == {"game": "necromunda", "count": 3, "dice_type": "injury"}
+    assert intents.dice("roll 2 scatter dice", Context()).args == {"game": "necromunda", "count": 2, "dice_type": "scatter"}
     assert intents.dice("how do dice rolls work", Context()) is None
+
+
+def test_d66_is_not_a_sixty_six_sided_die():
+    """D66 is two D6 read as tens then units, so it must not fall through to dN.
+
+    Matched by the generic pattern it would roll 1-66 uniformly and produce
+    results the game cannot show, such as 17 or 20.
+    """
+    assert intents.dice("roll a d66", Context()).args == {
+        "game": "necromunda", "count": 1, "dice_type": "d66"}
+    assert intents.dice("roll 2 d66", Context()).args == {
+        "game": "necromunda", "count": 2, "dice_type": "d66"}
+    # A plain d6 must still reach the standard roller.
+    assert intents.dice("roll a d6", Context()).args["game"] == "standard"
+
+
+def test_hit_location_dice_are_not_offered():
+    """The 2026 edition has no hit location roll; the phrase must not match.
+
+    It belonged to the previous edition. Matching it would send a request for a
+    roll that does not exist to a simulator that would invent a result.
+    """
+    assert intents.dice("roll 2 hit location dice", Context()) is None
 
 
 # ── settings ──────────────────────────────────────────────────────────────────

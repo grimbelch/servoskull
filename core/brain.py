@@ -404,7 +404,7 @@ def get_active_tools_for_game(game_name: str) -> list[dict]:
         name for name in (t.get("name") for t in _TOOLS) if name and name.startswith("whfrp_")
     }
     w40k_tools = {"warhammer40k_rules"}
-    necro_tools = {"necromunda_rules"}
+    necro_tools = {"necromunda_rules", "necromunda_weapon"}
     netepic_tools = {"netepic_rules"}
     netea_tools = {"netea_rules"}
 
@@ -444,19 +444,30 @@ def set_current_game(game: str) -> None:
 
 
 _last_roll_result = "0"
+# What the dice actually showed, so the eye can draw the faces rather than a
+# number: (kind, symbols, per-symbol detail, index of the result being applied).
+_last_roll_faces: tuple = ("d6", (), (), -1)
 _roll_lock = threading.Lock()
 
 
-def _set_roll_result(val: int | str) -> None:
-    """Thread-safe setter for the last dice roll result."""
-    global _last_roll_result
+def _set_roll_result(val: int | str, kind: str = "d6", faces=(), detail=(),
+                     chosen: int = -1) -> None:
+    """Thread-safe setter for the last dice roll result and its faces."""
+    global _last_roll_result, _last_roll_faces
     with _roll_lock:
         _last_roll_result = str(val)
+        _last_roll_faces = (kind, tuple(faces), tuple(detail), int(chosen))
 
 def _get_roll_result() -> str:
     """Thread-safe getter for the last dice roll result."""
     with _roll_lock:
         return _last_roll_result
+
+
+def _get_roll_faces() -> tuple:
+    """Thread-safe getter for the faces of the last roll."""
+    with _roll_lock:
+        return _last_roll_faces
 
 def _trigger_dice_effects(display_val: int | str | None = None) -> None:
     try:
@@ -467,8 +478,10 @@ def _trigger_dice_effects(display_val: int | str | None = None) -> None:
 
     try:
         val = display_val if display_val is not None else _get_roll_result()
+        kind, faces, detail, chosen = _get_roll_faces()
         from core import display as _display
-        _display.start_die_roll(val)
+        _display.start_die_roll(val, kind=kind, faces=faces, detail=detail,
+                                chosen=chosen)
     except Exception as e:
         print(f"[brain] Display roll failed: {e}")
 
@@ -477,145 +490,110 @@ def _trigger_dice_effects(display_val: int | str | None = None) -> None:
 
 
 def _simulate_necromunda(dice_type: str, count: int, target: int | None = None) -> str:
-    import random
+    """Roll Necromunda Skirmish dice.
+
+    The dice themselves live in ``games.necromunda.dice``, which records what the
+    2026 core rulebook actually prints about each one and what it does not, so
+    the faces are declared data rather than numbers buried in here.
+
+    Injury dice changed with the edition and are the reason this was rewritten.
+    The results are now Injured / Serious Injury / Out of Action -- "Flesh
+    Wound" appears nowhere in the new book -- and the roll is a CHOICE: the
+    attacker rolls one die per point of the weapon's Lethality and applies one
+    of them. Tallying every die, as this did before, answers a question the rule
+    does not ask.
+    """
+    from games.necromunda import dice as necro_dice
+
+    count = max(1, count)
+    details: list[str] = []
     display_val = "0"
-    details = []
-    
-    if dice_type == "firepower":
-        total_hits = 0
-        ammo_checks = 0
-        rolls = []
-        for _ in range(count):
-            r = random.randint(1, 6)
-            if r == 1:
-                rolls.append("1 (Ammo Symbol)")
-                total_hits += 1
-                ammo_checks += 1
-            elif r in (2, 3):
-                rolls.append("1")
-                total_hits += 1
-            elif r in (4, 5):
-                rolls.append("2")
-                total_hits += 2
-            else:
-                rolls.append("3")
-                total_hits += 3
-        
-        details.append(f"Necromunda Firepower Roll ({count} dice):")
-        details.append(f"Individual rolls: {', '.join(rolls)}")
-        details.append(f"Total Hits: {total_hits}")
-        if ammo_checks > 0:
-            details.append(f"WARNING: {ammo_checks} Ammo Check(s) triggered! Weapons may jam or run out of ammunition.")
+    kind = (dice_type or "d6").strip().lower().replace(" ", "_")
+    # What the eye draws: the symbol on each dice, plus whatever that symbol
+    # needs (an arrow's direction, a pip count) and which dice is the answer.
+    face_kind, symbols, face_detail, chosen = "d6", [], [], -1
+
+    if kind == "firepower":
+        result = necro_dice.firepower(count)
+        details.append(f"Firepower dice ({count}): {', '.join(result['faces'])}")
+        details.append(f"Shots: {result['shots']}")
+        # In this edition the ammo symbol does not by itself empty the weapon:
+        # the Ammo (X+) trait's own D6 does that. The symbol matters when that
+        # D6 has already failed, and the two together jam the weapon for the
+        # rest of the battle (Ammo (X+), p161).
+        if result["ammo_checks"]:
+            details.append(
+                f"{result['ammo_checks']} ammo symbol(s) rolled. If the weapon's "
+                "Ammo (X+) roll also failed, it jams and is out for the battle.")
         else:
-            details.append("No Ammo Checks triggered.")
-        display_val = str(total_hits)
-            
-    elif dice_type == "injury":
-        flesh = 0
-        serious = 0
-        out_of_action = 0
-        rolls = []
-        for _ in range(count):
-            r = random.randint(1, 6)
-            if r in (1, 2):
-                rolls.append("Flesh Wound")
-                flesh += 1
-            elif r in (3, 4, 5):
-                rolls.append("Serious Injury")
-                serious += 1
-            else:
-                rolls.append("Out of Action")
-                out_of_action += 1
-        
-        details.append(f"Necromunda Injury Roll ({count} dice):")
-        details.append(f"Individual rolls: {', '.join(rolls)}")
-        details.append(f"Summary: {flesh}x Flesh Wound, {serious}x Serious Injury, {out_of_action}x Out of Action")
-        
-        if count == 1:
-            if flesh > 0:
-                display_val = "FW"
-            elif serious > 0:
-                display_val = "SI"
-            else:
-                display_val = "OA"
-        else:
-            if out_of_action > 0:
-                display_val = "OA"
-            elif serious > 0:
-                display_val = "SI"
-            else:
-                display_val = "FW"
-        
-    elif dice_type == "scatter":
-        hits = 0
-        arrows = []
-        directions = ["North (12 o'clock)", "East (3 o'clock)", "South (6 o'clock)", "West (9 o'clock)"]
-        for _ in range(count):
-            r = random.randint(1, 6)
-            if r in (1, 2):
-                arrows.append("Direct Hit")
-                hits += 1
-            else:
-                dir_str = directions[r - 3]
-                arrows.append(f"Scatter {dir_str}")
-        
-        details.append(f"Necromunda Scatter Roll ({count} dice):")
-        details.append(f"Individual rolls: {', '.join(arrows)}")
-        details.append(f"Summary: {hits}x Direct Hit, {count - hits}x Scatter")
-        
-        if count == 1:
-            if hits > 0:
-                display_val = "HIT"
-            else:
-                dir_word = arrows[0].split()[1].lower()
-                if "north" in dir_word:
-                    display_val = "N"
-                elif "east" in dir_word:
-                    display_val = "E"
-                elif "south" in dir_word:
-                    display_val = "S"
-                elif "west" in dir_word:
-                    display_val = "W"
-                else:
-                    display_val = "SC"
-        else:
-            display_val = str(hits)
-        
-    elif dice_type == "location":
-        locations = ["Head", "Body", "Left Arm", "Right Arm", "Left Leg", "Right Leg"]
-        rolls = []
-        for _ in range(count):
-            r = random.randint(1, 6)
-            rolls.append(locations[r - 1])
-        
-        details.append(f"Necromunda Hit Location Roll ({count} dice):")
-        details.append(f"Individual rolls: {', '.join(rolls)}")
-        
-        _HIT_LOC_MAP = {
-            "head": "HD", "body": "BD", "left arm": "LA",
-            "right arm": "RA", "left leg": "LL", "right leg": "RL"
-        }
-        if count == 1:
-            loc = rolls[0].lower()
-            key = next((k for k in _HIT_LOC_MAP if k in loc), None)
-            display_val = _HIT_LOC_MAP.get(key, "LOC") if key else "LOC"
-        else:
-            display_val = "LOC"
-        
-    elif dice_type == "d6":
-        rolls = [random.randint(1, 6) for _ in range(count)]
-        details.append(f"Standard D6 Roll ({count} dice): {', '.join(map(str, rolls))}")
+            details.append("No ammo symbols rolled.")
+        display_val = str(result["shots"])
+        face_kind = "firepower"
+        symbols = [necro_dice.face_symbol("firepower", f) for f in result["faces"]]
+        face_detail = [None] * len(symbols)
+
+    elif kind == "injury":
+        result = necro_dice.injury(count)
+        details.append(f"Injury dice ({count}): {', '.join(result['faces'])}")
+        if count > 1:
+            details.append(
+                "The attacking player selects ONE of these results to apply. "
+                f"Most severe available: {result['most_severe']}; least severe: "
+                f"{result['least_severe']}.")
+        display_val = {"Injured": "INJ", "Serious Injury": "SI",
+                       "Out of Action": "OOA"}[result["most_severe"]]
+        face_kind = "injury"
+        symbols = [necro_dice.face_symbol("injury", f) for f in result["faces"]]
+        face_detail = [None] * len(symbols)
+        # Ring the worst result available: it is the one the attacker will take.
+        chosen = result["faces"].index(result["most_severe"])
+
+    elif kind == "scatter":
+        result = necro_dice.scatter(count)
+        shown = [f"{f} ({necro_dice.bearing_name(b)})" if f != "Hit"
+                 else f"Hit ({necro_dice.bearing_name(b)})"
+                 for f, b in zip(result["faces"], result["bearings"])]
+        details.append(f"Scatter dice ({count}): {', '.join(shown)}")
+        if result["hits"]:
+            details.append(
+                f"{result['hits']} Hit symbol(s) - the template stays where it is "
+                "(the symbol also carries an arrow if a direction is needed).")
+        display_val = str(result["hits"]) if result["hits"] else "DIR"
+        face_kind = "scatter"
+        symbols = [necro_dice.face_symbol("scatter", f) for f in result["faces"]]
+        face_detail = list(result["bearings"])  # the bearing each arrow points
+
+    elif kind == "d66":
+        rolls = necro_dice.d66(count)
+        details.append(f"D66 ({count}): {', '.join(map(str, rolls))}")
+        display_val = str(rolls[0])
+        face_kind = "num"
+        symbols = ["num"] * len(rolls)
+        face_detail = [str(r) for r in rolls]
+
+    elif kind == "d3":
+        rolls = necro_dice.d3(count)
+        details.append(f"D3 ({count}): {', '.join(map(str, rolls))}")
+        display_val = str(rolls[0] if count == 1 else sum(rolls))
+        face_kind = "num"
+        symbols = ["num"] * len(rolls)
+        face_detail = [str(r) for r in rolls]
+
+    else:
+        rolls = necro_dice.d6(count)
+        details.append(f"D6 ({count}): {', '.join(map(str, rolls))}")
         if target is not None:
-            successes = sum(1 for r in rolls if r >= target)
-            details.append(f"Successes ({target}+): {successes} passed, {count - successes} failed")
-            display_val = str(successes)
+            passed = sum(1 for r in rolls if r >= target)
+            details.append(f"Successes ({target}+): {passed} passed, "
+                           f"{count - passed} failed")
+            display_val = str(passed)
         else:
-            if count == 1:
-                display_val = str(rolls[0])
-            else:
-                display_val = str(sum(rolls))
-            
-    _set_roll_result(display_val)
+            display_val = str(rolls[0] if count == 1 else sum(rolls))
+        face_kind = "d6"
+        symbols = ["pip"] * len(rolls)
+        face_detail = list(rolls)
+
+    _set_roll_result(display_val, face_kind, symbols, face_detail, chosen)
     return "\n".join(details)
 
 
@@ -634,8 +612,13 @@ def _simulate_standard_dice(count: int, sides: int, target: int | None = None) -
             display_val = str(rolls[0])
         else:
             display_val = str(total)
-            
-    _set_roll_result(display_val)
+
+    # A six-sided dice has pips to draw; anything else shows its number.
+    if sides == 6:
+        _set_roll_result(display_val, "d6", ["pip"] * len(rolls), list(rolls))
+    else:
+        _set_roll_result(display_val, "num", ["num"] * len(rolls),
+                         [str(r) for r in rolls])
     return "\n".join(details)
 
 

@@ -47,12 +47,13 @@ def get_tools():
 {
         "name": "necromunda_rules",
         "description": (
-            "Look up Necromunda tabletop game rules from the local offline rules library (Rules as Written). "
-            "Use for any question about Necromunda mechanics, gangs, weapons, skills, "
-            "injuries, campaigns, scenarios, or equipment — including the Trading Post and "
-            "Black Market: item availability, rarity, cost, exclusive/illegal items, and "
-            "special ammunition. Always use this tool before answering a Necromunda rules "
-            "question rather than relying on memory."
+            "Look up Necromunda rules in the local offline library, extracted from the "
+            "Necromunda Skirmish core rulebook (2026 edition). Use it for any question "
+            "about mechanics, phases, actions, model status, conditions, skills, wyrd "
+            "powers, campaigns, scenarios, the Trading Post or equipment. This edition "
+            "differs substantially from earlier Necromunda, so always consult this tool "
+            "rather than answering from memory. For one weapon's numbers, prefer "
+            "necromunda_weapon, which reads the printed profile directly."
         ),
         "input_schema": {
             "type": "object",
@@ -238,20 +239,52 @@ def get_tools():
         },
     },
 {
+        "name": "necromunda_weapon",
+        "description": (
+            "Get a Necromunda weapon's printed profile: short and long range, "
+            "Strength, AP, Lethality, traits, cost in credits and Trading Post "
+            "rarity, plus any special ammunition printed with it. Reads the "
+            "rulebook's own table columns, so use this rather than necromunda_rules "
+            "whenever the question is about a specific weapon's numbers. A cell the "
+            "book leaves blank is reported as 'not printed' rather than as zero."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "The weapon's name, e.g. 'boltgun', 'heavy stubber'.",
+                }
+            },
+            "required": ["name"],
+        },
+    },
+{
         "name": "roll_necromunda_dice",
-        "description": "Roll specialized Necromunda dice (Firepower/Ammo checks, Injury dice, Scatter dice, Location dice, or standard D6 checks).",
+        "description": (
+            "Roll Necromunda Skirmish dice and show the faces on the skull's eye. "
+            "Types: 'injury' (results are Injured, Serious Injury or Out of Action; "
+            "the count is the weapon's Lethality (L), and the ATTACKER then picks "
+            "ONE of the rolled results to apply - use necromunda_weapon first if "
+            "you do not know the weapon's Lethality), 'firepower' (bullet holes "
+            "give Rapid Fire hits; an ammo symbol jams the weapon only if its "
+            "Ammo (X+) roll also failed), 'scatter' (a Hit, plus a bearing in "
+            "degrees read off however the dice landed), 'd66' (two D6 as tens then "
+            "units, giving 11-66), 'd3', and plain 'd6'. Report the faces rolled, "
+            "not just a total."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "dice_type": {
                     "type": "string",
-                    "enum": ["firepower", "injury", "scatter", "location", "d6"],
-                    "description": "The type of specialized Necromunda die to roll."
+                    "enum": ["firepower", "injury", "scatter", "d66", "d3", "d6"],
+                    "description": "The type of Necromunda die to roll."
                 },
                 "count": {
                     "type": "integer",
                     "minimum": 1,
-                    "description": "The number of dice to roll."
+                    "description": "Number of dice. For Injury dice this is the weapon's Lethality (L)."
                 },
                 "target": {
                     "type": "integer",
@@ -452,6 +485,13 @@ def _tool_roll_dice(i):
     _trigger_dice_effects()
     return res
 
+def _tool_necromunda_weapon(i):
+    name = i.get("name", "")
+    print(f"[skull] Looking up Necromunda weapon: {name}")
+    from games.necromunda import rules_tools
+    return rules_tools.weapon_profile(name)
+
+
 def _tool_roll_necromunda_dice(i):
     dice_type = str(i.get("dice_type", "d6")).strip()
     count = int(i.get("count", 1))
@@ -529,6 +569,7 @@ def _tool_roll_epic_dice(i):
 def get_handlers():
     return {
         "necromunda_rules": _tool_necromunda_rules,
+        "necromunda_weapon": _tool_necromunda_weapon,
         "warhammer40k_rules": _tool_warhammer40k_rules,
         "netepic_rules": _tool_netepic_rules,
         "netea_rules": _tool_netea_rules,
