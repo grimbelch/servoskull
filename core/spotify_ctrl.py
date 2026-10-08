@@ -13,22 +13,11 @@ from core import config
 import time
 import requests
 
-def retry_spotify_call(max_retries=3):
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            for attempt in range(max_retries):
-                try:
-                    return func(*args, **kwargs)
-                except (spotipy.SpotifyException, requests.exceptions.RequestException) as e:
-                    if attempt == max_retries - 1:
-                        print(f"[spotify] Failed after {max_retries} attempts: {e}")
-                        raise
-                    delay = 2 ** attempt
-                    print(f"[spotify] Transient error ({e}), retrying in {delay}s...")
-                    time.sleep(delay)
-            return None
-        return wrapper
-    return decorator
+# There is no retry wrapper here on purpose. spotipy already retries a failed
+# request three times with its own backoff (requests_timeout=5, retries=3,
+# backoff_factor=0.3 in 2.26), so a second layer would turn one transient blip into
+# nine attempts and several seconds of sleep on the main loop. The functions below
+# catch their own errors and report them; that is the whole policy.
 
 
 _SCOPES = " ".join([
@@ -142,7 +131,7 @@ def search_and_play(query: str, device_name: str = None) -> str:
             print(f"[spotify] Device inactive, waking {dev}...")
             try:
                 sp.transfer_playback(device_id=dev, force_play=True)
-                import time; time.sleep(1.5)
+                time.sleep(1.5)
                 _play()
                 return label
             except Exception as e2:
@@ -155,7 +144,6 @@ def search_and_play(query: str, device_name: str = None) -> str:
 _pre_duck_volume: int | None = None
 
 
-@retry_spotify_call()
 def duck(level: int = 20) -> None:
     """Lower the music volume while Omega-7 speaks, then restore() afterwards.
 
@@ -185,21 +173,23 @@ def duck(level: int = 20) -> None:
         _pre_duck_volume = None
 
 
-@retry_spotify_call()
 def restore() -> None:
     """Restore the pre-duck music volume. Idempotent; no-op if not ducked."""
     global _pre_duck_volume
     if _sp is None or _pre_duck_volume is None:
         return
     vol = _pre_duck_volume
-    _pre_duck_volume = None
     try:
         pb = _sp.current_playback()
         dev = (pb or {}).get("device") or {}
         _sp.volume(vol, device_id=dev.get("id"))
-        print(f"[spotify] Restored volume → {vol}%")
     except Exception as e:
-        print(f"[spotify] Restore failed: {e}")
+        # Keep the remembered level: clearing it first meant one failed call left
+        # the music at the duck level permanently, with every later restore a no-op.
+        print(f"[spotify] Restore failed, still holding {vol}% to restore to: {e}")
+        return
+    _pre_duck_volume = None
+    print(f"[spotify] Restored volume → {vol}%")
 
 
 def _active_device_id() -> str | None:
@@ -211,7 +201,6 @@ def _active_device_id() -> str | None:
         return None
 
 
-@retry_spotify_call()
 def pause() -> None:
     try:
         _client().pause_playback(device_id=_active_device_id())
@@ -226,7 +215,6 @@ def pause() -> None:
         print(f"[spotify] Pause failed: {e}")
 
 
-@retry_spotify_call()
 def resume() -> None:
     try:
         _client().start_playback(device_id=_active_device_id())
@@ -235,7 +223,6 @@ def resume() -> None:
         print(f"[spotify] Resume failed: {e}")
 
 
-@retry_spotify_call()
 def transfer(device_name: str) -> str:
     try:
         sp = _client()
@@ -250,7 +237,6 @@ def transfer(device_name: str) -> str:
         return f"Failed to transfer playback: {e}"
 
 
-@retry_spotify_call()
 def skip() -> None:
     try:
         _client().next_track(device_id=_active_device_id())
@@ -289,7 +275,6 @@ def get_currently_playing() -> str:
         return f"Failed to check Spotify playback: {e}"
 
 
-@retry_spotify_call()
 def is_playing() -> bool:
     if _sp is None:
         return False

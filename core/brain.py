@@ -31,7 +31,7 @@ _history: list[dict] = []
 
 # Tools that hit the network/hardware and can take a noticeable moment. Omega-7
 # speaks a short "stand by" before running any of these so the user gets feedback.
-_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "auspex_scan", "display_art", "capture_and_describe_surroundings", "register_face", "register_voice", "purge_identity", "connect_bambu_printer", "get_spotify_current_track"} | wfrp.tools.SLOW_TOOLS
+_SLOW_TOOLS = {"web_search", "news_search", "necromunda_rules", "warhammer40k_rules", "netepic_rules", "netea_rules", "get_weather", "bluetooth_scan", "bluetooth_connect", "bluetooth_disconnect", "auspex_scan", "display_art", "capture_and_describe_surroundings", "register_face", "register_voice", "purge_identity", "connect_bambu_printer", "get_spotify_current_track"} | wfrp.tools.SLOW_TOOLS
 
 from core import db
 _last_turn_tools: list[str] = []

@@ -31,6 +31,26 @@ def _is_mac(s: str) -> bool:
     return bool(re.fullmatch(r"[0-9A-Fa-f]{2}([:\-][0-9A-Fa-f]{2}){5}", s.strip()))
 
 
+# Spoken ways of saying "every connected device".
+ALL_TARGETS = ("all", "*", "", "everything", "every", "any")
+
+
+def resolve_target(identifier: str, devices: list[dict]) -> str | None:
+    """The MAC a spoken name or address refers to, or None if nothing matches.
+
+    Pure, so the choice is testable. Callers must check for ALL_TARGETS first: a
+    name this cannot resolve is a failed request, never an instruction to act on
+    everything.
+    """
+    ident = (identifier or "").lower().strip()
+    if not ident:
+        return None
+    for d in devices:
+        if ident in d["name"].lower() or ident in d["mac"].lower():
+            return d["mac"]
+    return identifier.upper() if _is_mac(identifier) else None
+
+
 def scan(timeout: int = 6) -> list[dict]:
     """Scan for nearby Bluetooth devices using pexpect prompt synchronization.
     Includes both active scan discoveries and cached known/paired devices.
@@ -117,14 +137,6 @@ def connect(mac: str) -> bool:
     if not is_supported():
         return False
 
-    # Snapshot the local output device index BEFORE BT routing changes the default
-    local_out = -1
-    try:
-        import sounddevice as _sd
-        local_out = int(_sd.query_devices(kind="output")["index"])
-    except Exception:
-        pass
-
     try:
         import pexpect
         print(f"[bluetooth] Initiating interactive pairing/connection sequence for {mac}...")
@@ -156,7 +168,7 @@ def connect(mac: str) -> bool:
                     send_cmd("quit")
                 except Exception:
                     pass
-                _route_audio(mac, local_out)
+                _route_audio(mac)
                 return True
     
             # Unblock and trust device
@@ -209,7 +221,7 @@ def connect(mac: str) -> bool:
                 pass
 
         if connected:
-            _route_audio(mac, local_out)
+            _route_audio(mac)
 
         return connected
 
@@ -223,16 +235,16 @@ def disconnect(identifier: str = "all") -> bool:
     if not is_supported():
         return False
 
-    target_mac = None
     ident = identifier.lower().strip()
-    if ident not in ("all", "*", "", "everything"):
-        devices = get_last_scan() or scan(timeout=2)
-        for d in devices:
-            if ident in d["name"].lower() or ident in d["mac"].lower():
-                target_mac = d["mac"]
-                break
-        if not target_mac and _is_mac(identifier):
-            target_mac = identifier.upper()
+    target_mac = None
+    if ident not in ALL_TARGETS:
+        target_mac = resolve_target(identifier, get_last_scan() or scan(timeout=2))
+        if target_mac is None:
+            # Falling through to the "disconnect everything" branch below is how asking
+            # for one speaker by a name we could not place silenced all of them.
+            print(f"[bluetooth] Nothing matches '{identifier}'; no device disconnected. "
+                  f"Say 'all' to disconnect every device.")
+            return False
 
     try:
         import pexpect
@@ -247,25 +259,40 @@ def disconnect(identifier: str = "all") -> bool:
                 child.expect(PROMPT, timeout=t)
                 return child.before
     
+            def still_connected(mac: str) -> bool:
+                try:
+                    return "Connected: yes" in send_cmd(f"info {mac}")
+                except Exception:
+                    return False  # cannot tell; do not claim a failure we did not see
+
             send_cmd("power on")
-    
+
             if target_mac:
                 print(f"[bluetooth] Disconnecting {target_mac}...")
                 send_cmd(f"disconnect {target_mac}")
+                dropped = not still_connected(target_mac)
             else:
                 dev_out = send_cmd("devices")
+                attempted = 0
+                dropped = True
                 for line in dev_out.splitlines():
                     m = re.search(r"Device ([0-9A-Fa-f:]{17})", line)
-                    if m:
-                        mac = m.group(1).upper()
-                        try:
-                            info_out = send_cmd(f"info {mac}")
-                            if "Connected: yes" in info_out:
-                                print(f"[bluetooth] Disconnecting active device {mac}...")
-                                send_cmd(f"disconnect {mac}")
-                        except Exception:
-                            pass
-    
+                    if not m:
+                        continue
+                    mac = m.group(1).upper()
+                    try:
+                        if "Connected: yes" not in send_cmd(f"info {mac}"):
+                            continue
+                        print(f"[bluetooth] Disconnecting active device {mac}...")
+                        send_cmd(f"disconnect {mac}")
+                        attempted += 1
+                        if still_connected(mac):
+                            dropped = False
+                    except Exception:
+                        pass
+                if attempted == 0:
+                    print("[bluetooth] No device was connected.")
+
             try:
                 send_cmd("quit")
             except Exception:
@@ -276,15 +303,18 @@ def disconnect(identifier: str = "all") -> bool:
             except Exception:
                 pass
 
-        _restore_local_audio()
-        return True
+        if dropped:
+            _restore_local_audio()
+        else:
+            print("[bluetooth] Still reports Connected: yes after the disconnect.")
+        return dropped
 
     except Exception as e:
         print(f"[bluetooth] Disconnect error: {e}")
         return False
 
 
-def _route_audio(mac: str, local_device_idx: int = None) -> None:
+def _route_audio(mac: str) -> None:
     """Route BT audio without disturbing TTS output.
 
     - Sets the BT device as the PulseAudio default sink so Spotify/system audio
@@ -292,7 +322,9 @@ def _route_audio(mac: str, local_device_idx: int = None) -> None:
     - Pins config.VOICE_OUTPUT_DEVICE to the local speaker so TTS/SFX stay on
       Omega-7's own speaker by default. That's the echo-cancel sink when present
       (not the raw USB sink), so the AEC keeps its reference and the skull can't
-      hear/wake itself.
+      hear/wake itself. It is resolved here rather than snapshotted before the
+      connection: connect() used to query sounddevice for the pre-BT output index
+      and pass it in, and this function never read it.
     """
     time.sleep(1)  # give the sink a moment to register
 
