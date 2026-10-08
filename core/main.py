@@ -164,13 +164,15 @@ def _speak_farewell() -> None:
 
     Only that clip is played. Synthesizing here would put a network round trip
     inside systemd's stop timer and would leave an offline unit with nothing to say,
-    and shutdown is no place to start waiting on anything. Silent mode is the owner
-    asking for no noise, so it is honoured even for the last word."""
+    and shutdown is no place to start waiting on anything.
+
+    Silent mode is deliberately not consulted: it governs unprompted speech — idle
+    remarks, announcements, ambient music — and a sign-off answers the owner's own
+    order to shut down. The boot phrase speaks under the same reasoning, so the unit
+    greets and takes its leave as a pair."""
     if _farewell_wav is None:
         return
     try:
-        if quiet.is_silent():
-            return
         audio.play_wav_bytes(_farewell_wav, output_device=config.VOICE_OUTPUT_DEVICE)
     except Exception as e:
         print(f"[skull] Farewell line not spoken ({e}).")
