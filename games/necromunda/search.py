@@ -33,6 +33,18 @@ _NOT_INSTALLED = (
 )
 
 
+def current_rulebook(conn: sqlite3.Connection):
+    """The book being consulted: the earliest, since only one is ingested.
+
+    Every read is scoped to it. Rows belonging to no rulebook at all are purged
+    on open, but scoping is what stops a stray one being quoted in the first
+    place -- and the symptom of that was every answer arriving twice.
+    """
+    return conn.execute(
+        "SELECT id, title, edition, page_offset FROM rulebooks"
+        " ORDER BY id LIMIT 1").fetchone()
+
+
 def _terms(query: str) -> list[str]:
     words = [w.lower() for w in _WORD.findall(query)]
     keep = [w for w in words if len(w) > 2 and w not in _STOPWORDS]
@@ -45,7 +57,8 @@ def _match_expr(terms: list[str], join: str) -> str:
     return f" {join} ".join('"' + t.replace('"', '') + '"' for t in terms)
 
 
-def _fts_search(conn: sqlite3.Connection, terms: list[str], limit: int) -> list[sqlite3.Row]:
+def _fts_search(conn: sqlite3.Connection, terms: list[str], limit: int,
+                book_id: int) -> list[sqlite3.Row]:
     """Rows for a query, preferring every term present over any term present."""
     for join in ("AND", "OR"):
         if join == "AND" and len(terms) == 1:
@@ -53,8 +66,9 @@ def _fts_search(conn: sqlite3.Connection, terms: list[str], limit: int) -> list[
         try:
             rows = conn.execute(
                 "SELECT title, body, kind, page, ref_table, ref_id FROM rule_search"
-                " WHERE rule_search MATCH ? ORDER BY bm25(rule_search, 4.0, 1.0)"
-                " LIMIT ?", (_match_expr(terms, join), limit)).fetchall()
+                " WHERE rule_search MATCH ? AND rulebook_id = ?"
+                " ORDER BY bm25(rule_search, 4.0, 1.0)"
+                " LIMIT ?", (_match_expr(terms, join), book_id, limit)).fetchall()
         except sqlite3.Error:
             return []
         if rows:
@@ -62,7 +76,8 @@ def _fts_search(conn: sqlite3.Connection, terms: list[str], limit: int) -> list[
     return []
 
 
-def _like_search(conn: sqlite3.Connection, terms: list[str], limit: int) -> list[sqlite3.Row]:
+def _like_search(conn: sqlite3.Connection, terms: list[str], limit: int,
+                 book_id: int) -> list[sqlite3.Row]:
     """Fallback for a SQLite build without FTS5."""
     clause = " OR ".join("(title LIKE ? OR body_md LIKE ?)" for _ in terms)
     args: list[str] = []
@@ -71,7 +86,8 @@ def _like_search(conn: sqlite3.Connection, terms: list[str], limit: int) -> list
     return conn.execute(
         f"SELECT title, body_md AS body, kind, page_start AS page,"
         f" 'rule_sections' AS ref_table, id AS ref_id FROM rule_sections"
-        f" WHERE body_md != '' AND ({clause}) LIMIT ?", (*args, limit)).fetchall()
+        f" WHERE rulebook_id = ? AND body_md != '' AND ({clause}) LIMIT ?",
+        (book_id, *args, limit)).fetchall()
 
 
 def _excerpt(body: str, terms: list[str], max_chars: int) -> str:
@@ -112,14 +128,14 @@ def necromunda_rules(query: str, top_k: int = 3, max_chars: int = 1400) -> str:
     except (FileNotFoundError, sqlite3.Error):
         return _NOT_INSTALLED
     try:
-        book = conn.execute(
-            "SELECT title, edition, page_offset FROM rulebooks ORDER BY id LIMIT 1").fetchone()
+        book = current_rulebook(conn)
         if not book:
             return _NOT_INSTALLED
 
         terms = _terms(query)
-        rows = (_fts_search(conn, terms, top_k)
-                if rules_schema.has_fts5(conn) else _like_search(conn, terms, top_k))
+        rows = (_fts_search(conn, terms, top_k, book["id"])
+                if rules_schema.has_fts5(conn)
+                else _like_search(conn, terms, top_k, book["id"]))
         if not rows:
             return (f"No matching rules found in {book['title']} for: {query}")
 
@@ -127,7 +143,8 @@ def necromunda_rules(query: str, top_k: int = 3, max_chars: int = 1400) -> str:
         for row in rows:
             if row["ref_table"] == "rule_weapons":
                 weapon = conn.execute(
-                    "SELECT * FROM rule_weapons WHERE id = ?", (row["ref_id"],)).fetchone()
+                    "SELECT * FROM rule_weapons WHERE id = ? AND rulebook_id = ?",
+                    (row["ref_id"], book["id"])).fetchone()
                 if weapon:
                     parts.append(_format_weapon(weapon, book))
                     continue

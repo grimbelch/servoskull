@@ -11,7 +11,7 @@ import sqlite3
 
 from . import db as necro_db
 from . import dice
-from .search import _NOT_INSTALLED, _format_weapon, printed_page
+from .search import _NOT_INSTALLED, _format_weapon, current_rulebook, printed_page
 
 # The weaponry chapter prints one profile as a worked example, under its own
 # explanatory heading, and the Trading Post lists the same weapon again. The
@@ -47,20 +47,20 @@ def weapon_profile(name: str) -> str:
     if conn is None:
         return _NOT_INSTALLED
     try:
-        book = conn.execute(
-            "SELECT title, edition, page_offset FROM rulebooks ORDER BY id LIMIT 1").fetchone()
+        book = current_rulebook(conn)
         wanted = (name or "").strip().lower()
         if not wanted:
             return "Name a weapon to look up."
         rows = conn.execute(
-            "SELECT * FROM rule_weapons WHERE LOWER(name) = ?"
+            "SELECT * FROM rule_weapons WHERE rulebook_id = ? AND LOWER(name) = ?"
             " ORDER BY needs_review, (creds IS NULL), (category = ?), id",
-            (wanted, _EXAMPLE_CATEGORY)).fetchall()
+            (book["id"], wanted, _EXAMPLE_CATEGORY)).fetchall()
         if not rows:
             rows = conn.execute(
-                "SELECT * FROM rule_weapons WHERE LOWER(name) LIKE ?"
+                "SELECT * FROM rule_weapons WHERE rulebook_id = ? AND LOWER(name) LIKE ?"
                 " ORDER BY needs_review, (creds IS NULL), (category = ?),"
-                " LENGTH(name), id", (f"%{wanted}%", _EXAMPLE_CATEGORY)).fetchall()
+                " LENGTH(name), id",
+                (book["id"], f"%{wanted}%", _EXAMPLE_CATEGORY)).fetchall()
         if not rows:
             return (f"No weapon called '{name}' in {book['title']}. It may belong to a "
                     "gang's own equipment list, which is in that gang's supplement "
@@ -73,8 +73,8 @@ def weapon_profile(name: str) -> str:
         # next full entry. Taking every variant on the page instead would hand
         # the autopistol the stub gun's warp round as well.
         following = conn.execute(
-            "SELECT * FROM rule_weapons WHERE page = ? AND id > ? ORDER BY id LIMIT 8",
-            (best["page"], best["id"])).fetchall()
+            "SELECT * FROM rule_weapons WHERE rulebook_id = ? AND page = ? AND id > ?"
+            " ORDER BY id LIMIT 8", (book["id"], best["page"], best["id"])).fetchall()
         for row in following:
             if not row["is_variant"]:
                 break
@@ -94,17 +94,17 @@ def weapons_in_category(category: str) -> str:
     if conn is None:
         return _NOT_INSTALLED
     try:
-        book = conn.execute(
-            "SELECT title, edition, page_offset FROM rulebooks ORDER BY id LIMIT 1").fetchone()
+        book = current_rulebook(conn)
         wanted = (category or "").strip().lower()
         rows = conn.execute(
             "SELECT name, sr_text, lr_text, str_text, ap_text, lethality_text,"
             " creds_text, tp_text, traits, is_variant, page FROM rule_weapons"
-            " WHERE LOWER(category) LIKE ? ORDER BY id", (f"%{wanted}%",)).fetchall()
+            " WHERE rulebook_id = ? AND LOWER(category) LIKE ? ORDER BY id",
+            (book["id"], f"%{wanted}%")).fetchall()
         if not rows:
             cats = conn.execute(
-                "SELECT DISTINCT category FROM rule_weapons WHERE category != ''"
-                " ORDER BY category").fetchall()
+                "SELECT DISTINCT category FROM rule_weapons WHERE rulebook_id = ?"
+                " AND category != '' ORDER BY category", (book["id"],)).fetchall()
             listed = ", ".join(c["category"].title() for c in cats)
             return f"No weapon category matching '{category}'. The book lists: {listed}."
         lines = [f"{len(rows)} profiles under '{category}':"]
@@ -127,15 +127,18 @@ def weapon_lethality(name: str) -> int | None:
     if conn is None:
         return None
     try:
+        book = current_rulebook(conn)
         row = conn.execute(
-            "SELECT lethality FROM rule_weapons WHERE LOWER(name) = ? AND lethality"
-            " IS NOT NULL ORDER BY needs_review, id LIMIT 1",
-            ((name or "").strip().lower(),)).fetchone()
+            "SELECT lethality FROM rule_weapons WHERE rulebook_id = ? AND"
+            " LOWER(name) = ? AND lethality IS NOT NULL"
+            " ORDER BY needs_review, id LIMIT 1",
+            (book["id"], (name or "").strip().lower())).fetchone()
         if row is None:
             row = conn.execute(
-                "SELECT lethality FROM rule_weapons WHERE LOWER(name) LIKE ? AND"
-                " lethality IS NOT NULL ORDER BY needs_review, LENGTH(name), id LIMIT 1",
-                (f"%{(name or '').strip().lower()}%",)).fetchone()
+                "SELECT lethality FROM rule_weapons WHERE rulebook_id = ? AND"
+                " LOWER(name) LIKE ? AND lethality IS NOT NULL"
+                " ORDER BY needs_review, LENGTH(name), id LIMIT 1",
+                (book["id"], f"%{(name or '').strip().lower()}%")).fetchone()
         return row["lethality"] if row else None
     finally:
         conn.close()

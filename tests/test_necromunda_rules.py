@@ -359,3 +359,76 @@ def test_contents_entries_are_read_as_title_and_page():
 
     assert ingest._contents_entries(FakeDoc()) == [
         ("Rules Introduction", 31), ("First Principles", 32)]
+
+
+# ── orphaned rows ─────────────────────────────────────────────────────────────
+
+def test_dropping_a_stale_table_takes_the_whole_set(tmp_path, monkeypatch):
+    """A parent dropped alone leaves its children pointing at nothing.
+
+    The tables are dropped with foreign keys off, because the teardown has to
+    survive tables that are already gone -- so no cascade runs. Adding a column
+    to `rulebooks` dropped it on its own and orphaned 297 sections and 82
+    weapons, which went on answering queries and doubled every lookup.
+    """
+    from core import config
+    from games.necromunda import db as necro_db
+
+    monkeypatch.setattr(config, "data_path", lambda name: tmp_path / name)
+    necro_db._DB_PATH = None
+    conn = necro_db.connect()
+    with conn:
+        book = conn.execute(
+            "INSERT INTO rulebooks (slug, title) VALUES ('x','X')").lastrowid
+        conn.execute("INSERT INTO rule_sections (rulebook_id, level, ordinal,"
+                     " doc_order, title) VALUES (?,1,0,0,'T')", (book,))
+    # Make `rulebooks` look like an older shape, then reopen.
+    conn.execute("ALTER TABLE rulebooks RENAME TO rulebooks_old")
+    conn.execute("CREATE TABLE rulebooks (id INTEGER PRIMARY KEY, slug TEXT)")
+    conn.execute("INSERT INTO rulebooks (id, slug) SELECT id, slug FROM rulebooks_old")
+    conn.execute("DROP TABLE rulebooks_old")
+    conn.commit()
+    conn.close()
+
+    conn = necro_db.connect()
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM rule_sections").fetchone()[0] == 0
+    finally:
+        conn.close()
+
+
+def test_rows_left_by_a_deleted_rulebook_are_purged_on_open(rules_db, monkeypatch):
+    from games.necromunda import db as necro_db, rules_schema
+
+    conn = necro_db.connect(create=False)
+    # Foreign keys are on, so an orphan cannot be inserted -- which is why the
+    # only way they ever appeared was a parent table dropped with enforcement
+    # off. Reproduce that state the same way.
+    conn.execute("PRAGMA foreign_keys = OFF")
+    with conn:
+        conn.execute("INSERT INTO rule_sections (rulebook_id, level, ordinal,"
+                     " doc_order, title, body_md) VALUES (99,3,0,0,'GHOST','x')")
+        conn.execute("INSERT INTO rule_weapons (rulebook_id, slug, name)"
+                     " VALUES (99,'ghost','Ghost gun')")
+    assert rules_schema.purge_orphans(conn) >= 2
+    conn.commit()
+    assert conn.execute("SELECT COUNT(*) FROM rule_sections WHERE title='GHOST'"
+                        ).fetchone()[0] == 0
+    conn.close()
+
+
+def test_a_lookup_never_quotes_another_rulebooks_rows(rules_db):
+    """Scoping is what stops a stray row being quoted in the first place."""
+    from games.necromunda import db as necro_db, rules_tools
+
+    conn = necro_db.connect(create=False)
+    conn.execute("PRAGMA foreign_keys = OFF")
+    with conn:
+        conn.execute(
+            "INSERT INTO rule_weapons (rulebook_id, slug, name, creds_text, page)"
+            " VALUES (99,'test-pistol','Test pistol','999',1)")
+    conn.close()
+
+    out = rules_tools.weapon_profile("test pistol")
+    assert "999" not in out            # the other book's copy is not quoted
+    assert out.count("Test pistol") == 1

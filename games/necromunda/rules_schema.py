@@ -288,18 +288,65 @@ def _table_exists(conn: sqlite3.Connection, table: str) -> bool:
     ).fetchone() is not None
 
 
+def _is_stale(conn: sqlite3.Connection, table: str) -> bool:
+    sentinel = _SHAPE_SENTINELS.get(table)
+    if not sentinel or not _table_exists(conn, table):
+        return False
+    columns = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+    return sentinel not in columns
+
+
 def drop_stale_content_tables(conn: sqlite3.Connection) -> list[str]:
-    """Drop rule tables left over from an incompatible earlier schema."""
+    """Drop the rule tables when any of them is left over from an older schema.
+
+    All of them go, not just the one that changed shape. They are dropped with
+    foreign keys off -- the teardown has to be able to walk tables that may
+    already be gone -- so dropping a parent on its own leaves every child row
+    behind, pointing at a rulebook that no longer exists. That is exactly what
+    happened when `page_offset` was added to `rulebooks`: the table was dropped
+    alone, and 297 sections and 82 weapons were orphaned and went on answering
+    queries, so every lookup came back doubled.
+
+    Dropping the set costs nothing, because the whole database is rebuilt from
+    the source PDF anyway.
+    """
+    if not any(_is_stale(conn, table) for table in CONTENT_TABLES):
+        return []
     dropped = []
-    for table in CONTENT_TABLES:
-        sentinel = _SHAPE_SENTINELS.get(table)
-        if not sentinel or not _table_exists(conn, table):
-            continue
-        columns = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
-        if sentinel not in columns:
+    for table in CONTENT_TABLES:          # children before parents
+        if _table_exists(conn, table):
             conn.execute(f"DROP TABLE {table}")
             dropped.append(table)
+    if _table_exists(conn, "rule_search"):
+        conn.execute("DROP TABLE rule_search")
+        dropped.append("rule_search")
     return dropped
+
+
+def purge_orphans(conn: sqlite3.Connection) -> int:
+    """Delete rule rows whose rulebook is gone, and report how many.
+
+    A repair for databases already in that state: dropping the parent table in
+    an earlier version left the children behind, and nothing since would remove
+    them. Cheap enough to run on every open.
+    """
+    removed = 0
+    for table in CONTENT_TABLES:
+        if table == "rulebooks" or not _table_exists(conn, table):
+            continue
+        columns = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+        if "rulebook_id" not in columns:
+            continue
+        cur = conn.execute(
+            f"DELETE FROM {table} WHERE rulebook_id NOT IN"
+            f" (SELECT id FROM rulebooks)")
+        removed += cur.rowcount or 0
+    if _table_exists(conn, "rule_search"):
+        cur = conn.execute(
+            "DELETE FROM rule_search WHERE rulebook_id NOT IN"
+            " (SELECT id FROM rulebooks)")
+        removed += cur.rowcount or 0
+    return removed
 
 
 def init_rules_schema(conn: sqlite3.Connection) -> None:
@@ -319,6 +366,10 @@ def init_rules_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_SQL)
     if has_fts5(conn):
         conn.executescript(FTS_SQL)
+    orphaned = purge_orphans(conn)
+    if orphaned:
+        print(f"[necromunda] Removed {orphaned} rule rows left by a deleted rulebook.")
+    conn.commit()
 
 
 def reset_rulebook(conn: sqlite3.Connection, slug: str | None = None) -> None:
