@@ -644,6 +644,60 @@ def adjust_wake_word_sensitivity(direction: str | None = None, threshold: float 
             f"or name a threshold between {WAKE_THRESHOLD_FLOOR:.2f} and {WAKE_THRESHOLD_CEILING:.2f}.")
 
 
+# Microphone sensitivity inverts the same way the wake threshold does: asking the
+# skull to hear quieter speech LOWERS the RMS floor below which capture is treated as
+# silence. These bounds are set around the shipped default rather than the ones the
+# model's tool used to carry (step 200, floor 200, "medium" 500), which predate the
+# move to a 180 floor and would have made any adjustment a drastic one.
+MIC_SENSITIVITY_STEP = 40
+SILENCE_THRESHOLD_FLOOR = 80      # below this the recorder triggers on room hum
+SILENCE_THRESHOLD_CEILING = 600
+SILENCE_THRESHOLD_DEFAULT = 180
+
+
+def set_silence_threshold(threshold: float) -> str:
+    """Set the RMS silence floor outright and persist it. Returns a spoken line."""
+    global SILENCE_THRESHOLD
+    value = max(SILENCE_THRESHOLD_FLOOR, min(SILENCE_THRESHOLD_CEILING, int(round(float(threshold)))))
+    SILENCE_THRESHOLD = value
+    _update_env_var("SILENCE_THRESHOLD", str(SILENCE_THRESHOLD))
+    if SILENCE_THRESHOLD < SILENCE_THRESHOLD_DEFAULT:
+        how = "more sensitive — it will pick up quieter speech, and more of the room"
+    elif SILENCE_THRESHOLD > SILENCE_THRESHOLD_DEFAULT:
+        how = "less sensitive — it will ignore more background noise, and quiet speech with it"
+    else:
+        how = "the standard setting"
+    return f"Microphone silence threshold set to {SILENCE_THRESHOLD}: {how}."
+
+
+def adjust_mic_sensitivity(direction: str | None = None, threshold: float | None = None,
+                           level: str | None = None) -> str:
+    """Resolve a microphone sensitivity request to an RMS floor and apply it.
+
+    Mirrors adjust_wake_word_sensitivity: `threshold` is absolute, `direction` is
+    "more"/"less" and steps from here, `level` is a named absolute setting.
+    """
+    if threshold is not None:
+        return set_silence_threshold(threshold)
+    if level:
+        lvl = str(level).lower().strip()
+        named = {"high": 120, "more": 120, "sensitive": 120, "more_sensitive": 120,
+                 "low": 320, "less": 320, "strict": 320, "less_sensitive": 320,
+                 "quiet": 320, "noise": 320,
+                 "medium": SILENCE_THRESHOLD_DEFAULT, "default": SILENCE_THRESHOLD_DEFAULT,
+                 "normal": SILENCE_THRESHOLD_DEFAULT, "standard": SILENCE_THRESHOLD_DEFAULT,
+                 "maximum": SILENCE_THRESHOLD_FLOOR, "max": SILENCE_THRESHOLD_FLOOR,
+                 "minimum": SILENCE_THRESHOLD_CEILING, "min": SILENCE_THRESHOLD_CEILING}
+        if lvl in named:
+            return set_silence_threshold(named[lvl])
+    if direction == "more":
+        return set_silence_threshold(SILENCE_THRESHOLD - MIC_SENSITIVITY_STEP)
+    if direction == "less":
+        return set_silence_threshold(SILENCE_THRESHOLD + MIC_SENSITIVITY_STEP)
+    return (f"Microphone silence threshold is {SILENCE_THRESHOLD}. Say more or less sensitive, "
+            f"or name a value between {SILENCE_THRESHOLD_FLOOR} and {SILENCE_THRESHOLD_CEILING}.")
+
+
 def set_silence_duration(seconds: float) -> str:
     """Set the silence wait duration after speaking (in seconds) and persist to .env."""
     global SILENCE_DURATION

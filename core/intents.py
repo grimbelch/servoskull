@@ -220,10 +220,53 @@ _ROTATE_VERB = re.compile(r"\b(rotate|rotating|turn|turning|adjust|tilt)\b")
 _ROTATE_NOUN = re.compile(r"\b(display|screen|eye)\b")
 _NUMBER = re.compile(r"([+-]?\d+(?:\.\d+)?)")
 
+# Speech-to-text writes small numbers as words as often as digits -- "rotate your
+# display counterclockwise five degrees" against "...15 degrees" -- and a matcher
+# that only reads digits silently drops half of them. Three such rotations reached
+# the model instead, which narrated a running total it had invented. So the numeric
+# matchers digitize first, rather than each inventing its own word list.
+_WORD_NUM = {
+    "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+    "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17,
+    "eighteen": 18, "nineteen": 19, "twenty": 20, "thirty": 30, "forty": 40,
+    "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90,
+    "hundred": 100,
+}
+_TENS = {"twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"}
+_WORD_NUM_RE = re.compile(r"\b(" + "|".join(sorted(_WORD_NUM, key=len, reverse=True)) + r")\b")
+
+
+def digitize(text: str) -> str:
+    """Rewrite spelled-out numbers as digits: "twenty five degrees" -> "25 degrees".
+
+    Only joins a tens word to a following unit ("forty five" -> 45); anything else
+    is substituted one word at a time, and text with no number words is unchanged.
+    """
+    if not _WORD_NUM_RE.search(text):
+        return text
+    out, words = [], text.split()
+    i = 0
+    while i < len(words):
+        bare = re.sub(r"[^a-z]", "", words[i].lower())
+        if bare in _TENS and i + 1 < len(words):
+            nxt = re.sub(r"[^a-z]", "", words[i + 1].lower())
+            if nxt in _WORD_NUM and _WORD_NUM[nxt] < 10:
+                out.append(words[i].lower().replace(bare, str(_WORD_NUM[bare] + _WORD_NUM[nxt])))
+                i += 2
+                continue
+        if bare in _WORD_NUM:
+            out.append(words[i].lower().replace(bare, str(_WORD_NUM[bare])))
+        else:
+            out.append(words[i])
+        i += 1
+    return " ".join(out)
+
 
 def display_rotation(text: str, ctx: Context) -> Intent | None:
     if not (_ROTATE_VERB.search(text) and _ROTATE_NOUN.search(text)):
         return None
+    text = digitize(text)
     m = _NUMBER.search(text)
     if not m:
         return None
@@ -245,6 +288,7 @@ _WAIT_KEYS = ("voice wait", "silence wait", "silence duration", "voice duration"
 def voice_wait(text: str, ctx: Context) -> Intent | None:
     if not any(k in text for k in _WAIT_KEYS) or not re.search(r"\b(set|change|adjust|make)\b", text):
         return None
+    text = digitize(text)
     m = _NUMBER.search(text)
     return Intent("voice_wait", {"seconds": float(m.group(1))}) if m else None
 
@@ -266,6 +310,7 @@ _WAKE_VALUE = re.compile(r"(?:to|at)\s+(0?\.\d+)\b|\b(\d{1,3})\s*(?:percent|%)")
 def wake_sensitivity(text: str, ctx: Context) -> Intent | None:
     if not (_WAKE_REF.search(text) and _SENS_REF.search(text)):
         return None
+    text = digitize(text)
     m = _WAKE_VALUE.search(text)
     if m:
         raw, pct = m.group(1), m.group(2)
@@ -283,6 +328,196 @@ def wake_sensitivity(text: str, ctx: Context) -> Intent | None:
     if _LESS_SENSITIVE.search(text):
         return Intent("wake_sensitivity", {"direction": "more" if asked_threshold else "less"})
     return Intent("wake_sensitivity", {})  # a question: report where it stands
+
+
+# ── Settings the model used to narrate ────────────────────────────────────────
+# Each of these had a tool and no matcher, and each has exactly one correct outcome,
+# so a model that answers "acknowledged" without calling the tool is indistinguishable
+# from one that did. set_active_game's own description had already been reduced to
+# shouting "YOU MUST call this tool", which is the same symptom written down.
+
+# Microphone sensitivity. Distinct from the wake threshold above, which is matched
+# first; "wake" is excluded so the two cannot both claim an utterance.
+_MIC_REF = re.compile(r"\b(?:mic|microphone|hearing|pickup|pick\s*up)\b|silence\s+threshold")
+
+
+def mic_sensitivity(text: str, ctx: Context) -> Intent | None:
+    if "wake" in text or not _MIC_REF.search(text) or not _SENS_REF.search(text):
+        return None
+    text = digitize(text)
+    m = re.search(r"(?:to|at)\s+(\d{2,4})\b", text)
+    if m:
+        return Intent("mic_sensitivity", {"threshold": int(m.group(1))})
+    lvl = _WAKE_LEVEL.search(text)
+    if lvl and not _MORE_SENSITIVE.search(text) and not _LESS_SENSITIVE.search(text):
+        return Intent("mic_sensitivity", {"level": lvl.group(1)})
+    asked_threshold = "threshold" in text and "sensitiv" not in text
+    if _MORE_SENSITIVE.search(text):
+        return Intent("mic_sensitivity", {"direction": "less" if asked_threshold else "more"})
+    if _LESS_SENSITIVE.search(text):
+        return Intent("mic_sensitivity", {"direction": "more" if asked_threshold else "less"})
+    return Intent("mic_sensitivity", {})
+
+
+# The skull's own speaker volume, as opposed to Spotify's, which spotify_volume
+# claims first and which always names the music. "Reduce your volume by 30%" buried
+# in a longer sentence is the form that was reaching the model and being narrated.
+_VOL_REF = re.compile(r"\bvolume\b|\b(?:louder|quieter|softer)\b|turn\s+(?:it|yourself)\s+(?:up|down)")
+_VOL_MUSIC = re.compile(r"\b(?:music|spotify|song|track|playlist|tune)\b")
+_VOL_ABS = re.compile(r"(?:volume|it)\s*(?:to|at)\s+(\d{1,3})|\bto\s+(\d{1,3})\s*(?:percent|%)")
+_VOL_REL = re.compile(r"\b(?:by|another)\s+(\d{1,3})\s*(?:percent|%)?")
+_VOL_UP = re.compile(r"\b(?:up|increase|raise|louder|boost|more)\b")
+_VOL_DOWN = re.compile(r"\b(?:down|decrease|reduce|lower|quieter|softer|less)\b")
+
+
+def volume(text: str, ctx: Context) -> Intent | None:
+    if _VOL_MUSIC.search(text) or not _VOL_REF.search(text):
+        return None
+    text = digitize(text)
+    down = bool(_VOL_DOWN.search(text))
+    m = _VOL_ABS.search(text)
+    # "to 50" is a target; "by 30" is a change, and needs a direction to mean anything.
+    if m and not re.search(r"\bby\b", text):
+        level = int(m.group(1) or m.group(2))
+        if 0 <= level <= 100:
+            return Intent("volume", {"level": str(level)})
+    rel = _VOL_REL.search(text)
+    step = int(rel.group(1)) if rel and 0 < int(rel.group(1)) <= 100 else 15
+    if down:
+        return Intent("volume", {"level": f"-{step}"})
+    if _VOL_UP.search(text):
+        return Intent("volume", {"level": f"+{step}"})
+    return None
+
+
+# Silent mode. Deliberately narrow: "stop" and "quiet" alone belong to the music
+# commands and to a maintenance confirmation, both of which run before this.
+_QUIET_ON = re.compile(r"\b(?:silent|quiet)\s+mode\b.*\b(?:on|engage|enable)\b"
+                       r"|\b(?:be|stay|keep|remain)\s+(?:quiet|silent)\b"
+                       r"|\b(?:stop|cease)\s+(?:talking|speaking|your\s+observations)\b"
+                       r"|\bhold\s+your\s+tongue\b|\bno\s+more\s+observations\b"
+                       r"|\b(?:engage|enable)\s+(?:silent|quiet)\b")
+_QUIET_OFF = re.compile(r"\b(?:silent|quiet)\s+mode\b.*\b(?:off|disengage|disable|lift)\b"
+                        r"|\b(?:you\s+(?:can|may)|please)\s+(?:talk|speak)\b"
+                        r"|\b(?:resume|restart)\s+(?:your\s+)?(?:observations|talking|speaking|commentary)\b"
+                        r"|\bspeak\s+freely\b|\b(?:lift|end)\s+(?:the\s+)?(?:silent|quiet)\b")
+
+
+def quiet_mode(text: str, ctx: Context) -> Intent | None:
+    if _QUIET_OFF.search(text):
+        return Intent("quiet_mode", {"enabled": False})
+    if _QUIET_ON.search(text):
+        return Intent("quiet_mode", {"enabled": True})
+    return None
+
+
+# Where the voice comes out. Casting to a Google Home and switching to a Bluetooth
+# speaker are different mechanisms, so the destination decides which one is used.
+_OUT_REF = re.compile(r"\b(?:speak|talk|voice|output|audio|sound|speakers?|use)\b")
+_OUT_CAST = re.compile(r"\bgoogle\s*home\b|\bchromecast\b|\bnest\b|\bcast(?:ing)?\b")
+_OUT_BT = re.compile(r"\bbluetooth\b|\bbt\s+speaker\b|\bexternal\s+speaker\b")
+_OUT_INTERNAL = re.compile(r"\b(?:internal|your\s+own|onboard|built\s*-?\s*in)\s+speaker\b"
+                           r"|\bspeak\s+(?:from|through)\s+yourself\b")
+_OUT_STOP = re.compile(r"\b(?:stop|cease|disable|turn\s+off)\b")
+
+
+def voice_output(text: str, ctx: Context) -> Intent | None:
+    if _OUT_CAST.search(text):
+        if not (_OUT_REF.search(text) or _OUT_STOP.search(text)):
+            return None
+        return Intent("voice_output", {"cast": not _OUT_STOP.search(text)})
+    if not _OUT_REF.search(text):
+        return None
+    if _OUT_BT.search(text):
+        return Intent("voice_output", {"target": "bluetooth"})
+    if _OUT_INTERNAL.search(text):
+        return Intent("voice_output", {"target": "internal"})
+    return None
+
+
+# Quiet hours. "11pm to 7am", "23 to 7", "midnight until six".
+_SLEEP_REF = re.compile(r"\bsleep\s+schedule\b|\bquiet\s+hours\b|\bsleep\s+(?:from|between)\b")
+_HOUR = r"(\d{1,2})\s*(am|pm)?|\b(midnight|noon|midday)\b"
+_SLEEP_RANGE = re.compile(rf"(?:{_HOUR})\s*(?:to|until|till|-|and)\s*(?:{_HOUR})")
+
+
+def _hour_value(num, meridiem, word) -> int | None:
+    if word:
+        return 0 if word == "midnight" else 12
+    if num is None:
+        return None
+    h = int(num)
+    if meridiem == "pm" and h < 12:
+        h += 12
+    elif meridiem == "am" and h == 12:
+        h = 0
+    return h if 0 <= h <= 23 else None
+
+
+def sleep_schedule(text: str, ctx: Context) -> Intent | None:
+    if not _SLEEP_REF.search(text):
+        return None
+    text = digitize(text)
+    if re.search(r"\b(?:off|disable|cancel|stop|no)\b", text) and not _SLEEP_RANGE.search(text):
+        return Intent("sleep_schedule", {"enabled": False})
+    m = _SLEEP_RANGE.search(text)
+    if not m:
+        return None  # a question, or hours we cannot read: the model can answer it
+    start = _hour_value(m.group(1), m.group(2), m.group(3))
+    end = _hour_value(m.group(4), m.group(5), m.group(6))
+    if start is None or end is None:
+        return None
+    return Intent("sleep_schedule", {"start_hour": start, "end_hour": end, "enabled": True})
+
+
+# Which game is on the table. This decides which dice are rolled and which rulebook
+# answers, so getting it silently wrong is worse than most settings.
+_GAMES = (
+    ("necromunda", ("necromunda",)),
+    ("Warhammer Fantasy Roleplay", ("warhammer fantasy roleplay", "fantasy roleplay", "wfrp", "whfrp")),
+    ("Warhammer 40k", ("warhammer 40k", "warhammer 40 000", "40k", "forty k")),
+    ("NetEpic", ("netepic", "net epic")),
+    ("NetEA", ("netea", "net ea", "epic armageddon")),
+    ("Kill Team", ("kill team",)),
+    ("Bard's Tale", ("bard's tale", "bards tale")),
+)
+_GAME_SWITCH = re.compile(r"\b(?:playing|play|switch(?:ing)?\s+to|change\s+to|set\s+the\s+(?:active\s+)?game"
+                          r"|active\s+game|we're\s+on|we\s+are\s+on|put\s+on|load)\b")
+
+
+def active_game(text: str, ctx: Context) -> Intent | None:
+    if not _GAME_SWITCH.search(text):
+        return None
+    for canonical, spoken in _GAMES:
+        if any(name in text for name in spoken):
+            return Intent("active_game", {"game": canonical})
+    return None
+
+
+# Disposition. Asked for three times -- "change your mood to contemplative",
+# "...to suspicious" -- and never once matched, because the audit of state-changing
+# tools keyed on a set_/switch_ prefix and this one is called shift_mood.
+# The mood names come from core.mood so the two cannot fall out of step.
+def _mood_names() -> tuple[str, ...]:
+    try:
+        from core import mood as _m
+        return tuple(_m.MOODS.keys())
+    except Exception:
+        return ()
+
+
+_MOOD_REF = re.compile(r"\b(?:mood|disposition|demean(?:our|or)|temperament|mode)\b")
+
+
+def shift_mood(text: str, ctx: Context) -> Intent | None:
+    if not _MOOD_REF.search(text):
+        return None
+    if not re.search(r"\b(?:change|set|shift|switch|become|be|make|go|turn)\b", text):
+        return None
+    for name in _mood_names():
+        if name.lower() in text:
+            return Intent("shift_mood", {"mood": name})
+    return None
 
 
 _HONORIFIC_RE = re.compile(

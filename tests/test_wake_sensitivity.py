@@ -76,3 +76,45 @@ def test_an_empty_request_reports_without_changing_anything(_restore):
     line = config.adjust_wake_word_sensitivity()
     assert config.WAKE_WORD_THRESHOLD == 0.65
     assert "0.65" in line and _restore == {}
+
+
+# ── microphone sensitivity ────────────────────────────────────────────────────
+
+@pytest.fixture
+def mic(monkeypatch):
+    writes = {}
+    monkeypatch.setattr(config, "_update_env_var", lambda k, v: writes.__setitem__(k, v))
+    monkeypatch.setattr(config, "SILENCE_THRESHOLD", config.SILENCE_THRESHOLD_DEFAULT)
+    return writes
+
+
+def test_a_more_sensitive_microphone_lowers_the_silence_floor(mic):
+    config.adjust_mic_sensitivity(direction="more")
+    assert config.SILENCE_THRESHOLD == config.SILENCE_THRESHOLD_DEFAULT - config.MIC_SENSITIVITY_STEP
+    assert mic["SILENCE_THRESHOLD"] == str(config.SILENCE_THRESHOLD)
+
+
+def test_the_microphone_floor_and_ceiling_hold(mic):
+    for _ in range(20):
+        config.adjust_mic_sensitivity(direction="more")
+    assert config.SILENCE_THRESHOLD == config.SILENCE_THRESHOLD_FLOOR
+    for _ in range(40):
+        config.adjust_mic_sensitivity(direction="less")
+    assert config.SILENCE_THRESHOLD == config.SILENCE_THRESHOLD_CEILING
+
+
+def test_the_microphone_threshold_is_a_whole_number(mic):
+    config.adjust_mic_sensitivity(threshold=137.6)
+    assert config.SILENCE_THRESHOLD == 138
+    assert isinstance(config.SILENCE_THRESHOLD, int)
+
+
+def test_named_microphone_levels_stay_inside_the_bounds(mic):
+    for level in ("high", "medium", "low"):
+        config.adjust_mic_sensitivity(level=level)
+        assert config.SILENCE_THRESHOLD_FLOOR <= config.SILENCE_THRESHOLD <= config.SILENCE_THRESHOLD_CEILING
+
+
+def test_the_microphone_line_states_what_was_written(mic):
+    line = config.adjust_mic_sensitivity(direction="less")
+    assert str(config.SILENCE_THRESHOLD) in line and "less sensitive" in line

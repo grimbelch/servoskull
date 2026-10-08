@@ -323,3 +323,105 @@ def test_it_keeps_out_of_other_commands():
     assert _wake("set your microphone sensitivity to high") is None   # a different setting
     assert _wake("wake me up at seven") is None
     assert _wake("roll a d6") is None
+
+
+# ── settings the model used to narrate ────────────────────────────────────────
+
+def _m(matcher, text):
+    return matcher(text.lower(), Context())
+
+
+def test_microphone_sensitivity_is_separate_from_the_wake_threshold():
+    assert _m(intents.mic_sensitivity, "increase your microphone sensitivity").args == {"direction": "more"}
+    assert _m(intents.mic_sensitivity, "set the silence threshold to 250").args == {"threshold": 250}
+    assert _m(intents.mic_sensitivity, "make your hearing less sensitive").args == {"direction": "less"}
+    # The wake matcher owns anything naming the wake word; these must not collide.
+    assert _m(intents.mic_sensitivity, "increase your wake word sensitivity") is None
+    assert _m(intents.wake_sensitivity, "increase your microphone sensitivity") is None
+
+
+def test_the_skulls_own_volume():
+    assert _m(intents.volume, "set volume to 50%").args == {"level": "50"}
+    assert _m(intents.volume, "set your volume to 30").args == {"level": "30"}
+    # The form that was silently narrated on Oct 4, buried mid-sentence.
+    assert _m(intents.volume, "I am, but also reduce your volume by 30%").args == {"level": "-30"}
+    assert _m(intents.volume, "turn your volume up").args == {"level": "+15"}
+    assert _m(intents.volume, "speak louder").args == {"level": "+15"}
+    assert _m(intents.volume, "quieter please").args == {"level": "-15"}
+
+
+def test_music_volume_still_belongs_to_spotify():
+    for said in ("turn up the music", "set spotify volume to 40", "make the music quieter"):
+        assert _m(intents.volume, said) is None, said
+    assert _m(intents.volume, "roll a d6") is None
+
+
+def test_volume_out_of_range_is_not_treated_as_a_level():
+    assert _m(intents.volume, "set volume to 500") is None
+
+
+def test_silent_mode_both_ways():
+    assert _m(intents.quiet_mode, "you can be quiet now").args == {"enabled": True}
+    assert _m(intents.quiet_mode, "stop talking").args == {"enabled": True}
+    assert _m(intents.quiet_mode, "hold your tongue").args == {"enabled": True}
+    assert _m(intents.quiet_mode, "silent mode off").args == {"enabled": False}
+    assert _m(intents.quiet_mode, "you can talk again").args == {"enabled": False}
+    assert _m(intents.quiet_mode, "resume your observations").args == {"enabled": False}
+
+
+def test_silent_mode_keeps_out_of_the_music_and_confirmation_commands():
+    for said in ("turn off the music", "stop the song", "yes", "no", "cancel that"):
+        assert _m(intents.quiet_mode, said) is None, said
+
+
+def test_where_the_voice_comes_out():
+    assert _m(intents.voice_output, "speak through the bluetooth speaker").args == {"target": "bluetooth"}
+    assert _m(intents.voice_output, "use your internal speaker").args == {"target": "internal"}
+    assert _m(intents.voice_output, "cast your voice to the google home").args == {"cast": True}
+    assert _m(intents.voice_output, "stop casting").args == {"cast": False}
+    assert _m(intents.voice_output, "what did you say") is None
+
+
+def test_quiet_hours():
+    assert _m(intents.sleep_schedule, "set your sleep schedule from 11pm to 7am").args == {
+        "start_hour": 23, "end_hour": 7, "enabled": True}
+    assert _m(intents.sleep_schedule, "quiet hours from midnight until 6").args == {
+        "start_hour": 0, "end_hour": 6, "enabled": True}
+    assert _m(intents.sleep_schedule, "turn off your sleep schedule").args == {"enabled": False}
+    # A question, or hours we cannot read, goes to the model rather than guessing.
+    assert _m(intents.sleep_schedule, "what is your sleep schedule") is None
+    assert _m(intents.sleep_schedule, "wake me at seven") is None
+
+
+def test_which_game_is_on_the_table():
+    assert _m(intents.active_game, "we're playing necromunda").args == {"game": "necromunda"}
+    assert _m(intents.active_game, "switch to wfrp").args == {"game": "Warhammer Fantasy Roleplay"}
+    assert _m(intents.active_game, "set the active game to warhammer 40k").args == {"game": "Warhammer 40k"}
+    # Asking about a game is not switching to it, and an unknown game is the model's.
+    assert _m(intents.active_game, "what are the necromunda rules for cover") is None
+    assert _m(intents.active_game, "we're playing chess") is None
+
+
+def test_spelled_out_numbers_are_read_like_digits():
+    # Three rotations were spoken with the number as a word and never matched; the
+    # model answered them with a running total it had invented.
+    assert _m(intents.display_rotation, "rotate your display counterclockwise five degrees").args == {
+        "degrees": -5.0, "absolute": False}
+    assert _m(intents.display_rotation, "rotate the display clockwise twenty five degrees").args == {
+        "degrees": 25.0, "absolute": False}
+    assert _m(intents.volume, "set volume to fifty percent").args == {"level": "50"}
+    assert _m(intents.sleep_schedule, "quiet hours from eleven pm to seven am").args == {
+        "start_hour": 23, "end_hour": 7, "enabled": True}
+    assert _m(intents.voice_wait, "set the voice wait to three seconds").args == {"seconds": 3.0}
+    # Digits still work, and an utterance with no number is untouched.
+    assert _m(intents.display_rotation, "rotate your display counterclockwise 15 degrees").args == {
+        "degrees": -15.0, "absolute": False}
+
+
+def test_disposition():
+    assert _m(intents.shift_mood, "change your mood to contemplative").args == {"mood": "CONTEMPLATIVE"}
+    assert _m(intents.shift_mood, "change mode to contemplative").args == {"mood": "CONTEMPLATIVE"}
+    assert _m(intents.shift_mood, "shift your disposition to suspicious").args == {"mood": "SUSPICIOUS"}
+    # A question is not a command, and an unknown mood belongs to the model.
+    assert _m(intents.shift_mood, "what mood are you in") is None
+    assert _m(intents.shift_mood, "change your mood to peckish") is None

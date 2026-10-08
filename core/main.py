@@ -1311,6 +1311,69 @@ def _h_wake_sensitivity(intent, turn: _Turn) -> bool:
     return True
 
 
+def _h_mic_sensitivity(intent, turn: _Turn) -> bool:
+    result = config.adjust_mic_sensitivity(
+        direction=intent.args.get("direction"),
+        threshold=intent.args.get("threshold"),
+        level=intent.args.get("level"),
+    )
+    print(f"[skull] {result}")
+    _say(turn, result)
+    return True
+
+
+def _h_volume(intent, turn: _Turn) -> bool:
+    result = audio.set_system_volume(intent.args["level"])
+    print(f"[skull] {result}")
+    _say(turn, result)
+    return True
+
+
+def _h_quiet_mode(intent, turn: _Turn) -> bool:
+    enabled = intent.args["enabled"]
+    result = brain._execute_tool("set_quiet_mode", {"enabled": enabled})
+    print(f"[skull] {result}")
+    # Speak the acknowledgement before falling silent, not after.
+    _say(turn, result)
+    return True
+
+
+def _h_voice_output(intent, turn: _Turn) -> bool:
+    if "cast" in intent.args:
+        result = brain._execute_tool("set_cast_target", {"enabled": intent.args["cast"]})
+    else:
+        result = audio.set_voice_target(intent.args["target"])
+    print(f"[skull] {result}")
+    _say(turn, result)
+    return True
+
+
+def _h_sleep_schedule(intent, turn: _Turn) -> bool:
+    a = intent.args
+    if a.get("enabled") is False and "start_hour" not in a:
+        result = brain._execute_tool("set_sleep_schedule", {"enabled": False})
+    else:
+        result = brain._execute_tool("set_sleep_schedule", {
+            "start_hour": a["start_hour"], "end_hour": a["end_hour"], "enabled": True})
+    print(f"[skull] {result}")
+    _say(turn, result)
+    return True
+
+
+def _h_active_game(intent, turn: _Turn) -> bool:
+    result = brain._execute_tool("set_active_game", {"game": intent.args["game"]})
+    print(f"[skull] {result}")
+    _say(turn, result)
+    return True
+
+
+def _h_shift_mood(intent, turn: _Turn) -> bool:
+    result = brain._execute_tool("shift_mood", {"mood": intent.args["mood"]})
+    print(f"[skull] {result}")
+    _say(turn, result)
+    return True
+
+
 def _h_honorific(intent, turn: _Turn) -> bool:
     result = config.set_honorific(intent.args["name"])
     print(f"[skull] {result}")
@@ -1415,6 +1478,13 @@ _LOCAL_INTENTS = (
     (intents.display_rotation, _h_display_rotation),
     (intents.voice_wait, _h_voice_wait),
     (intents.wake_sensitivity, _h_wake_sensitivity),
+    (intents.mic_sensitivity, _h_mic_sensitivity),
+    (intents.volume, _h_volume),
+    (intents.quiet_mode, _h_quiet_mode),
+    (intents.voice_output, _h_voice_output),
+    (intents.sleep_schedule, _h_sleep_schedule),
+    (intents.active_game, _h_active_game),
+    (intents.shift_mood, _h_shift_mood),
     (intents.honorific, _h_honorific),
     (intents.response_length, _h_response_length),
     (intents.maintenance_command, _h_maintenance_command),
