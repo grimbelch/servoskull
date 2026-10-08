@@ -67,8 +67,11 @@ class MicStalled(RuntimeError):
     """The input stream stopped delivering audio."""
 
 
-def wait_for_wake_word(on_detected=None, cancel=None) -> bool:
+def wait_for_wake_word(on_detected=None, cancel=None, threshold=None) -> bool:
     """Block until the wake word is detected or cancel is set.
+
+    threshold overrides config.WAKE_WORD_THRESHOLD for this listener; the barge-in
+    listener passes a lower one so the skull can be cut off mid-sentence.
 
     Returns True if wake word was detected, False if cancelled.
     """
@@ -108,11 +111,13 @@ def wait_for_wake_word(on_detected=None, cancel=None) -> bool:
                 predictions = oww.predict(audio)
                 score = max(predictions.values()) if predictions else 0.0
                 from core import config as _cfg
-                threshold = float(getattr(_cfg, "WAKE_WORD_THRESHOLD", 0.65))
+                # re-read per chunk so a live config edit takes effect without a restart
+                thr = float(getattr(_cfg, "WAKE_WORD_THRESHOLD", 0.65)) if threshold is None else threshold
                 if _cfg.AUDIO_DEBUG and (rms > 50 or score > 0.1):
-                    print(f"[ww] rms={rms:.0f} score={score:.3f} (need >={threshold:.2f})")
-                if score >= threshold:
-                    print(f"[skull] Wake word detected! (score={score:.3f} >= {threshold:.2f})")
+                    print(f"[ww] rms={rms:.0f} score={score:.3f} (need >={thr:.2f})")
+                if score >= thr:
+                    mode = "idle" if threshold is None else "barge-in"
+                    print(f"[skull] Wake word detected! (score={score:.3f} >= {thr:.2f}, {mode})")
 
                     oww.reset()
                     if on_detected:

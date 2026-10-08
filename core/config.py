@@ -281,6 +281,13 @@ RESET_VOICE_CACHE = _cfg("RESET_VOICE_CACHE", "false").lower() == "true"
 # Per personality, like the voice: WAKE_WORD_MODEL_OMEGA-7, WAKE_WORD_MODEL_JAX.
 WAKE_WORD_MODEL = _cfg(f"WAKE_WORD_MODEL_{SKULL_NAME.upper()}", PERSONALITY.get("wake_word_model", "models/servitor.onnx"))
 WAKE_WORD_THRESHOLD = float(_cfg("WAKE_WORD_THRESHOLD", "0.65"))
+# Barge-in is harder than waking a silent skull: the echo canceller subtracts the
+# skull's own voice, but during double-talk WebRTC AEC attenuates the near-end
+# speaker too, so a human cutting in scores lower than the same words said into
+# silence. Listen harder while the skull is talking. Raise this if Omega-7 starts
+# triggering on itself (check AUDIO_DEBUG scores before assuming it is the model —
+# a mis-seated echo_cancel.source will do it at any threshold).
+WAKE_WORD_THRESHOLD_BARGE_IN = float(_cfg("WAKE_WORD_THRESHOLD_BARGE_IN", "0.45"))
 
 
 

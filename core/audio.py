@@ -370,16 +370,32 @@ def play_wav_bytes(
 ) -> None:
     """Play WAV audio with automatic sample rate resampling and system fallback.
 
+    Serialised against every other caller. The lock has to span the whole
+    playback, not just the web publish: replies, sfx pings, ambient music and
+    setup announcements all play from different threads, and two of them at once
+    is audible double-speak. Barge-in is unaffected — stop_event ends the clip
+    that holds the lock, so the wake ping follows it instead of overlapping it.
+
     amplitude_cb: called once with a callable that returns the current RMS amplitude.
     stop_event: if set mid-playback, audio stops immediately (barge-in interruption).
     """
-    import time, shutil, sys, tempfile
     with _audio_play_lock:
-        try:
-            from core import web
-            web.publish_web_audio(wav_bytes)
-        except Exception:
-            pass
+        _play_wav_bytes_locked(wav_bytes, amplitude_cb, stop_event, output_device)
+
+
+def _play_wav_bytes_locked(
+    wav_bytes: bytes,
+    amplitude_cb=None,
+    stop_event: threading.Event = None,
+    output_device: int = None,
+) -> None:
+    """Body of play_wav_bytes. The caller must hold _audio_play_lock."""
+    import time, shutil, sys, tempfile
+    try:
+        from core import web
+        web.publish_web_audio(wav_bytes)
+    except Exception:
+        pass
 
     buf = io.BytesIO(wav_bytes)
     rate, data = wavfile.read(buf)

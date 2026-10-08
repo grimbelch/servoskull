@@ -546,7 +546,8 @@ def _speak_clips(clips, on_wake) -> bool:
         _cancel_listener = threading.Event()
 
         def _interrupt_listener():
-            if wake_word.wait_for_wake_word(cancel=_cancel_listener):
+            if wake_word.wait_for_wake_word(cancel=_cancel_listener,
+                                            threshold=config.WAKE_WORD_THRESHOLD_BARGE_IN):
                 print("[skull] Interrupted — new command incoming.")
                 _stop_play.set()
                 _interrupted.set()
@@ -1549,9 +1550,14 @@ def main():
             # threads) and are spoken here, in priority order, never during a turn.
             for _rem in reminders.get_due():
                 reminders.announce_due(_rem)
-            for _ann in announcements.drain():
+            _queued = announcements.drain()
+            for _i, _ann in enumerate(_queued):
                 if _deliver(_ann, on_wake):
+                    # The wake word cut in: stop announcing and listen. The rest go
+                    # back on the queue rather than being spoken over the command.
                     skip_wake_word = True
+                    announcements.requeue(_queued[_i + 1:])
+                    break
 
             # ── 0a2. Offer the briefing after a proximity morning greeting ──────────
             if _morning_briefing_offer_pending.is_set():

@@ -79,6 +79,20 @@ def pending() -> bool:
         return bool(_heap)
 
 
+def requeue(items: list[Announcement]) -> None:
+    """Put undelivered announcements back after a barge-in.
+
+    They keep their original priority and seq, so they come back out in the same
+    order at the next turn. No wakeup: the main loop is about to record a command
+    and will drain them when it comes round again.
+    """
+    if not items:
+        return
+    with _lock:
+        for ann in items:
+            heapq.heappush(_heap, ann)
+
+
 def drain() -> list[Announcement]:
     """Take everything queued, highest priority first, then in arrival order."""
     with _lock:
