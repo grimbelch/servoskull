@@ -95,7 +95,11 @@ def wait_for_wake_word(on_detected=None, cancel=None, threshold=None) -> bool:
     def _cb(indata, frames, time_info, status):
         q.put(indata.copy())
 
-    print(f"[skull] Listening for wake word ({WAKE_WORD_MODEL}) at {native}Hz...")
+    mode = "idle" if threshold is None else "barge-in"
+    from core import config as _c0  # live read, as the per-chunk threshold is
+    shown = float(getattr(_c0, "WAKE_WORD_THRESHOLD", 0.65)) if threshold is None else threshold
+    print(f"[skull] Listening for wake word ({WAKE_WORD_MODEL}) at {native}Hz "
+          f"[{mode}, threshold {shown:.2f}]...")
     try:
         with sd.InputStream(samplerate=native, channels=1, dtype="int16",
                             blocksize=native_chunk, device=dev, callback=_cb) as stream:
@@ -123,7 +127,6 @@ def wait_for_wake_word(on_detected=None, cancel=None, threshold=None) -> bool:
                 thr = float(getattr(_cfg, "WAKE_WORD_THRESHOLD", 0.65)) if threshold is None else threshold
                 if _cfg.AUDIO_DEBUG and (rms > 50 or score > 0.1):
                     print(f"[ww] rms={rms:.0f} score={score:.3f} (need >={thr:.2f})")
-                mode = "idle" if threshold is None else "barge-in"
                 if score >= thr:
                     print(f"[skull] Wake word detected! (score={score:.3f} >= {thr:.2f}, {mode})")
                     if getattr(_cfg, "WAKE_CAPTURE", False):
