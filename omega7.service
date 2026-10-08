@@ -14,11 +14,7 @@ Environment="PULSE_SERVER=unix:/run/user/__UID__/pulse/native"
 ExecStart=__HOME__/Servoskull/.venv/bin/python -u -m core.main
 Restart=on-failure
 RestartSec=5
-# The skull speaks its sign-off on the way down (main._speak_farewell, capped at
-# FAREWELL_MAX_SECONDS), and the teardown behind it saves the Bard's Tale game and
-# releases the display and LEDs. Five seconds did not cover the line, so systemd
-# killed the process mid-teardown and Restart=on-failure cycled it.
-TimeoutStopSec=20s
+TimeoutStopSec=5s
 # core/watchdog.py pings while the main thread makes progress; a hung process
 # (a stuck audio call, a deadlock) stops pinging and is restarted.
 WatchdogSec=300

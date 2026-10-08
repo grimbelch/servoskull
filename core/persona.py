@@ -18,6 +18,11 @@ import pathlib
 
 _OWNER_TOKEN = "{owner_section}"
 _NAME_TOKEN = "{skull_name}"
+# Delivery direction only earns its place in the prompt when the voice can act on
+# it: on a model that cannot, the instructions would spend tokens teaching the brain
+# to write tags that core.tts strips again before synthesis. The block lives in
+# vocal_direction.txt beside the persona and is dropped in — or left out — here.
+_VOCAL_TOKEN = "{vocal_direction}"
 
 
 
@@ -125,4 +130,22 @@ def build_system_prompt(owner: dict, skull_name: str = "Omega-7") -> str:
         
     template = t_path.read_text()
     template = template.replace(_NAME_TOKEN, name)
-    return template.replace(_OWNER_TOKEN, build_owner_section(owner, skull_name)).rstrip() + "\n"
+    template = template.replace(_VOCAL_TOKEN, _vocal_direction(p_dir))
+    template = template.replace(_OWNER_TOKEN, build_owner_section(owner, skull_name))
+    # Dropping the block leaves the blank lines that framed it.
+    while "\n\n\n" in template:
+        template = template.replace("\n\n\n", "\n\n")
+    return template.rstrip() + "\n"
+
+
+def _vocal_direction(persona_dir: pathlib.Path) -> str:
+    """The delivery-tag instructions, or "" when the voice cannot perform them."""
+    from core import tts
+    if not tts.audio_tags_supported():
+        return ""
+    path = persona_dir / "vocal_direction.txt"
+    try:
+        return path.read_text().strip() if path.exists() else ""
+    except Exception as e:
+        print(f"[persona] vocal_direction.txt unreadable ({e}); omitting it")
+        return ""

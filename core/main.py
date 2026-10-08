@@ -31,7 +31,6 @@ def shutdown(sig=None, frame=None):
     _shutdown_requested = True
     farewell = config.PERSONALITY.get("shutdown_message", "Powering down.")
     print(f"\n[skull] {farewell}")
-    _speak_farewell()
     try:
         _background_executor.shutdown(wait=False)
     except Exception:
@@ -133,64 +132,6 @@ def _eleven_cached(text: str) -> bytes:
     except Exception as e:
         print(f"[skull] Voice cache write error: {e}")
     return wav
-
-
-# The sign-off, recorded at boot (see _warm_farewell) because by the time it is
-# wanted the unit is on its way down. Playback is cut off after this long so the
-# rest of the teardown keeps its share of systemd's stop budget.
-FAREWELL_MAX_SECONDS = 6.0
-_farewell_wav: bytes | None = None
-
-
-def _get_farewell_phrase() -> str:
-    return config.PERSONALITY.get("farewell_phrase", "")
-
-
-def _warm_farewell() -> None:
-    """Record the sign-off at boot so shutdown only has to play it."""
-    global _farewell_wav
-    phrase = _get_farewell_phrase()
-    if not tts.has_speech(phrase):
-        return
-    try:
-        if (getattr(config, "ELEVENLABS_API_KEY", "") or "").strip():
-            _farewell_wav = _eleven_cached(phrase)
-        else:
-            _farewell_wav = tts.synthesize_piper(phrase)
-    except Exception as e:
-        print(f"[skull] Farewell line unavailable ({e}) — shutdown will be silent.")
-
-
-def _speak_farewell() -> None:
-    """Sign off aloud on the way down, from the clip warmed at boot.
-
-    Only that clip is played. Synthesizing here would put a network round trip
-    inside systemd's stop timer and would leave an offline unit with nothing to say,
-    and shutdown is no place to start waiting on anything.
-
-    Silent mode is deliberately not consulted: it governs unprompted speech — idle
-    remarks, announcements, ambient music — and a sign-off answers the owner's own
-    order to shut down. The boot phrase speaks under the same reasoning, so the unit
-    greets and takes its leave as a pair.
-
-    Playback is capped: systemd gives the stop a fixed budget (TimeoutStopSec) and
-    kills whatever is left when it runs out, so a long or wedged clip would cost the
-    display, the LEDs and the Bard's Tale save their chance to shut down cleanly.
-    The last word is worth a few seconds, not the orderly teardown behind it."""
-    if _farewell_wav is None:
-        return
-    try:
-        cutoff = threading.Event()
-        timer = threading.Timer(FAREWELL_MAX_SECONDS, cutoff.set)
-        timer.daemon = True
-        timer.start()
-        try:
-            audio.play_wav_bytes(_farewell_wav, stop_event=cutoff,
-                                 output_device=config.VOICE_OUTPUT_DEVICE)
-        finally:
-            timer.cancel()
-    except Exception as e:
-        print(f"[skull] Farewell line not spoken ({e}).")
 
 
 def reset_voice_cache_if_requested() -> None:
@@ -445,7 +386,6 @@ def _preload_phrases(show_progress: bool = False) -> None:
     key = (getattr(config, "ELEVENLABS_API_KEY", "") or "").strip()
     if not key:
         print("[skull] ElevenLabs API key not set — phrase preloading skipped, using local Piper TTS.")
-        _warm_farewell()
         return
 
     wake, cog, search, ack, silence = [], [], [], [], []
@@ -490,7 +430,6 @@ def _preload_phrases(show_progress: bool = False) -> None:
         _search_wavs = search
         _ack_wavs = ack
         _silence_wavs = silence
-        _warm_farewell()
         print(f"[skull] Phrases preloaded ({done_count}/{total_phrases} elevenlabs voice, cached)")
         if show_progress:
             display.set_update_progress(100.0, "REBUILT")
