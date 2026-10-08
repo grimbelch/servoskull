@@ -260,6 +260,29 @@ def get_tools():
         },
     },
 {
+        "name": "necromunda_table",
+        "description": (
+            "Look up or roll on one of Necromunda's random tables - Lasting "
+            "Injury, Lasting Damage, Advancement, Insanity, Objective and the "
+            "rest. Give a roll to resolve one that has already been made, omit "
+            "it to have the table's own dice rolled, or ask for the table by "
+            "name with no roll to list it. Results come from the printed table, "
+            "never invented."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "table": {"type": "string",
+                          "description": "Table name, e.g. 'Lasting Injury'."},
+                "roll": {"type": "integer",
+                         "description": "A roll already made. Omit to roll it."},
+                "list_all": {"type": "boolean",
+                             "description": "True to list the whole table."},
+            },
+            "required": ["table"],
+        },
+    },
+{
         "name": "necromunda_skills",
         "description": (
             "List every skill in one of Necromunda's seven skill sets: Agility, "
@@ -563,6 +586,22 @@ def _tool_necromunda_rule(i):
     return rules_tools.named_rule(name)
 
 
+def _tool_necromunda_table(i):
+    table = i.get("table", "")
+    roll = i.get("roll")
+    from games.necromunda import rules_tools
+    if i.get("list_all"):
+        print(f"[skull] Listing Necromunda table: {table}")
+        return rules_tools.table_result(table, None)
+    if roll is not None:
+        print(f"[skull] Necromunda {table} table, roll {roll}")
+        return rules_tools.table_result(table, int(roll))
+    print(f"[skull] Rolling on the Necromunda {table} table")
+    result = rules_tools.roll_on_table(table)
+    _trigger_dice_effects()
+    return result
+
+
 def _tool_necromunda_skills(i):
     skill_set = i.get("skill_set", "")
     print(f"[skull] Listing Necromunda {skill_set} skills")
@@ -689,6 +728,7 @@ def get_handlers():
         "necromunda_attack": _tool_necromunda_attack,
         "necromunda_rule": _tool_necromunda_rule,
         "necromunda_skills": _tool_necromunda_skills,
+        "necromunda_table": _tool_necromunda_table,
         "warhammer40k_rules": _tool_warhammer40k_rules,
         "netepic_rules": _tool_netepic_rules,
         "netea_rules": _tool_netea_rules,

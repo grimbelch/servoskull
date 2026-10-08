@@ -486,3 +486,31 @@ def test_a_heading_split_over_two_lines_is_read_as_one():
     titles = [s["title"] for s in found]
     assert "LINE OF SIGHT & SOLID TERRAIN FEATURES" in titles
     assert "SOLID TERRAIN FEATURES" not in titles
+
+
+def test_two_headings_level_in_facing_columns_stay_apart():
+    """"Single Actions" and "Free Actions" sit level with each other.
+
+    Joined, they became one section called "SINGLE ACTIONS FREE ACTIONS".
+    Alignment is the test rather than the column: this page is full width at
+    the top and two columns lower down, so there is no gutter to measure.
+    """
+    class FakePage:
+        rect = type("R", (), {"width": 568.0, "height": 780.0})()
+
+        def get_text(self, kind):
+            if kind == "words":
+                return []
+            return {"blocks": [{"lines": [
+                {"bbox": (x, y, x + 150, y + 12), "spans": [
+                    {"text": t, "size": s, "font": "Arial-BoldMT"}]}
+                for t, s, x, y in (("CORE RULES - THE ACTION PHASE", 16, 60, 55),
+                                   ("SINGLE ACTIONS", 9, 64, 406),
+                                   ("FREE ACTIONS", 9, 298, 406),
+                                   ("Each Single action counts as one.", 11, 64, 420))
+            ]}]}
+
+    titles = [s["title"] for s in sections.page_sections(FakePage(), 61)]
+    assert "SINGLE ACTIONS" in titles
+    assert "FREE ACTIONS" in titles
+    assert "SINGLE ACTIONS FREE ACTIONS" not in titles

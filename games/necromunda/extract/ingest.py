@@ -41,6 +41,8 @@ _NO_PYMUPDF = "PyMuPDF is required to build the rules database: pip install pymu
 from .. import db as necro_db
 from .. import rules_schema
 from . import conditions as conditions_mod
+from . import equipment as equipment_mod
+from . import randtables as randtables_mod
 from . import sections as sections_mod
 from . import skills as skills_mod
 from . import tables
@@ -113,6 +115,18 @@ def _derive_page_offset(doc, tree: list[dict]) -> tuple[int, int]:
         return 0, 0
     offset, support = votes.most_common(1)[0]
     return offset, support
+
+
+def _table_kind(title: str) -> str:
+    """Group the tables the engine resolves for itself."""
+    upper = (title or "").upper()
+    if "LASTING INJURY" in upper or "LASTING DAMAGE" in upper:
+        return "lasting_injury"
+    if "ADVANCEMENT" in upper:
+        return "advancement"
+    if "SCENARIO" in upper or "OBJECTIVE" in upper:
+        return "scenario"
+    return "reference"
 
 
 def _sha256(path: pathlib.Path) -> str:
@@ -196,7 +210,7 @@ def ingest(pdf_path: pathlib.Path, slug: str = DEFAULT_SLUG,
             book_id = cur.lastrowid
 
             counts = {"sections": 0, "weapons": 0, "traits": 0, "skills": 0,
-                      "conditions": 0}
+                      "conditions": 0, "equipment": 0, "tables": 0, "table_rows": 0}
             section_ids: dict[tuple[str, str, str], int] = {}
 
             # --- prose layer -------------------------------------------------
@@ -295,6 +309,39 @@ def ingest(pdf_path: pathlib.Path, slug: str = DEFAULT_SLUG,
                      condition["name"], condition["kind"],
                      condition["description"], condition["page"]))
                 counts["conditions"] += 1
+
+            # --- equipment ---------------------------------------------------
+            for item in equipment_mod.extract(doc, tree):
+                conn.execute(
+                    "INSERT INTO rule_equipment (rulebook_id, slug, name, category,"
+                    " creds_text, tp_text, creds, trading_post, description, page)"
+                    " VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (book_id, sections_mod.slugify(item["name"]), item["name"],
+                     item["category"], item["creds_text"], item["tp_text"],
+                     item["creds"], item["trading_post"], item["description"],
+                     item["page"]))
+                counts["equipment"] += 1
+
+            # --- random tables -----------------------------------------------
+            # Rows keep their parsed span, so resolving a roll is an index
+            # lookup rather than a parse of "21-26" at the table.
+            for table in randtables_mod.extract(doc):
+                table_id = conn.execute(
+                    "INSERT INTO rule_tables (rulebook_id, slug, title, kind,"
+                    " dice, columns_json, page) VALUES (?,?,?,?,?,?,?)",
+                    (book_id, sections_mod.slugify(table["title"]), table["title"],
+                     _table_kind(table["title"]), table["dice"],
+                     json.dumps(table["columns"]), table["page"])).lastrowid
+                counts["tables"] += 1
+                for ordinal, row in enumerate(table["rows"]):
+                    conn.execute(
+                        "INSERT INTO rule_table_rows (table_id, ordinal, roll_min,"
+                        " roll_max, roll_label, result, detail, cells_json)"
+                        " VALUES (?,?,?,?,?,?,'',?)",
+                        (table_id, ordinal, row["roll_min"], row["roll_max"],
+                         row["roll_label"], row["result"],
+                         json.dumps([row["roll_label"], row["result"]])))
+                    counts["table_rows"] += 1
 
             _build_search_index(conn, book_id)
         return counts

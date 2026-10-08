@@ -21,11 +21,17 @@ import statistics
 # body lines bold at 14pt, and those are mixed case, so the caps test is what
 # actually separates "SERIOUSLY INJURED FIGHTERS" from "Note that a Seriously
 # Injured/Damaged model...".
-# 11, not 12. The book sets a step heading at either size -- "1. DETERMINE WHO
-# CAN FIGHT" is 12pt and "2. CHOOSE WEAPONS" on the same page is 11pt -- so a
-# 12pt floor drops half the steps of a sequence and buries their rules inside
-# whichever section came before.
-_MIN_HEADING_SIZE = 11
+# 9, because the book headings go all the way down to it. There are three
+# tiers: a chapter at 28pt, a section at 11-14pt, and then sidebars, the steps
+# of a sequence and the names of equipment at 9-10pt. A floor of 11 left that
+# last tier invisible -- "Single Actions" and "Free Actions" had no heading of
+# their own, the Arbitrator's Toolkit sidebars attached to whatever came
+# before them, and an item called "Bio-booster" at 10pt was filed under its
+# own price line at 12pt. Dropping to 9 finds 444 more headings.
+_MIN_HEADING_SIZE = 9
+# A stat table's column headers are set in the same type as a heading. "SR",
+# "AP" and "TP" are not sections.
+_MIN_HEADING_CHARS = 4
 _MIN_BOLD_RATIO = 0.6
 _MIN_CAPS_RATIO = 0.75
 _MAX_HEADING_CHARS = 70
@@ -181,11 +187,12 @@ def _split_by_line_starts(lines: list[dict]) -> float | None:
 
 def is_heading(line: dict) -> bool:
     """True when a line is a printed heading rather than body text."""
+    text = line["text"].strip()
     return (
-        line["bold"] >= _MIN_BOLD_RATIO
+        line.get("display", line["bold"]) >= _MIN_BOLD_RATIO
         and line["size"] >= _MIN_HEADING_SIZE
-        and len(line["text"]) <= _MAX_HEADING_CHARS
-        and _caps_ratio(line["text"]) >= _MIN_CAPS_RATIO
+        and _MIN_HEADING_CHARS <= len(text) <= _MAX_HEADING_CHARS
+        and _caps_ratio(text) >= _MIN_CAPS_RATIO
     )
 
 

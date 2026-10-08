@@ -180,6 +180,7 @@ _NAMED_TABLES = (
     ("rule_traits", "weapon trait", "takes_value"),
     ("rule_skills", "skill", "skill_set"),
     ("rule_conditions", "condition", "kind"),
+    ("rule_equipment", "equipment", "creds_text"),
 )
 
 
@@ -218,6 +219,8 @@ def named_rule(name: str) -> str:
                 if table == "rule_skills":
                     detail = f", {row['extra']} skill"
                 elif table == "rule_conditions":
+                    detail = f", {row['extra']}"
+                elif table == "rule_equipment":
                     detail = f", {row['extra']}"
                 out.append(
                     f"{row['name']} ({label}{detail} — {book['title']}, "
@@ -277,3 +280,81 @@ def weapon_traits(traits: str) -> str:
         return "\n".join(out)
     finally:
         conn.close()
+
+
+# ── random tables ─────────────────────────────────────────────────────────────
+
+def _find_table(conn, book_id: int, name: str):
+    wanted = (name or "").strip().lower()
+    return conn.execute(
+        "SELECT id, title, dice, page FROM rule_tables WHERE rulebook_id = ?"
+        " AND (LOWER(title) = ? OR LOWER(title) LIKE ?)"
+        " ORDER BY LENGTH(title) LIMIT 1",
+        (book_id, wanted, f"%{wanted}%")).fetchone()
+
+
+def table_result(name: str, roll: int | None = None) -> str:
+    """Resolve a roll on one of the book's tables, rolling it if not given.
+
+    The row's span is stored parsed, so a 54 is found by index rather than by
+    reading "51-56" at the table. Without a roll the whole table is listed.
+    """
+    conn = _open()
+    if conn is None:
+        return _NOT_INSTALLED
+    try:
+        book = current_rulebook(conn)
+        table = _find_table(conn, book["id"], name)
+        if table is None:
+            listed = ", ".join(
+                r["title"] for r in conn.execute(
+                    "SELECT title FROM rule_tables WHERE rulebook_id = ?"
+                    " ORDER BY title", (book["id"],)).fetchall()[:12])
+            return f"No table matching '{name}'. The book has: {listed}."
+
+        cite = f"{book['title']}, p{printed_page(table['page'], book)}"
+        if roll is None:
+            rows = conn.execute(
+                "SELECT roll_label, result FROM rule_table_rows WHERE table_id = ?"
+                " ORDER BY ordinal", (table["id"],)).fetchall()
+            lines = [f"{table['title']} ({table['dice']}) — {cite}"]
+            lines += [f"  {r['roll_label']}: {r['result']}" for r in rows]
+            return "\n".join(lines)
+
+        row = conn.execute(
+            "SELECT roll_label, result FROM rule_table_rows WHERE table_id = ?"
+            " AND roll_min <= ? AND roll_max >= ? ORDER BY ordinal LIMIT 1",
+            (table["id"], int(roll), int(roll))).fetchone()
+        if row is None:
+            return (f"{roll} is not on the {table['title']} ({table['dice']}) — "
+                    f"{cite}.")
+        return (f"{table['title']}, {table['dice']} {roll}: {row['result']} "
+                f"({cite})")
+    finally:
+        conn.close()
+
+
+def roll_on_table(name: str) -> str:
+    """Roll the table's own dice and report the result."""
+    conn = _open()
+    if conn is None:
+        return _NOT_INSTALLED
+    try:
+        book = current_rulebook(conn)
+        table = _find_table(conn, book["id"], name)
+        spec = (table["dice"] if table else "D6").upper()
+    finally:
+        conn.close()
+    if spec == "D66":
+        value = dice.d66(1)[0]
+    elif spec == "D3":
+        value = dice.d3(1)[0]
+    elif spec == "2D6":
+        value = sum(dice.d6(2))
+    elif spec == "3D6":
+        value = sum(dice.d6(3))
+    elif spec == "D100":
+        value = dice.d6(1)[0] * 10 + dice.d6(1)[0]
+    else:
+        value = dice.d6(1)[0]
+    return table_result(name, value)

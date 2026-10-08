@@ -22,13 +22,17 @@ def line(text, size=10, bold=1.0, display=None):
 def test_a_name_in_display_type_at_body_size_is_recognised():
     """The whole reason the tables were empty.
 
-    `is_heading` wants 12pt and the word "Bold" in the font; a trait is 10pt
+    `is_heading` wanted 12pt and the word "Bold" in the font; a trait is 10pt
     and on two pages the scan reports its face as Franklin Gothic, which has
-    no "Bold" in the name at all.
+    no "Bold" in the name at all. The heading floor has since come down to 9
+    as well, so both find these now -- but the face test is what matters, and
+    it is what this pins.
     """
     assert layout.is_named_entry(line("RAPID FIRE (X)", size=10))
     assert layout.is_named_entry(line("BLAZE (X+)", size=9))
-    assert not layout.is_heading(line("RAPID FIRE (X)", size=10))
+    # Set in body type instead, the same words are not a name.
+    assert not layout.is_named_entry(
+        line("rapid fire as described", size=10, bold=0.0))
 
 
 def test_a_condensed_face_counts_as_display_type():

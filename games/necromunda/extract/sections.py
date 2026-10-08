@@ -22,6 +22,10 @@ _SLUG_STRIP = re.compile(r"[^a-z0-9]+")
 _VALUEISH = re.compile(r'^(?:[+-]?\d+\*?"?|-|—|T|E|S(?:\+\d+)?|D\d+|\d+D\d+|\d+\+|\|)$')
 # A word broken across a line end, to be rejoined rather than left split.
 _HYPHEN_BREAK = re.compile(r"(\w)-$")
+# Equipment is headed by its name and then its price, each on its own line and
+# often a point or two apart in the scan. A price is never the name of a rule,
+# so it always belongs to the heading above it however the sizes came out.
+_PRICE_LINE = re.compile(r"^\d+\s*CREDITS\b", re.I)
 
 
 def slugify(text: str) -> str:
@@ -120,14 +124,23 @@ def page_sections(page, page_no: int) -> list[dict]:
             # lines. Read separately they become sections titled "LINE OF
             # SIGHT &" and "SOLID TERRAIN FEATURES", and the rule is filed
             # under the second half of its own name.
-            if (current is not None and not body_lines
-                    and abs(line["size"] - current.get("size", 0)) <= 2):
+            # A heading continued on a second line starts at the same margin
+            # as the first. Two headings level with each other in facing
+            # columns do not, and joining those produced a section called
+            # "SINGLE ACTIONS FREE ACTIONS". Alignment is the test rather than
+            # the column, because a page can be full width at the top and two
+            # columns lower down, which leaves no gutter to measure.
+            aligned = abs(line["x0"] - current.get("x0", 0)) < 20 if current else False
+            if (current is not None and not body_lines and aligned
+                    and (_PRICE_LINE.match(text)
+                         or abs(line["size"] - current.get("size", 0)) <= 2)):
                 current["title"] = f"{current['title']} {text}".strip()
                 continue
             flush()
             current = {"chapter": chapter, "section": section, "title": text,
                        "level": 3, "body": "", "page": page_no,
-                       "size": line["size"]}
+                       "size": line["size"], "column": line["column"],
+                       "x0": line["x0"]}
             continue
         if _is_tabular(text):
             continue
