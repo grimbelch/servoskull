@@ -92,9 +92,13 @@ _speech_lock = threading.RLock()
 # The prerecorded phrases (wake / cogitation / search / acknowledgement / boot) are
 # spoken in the ElevenLabs voice regardless of TTS_BACKEND (which still governs the
 # dynamic conversational replies). To avoid hitting the API on every boot, each
-# phrase's WAV is cached to disk keyed by (voice id, text): changing
-# ELEVENLABS_VOICE_ID transparently regenerates them, and RESET_VOICE_CACHE=true in
-# .env wipes the cache so everything is re-synthesized on the next run.
+# phrase's WAV is cached to disk keyed by (voice id, model, text): changing
+# ELEVENLABS_VOICE_ID or ELEVENLABS_MODEL transparently regenerates them — the model
+# belongs in the key because a new generation of it is a new performance of the same
+# words, and a cache keyed only by text would keep serving the old one forever. The
+# superseded files are left behind (one stale generation, the skull's own voice, which
+# speaker_id is happy to use as background); "rebuild your sounds" or
+# RESET_VOICE_CACHE=true clears the directory outright.
 import hashlib
 import pathlib
 
@@ -103,7 +107,7 @@ _VOICE_CACHE_DIR = pathlib.Path(f"models/phrase_cache/{_persona_key}")
 
 
 def _voice_cache_path(text: str) -> pathlib.Path:
-    key = f"{config.SKULL_NAME}:{config.ELEVENLABS_VOICE_ID}:{text}".encode("utf-8")
+    key = f"{config.SKULL_NAME}:{config.ELEVENLABS_VOICE_ID}:{config.ELEVENLABS_MODEL}:{text}".encode("utf-8")
     return _VOICE_CACHE_DIR / f"{hashlib.sha1(key).hexdigest()[:16]}.wav"
 
 

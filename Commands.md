@@ -62,7 +62,7 @@ game), `POST /api/game/stop`.
 
 | Spoken Command | Function |
 | :--- | :--- |
-| **`"Rebuild your sounds"`** / **`"Rebuild speech phrases"`** | Clears the voice phrase cache (`models/phrase_cache/`) and re-synthesizes all boot, wake, and cogitation phrases using the active ElevenLabs voice ID (`ELEVENLABS_VOICE_ID`). |
+| **`"Rebuild your sounds"`** / **`"Rebuild speech phrases"`** | Clears the voice phrase cache (`models/phrase_cache/`) and re-synthesizes all boot, wake, and cogitation phrases using the active ElevenLabs voice (`ELEVENLABS_VOICE_ID`) and model (`ELEVENLABS_MODEL`). |
 | **`"Switch personality to Imperial Servo Skull"`** | Activates the default Adeptus Mechanicus Tech-Priest persona. |
 | **`"Switch personality to Golden Retriever"`** | Switches to an upbeat, enthusiastic companion persona. |
 | **`"Switch personality to Custom Archetype"`** | Switches to user-defined archetype in `owner.json`. |
