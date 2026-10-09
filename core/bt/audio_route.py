@@ -80,6 +80,97 @@ def internal_sink() -> str | None:
         return None
 
 
+# The echo canceller is a filter node: it takes the mic in and plays its reference
+# out into a sink. The conf targets the USB card, but WirePlumber re-linked that
+# output to the Bluetooth speaker when one connected -- so everything the skull said
+# went through the canceller INTO the Craft Room, and the canceller's reference was
+# a different device from its microphone, which quietly breaks the cancelling too.
+CANCELLER_NODE = "echo-cancel-playback"
+
+
+def card_sink(sinks_output: str = "") -> str | None:
+    """The real sound card's sink: the one the canceller should be playing into."""
+    out = sinks_output or list_sinks()
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[1].startswith("alsa_output."):
+            return parts[1]
+    return None
+
+
+def canceller_outputs(links_output: str) -> list[tuple[str, str]]:
+    """(our output port, the port it feeds) for each link out of the canceller.
+
+    Parses `pw-link -l`, where a link is a port line followed by indented
+    "|-> target" lines.
+    """
+    pairs: list[tuple[str, str]] = []
+    source = None
+    for raw in links_output.splitlines():
+        line = raw.rstrip()
+        if not line:
+            continue
+        if not line.startswith((" ", "\t")):
+            source = line.strip() if line.startswith(CANCELLER_NODE + ":") else None
+            continue
+        if source and "|->" in line:
+            pairs.append((source, line.split("|->", 1)[1].strip()))
+    return pairs
+
+
+def _pw_link_list() -> str:
+    try:
+        return subprocess.run(["pw-link", "-l"], capture_output=True, text=True,
+                              timeout=5).stdout
+    except Exception as e:
+        print(f"[bt] Could not list PipeWire links: {e}")
+        return ""
+
+
+def canceller_plays_into_card() -> bool | None:
+    """True if the canceller feeds the sound card, False if elsewhere, None if unknown."""
+    card = card_sink()
+    pairs = canceller_outputs(_pw_link_list())
+    if not card or not pairs:
+        return None
+    return all(t.startswith(card + ":") for _, t in pairs)
+
+
+def restore_canceller_to_card() -> bool:
+    """Put the canceller's output back on the sound card.
+
+    Without this the skull's own voice follows the canceller to whatever sink
+    WirePlumber moved it to, and the cancelling has the wrong reference.
+    """
+    card = card_sink()
+    if not card:
+        print("[bt] No sound-card sink found; leaving the canceller alone.")
+        return False
+    pairs = canceller_outputs(_pw_link_list())
+    if not pairs:
+        print("[bt] The echo canceller has no output links to correct.")
+        return False
+    moved = False
+    for src, target in pairs:
+        if target.startswith(card + ":"):
+            continue
+        port = src.split(":", 1)[1] if ":" in src else "output_FL"
+        want = f"{card}:{port.replace('output_', 'playback_')}"
+        try:
+            subprocess.run(["pw-link", "-d", src, target],
+                           capture_output=True, timeout=5)
+            subprocess.run(["pw-link", src, want], capture_output=True, timeout=5,
+                           check=True)
+            print(f"[bt] Canceller output {src} moved from {target} back to {want}")
+            moved = True
+        except Exception as e:
+            print(f"[bt] Could not move {src} back to the card: {e}")
+            return False
+    if not moved:
+        print("[bt] The echo canceller was already playing into the sound card.")
+    return True
+
+
 def pin_voice_to_internal() -> None:
     """Keep TTS and sound effects on the skull's own speaker, whatever is default.
 
@@ -88,6 +179,15 @@ def pin_voice_to_internal() -> None:
     which holds only while that restore succeeds.
     """
     from core import config
+    # The canceller first: pinning the voice to echo_cancel.sink only keeps it local
+    # while that sink's own output is the sound card.
+    restore_canceller_to_card()
     sink = internal_sink()
+    if canceller_plays_into_card() is False:
+        # Could not be put back, so name the card directly. The voice then bypasses
+        # the canceller's reference, but barge-in listens to the raw microphone now
+        # and the skull's own speech scores 0.02 there, so it will not rouse itself.
+        sink = card_sink() or sink
+        print("[bt] Canceller is not on the card; pinning the voice straight to it.")
     config.VOICE_OUTPUT_DEVICE = sink
-    print(f"[bt] Voice pinned to the internal sink: {sink}")
+    print(f"[bt] Voice pinned to: {sink}")

@@ -11,6 +11,24 @@ _last_scan: list[dict] = []
 PROMPT = r"\[.*?\][>#]"
 
 
+# How long to let a link come up before calling it a failure. Measured on the
+# Craft Room speaker: bluetoothctl returned its prompt in under a second and the
+# device reported Connected: yes several seconds later.
+CONNECT_WAIT_SECS = 15.0
+_CONNECT_POLL_SECS = 0.75
+
+
+def _await_connection(check, timeout: float) -> bool:
+    """Poll `check` until it is true or `timeout` passes."""
+    deadline = time.time() + timeout
+    while True:
+        if check():
+            return True
+        if time.time() >= deadline:
+            return False
+        time.sleep(_CONNECT_POLL_SECS)
+
+
 _manager_cache = None
 
 
@@ -279,7 +297,13 @@ def connect(mac: str) -> bool:
             except Exception:
                 pass
     
-            connected = is_connected_check()
+            # The prompt comes back as soon as bluetoothctl accepts the command,
+            # not when the link is up: A2DP takes several seconds to negotiate. The
+            # status was read one second after the connect was sent and reported
+            # False for a speaker that connected moments later -- so the skull said
+            # it had failed, and skipped the routing that keeps its own voice on its
+            # own speaker.
+            connected = _await_connection(is_connected_check, CONNECT_WAIT_SECS)
             print(f"[bluetooth] Final connection status for {mac}: {connected}")
     
             try:
@@ -447,6 +471,12 @@ def _wait_for_bt_sink(mac: str, timeout: float | None = None) -> str | None:
 
 
 def _pin_voice_to_internal() -> None:
+    """Delegates: one implementation, in core.bt.audio_route."""
+    from core.bt.audio_route import pin_voice_to_internal
+    pin_voice_to_internal()
+
+
+def _pin_voice_to_internal_legacy() -> None:
     """Keep TTS/SFX on Omega-7's own speaker, whatever the system default is.
 
     The echo-cancel sink when it is loaded, not the raw USB one, so the AEC keeps
