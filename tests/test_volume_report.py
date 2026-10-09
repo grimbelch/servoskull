@@ -76,3 +76,36 @@ def test_a_broken_reader_is_unknown_rather_than_an_exception(monkeypatch):
         raise OSError("pactl is not having it")
     monkeypatch.setattr(audio, "_sink_percent", boom)
     assert audio.get_system_volume() is None
+
+
+# ── where the voice goes ──────────────────────────────────────────────────────
+
+def test_switching_to_bluetooth_with_nothing_connected_says_so(monkeypatch):
+    """It used to set the pin to None -- the system default -- and report "Voice
+    output switched to the Bluetooth speaker" with no speaker connected."""
+    from core import config
+    monkeypatch.setattr(audio, "get_pulseaudio_sinks", lambda: {"internal": "echo_cancel.sink"})
+    monkeypatch.setattr(config, "VOICE_OUTPUT_DEVICE", "echo_cancel.sink")
+    line = audio.set_voice_target("bluetooth")
+    assert "No Bluetooth speaker is connected" in line
+    assert config.VOICE_OUTPUT_DEVICE == "echo_cancel.sink"   # left where it was
+
+
+def test_switching_to_bluetooth_works_when_one_is_connected(monkeypatch):
+    from core import config
+    monkeypatch.setattr(audio, "get_pulseaudio_sinks",
+                        lambda: {"internal": "echo_cancel.sink",
+                                 "bluetooth": "bluez_output.AA_BB.1"})
+    monkeypatch.setattr(config, "VOICE_OUTPUT_DEVICE", "echo_cancel.sink")
+    line = audio.set_voice_target("bluetooth")
+    assert "switched to the Bluetooth speaker" in line
+    assert config.VOICE_OUTPUT_DEVICE == "bluez_output.AA_BB.1"
+
+
+def test_switching_back_to_internal_always_works(monkeypatch):
+    from core import config
+    monkeypatch.setattr(audio, "get_pulseaudio_sinks", lambda: {"internal": "echo_cancel.sink"})
+    monkeypatch.setattr(audio, "get_internal_speaker_sink", lambda: "echo_cancel.sink")
+    monkeypatch.setattr(config, "VOICE_OUTPUT_DEVICE", "bluez_output.AA_BB.1")
+    audio.set_voice_target("internal")
+    assert config.VOICE_OUTPUT_DEVICE == "echo_cancel.sink"

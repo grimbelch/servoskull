@@ -445,7 +445,17 @@ _OUT_INTERNAL = re.compile(r"\b(?:internal|your\s+own|onboard|built\s*-?\s*in)\s
 _OUT_STOP = re.compile(r"\b(?:stop|cease|disable|turn\s+off)\b")
 
 
+# Routing audio to a device is not finding, pairing or connecting one. "Connect to
+# a new bluetooth speaker" was matched here and answered "voice output switched to
+# the Bluetooth speaker" with nothing connected -- it belongs to bluetooth_connect.
+_OUT_NOT_ROUTING = re.compile(
+    r"\b(?:connect|connecting|disconnect|disconnecting|reconnect|pair|pairing|unpair"
+    r"|scan|scanning|search|searching|find|finding|look\s+for|discover|forget)\b")
+
+
 def voice_output(text: str, ctx: Context) -> Intent | None:
+    if _OUT_NOT_ROUTING.search(text):
+        return None
     if _OUT_CAST.search(text):
         if not (_OUT_REF.search(text) or _OUT_STOP.search(text)):
             return None

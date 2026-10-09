@@ -640,8 +640,15 @@ def set_voice_target(target: str) -> str:
     sinks = get_pulseaudio_sinks()
     if any(k in t_lower for k in ("bluetooth", "bt", "external", "remote", "other")):
         bt_sink = sinks.get("bluetooth")
-        config.VOICE_OUTPUT_DEVICE = bt_sink  # String sink name or None (PulseAudio default)
-        print(f"[audio] Voice output target → Bluetooth ({bt_sink or 'system default'})")
+        if not bt_sink:
+            # It used to set the pin to None -- the system default -- and report
+            # "Voice output switched to the Bluetooth speaker" with nothing
+            # connected, which is a claim about the world rather than a change to it.
+            print("[audio] No Bluetooth sink present; voice output left where it was.")
+            return ("No Bluetooth speaker is connected, so this unit's voice stays "
+                    "on its own output. Connect one first.")
+        config.VOICE_OUTPUT_DEVICE = bt_sink
+        print(f"[audio] Voice output target → Bluetooth ({bt_sink})")
         return "Voice output switched to the Bluetooth speaker."
     else:
         int_sink = get_internal_speaker_sink()

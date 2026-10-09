@@ -561,3 +561,23 @@ def test_a_check_or_a_table_is_not_a_die():
     for said in ("roll an ammo check", "roll a scatter test",
                  "roll an injury table", "roll the injury result"):
         assert _m(intents.dice, said) is None, said
+
+
+def test_connecting_a_speaker_is_not_routing_audio_to_one():
+    # "Connect to a new Bluetooth speaker" was answered "voice output switched to
+    # the Bluetooth speaker", with nothing connected. It belongs to bluetooth_connect.
+    for said in ("connect to a new bluetooth speaker", "pair with a bluetooth speaker",
+                 "find a bluetooth speaker", "scan for bluetooth speakers",
+                 "disconnect the bluetooth speaker", "disconnect from the craft room",
+                 "reconnect to the craft room", "forget the bluetooth speaker"):
+        assert _m(intents.voice_output, said) is None, said
+
+
+def test_routing_audio_to_a_speaker_still_matches():
+    assert _m(intents.voice_output, "speak through the bluetooth speaker").args == {
+        "target": "bluetooth"}
+    assert _m(intents.voice_output, "put your voice on the external speaker").args == {
+        "target": "bluetooth"}
+    assert _m(intents.voice_output, "use your internal speaker").args == {"target": "internal"}
+    assert _m(intents.voice_output, "cast your voice to the google home").args == {"cast": True}
+    assert _m(intents.voice_output, "stop casting").args == {"cast": False}
