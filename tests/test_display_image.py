@@ -183,21 +183,62 @@ def test_every_frame_is_a_whole_panel():
         assert display._reveal_frame(src, t).size == (240, 240)
 
 
-def test_the_progress_holds_then_eases_then_settles(monkeypatch):
-    monkeypatch.setattr(display, "_custom_reveal_src", Image.new("RGB", (480, 240)))
+@pytest.fixture
+def revealing(monkeypatch):
+    """A wide picture mid-reveal, starting at t=1000 and showing for 15s."""
+    src = display._reveal_source(Image.new("RGB", (1258, 635), (80, 90, 100)))
+    monkeypatch.setattr(display, "_custom_reveal_src", src)
     monkeypatch.setattr(display, "_custom_reveal_t0", 1000.0)
-    assert display._reveal_progress(1000.0) == 0.0            # held on the whole picture
-    assert display._reveal_progress(1000.0 + display.REVEAL_HOLD_SECS - 0.01) == 0.0
-    mid = display._reveal_progress(1000.0 + display.REVEAL_HOLD_SECS
-                                   + display.REVEAL_ZOOM_SECS / 2)
-    assert 0.4 < mid < 0.6                                     # eased, halfway
-    assert display._reveal_progress(1000.0 + display.REVEAL_HOLD_SECS
-                                    + display.REVEAL_ZOOM_SECS + 0.01) is None
+    monkeypatch.setattr(display, "_custom_image_expiry", 1015.0)
+    monkeypatch.setattr(display, "_custom_reveal_pan", (0.15, 0.5, 0.85, 0.5))
+    return src
 
 
-def test_no_reveal_means_no_progress(monkeypatch):
+def test_the_first_phase_holds_the_whole_picture_still(revealing):
+    scale, px, py, settled = display._reveal_view(1000.0)
+    contain = 240 / max(revealing.size)
+    assert scale == pytest.approx(contain) and settled is True
+    assert display._reveal_view(1000.0 + display.REVEAL_HOLD_SECS - 0.01)[3] is True
+
+
+def test_the_second_phase_eases_in_to_filling_the_panel(revealing):
+    half = display._reveal_view(1000.0 + display.REVEAL_HOLD_SECS
+                                + display.REVEAL_ZOOM_SECS / 2)
+    contain = 240 / max(revealing.size)
+    assert contain < half[0] < 1.0 and half[3] is False
+    end = display._reveal_view(1000.0 + display.REVEAL_HOLD_SECS
+                               + display.REVEAL_ZOOM_SECS - 0.01)
+    assert end[0] > half[0]                 # still opening up
+
+
+def test_the_third_phase_keeps_drifting_rather_than_stopping(revealing):
+    t0 = 1000.0 + display.REVEAL_HOLD_SECS + display.REVEAL_ZOOM_SECS
+    start = display._reveal_view(t0 + 0.01)
+    late = display._reveal_view(t0 + 5.0)
+    assert start[3] is False and late[3] is False       # never settles
+    assert late[0] > start[0]                           # creeping further in
+    assert late[1] > start[1]                           # and panning across
+    assert 1.0 <= start[0] <= display.KEN_BURNS_ZOOM
+    assert late[0] <= display.KEN_BURNS_ZOOM
+
+
+def test_the_drift_is_bounded_by_the_end_of_the_showing(revealing):
+    far = display._reveal_view(1000.0 + 600.0)
+    assert far[0] == pytest.approx(display.KEN_BURNS_ZOOM)
+    assert far[1] == pytest.approx(0.85)
+
+
+def test_the_zoom_hands_over_to_the_drift_without_a_jump(revealing):
+    t0 = 1000.0 + display.REVEAL_HOLD_SECS + display.REVEAL_ZOOM_SECS
+    before = display._reveal_view(t0 - 0.001)
+    after = display._reveal_view(t0 + 0.001)
+    assert abs(after[0] - before[0]) < 0.01     # scale is continuous
+    assert abs(after[1] - before[1]) < 0.01     # and so is the pan
+
+
+def test_no_reveal_means_no_view(monkeypatch):
     monkeypatch.setattr(display, "_custom_reveal_src", None)
-    assert display._reveal_progress(1e9) is None
+    assert display._reveal_view(1e9) is None
 
 
 def test_asking_for_a_reveal_arms_one(monkeypatch):
@@ -229,3 +270,59 @@ def test_the_picture_arriving_ends_the_retrieval_animation(monkeypatch):
     assert display.display_pil_image(Image.new("RGB", (900, 400)), reveal=True) is True
     assert display._retrieving_image is False
     assert display._image_retrieval_until == 0.0
+
+
+# ── panning across a filled panel ─────────────────────────────────────────────
+
+def test_the_window_moves_when_the_pan_does():
+    import numpy as np
+    # A wide picture, dark on the left and bright on the right: panning right
+    # must make the panel brighter.
+    img = Image.new("RGB", (960, 240), (10, 10, 10))
+    img.paste(Image.new("RGB", (480, 240), (240, 240, 240)), (480, 0))
+    src = display._reveal_source(img)
+    left = np.asarray(display._pan_zoom_frame(src, 1.0, px=0.0)).mean()
+    right = np.asarray(display._pan_zoom_frame(src, 1.0, px=1.0)).mean()
+    assert right > left + 100
+
+
+def test_a_letterboxed_frame_ignores_the_pan():
+    import numpy as np
+    # Below fill scale there is no slack to pan into, so px must not shift it.
+    src = display._reveal_source(Image.new("RGB", (960, 240), (120, 120, 120)))
+    a = np.asarray(display._pan_zoom_frame(src, 0.25, px=0.0))
+    b = np.asarray(display._pan_zoom_frame(src, 0.25, px=1.0))
+    assert (a == b).all()
+
+
+def test_the_pan_is_clamped_to_the_picture():
+    # Nonsense values must not paste the window off the edge into black.
+    import numpy as np
+    src = display._reveal_source(Image.new("RGB", (960, 240), (120, 120, 120)))
+    for px in (-5.0, 5.0):
+        a = np.asarray(display._pan_zoom_frame(src, 1.2, px=px))
+        assert (a.mean(axis=2) <= 2).mean() == 0.0      # no black edge showing
+
+
+def test_every_pan_zoom_frame_is_a_whole_panel():
+    src = display._reveal_source(Image.new("RGB", (900, 400)))
+    for scale in (0.2, 0.6, 1.0, 1.18, 2.0):
+        assert display._pan_zoom_frame(src, scale).size == (240, 240)
+
+
+def test_a_wide_picture_drifts_sideways_and_a_tall_one_vertically():
+    for _ in range(12):      # the direction is random; the axis is not
+        px0, py0, px1, py1 = display._ken_burns_path((900, 400))
+        assert py0 == py1 == 0.5 and px0 != px1
+        px0, py0, px1, py1 = display._ken_burns_path((400, 900))
+        assert px0 == px1 == 0.5 and py0 != py1
+
+
+def test_a_square_picture_drifts_diagonally():
+    px0, py0, px1, py1 = display._ken_burns_path((600, 600))
+    assert px0 == py0 and px1 == py1 and px0 != px1
+
+
+def test_the_drift_direction_varies_between_pictures():
+    seen = {display._ken_burns_path((900, 400))[0] for _ in range(40)}
+    assert len(seen) == 2       # it goes both ways, not always the same one
