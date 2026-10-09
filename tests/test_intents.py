@@ -493,3 +493,22 @@ def test_music_volume_spoken_as_a_word():
     assert _m(intents.spotify_volume, "set spotify volume to twenty five").args == {"level": 25}
     # The wordless forms still work.
     assert _m(intents.spotify_volume, "turn up the music").args == {"change": 15}
+
+
+def test_the_ammo_die_is_the_firepower_die():
+    # What it is called at the table; games.necromunda.dice knows it as firepower.
+    for said in ("roll two ammo dice", "roll an ammo die", "roll three ammo dice"):
+        assert _m(intents.dice, said).args["dice_type"] == "firepower", said
+    assert _m(intents.dice, "roll two ammo dice").args["count"] == 2
+    assert _m(intents.dice, "roll three ammo dice").args["count"] == 3
+
+
+def test_the_other_die_names_are_unaffected_by_the_alias():
+    assert _m(intents.dice, "roll two firepower dice").args["dice_type"] == "firepower"
+    assert _m(intents.dice, "roll two injury dice").args["dice_type"] == "injury"
+    assert _m(intents.dice, "roll a scatter dice").args["dice_type"] == "scatter"
+
+
+def test_an_ammo_check_is_not_a_dice_roll():
+    # The Ammo (X+) trait's own D6 is a different thing from the firepower die.
+    assert _m(intents.dice, "roll an ammo check") is None

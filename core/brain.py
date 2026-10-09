@@ -530,6 +530,8 @@ def _simulate_necromunda(dice_type: str, count: int, target: int | None = None) 
     details: list[str] = []
     display_val = "0"
     kind = (dice_type or "d6").strip().lower().replace(" ", "_")
+    if kind == "ammo":
+        kind = "firepower"      # the ammo die is the firepower die; see intents._DICE_ALIASES
     # What the eye draws: the symbol on each dice, plus whatever that symbol
     # needs (an arrow's direction, a pip count) and which dice is the answer.
     face_kind, symbols, face_detail, chosen = "d6", [], [], -1
