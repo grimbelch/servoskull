@@ -5,6 +5,10 @@ Authentication is lazy — only triggered on the first music command.
 """
 
 from __future__ import annotations
+import re
+import threading
+from typing import NamedTuple
+
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 
@@ -19,6 +23,24 @@ import requests
 # nine attempts and several seconds of sleep on the main loop. The functions below
 # catch their own errors and report them; that is the whole policy.
 
+
+class PlayResult(NamedTuple):
+    """What came of a play request.
+
+    It used to be a string: a track title when it worked, and one of "not-found",
+    "no-device:<name>", "playback-error: ...", "spotify-error 404: ..." or
+    "error: ..." when it did not, which the caller sorted out with startswith. A
+    track whose name began with "error" would have been read as a failure.
+    """
+    ok: bool
+    label: str = ""      # what is playing, when ok
+    kind: str = ""        # not-found | no-device | spotify-error | playback-error | error
+    detail: str = ""      # the device asked for, an HTTP status, a message
+
+
+# Asking for a playlist is something the user says, not something the length of
+# the query implies. "play Bohemian Rhapsody" is four words and wants the song.
+_PLAYLIST_WORDS = re.compile(r"\b(?:playlist|mix|radio|station)\b", re.I)
 
 _SCOPES = " ".join([
     "user-read-playback-state",
@@ -88,8 +110,8 @@ def _device_id(prefer_name: str = None) -> str | None:
     return None
 
 
-def search_and_play(query: str, device_name: str = None) -> str:
-    """Search Spotify and play the best match. Returns a human-readable result string."""
+def search_and_play(query: str, device_name: str | None = None) -> PlayResult:
+    """Search Spotify and play the best match."""
     sp = _client()
 
     results = sp.search(q=query, type="track,playlist", limit=5)
@@ -97,24 +119,31 @@ def search_and_play(query: str, device_name: str = None) -> str:
     playlists = [p for p in ((results.get("playlists") or {}).get("items") or []) if p]
     tracks    = [t for t in ((results.get("tracks")    or {}).get("items") or []) if t]
 
-    # Pick what to play
+    # A playlist only when one was asked for. The rule was a word count -- four or
+    # fewer and it took the playlist -- so "play Bohemian Rhapsody" got a playlist
+    # named after the song rather than the song.
     uri, label, use_context = None, "nothing", False
-    if playlists and len(query.split()) <= 4:
+    wants_playlist = bool(_PLAYLIST_WORDS.search(query or ""))
+    if wants_playlist and playlists:
         item = playlists[0]
         uri, label, use_context = item["uri"], item["name"], True
     elif tracks:
         item = tracks[0]
-        uri   = item["uri"]
+        uri = item["uri"]
         label = f"{item['name']} by {item['artists'][0]['name']}"
+    elif playlists:
+        # Nothing else on offer; a playlist beats telling them it was not found.
+        item = playlists[0]
+        uri, label, use_context = item["uri"], item["name"], True
 
     if uri is None:
-        return "not-found"
+        return PlayResult(False, kind="not-found")
 
     dev = _device_id(prefer_name=device_name)
     if dev is None:
         target = device_name if device_name else "Omega-7"
         print(f"[spotify] No available device found for target '{target}'.")
-        return f"no-device:{target}"
+        return PlayResult(False, kind="no-device", detail=target)
 
     def _play():
         if use_context:
@@ -124,7 +153,7 @@ def search_and_play(query: str, device_name: str = None) -> str:
 
     try:
         _play()
-        return label
+        return PlayResult(True, label=label)
     except spotipy.SpotifyException as e:
         if e.http_status == 404:
             # Device exists but isn't active — transfer playback to wake it then retry
@@ -133,15 +162,16 @@ def search_and_play(query: str, device_name: str = None) -> str:
                 sp.transfer_playback(device_id=dev, force_play=True)
                 time.sleep(1.5)
                 _play()
-                return label
+                return PlayResult(True, label=label)
             except Exception as e2:
-                return f"playback-error: {e2}"
-        return f"spotify-error {e.http_status}: {e.msg}"
+                return PlayResult(False, kind="playback-error", detail=str(e2))
+        return PlayResult(False, kind="spotify-error", detail=f"{e.http_status}: {e.msg}")
     except Exception as e:
-        return f"error: {e}"
+        return PlayResult(False, kind="error", detail=str(e))
 
 
 _pre_duck_volume: int | None = None
+_duck_lock = threading.Lock()
 
 
 def duck(level: int = 20) -> None:
@@ -152,9 +182,16 @@ def duck(level: int = 20) -> None:
     we never force the lazy OAuth flow just to duck, so wake/idle stay snappy and
     headless boots don't block on a browser auth prompt.
     """
-    global _pre_duck_volume
-    if _sp is None or _pre_duck_volume is not None:
+    if _sp is None:
         return
+    with _duck_lock:
+        if _pre_duck_volume is not None:
+            return          # already ducked; a second caller must not overwrite it
+        _duck_locked(level)
+
+
+def _duck_locked(level: int) -> None:
+    global _pre_duck_volume
     try:
         pb = _sp.current_playback()
         if not pb or not pb.get("is_playing"):
@@ -175,9 +212,16 @@ def duck(level: int = 20) -> None:
 
 def restore() -> None:
     """Restore the pre-duck music volume. Idempotent; no-op if not ducked."""
-    global _pre_duck_volume
-    if _sp is None or _pre_duck_volume is None:
+    if _sp is None:
         return
+    with _duck_lock:
+        if _pre_duck_volume is None:
+            return
+        _restore_locked()
+
+
+def _restore_locked() -> None:
+    global _pre_duck_volume
     vol = _pre_duck_volume
     try:
         pb = _sp.current_playback()

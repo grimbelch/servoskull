@@ -193,7 +193,14 @@ def spotify_volume(text: str, ctx: Context) -> Intent | None:
 
 # Necromunda Skirmish's own dice. "Hit location" is deliberately absent: it
 # belonged to the previous edition and the 2026 rulebook has no such roll.
-_DICE_NECRO = re.compile(r"roll\s+(?:a\s+|an\s+)?(\d+)?\s*(firepower|ammo|injury|scatter)\s*d(?:ice|ie)?")
+# The "dice"/"die" is optional: "roll 3 injury" is how it gets said as often as not,
+# and nothing else in the vocabulary says "roll injury".
+# Dropping the required "dice" meant "roll an ammo check" started matching as a
+# firepower roll, so the words that make it something else are excluded: the Ammo
+# (X+) trait rolls its own D6, and an injury TABLE is a lookup, not a die.
+_DICE_NECRO = re.compile(
+    r"roll\s+(?:a\s+|an\s+)?(\d+)?\s*(firepower|ammo|injury|scatter)"
+    r"(?!\s+(?:check|test|table|trait|result))(?:\s*d(?:ice|ie)?)?")
 # At the table the firepower die is the ammo die: the Ammo check is what it is for,
 # and the ammo symbol is the face that distinguishes it. games.necromunda.dice knows
 # it only as firepower, so the name is resolved here rather than anywhere downstream.

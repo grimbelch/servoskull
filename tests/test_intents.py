@@ -535,3 +535,29 @@ def test_a_volume_question_about_the_music_is_still_spotifys():
 def test_other_questions_are_not_volume_questions():
     for said in ("what time is it", "how are you", "what is your name"):
         assert _m(intents.volume, said) is None, said
+
+
+def test_a_dice_roll_without_the_word_dice():
+    # "Roll 3 injury" is how it gets said as often as not; nothing else in the
+    # vocabulary says "roll injury".
+    assert _m(intents.dice, "roll 3 injury").args == {
+        "game": "necromunda", "count": 3, "dice_type": "injury"}
+    assert _m(intents.dice, "roll three injury").args["count"] == 3
+    assert _m(intents.dice, "roll two ammo").args["dice_type"] == "firepower"
+    assert _m(intents.dice, "roll scatter").args == {
+        "game": "necromunda", "count": 1, "dice_type": "scatter"}
+
+
+def test_the_word_dice_still_works_and_other_rolls_are_untouched():
+    assert _m(intents.dice, "roll 3 injury dice").args["count"] == 3
+    assert _m(intents.dice, "roll a d20").args["sides"] == 20
+    assert _m(intents.dice, "roll for initiative") is None
+    assert _m(intents.dice, "the injury table") is None
+
+
+def test_a_check_or_a_table_is_not_a_die():
+    # Dropping the required "dice" made these start matching; the Ammo (X+) trait
+    # rolls its own D6, and an injury table is a lookup.
+    for said in ("roll an ammo check", "roll a scatter test",
+                 "roll an injury table", "roll the injury result"):
+        assert _m(intents.dice, said) is None, said

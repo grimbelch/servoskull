@@ -168,3 +168,101 @@ def test_a_restricted_device_is_never_chosen(monkeypatch):
             ]}
     _install(monkeypatch, Devs())
     assert sc._device_id() is None
+
+
+# ── what to play ──────────────────────────────────────────────────────────────
+
+class _Search(_FakeSpotify):
+    def __init__(self, tracks=(), playlists=(), **kw):
+        super().__init__(**kw)
+        self._tracks = list(tracks)
+        self._playlists = list(playlists)
+        self.started = []
+
+    def search(self, q, type, limit):
+        return {"tracks": {"items": [{"uri": f"track:{t}", "name": t,
+                                      "artists": [{"name": "Someone"}]} for t in self._tracks]},
+                "playlists": {"items": [{"uri": f"list:{p}", "name": p} for p in self._playlists]}}
+
+    def devices(self):
+        return {"devices": [{"id": "o7", "name": "Omega-7", "type": "Speaker",
+                             "is_restricted": False}]}
+
+    def start_playback(self, device_id=None, uris=None, context_uri=None):
+        self.started.append(context_uri or (uris or [None])[0])
+
+
+def test_a_short_query_gets_the_track_not_a_playlist(monkeypatch):
+    # The rule was a word count: four words or fewer took the playlist, so
+    # "Bohemian Rhapsody" got a playlist named after the song.
+    fake = _install(monkeypatch, _Search(tracks=["Bohemian Rhapsody"],
+                                        playlists=["Bohemian Rhapsody Mix"]))
+    res = sc.search_and_play("Bohemian Rhapsody")
+    assert res.ok and "Bohemian Rhapsody by Someone" == res.label
+    assert fake.started == ["track:Bohemian Rhapsody"]
+
+
+def test_a_playlist_is_played_when_one_is_asked_for(monkeypatch):
+    for query in ("some doom metal playlist", "a chill mix", "forge world radio"):
+        fake = _install(monkeypatch, _Search(tracks=["A Song"], playlists=["The List"]))
+        res = sc.search_and_play(query)
+        assert res.ok and res.label == "The List", query
+        assert fake.started == ["list:The List"], query
+
+
+def test_a_playlist_is_better_than_nothing(monkeypatch):
+    fake = _install(monkeypatch, _Search(tracks=[], playlists=["The List"]))
+    assert sc.search_and_play("something obscure").ok
+    assert fake.started == ["list:The List"]
+
+
+def test_finding_nothing_says_so(monkeypatch):
+    _install(monkeypatch, _Search())
+    res = sc.search_and_play("zzzzz")
+    assert res.ok is False and res.kind == "not-found"
+
+
+def test_no_device_names_the_one_that_was_wanted(monkeypatch):
+    class NoDevices(_Search):
+        def devices(self):
+            return {"devices": []}
+    _install(monkeypatch, NoDevices(tracks=["A Song"]))
+    res = sc.search_and_play("a song", device_name="Kitchen")
+    assert res.ok is False and res.kind == "no-device" and res.detail == "Kitchen"
+
+
+def test_a_track_called_error_is_not_mistaken_for_one(monkeypatch):
+    # The old result was a string and failures were told apart with startswith.
+    _install(monkeypatch, _Search(tracks=["Error of the Ancients"]))
+    res = sc.search_and_play("error of the ancients")
+    assert res.ok is True and res.label.startswith("Error of the Ancients")
+
+
+def test_a_spotify_failure_is_reported_with_its_status(monkeypatch):
+    class Boom(_Search):
+        def start_playback(self, **kw):
+            raise spotipy.SpotifyException(503, -1, "service unavailable")
+    _install(monkeypatch, Boom(tracks=["A Song"]))
+    res = sc.search_and_play("a song")
+    assert res.ok is False and res.kind == "spotify-error" and "503" in res.detail
+
+
+# ── ducking from two threads ──────────────────────────────────────────────────
+
+def test_two_threads_ducking_at_once_keep_one_level(monkeypatch):
+    import threading
+    fake = _install(monkeypatch, _FakeSpotify(volume=70))
+    barrier = threading.Barrier(2)
+
+    def duck():
+        barrier.wait()
+        sc.duck(20)
+    threads = [threading.Thread(target=duck) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert sc._pre_duck_volume == 70        # not overwritten with the ducked 20
+    assert fake.volume_calls == [20]        # and only ducked once
+    sc.restore()
+    assert fake.device["volume_percent"] == 70

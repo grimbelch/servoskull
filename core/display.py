@@ -614,30 +614,6 @@ def _make_bezel():
     bg = Image.new("RGB", (W, H), (0, 0, 0))
     return bg
 
-    GEAR = (60, 62, 70)     # gunmetal cog body
-    EDGE = (120, 124, 138)  # brighter machined edge so the teeth catch light
-    DARK = (24, 25, 30)     # recessed face / bolt holes
-    RIM = (150, 44, 24)     # faint red rim around the aperture, ties glow to metal
-
-    bg = Image.new("RGB", (W, H), (0, 0, 0))
-    d = ImageDraw.Draw(bg)
-
-    # Toothed cog body — the polygon fills solidly from the teeth inward.
-    d.polygon(_gear_polygon(11, r_root=96, r_tip=117), fill=GEAR, outline=EDGE, width=3)
-
-    # Bolt holes around the inner band (Mechanicus detail).
-    for deg in range(0, 360, 30):
-        a = math.radians(deg)
-        bx, by = _CX + 86 * math.cos(a), _CY + 86 * math.sin(a)
-        d.ellipse([bx - 3, by - 3, bx + 3, by + 3], fill=DARK)
-
-    # Machined groove + recessed face stepping down to the eye aperture.
-    d.ellipse([_CX - 80, _CY - 80, _CX + 80, _CY + 80], outline=EDGE, width=2)
-    d.ellipse([_CX - 78, _CY - 78, _CX + 78, _CY + 78], fill=DARK)
-    # Glowing red rim of the aperture (its inner part is hidden under the iris).
-    d.ellipse([_CX - 75, _CY - 75, _CX + 75, _CY + 75], outline=RIM, width=3)
-    return bg
-
 
 def _render_frame(bezel, mask, amp: float, angle: float = 0.0, blink: float = 0.0, look_x: float = 0.0, look_y: float = 0.0):
     if _display_module and hasattr(_display_module, 'render_frame'):

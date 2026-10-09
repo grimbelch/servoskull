@@ -2155,6 +2155,12 @@ def _mood_intent(text: str) -> str | None:
 
 
 _HYMN_INTENT_RE = re.compile(r"\b(?:hymn|hymnos|sacred music|sacred chant|binary chant)\b", re.I)
+# Asking for a timer, as opposed to asking what timers there are or cancelling one.
+_REMINDER_REQUEST_RE = re.compile(
+    r"\bremind me\b|\bset (?:a |an )?(?:timer|reminder|alarm)\b|\bwake me\b"
+    r"|\btimer for\b|\bnudge me\b", re.I)
+_REMINDER_NOT_SET = ("Correction: this unit did not actually set a timer. "
+                     "State the delay and ask again.")
 
 # Once one of these tools has run, the spoken reply is replaced or dropped by the
 # caller (screensaver, hymn, personality farewell), so streaming stops there.
@@ -2314,6 +2320,17 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None,
             print("[brain] Picture request detected but model skipped tool — "
                   "triggering display_art fallback.")
             _exec("display_art", {"search_query": _pic.args["subject"]})
+
+    # A reminder cannot be reconstructed from the text the way a picture or a hymn
+    # can -- the delay is the model's to work out -- so this cannot call the tool
+    # for it. It can stop the skull saying a timer was set when none was: the whole
+    # path works (set, list, fire, announce, clear), so a claim with no call behind
+    # it is the model talking, not a broken reminder.
+    if user_text and _REMINDER_REQUEST_RE.search(user_text) and not (
+            {"set_reminder"} & set(tools_called)):
+        print("[brain] Reminder requested but set_reminder was never called.")
+        spoken = (spoken or "").rstrip()
+        spoken = (spoken + " " if spoken else "") + _REMINDER_NOT_SET
 
     if tool_results.get("play_ambient_hymn", "").startswith("[SUCCESS]"):
         print("[brain] Hymn played successfully — silencing assistant spoken response as requested.")

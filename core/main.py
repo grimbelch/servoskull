@@ -1156,6 +1156,20 @@ def _wake_word_guard(text: str):
     return guard
 
 
+def _spotify_failure_line(res) -> str:
+    """What to say when a play request did not play anything.
+
+    The result used to be a string and the kinds were told apart with startswith,
+    so a track whose title began with "error" read as a failure.
+    """
+    if res.kind == "no-device":
+        return (f"This unit cannot locate the requested Spotify device "
+                f"'{res.detail}'. Ensure the device is active and online.")
+    if res.kind == "not-found":
+        return "The requested composition could not be found in the Spotify archives."
+    return "The Spotify cogitator has reported a malfunction."
+
+
 def _is_dog() -> bool:
     return config.PERSONALITY.get("eye_animation") == "dog"
 
@@ -2196,18 +2210,11 @@ def main():
                     if spotify_ctrl.is_configured():
                         if cmd[0] == "play":
                             device_name = cmd[2] if len(cmd) > 2 else config.SPOTIFY_DEVICE_NAME
-                            result = spotify_ctrl.search_and_play(cmd[1], device_name=device_name)
-                            print(f"[skull] Spotify: {result}")
-                            if result in ("no-device", "not-found") or result.startswith(("error", "spotify-error", "playback-error", "no-device:")):
-                                if result.startswith("no-device:"):
-                                    target_name = result.split(":", 1)[1]
-                                    err_text = f"This unit cannot locate the requested Spotify device '{target_name}'. Ensure the device is active and online."
-                                else:
-                                    _error_phrases = {
-                                        "no-device": "This unit cannot locate the Spotify cogitator. Ensure the application is active.",
-                                        "not-found": "The requested composition could not be found in the Spotify archives.",
-                                    }
-                                    err_text = _error_phrases.get(result, "The Spotify cogitator has reported a malfunction.")
+                            res = spotify_ctrl.search_and_play(cmd[1], device_name=device_name)
+                            print(f"[skull] Spotify: {res.label or res.kind}"
+                                  f"{' — ' + res.detail if res.detail else ''}")
+                            if not res.ok:
+                                err_text = _spotify_failure_line(res)
                                 reply = err_text
                                 _spotify_err_text = err_text
                         elif cmd[0] == "pause":
