@@ -88,7 +88,11 @@ def pages_with_header(doc, needle: str, limit: int | None = None) -> list[int]:
 # An action's cost is printed in brackets after its name; a restriction on who
 # may use it is printed the same way. They have to be told apart, because
 # "(SINGLE)" is how much it costs and "(FIGHTER ONLY)" is who may pay.
-_COST = re.compile(r"\((SINGLE|DOUBLE|FREE|BASIC)\)\s*$", re.I)
+# The scan puts a space inside the bracket often enough to matter: "DASH
+# ( DOUBLE)" failed to parse, so Dash was never recorded as an action at all
+# and "what can my Active fighter do?" came back without the commonest move in
+# the game -- while the Insanity and Panicked tables both send models to Dash.
+_COST = re.compile(r"\(\s*(SINGLE|DOUBLE|FREE|BASIC)\s*\)\s*$", re.I)
 _QUALIFIER_WORDS = ("ONLY", "FIGHTER", "VEHICLE", "WALKER", "ANY MODEL",
                     "CHAMPION", "LEADER", "GANGER", "PROSPECT")
 _TRAILING_BRACKET = re.compile(r"\s*\(([^()]*)\)\s*$")

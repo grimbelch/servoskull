@@ -481,17 +481,63 @@ def _apply_corrections(conn, book_id: int, pdf_path) -> dict:
              table["printed_page"] + offset)).lastrowid
         counts["corrected_tables"] += 1
         for ordinal, row in enumerate(table["rows"]):
-            span = randtables_mod._parse_roll(row["roll_label"])
-            cells = [row[key] for key in _CELL_KEYS if key in row]
+            # A row may carry its span explicitly: "229+" on the Model Ranks
+            # table has no upper bound to parse, and an XP lookup still has to
+            # land on it.
+            span = (row.get("roll_min"), row.get("roll_max"))
+            if span[0] is None:
+                span = randtables_mod._parse_roll(row["roll_label"]) or (None, None)
+            cells = [row[key] for key in _CELL_KEYS if key in row] \
+                or [row.get("result", "")]
             conn.execute(
                 "INSERT INTO rule_table_rows (table_id, ordinal, roll_min,"
                 " roll_max, roll_label, result, detail, cells_json)"
                 " VALUES (?,?,?,?,?,?,?,?)",
-                (table_id, ordinal, span[0] if span else None,
-                 span[1] if span else None, row["roll_label"],
+                (table_id, ordinal, span[0], span[1], row["roll_label"],
                  _row_text(row), row.get("timing", ""),
                  json.dumps([row["roll_label"]] + cells)))
             counts["corrected_rows"] += 1
+
+    # Scoped to the page it was seen on: "BATTLEFIELD EFFECTS" is also the
+    # heading on every Territory card, and renaming those to a Pre-battle step
+    # would be worse than the defect.
+    for item in data.get("retitle_sections", []):
+        new = item["to"]
+        conn.execute(
+            "UPDATE rule_sections SET title = ?, slug = ? WHERE rulebook_id = ?"
+            " AND title = ? AND page_start = ?",
+            (new, sections_mod.slugify(new), book_id, item["title"],
+             item["printed_page"] + offset))
+    for title in data.get("drop_sections", []):
+        conn.execute(
+            "DELETE FROM rule_sections WHERE rulebook_id = ? AND title = ?",
+            (book_id, title))
+    # A heading printed over two lines that was read as two sections: the
+    # second holds the rules, so it keeps them and takes the joined title.
+    for first, second, joined in data.get("merge_sections", []):
+        head = conn.execute(
+            "SELECT id, body_md FROM rule_sections WHERE rulebook_id = ?"
+            " AND title = ? LIMIT 1", (book_id, first)).fetchone()
+        tail = conn.execute(
+            "SELECT id, body_md FROM rule_sections WHERE rulebook_id = ?"
+            " AND title = ? LIMIT 1", (book_id, second)).fetchone()
+        if head is None or tail is None:
+            continue
+        body = "\n\n".join(x for x in (head["body_md"], tail["body_md"]) if x)
+        conn.execute(
+            "UPDATE rule_sections SET title = ?, slug = ?, body_md = ?,"
+            " word_count = ? WHERE id = ?",
+            (joined, sections_mod.slugify(joined), body, len(body.split()),
+             tail["id"]))
+        conn.execute("DELETE FROM rule_sections WHERE id = ?", (head["id"],))
+
+    for old, fields in data.get("rename_equipment", {}).items():
+        name = fields.get("name", old)
+        conn.execute(
+            "UPDATE rule_equipment SET name = ?, slug = ?,"
+            " category = COALESCE(?, category) WHERE rulebook_id = ? AND name = ?",
+            (name, sections_mod.slugify(name), fields.get("category"),
+             book_id, old))
 
     for skill_set, names in data.get("skill_rolls", {}).items():
         for number, name in enumerate(names, start=1):
@@ -511,7 +557,13 @@ _CELL_LABELS = {"timing": "Timing", "effect": "Effect",
 
 
 def _row_text(row: dict) -> str:
-    """One readable line for a row whose rules sit in several columns."""
+    """One readable line for a row whose rules sit in several columns.
+
+    A two-column table carries its whole answer in ``result`` and needs no
+    labelling: the Wound roll table's rows are a question and a number.
+    """
+    if "result" in row and "name" not in row:
+        return row["result"]
     parts = [row["name"]] if row.get("name") else []
     for key in _CELL_KEYS:
         if key in ("name",) or key not in row:

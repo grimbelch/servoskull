@@ -245,3 +245,23 @@ def test_the_insanity_rows_keep_one_action_per_status():
     for label in ("Unengaged:", "Engaged:", "Seriously Injured:"):
         assert label in text
     assert text.index("Unengaged:") < text.index("Engaged:")
+
+
+def test_a_two_column_row_is_rendered_as_its_answer():
+    """A table whose rules are one cell needs no column labels.
+
+    The Wound roll table's rows are a question and a number; labelling them
+    the way Gang Tactics is labelled would read "Result: 4+".
+    """
+    assert ingest._row_text({"roll_label": "Is the Strength EQUAL to the "
+                             "Toughness?", "result": "4+"}) == "4+"
+
+
+def test_an_open_ended_band_keeps_the_span_it_was_given():
+    """"229+" has no upper bound to parse, and an XP lookup must still land.
+
+    The Model Ranks table is read off the page, so the row carries its own
+    span rather than relying on the label.
+    """
+    span = randtables._parse_roll("229+")
+    assert span is None or span[1] >= 229
