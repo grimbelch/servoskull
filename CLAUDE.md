@@ -48,6 +48,16 @@ word → Whisper → Claude with tools → ElevenLabs/Piper speech, plus a round
   value shifts a column left. Rebuild Necromunda with
   `python -m games.necromunda.extract.ingest <core rulebook PDF>`; the database
   is reproducible, so it is dropped and rebuilt rather than migrated.
+- `core/bt/` — Bluetooth as a desired state rather than a script. `model.py` is the
+  data, `plan.py` the only place decisions are made (pure: given a snapshot and a
+  desired state, the actions that close the gap), `bluez.py` BlueZ over its own
+  D-Bus API via `dbus-fast`, and `manager.py` one owner — an asyncio loop on its own
+  thread that applies the plan on every BlueZ signal and on a tick, so a speaker
+  that drops is reconnected instead of staying dropped. Selected by
+  `BLUETOOTH_BACKEND=dbus`; otherwise `core/bluetooth_ctrl.py` drives `bluetoothctl`
+  through pexpect as before. That module stays the public face either way. The
+  planner and the manager are tested against a fake bus, so no speaker is needed:
+  `tests/test_bt_plan.py`, `tests/test_bt_manager.py`.
 - A command's end is decided by `core/vad.py` (Silero VAD on onnxruntime) inside
   `audio.record()`; the recording is streamed to OpenAI's realtime transcription
   session by `transcribe.StreamingTranscriber` while it is captured, with the

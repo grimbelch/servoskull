@@ -11,6 +11,43 @@ _last_scan: list[dict] = []
 PROMPT = r"\[.*?\][>#]"
 
 
+_manager_cache = None
+
+
+def _manager():
+    """The D-Bus manager, started on first use. None when disabled or unreachable.
+
+    Selected by config.BLUETOOTH_BACKEND. The pexpect implementation below stays the
+    fallback: a brand-new Bluetooth stack should not be the only path to the speaker
+    until it has been driven against real hardware.
+    """
+    global _manager_cache
+    from core import config
+    if str(getattr(config, "BLUETOOTH_BACKEND", "bluetoothctl")).lower() != "dbus":
+        return None
+    if _manager_cache is None:
+        try:
+            from core.bt.manager import BluetoothManager
+            m = BluetoothManager()
+            _manager_cache = m if m.start() else False
+        except Exception as e:
+            print(f"[bluetooth] D-Bus backend unavailable ({e}); using bluetoothctl.")
+            _manager_cache = False
+    return _manager_cache or None
+
+
+def mgr_rows(mgr) -> list[dict]:
+    """The manager's current devices in the {"name", "mac"} shape callers expect."""
+    try:
+        return _as_rows(mgr.snapshot().devices)
+    except Exception:
+        return []
+
+
+def _as_rows(devices) -> list[dict]:
+    return [{"name": d.name or d.mac, "mac": d.mac} for d in devices]
+
+
 def is_supported() -> bool:
     try:
         return subprocess.run(
@@ -58,6 +95,14 @@ def scan(timeout: int = 6) -> list[dict]:
     Returns list of {"name": str, "mac": str} dicts.
     """
     global _last_scan
+
+    mgr = _manager()
+    if mgr is not None:
+        snap = mgr.discover(seconds=timeout)
+        _last_scan = _as_rows(snap.devices)
+        print(f"[bluetooth] Discovered/cached {len(_last_scan)} device(s): "
+              f"{[d['name'] for d in _last_scan]}")
+        return _last_scan
 
     if not is_supported():
         print("[bluetooth] bluetoothctl not available")
@@ -149,6 +194,18 @@ def connect(mac: str) -> bool:
     plays through it. Pins config.VOICE_OUTPUT_DEVICE to the pre-BT local device
     so TTS/SFX stay on Omega-7's own speaker.
     """
+    mgr = _manager()
+    if mgr is not None:
+        # Declare the speaker we want and let the reconciler get there: it trusts,
+        # drops anything else holding the system audio, connects, waits for the
+        # sink and routes -- and keeps checking afterwards.
+        out = mgr.set_speaker(mac)
+        for line in out.failures:
+            print(f"[bluetooth] {line}")
+        snap = mgr.snapshot()
+        dev = snap.device(mac)
+        return bool(dev and dev.connected)
+
     if not is_supported():
         return False
 
@@ -251,6 +308,25 @@ def disconnect(identifier: str = "all") -> bool:
         return False
 
     ident = identifier.lower().strip()
+
+    mgr = _manager()
+    if mgr is not None:
+        if ident not in ALL_TARGETS:
+            target = resolve_target(identifier, mgr_rows(mgr) or get_last_scan())
+            if target is None:
+                print(f"[bluetooth] Nothing matches '{identifier}'; no device "
+                      f"disconnected. Say 'all' to disconnect every device.")
+                return False
+            if (mgr.desired.speaker or "") == target:
+                mgr.set_speaker(None)
+            else:
+                # It is not the speaker we want, so the reconciler drops it anyway.
+                mgr.reconcile()
+            dev = mgr.snapshot().device(target)
+            return not (dev and dev.connected)
+        mgr.set_speaker(None)
+        return not mgr.snapshot().connected()
+
     target_mac = None
     if ident not in ALL_TARGETS:
         target_mac = resolve_target(identifier, get_last_scan() or scan(timeout=2))
@@ -342,12 +418,8 @@ def _bt_sink_for(mac: str, sinks_output: str) -> str | None:
     "bluez", which is any Bluetooth sink at all -- so connecting a second speaker
     while the first was still up sent the audio to whichever pactl listed first.
     """
-    mac_under = mac.replace(":", "_").replace("-", "_").lower()
-    for line in sinks_output.splitlines():
-        parts = line.split()
-        if len(parts) >= 2 and mac_under in parts[1].lower():
-            return parts[1]
-    return None
+    from core.bt.audio_route import sink_for_mac
+    return sink_for_mac(mac, sinks_output)
 
 
 def _wait_for_bt_sink(mac: str, timeout: float | None = None) -> str | None:

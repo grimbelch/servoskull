@@ -47,6 +47,10 @@ requests>=2.31
 # Hardened XML parsing for the artwork search feed, which comes from the open
 # internet; core.brain falls back to stdlib ElementTree if it is missing.
 defusedxml>=0.7.1
+# BlueZ over its own D-Bus API for core/bt: pure Python, asyncio, no system
+# packages. Only needed when BLUETOOTH_BACKEND=dbus; core.bluetooth_ctrl falls
+# back to driving bluetoothctl when it is missing.
+dbus-fast>=2.21
 paho-mqtt>=2.1.0             # Bambu Lab printer telemetry
 pychromecast>=13.0.0         # optional Google Home / Chromecast voice output
 pexpect>=4.8                 # bluetooth_ctrl drives bluetoothctl
