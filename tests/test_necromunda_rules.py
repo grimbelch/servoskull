@@ -270,7 +270,9 @@ def test_lethality_lookup_drives_the_injury_roll(rules_db):
 def test_an_unknown_weapon_says_so_rather_than_guessing(rules_db):
     from games.necromunda import rules_tools
     out = rules_tools.weapon_profile("plasma trebuchet")
-    assert "No weapon called" in out
+    assert "does not contain" in out
+    # The instruction is the point of the message, not the absence.
+    assert "memory" in out.lower()
 
 
 def test_lookups_report_a_missing_library_instead_of_creating_one(tmp_path, monkeypatch):

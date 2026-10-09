@@ -52,8 +52,15 @@ def get_tools():
             "about mechanics, phases, actions, model status, conditions, skills, wyrd "
             "powers, campaigns, scenarios, the Trading Post or equipment. This edition "
             "differs substantially from earlier Necromunda, so always consult this tool "
-            "rather than answering from memory. For one weapon's numbers, prefer "
-            "necromunda_weapon, which reads the printed profile directly."
+            "rather than answering from memory. This is the FALLBACK: use it for prose "
+            "and for anything that does not fit a narrower tool. Prefer, in this order: "
+            "necromunda_wound for the number needed to wound; necromunda_table for a "
+            "roll or a lookup on any of the book's tables; necromunda_weapon for one "
+            "weapon's printed numbers; necromunda_rule for 'what does X do' about a "
+            "trait, skill or condition; necromunda_subtype for a model Subtype; "
+            "necromunda_actions for what a model may do; necromunda_territory for a "
+            "Territory. If a tool reports that the book does not contain something, "
+            "say so - never fill the gap from memory."
         ),
         "input_schema": {
             "type": "object",
@@ -362,9 +369,14 @@ def get_tools():
 {
         "name": "necromunda_table",
         "description": (
-            "Look up or roll on one of Necromunda's random tables - Lasting "
-            "Injury, Lasting Damage, Advancement, Insanity, Objective and the "
-            "rest. Give a roll to resolve one that has already been made, omit "
+            "Look up or roll on any of the book's tables: Lasting Injury, "
+            "Lasting Damage, Advancement, Insanity, Objective, Side Job, Crew, "
+            "Deployment, Pitch Black, Core Gang Tactics, Territory Selection, "
+            "Model Ranks (which rank an XP total reaches), Perils of the Warp, "
+            "Escape, Medical Escort, Wyrd Powers, Falling, Specialist "
+            "Specialisations, Characteristic Limits and Panicked Pets. Several "
+            "are looked up rather than rolled, so pass a roll only when one was "
+            "made. Give a roll to resolve one that has already been made, omit "
             "it to have the table's own dice rolled, or ask for the table by "
             "name with no roll to list it. Results come from the printed table, "
             "never invented."

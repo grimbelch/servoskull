@@ -585,6 +585,16 @@ _CELL_LABELS = {"timing": "Timing", "effect": "Effect",
                 "seriously_injured": "Seriously Injured"}
 
 
+def _readable_extra(value: str) -> str:
+    """A Territory's Boons as words, not as the JSON they are stored in."""
+    try:
+        boons = json.loads(value or "[]")
+    except ValueError:
+        return value or ""
+    return " ".join(f"{b.get('type','')} Boon: {b.get('text','')}"
+                    for b in boons if isinstance(b, dict))
+
+
 def _without_table(body: str, item: dict) -> str:
     """Cut the flattened table out of a body and point at the real one."""
     pointer = (f"[The {item['table']} is held as a table; ask for it by name "
@@ -649,13 +659,16 @@ def _build_search_index(conn, book_id: int) -> None:
             ("rule_equipment", "equipment", "category", "description"),
             ("rule_subtypes", "subtype", "applies_to", "description"),
             ("rule_territories", "territory", "boons_json", "battlefield_effect")):
+        readable = table == "rule_territories"
         for row in conn.execute(
                 f"SELECT id, name, {body} AS description, page, {extra} AS extra"
                 f" FROM {table} WHERE rulebook_id = ?", (book_id,)):
             conn.execute(
                 "INSERT INTO rule_search (title, body, kind, rulebook_id,"
                 " section_id, ref_table, ref_id, page) VALUES (?,?,?,?,NULL,?,?,?)",
-                (row["name"], f"{row['name']} {row['extra']} {row['description']}",
+                (row["name"],
+                 f"{row['name']} {_readable_extra(row['extra']) if readable else row['extra']}"
+                 f" {row['description']}",
                  kind, book_id, table, row["id"], row["page"]))
 
     # And the tables, row by row. Without this the only searchable copy of a

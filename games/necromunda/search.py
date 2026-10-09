@@ -33,6 +33,50 @@ _NOT_INSTALLED = (
 )
 
 
+# The gangs whose own weapons, wargear and fighter entries are deliberately
+# NOT in the core rulebook -- it says so on p154: those live in each gang's
+# supplement. A question about one is the likeliest moment for Omega-7 to
+# answer from memory instead of from the book, so the miss has to be loud.
+GANGS = ("goliath", "escher", "orlock", "van saar", "cawdor", "delaque",
+         "palanite enforcer", "enforcer", "palanite", "corpse grinder",
+         "ironhead squat", "ironhead", "squat", "ash waste nomad",
+         "ash waste", "nomad", "malstrain genestealer", "malstrain",
+         "genestealer", "spyrer", "venator", "outcast")
+
+
+def names_a_gang(query: str) -> str:
+    """The gang a question is about, if it names one."""
+    low = (query or "").lower()
+    found = [g for g in GANGS if g in low]
+    return max(found, key=len) if found else ""
+
+
+def not_in_book(subject: str, book) -> str:
+    """One answer for everything the core rulebook does not contain.
+
+    Addressed to whoever is reading it, model included: the failure mode this
+    guards against is not an empty answer, it is a confident invented one.
+    """
+    return (f"{book['title']} does not contain {subject}. Do not supply it "
+            f"from memory -- say the core rulebook does not cover it. Gang "
+            f"fighters, their own weapons and their own wargear are in that "
+            f"gang's supplement, not this book.")
+
+
+# A hit of one of these kinds is a rule; anything else may be background.
+_RULES_KINDS = ("trait", "skill", "condition", "action", "equipment",
+                "subtype", "territory", "table")
+
+
+def _no_match(query: str, book) -> str:
+    gang = names_a_gang(query)
+    if gang:
+        return not_in_book(
+            f"anything matching '{query}' -- the {gang.title()} have their own"
+            " supplement", book)
+    return not_in_book(f"anything matching '{query}'", book)
+
+
 def current_rulebook(conn: sqlite3.Connection):
     """The book being consulted: the earliest, since only one is ingested.
 
@@ -137,7 +181,7 @@ def necromunda_rules(query: str, top_k: int = 3, max_chars: int = 1400) -> str:
                 if rules_schema.has_fts5(conn)
                 else _like_search(conn, terms, top_k, book["id"]))
         if not rows:
-            return (f"No matching rules found in {book['title']} for: {query}")
+            return _no_match(query, book)
 
         parts = []
         for row in rows:
@@ -154,7 +198,19 @@ def necromunda_rules(query: str, top_k: int = 3, max_chars: int = 1400) -> str:
             parts.append(f"{row['title']} ({book['title']}, "
                          f"p{printed_page(row['page'], book)})\n\n{body}")
         if not parts:
-            return f"No matching rules found in {book['title']} for: {query}"
+            return _no_match(query, book)
+        # A question naming a gang that only matched background prose is the
+        # dangerous kind: the lore reads like a hit, and the fighter entry or
+        # weapon the question was really about is not in this book at all.
+        gang = names_a_gang(query)
+        if gang:
+            lore_only = all(r["kind"] not in _RULES_KINDS for r in rows)
+            parts.insert(0, not_in_book(
+                f"the gang entries, weapons or wargear of the {gang.title()}",
+                book) + (" What follows is background only."
+                         if lore_only else
+                         " What follows is from the core rules, and may not be"
+                         " what was asked about."))
         return "\n\n---\n\n".join(parts)
     finally:
         conn.close()

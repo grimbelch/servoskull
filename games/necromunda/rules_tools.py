@@ -14,7 +14,8 @@ import sqlite3
 from . import db as necro_db
 from . import attack
 from . import dice
-from .search import _NOT_INSTALLED, _format_weapon, current_rulebook, printed_page
+from .search import (_NOT_INSTALLED, _format_weapon, current_rulebook,
+                     not_in_book, printed_page)
 
 # The weaponry chapter prints one profile as a worked example, under its own
 # explanatory heading, and the Trading Post lists the same weapon again. The
@@ -65,9 +66,7 @@ def weapon_profile(name: str) -> str:
                 " LENGTH(name), id",
                 (book["id"], f"%{wanted}%", _EXAMPLE_CATEGORY)).fetchall()
         if not rows:
-            return (f"No weapon called '{name}' in {book['title']}. It may belong to a "
-                    "gang's own equipment list, which is in that gang's supplement "
-                    "rather than the core rulebook.")
+            return not_in_book(f"a weapon called '{name}'", book)
 
         best = rows[0]
         out = [_format_weapon(best, book)]
@@ -231,8 +230,8 @@ def named_rule(name: str) -> str:
                     f"{row['name']} ({label}{detail} — {book['title']}, "
                     f"p{printed_page(row['page'], book)})\n{row['description']}")
         if not out:
-            return (f"No trait, skill or condition called '{name}' in "
-                    f"{book['title']}.")
+            return not_in_book(f"a trait, skill or condition called '{name}'",
+                               book)
         return "\n\n".join(out[:3])
     finally:
         conn.close()
@@ -315,7 +314,8 @@ def table_result(name: str, roll: int | None = None) -> str:
                 r["title"] for r in conn.execute(
                     "SELECT title FROM rule_tables WHERE rulebook_id = ?"
                     " ORDER BY title", (book["id"],)).fetchall()[:12])
-            return f"No table matching '{name}'. The book has: {listed}."
+            return (not_in_book(f"a table called '{name}'", book)
+                    + f" The book has: {listed}.")
 
         cite = f"{book['title']}, p{printed_page(table['page'], book)}"
         # Not every table is rolled on. The Panicked Pets table is looked up by
@@ -441,7 +441,8 @@ def territory(name: str) -> str:
             listed = ", ".join(r["name"].title() for r in conn.execute(
                 "SELECT name FROM rule_territories WHERE rulebook_id = ? ORDER BY name",
                 (book["id"],)))
-            return f"No Territory called '{name}'. The book has: {listed}."
+            return (not_in_book(f"a Territory called '{name}'", book)
+                    + f" The book has: {listed}.")
         out = [f"{row['name']} ({book['title']}, p{printed_page(row['page'], book)})"]
         for boon in json.loads(row["boons_json"] or "[]"):
             out.append(f"  {boon['type']} Boon: {boon['text']}")
@@ -493,8 +494,8 @@ def model_subtype(name: str = "", applies_to: str = "") -> str:
             " ORDER BY LENGTH(name) LIMIT 2",
             (book["id"], which, which, wanted, f"%{wanted}%")).fetchall()
         if not rows:
-            return (f"No Subtype called '{name}' in {book['title']}. "
-                    f"The book has: {listing(which)}.")
+            return (not_in_book(f"a Subtype called '{name}'", book)
+                    + f" The book has: {listing(which)}.")
         out = []
         for row in rows:
             title = f"{row['name']} (X)" if row["takes_value"] else row["name"]

@@ -142,7 +142,10 @@ def test_listing_a_skill_set(named_db):
 
 def test_an_unknown_name_says_so(named_db):
     from games.necromunda import rules_tools
-    assert "No trait, skill or condition" in rules_tools.named_rule("flibbertigibbet")
+    answer = rules_tools.named_rule("flibbertigibbet")
+    assert "does not contain" in answer
+    # The point of the message is the instruction, not the absence.
+    assert "memory" in answer.lower()
 
 
 def test_a_weapons_traits_are_explained_in_full(named_db):
