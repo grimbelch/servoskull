@@ -4,6 +4,9 @@ Asking to disconnect one speaker by a name that could not be resolved used to fa
 through to the branch that disconnects every connected device, and disconnect()
 returned True whenever no exception was raised — so the skull reported success it
 had never checked (run: python -m pytest tests).
+
+These drive the bluetoothctl implementation specifically. It is the fallback since
+BLUETOOTH_BACKEND began defaulting to dbus; core/bt has its own tests.
 """
 import sys
 import types
@@ -82,6 +85,11 @@ def fake_bt(monkeypatch):
     made = {}
 
     def make(connected, refuse=False):
+        # These cover the bluetoothctl path, which is the fallback now that
+        # BLUETOOTH_BACKEND defaults to dbus; without pinning it they take the
+        # D-Bus path on any machine where dbus-fast is installed.
+        from core import config
+        monkeypatch.setattr(config, "BLUETOOTH_BACKEND", "bluetoothctl")
         child = _FakeChild(connected)
         child.refuse = refuse
         made["child"] = child

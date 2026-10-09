@@ -103,6 +103,14 @@ def routing(monkeypatch):
     return state
 
 
+@pytest.fixture(autouse=True)
+def _own_state(tmp_path, monkeypatch):
+    """The remembered speaker goes in a file of this test's own, not the unit's."""
+    from core.bt import manager as mod
+    monkeypatch.setattr(mod, "_state_path", lambda: tmp_path / "bluetooth.json")
+    yield
+
+
 @pytest.fixture
 def mgr(routing):
     made = {}
@@ -376,3 +384,45 @@ def test_a_failure_is_stamped_when_it_happens_not_when_the_pass_began(mgr, routi
     assert slow["n"] == 1                            # not retried
     assert "next attempt in" in out.failures[0]
     bus.connect = real_connect
+
+
+# ── remembering across a restart ──────────────────────────────────────────────
+
+def test_the_desired_speaker_survives_a_restart(mgr, routing):
+    from core.bt.manager import load_desired, remembered_speaker
+    bus = FakeBus([dev(JBL, paired=True)])
+    routing["sinks"][JBL] = "bluez_output.jbl"
+    m = mgr(bus)
+    m.set_speaker(JBL)
+    assert load_desired().speaker == JBL
+    assert remembered_speaker() == JBL
+
+
+def test_asking_for_no_speaker_is_remembered_too(mgr, routing):
+    from core.bt.manager import remembered_speaker
+    bus = FakeBus([dev(JBL, paired=True, trusted=True, connected=True)])
+    m = mgr(bus)
+    m.set_speaker(JBL)
+    m.set_speaker(None)
+    assert remembered_speaker() is None
+
+
+def test_a_new_manager_picks_up_where_the_last_one_left_off(mgr, routing):
+    from core.bt.manager import BluetoothManager, save_desired
+    from core.bt.model import Desired
+    save_desired(Desired(speaker=JBL))
+    bus = FakeBus([dev(JBL, paired=True, trusted=True)])
+    routing["sinks"][JBL] = "bluez_output.jbl"
+    m = BluetoothManager(bus=bus, tick_secs=3600.0, settle_secs=0.0)
+    assert m.desired.speaker == JBL          # before anything is asked of it
+    assert m.start(timeout=5)
+    try:
+        m.reconcile()
+        assert bus.devices[JBL].connected is True    # converged with nobody asking
+    finally:
+        m.stop()
+
+
+def test_nothing_remembered_is_no_speaker():
+    from core.bt.manager import remembered_speaker
+    assert remembered_speaker() is None

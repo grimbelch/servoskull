@@ -45,6 +45,41 @@ ACTION_TIMEOUTS = {"connect": 25.0, "pair": 30.0, "disconnect": 10.0}
 DEFAULT_ACTION_TIMEOUT = 10.0
 
 
+def _state_path():
+    from core import config
+    return config.data_path("bluetooth.json")
+
+
+def load_desired() -> Desired:
+    """The speaker we were last asked for, across restarts.
+
+    Held only in memory, "the speaker that dropped at three in the morning is
+    reconnected" would stop at a service restart -- and a restart is exactly when a
+    link is most likely to be gone.
+    """
+    import json
+    try:
+        saved = json.loads(_state_path().read_text())
+        return Desired(speaker=(saved.get("speaker") or None))
+    except Exception:
+        return Desired()
+
+
+def save_desired(desired: Desired) -> None:
+    import json
+    from core import config
+    try:
+        config.atomic_write(_state_path(),
+                            json.dumps({"speaker": desired.speaker}))
+    except Exception as e:
+        print(f"[bt] Could not remember the desired speaker: {e}")
+
+
+def remembered_speaker() -> str | None:
+    """The speaker to converge on at boot, without starting anything."""
+    return load_desired().speaker
+
+
 class BluetoothManager:
     """Owns the adapter. All public methods are safe to call from any thread."""
 
@@ -55,7 +90,7 @@ class BluetoothManager:
         self._settle = settle_secs
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
-        self._desired = Desired()
+        self._desired = load_desired()
         self._wake = None               # set on the loop; nudges the reconciler
         self._last: Snapshot | None = None
         self._started = threading.Event()
@@ -278,6 +313,7 @@ class BluetoothManager:
     def set_speaker(self, mac: str | None, timeout: float = 120.0) -> Outcome:
         """Declare which speaker should be connected, and converge on it."""
         self._desired = self._desired.with_speaker(mac)
+        save_desired(self._desired)
         print(f"[bt] Desired speaker: {self._desired.speaker or 'none'}")
         return self._submit(self._reconcile_once(), timeout)
 

@@ -375,7 +375,7 @@ BARGE_IN_SOURCE_GAIN = float(_cfg("BARGE_IN_SOURCE_GAIN", "8.0"))
 # state that a reconciler converges on: it is told the moment a link drops, and
 # brings it back. "bluetoothctl" is the older path, which drove the interactive CLI
 # through pexpect and ran once, so a speaker that dropped stayed dropped.
-BLUETOOTH_BACKEND = _cfg("BLUETOOTH_BACKEND", "bluetoothctl").strip().lower()
+BLUETOOTH_BACKEND = _cfg("BLUETOOTH_BACKEND", "dbus").strip().lower()
 
 
 def _resolve_input_device(raw: str) -> int:

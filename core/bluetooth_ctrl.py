@@ -62,6 +62,28 @@ def mgr_rows(mgr) -> list[dict]:
         return []
 
 
+def start_background() -> bool:
+    """Bring the manager up at boot if a speaker is remembered. False if it did not.
+
+    Without this the reconciler only exists once something asks it for a device,
+    so the one moment a link is most likely to be gone -- a restart -- is the one
+    moment nothing is watching.
+    """
+    from core import config
+    if str(getattr(config, "BLUETOOTH_BACKEND", "bluetoothctl")).lower() != "dbus":
+        return False
+    try:
+        from core.bt.manager import remembered_speaker
+        wanted = remembered_speaker()
+    except Exception as e:
+        print(f"[bluetooth] Could not read the remembered speaker: {e}")
+        return False
+    if not wanted:
+        return False
+    print(f"[bluetooth] Remembered speaker {wanted}; bringing the manager up.")
+    return _manager() is not None
+
+
 def _as_rows(devices) -> list[dict]:
     return [{"name": d.name or d.mac, "mac": d.mac} for d in devices]
 

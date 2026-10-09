@@ -1671,6 +1671,13 @@ def main():
     bambu_ctrl.get_monitor().start()
     threading.Thread(target=_spotify_poller_loop, daemon=True).start()
     from core import ambient_music
+    # A remembered Bluetooth speaker is reconnected without being asked; this is a
+    # no-op unless BLUETOOTH_BACKEND=dbus and one has been chosen before.
+    try:
+        from core import bluetooth_ctrl
+        bluetooth_ctrl.start_background()
+    except Exception as e:
+        print(f"[skull] Bluetooth manager did not start: {e}")
     ambient_music.register_main_hooks(_speak_interruptible, is_speech_active)
     ambient_music.start()
     from core import web
