@@ -190,6 +190,18 @@ def load(conn, path: pathlib.Path) -> dict:
                      mutations.get("page", 0) + offset))
                 counts["mutations"] = counts.get("mutations", 0) + 1
 
+        # Something the book sells but never prints a profile for. Recorded
+        # so that asking about it returns the gap, rather than nothing at all
+        # or -- worse -- an invented statline.
+        for defect in gang.get("defects", []):
+            conn.execute(
+                "INSERT INTO rule_equipment (rulebook_id, slug, name, category,"
+                " description, page) VALUES (?,?,?,?,?,?)",
+                (book_id, _slug(defect["item"]), defect["item"],
+                 "no profile printed", defect["note"],
+                 defect.get("page", 0) + offset))
+            counts["defects"] = counts.get("defects", 0) + 1
+
         for item in gang.get("wargear", []):
             conn.execute(
                 "INSERT INTO rule_equipment (rulebook_id, slug, name, category,"
