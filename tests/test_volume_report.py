@@ -109,3 +109,31 @@ def test_switching_back_to_internal_always_works(monkeypatch):
     monkeypatch.setattr(config, "VOICE_OUTPUT_DEVICE", "bluez_output.AA_BB.1")
     audio.set_voice_target("internal")
     assert config.VOICE_OUTPUT_DEVICE == "echo_cancel.sink"
+
+
+# ── naming a sink for playback ────────────────────────────────────────────────
+
+def test_a_named_sink_sets_the_variable_this_stack_reads(monkeypatch):
+    """Measured on the unit: a stream asked for the sound card with PULSE_SINK set
+    still went to the default sink, because only the PipeWire ALSA plugin is
+    installed and it reads PIPEWIRE_NODE. The voice pin had never done anything."""
+    env = {}
+    monkeypatch.setattr(audio.os, "environ", env)
+    audio._target_sink("alsa_output.card")
+    assert env["PIPEWIRE_NODE"] == "alsa_output.card"
+    assert env["PULSE_SINK"] == "alsa_output.card"       # for a PulseAudio stack
+
+
+def test_clearing_it_removes_both(monkeypatch):
+    env = {"PIPEWIRE_NODE": "x", "PULSE_SINK": "x"}
+    monkeypatch.setattr(audio.os, "environ", env)
+    audio._target_sink(None)
+    assert "PIPEWIRE_NODE" not in env and "PULSE_SINK" not in env
+
+
+def test_an_integer_device_clears_the_sink_variables(monkeypatch):
+    # A device index goes through PortAudio, so a stale sink name must not override it.
+    env = {"PIPEWIRE_NODE": "bluez_output.stale"}
+    monkeypatch.setattr(audio.os, "environ", env)
+    audio._target_sink(None)
+    assert env == {}

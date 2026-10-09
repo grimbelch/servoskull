@@ -119,6 +119,27 @@ def describe_volume() -> str:
             f"{saved_volume()} percent.")
 
 
+# Naming a sink by string only works through the ALSA plugin that is actually
+# installed. This unit has libasound_module_pcm_pipewire.so and no pulse plugin, so
+# PULSE_SINK is read by nothing: measured, a stream asked for the sound card with
+# PULSE_SINK set still went to the default sink, while PIPEWIRE_NODE put it on the
+# card. Until a Bluetooth speaker became the default this was invisible, because the
+# default was already the sink we wanted -- so the skull's voice followed the music
+# onto the speaker and the voice pin had never done anything at all.
+#
+# Both are set: PIPEWIRE_NODE for this stack, PULSE_SINK for a PulseAudio one.
+_SINK_ENV_VARS = ("PIPEWIRE_NODE", "PULSE_SINK")
+
+
+def _target_sink(sink: str | None) -> None:
+    """Point the next playback stream at `sink`, or at the default when None."""
+    for name in _SINK_ENV_VARS:
+        if sink:
+            os.environ[name] = sink
+        else:
+            os.environ.pop(name, None)
+
+
 def set_system_volume(level: str) -> str:
     """Set or adjust output volume across macOS (osascript) and Linux (wpctl/pactl/amixer)."""
     import shutil, sys, re
@@ -460,12 +481,12 @@ def _play_wav_bytes_locked(
     sd_kwargs = {"channels": 1}
     if output_device is not None:
         if isinstance(output_device, str):
-            os.environ["PULSE_SINK"] = output_device
+            _target_sink(output_device)
         elif isinstance(output_device, int) and output_device >= 0:
-            os.environ.pop("PULSE_SINK", None)
+            _target_sink(None)
             sd_kwargs["device"] = output_device
     else:
-        os.environ.pop("PULSE_SINK", None)
+        _target_sink(None)
 
     def _get_target_rate():
         try:
