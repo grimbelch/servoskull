@@ -109,15 +109,35 @@ def load(conn, path: pathlib.Path) -> dict:
             counts["fighters"] += 1
 
         page = gang.get("skill_access_page", 0) + offset
-        for fighter, row in gang.get("skill_access", {}).items():
+
+        def put_access(fighter, row, variant=""):
             for skill_set, access in zip(skill_sets, row):
                 conn.execute(
                     "INSERT INTO rule_skill_access (rulebook_id, gang_id,"
-                    " fighter, skill_set, access, page) VALUES (?,?,?,?,?,?)",
-                    (book_id, gang_id, fighter, skill_set,
+                    " fighter, variant, skill_set, access, page)"
+                    " VALUES (?,?,?,?,?,?,?)",
+                    (book_id, gang_id, fighter, variant, skill_set,
                      "none" if access.strip() in ("-", "") else access.lower(),
                      page))
                 counts["skill_access"] += 1
+
+        for fighter, row in gang.get("skill_access", {}).items():
+            put_access(fighter, row)
+
+        # Affiliations, Archetypes and the like. An Archetype carries its own
+        # Skill Access grid, so the two are loaded together.
+        for kind, entries in gang.get("variants", {}).items():
+            for entry in entries:
+                conn.execute(
+                    "INSERT INTO rule_gang_variants (rulebook_id, gang_id,"
+                    " kind, slug, name, description, page)"
+                    " VALUES (?,?,?,?,?,?,?)",
+                    (book_id, gang_id, kind, _slug(entry["name"]),
+                     entry["name"], entry.get("text", ""),
+                     entry.get("page", 0) + offset))
+                counts["gang_variants"] = counts.get("gang_variants", 0) + 1
+                for fighter, row in entry.get("skill_access", {}).items():
+                    put_access(fighter, row, variant=entry["name"])
 
         for listing in gang.get("equipment_lists", []):
             for category, items in listing["sections"].items():
@@ -154,6 +174,21 @@ def load(conn, path: pathlib.Path) -> dict:
                  json.dumps(weapon.get("aliases", [])),
                  weapon.get("page", 0) + offset))
             counts["gang_weapons"] += 1
+
+        # Mutations are bought like wargear and carry rules of their own, so
+        # they go in beside it rather than into the equipment list, which has
+        # nowhere to put the rule.
+        mutations = gang.get("mutations")
+        if mutations:
+            for entry in mutations["entries"]:
+                conn.execute(
+                    "INSERT INTO rule_equipment (rulebook_id, slug, name,"
+                    " category, creds_text, description, page)"
+                    " VALUES (?,?,?,?,?,?,?)",
+                    (book_id, _slug(entry["name"]), entry["name"], "Mutation",
+                     entry.get("cost", ""), entry["text"],
+                     mutations.get("page", 0) + offset))
+                counts["mutations"] = counts.get("mutations", 0) + 1
 
         for item in gang.get("wargear", []):
             conn.execute(

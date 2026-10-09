@@ -89,3 +89,35 @@ def test_a_gang_fighter_is_found_and_an_absent_gang_is_refused(gangbook_db):
     assert "115 credits" in found
     missing = rules_tools.fighter_profile("Sky Cutter Pilot")
     assert "memory" in missing.lower()
+
+
+# ── a gang whose skills depend on a choice made at founding ───────────────────
+
+def test_an_outcast_fighters_skills_are_reported_per_archetype(gangbook_db):
+    """An Outcast gang prints a whole Skill Access grid per Archetype.
+
+    There is no single grid for the gang, and a Champion may take a different
+    Archetype to their Leader, so "which Skill Sets can an Outcast Champion
+    take?" has five answers and picking one would be inventing an answer.
+    """
+    from games.necromunda import rules_tools
+    answer = rules_tools.fighter_profile("Outcast Champion")
+    for archetype in ("Brawler", "Gunslinger", "Mastermind", "Survivor", "Wyrd"):
+        assert f"Skills as {archetype}" in answer
+
+
+def test_a_gang_printing_one_grid_still_reads_flat(gangbook_db):
+    """Only a gang with variants should be reported variant by variant."""
+    from games.necromunda import rules_tools
+    answer = rules_tools.fighter_profile("Cawdor Word-Keeper")
+    assert "\n  Skills: " in answer
+    assert "Skills as " not in answer
+
+
+def test_the_founding_choices_are_queryable(gangbook_db):
+    from games.necromunda import rules_tools
+    archetypes = rules_tools.gang_variants("outcast", "archetype")
+    assert "Brawler" in archetypes and "Gunslinger" in archetypes
+    affiliations = rules_tools.gang_variants("outcast", "affiliation")
+    assert "Clanless" in affiliations and "Aranthian" in affiliations
+    assert "archetype" not in affiliations.lower().split("affiliation")[0]

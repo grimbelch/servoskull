@@ -319,12 +319,40 @@ CREATE TABLE IF NOT EXISTS rule_skill_access (
     rulebook_id INTEGER NOT NULL,
     gang_id     INTEGER,
     fighter     TEXT NOT NULL,
+    -- Which of the gang's variants this row belongs to, where a gang has
+    -- them. An Outcast gang prints a whole Skill Access grid per Archetype,
+    -- and a Champion may take a different Archetype to their Leader, so the
+    -- access a fighter has is only defined once the Archetype is known.
+    -- Empty for a gang that prints one grid.
+    variant     TEXT NOT NULL DEFAULT '',
     skill_set   TEXT NOT NULL,
     access      TEXT NOT NULL DEFAULT '',   -- primary|secondary|none
     page        INTEGER DEFAULT 0,
     FOREIGN KEY (rulebook_id) REFERENCES rulebooks (id)  ON DELETE CASCADE,
     FOREIGN KEY (gang_id)     REFERENCES rule_gangs (id) ON DELETE CASCADE
 );
+
+-- The choices made when a gang is founded, each of which carries rules: an
+-- Outcast gang picks an Affiliation (Clanless, Clan House, Aranthian, Mutant)
+-- and its Leader an Archetype (Brawler, Gunslinger, Mastermind, Survivor,
+-- Wyrd). Cawdor's Path of the Pious and Path of the Fanatic are the same kind
+-- of thing. `kind` says which set the choice belongs to, so "what Archetypes
+-- can an Outcast Leader take?" is a query rather than a read of prose.
+CREATE TABLE IF NOT EXISTS rule_gang_variants (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    rulebook_id INTEGER NOT NULL,
+    gang_id     INTEGER,
+    kind        TEXT NOT NULL,              -- affiliation|archetype|path
+    slug        TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    page        INTEGER DEFAULT 0,
+    FOREIGN KEY (rulebook_id) REFERENCES rulebooks (id)  ON DELETE CASCADE,
+    FOREIGN KEY (gang_id)     REFERENCES rule_gangs (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_necro_gang_variants
+    ON rule_gang_variants (rulebook_id, gang_id, kind, slug);
 
 -- A gang's own Equipment List: what it may buy and for how much. The same item
 -- costs different amounts to different gangs, and some entries are restricted
@@ -419,6 +447,7 @@ CONTENT_TABLES = [
     "rule_table_rows",
     "rule_tables",
     "rule_gang_equipment",
+    "rule_gang_variants",
     "rule_skill_access",
     "rule_fighters",
     "rule_gangs",
@@ -449,7 +478,8 @@ _SHAPE_SENTINELS = {
     "rule_territories": "boons_json",
     "rule_gangs": "special_rules_json",
     "rule_fighters": "profile",
-    "rule_skill_access": "access",
+    "rule_skill_access": "variant",
+    "rule_gang_variants": "kind",
     "rule_gang_equipment": "restriction",
     "rule_subtypes": "applies_to",
     "rule_tables": "dice",

@@ -564,6 +564,44 @@ def wound_roll(strength, toughness) -> str:
     return f"Strength {s} against Toughness {t} wounds on {need}+ - {reason}.{cite}"
 
 
+def gang_variants(gang: str = "", kind: str = "") -> str:
+    """The choices a gang makes when it is founded, and what each one grants.
+
+    An Outcast gang picks an Affiliation and its Leader an Archetype, and the
+    Archetype decides the Skill Sets every model in the gang may take.
+    """
+    conn = _open()
+    if conn is None:
+        return _NOT_INSTALLED
+    try:
+        want_gang, want_kind = (gang or "").strip().lower(), (kind or "").strip().lower()
+        rows = conn.execute(
+            "SELECT v.kind, v.name, v.description, v.page, g.name AS gang,"
+            " b.title AS book, b.page_offset FROM rule_gang_variants v"
+            " JOIN rule_gangs g ON g.id = v.gang_id"
+            " JOIN rulebooks b ON b.id = v.rulebook_id"
+            " WHERE (? = '' OR LOWER(g.name) LIKE ?)"
+            "   AND (? = '' OR LOWER(v.kind) = ?)"
+            " ORDER BY g.name, v.kind, v.id",
+            (want_gang, f"%{want_gang}%", want_kind, want_kind)).fetchall()
+        if not rows:
+            listed = ", ".join(sorted({r[0] for r in conn.execute(
+                "SELECT DISTINCT g.name FROM rule_gang_variants v"
+                " JOIN rule_gangs g ON g.id = v.gang_id")}))
+            if not listed:
+                return "No gang in the books this unit holds has founding choices."
+            return (f"No founding choices recorded for '{gang}'. The gangs that "
+                    f"have them: {listed}.")
+        out = []
+        for row in rows:
+            page = row["page"] - row["page_offset"]
+            out.append(f"{row['gang']} {row['kind']}: {row['name']} "
+                       f"({row['book']}, p{page})\n{row['description']}")
+        return "\n\n".join(out)
+    finally:
+        conn.close()
+
+
 def fighter_profile(name: str = "", gang: str = "") -> str:
     """A gang fighter's datasheet: cost, statline, Type and what it may take.
 
@@ -624,13 +662,20 @@ def fighter_profile(name: str = "", gang: str = "") -> str:
             for option in json.loads(row["options_json"] or "[]"):
                 out[-1] += f"\n    - {option['text']} {option['cost']}"
             access = conn.execute(
-                "SELECT skill_set, access FROM rule_skill_access"
+                "SELECT variant, skill_set, access FROM rule_skill_access"
                 " WHERE gang_id = ? AND (LOWER(?) LIKE '%' || LOWER(fighter) || '%')"
-                " AND access != 'none' ORDER BY access, skill_set",
+                " AND access != 'none' ORDER BY variant, access, skill_set",
                 (row["gang_id"], row["name"])).fetchall()
-            if access:
-                out[-1] += "\n  Skills: " + ", ".join(
-                    f"{a['skill_set']} ({a['access']})" for a in access)
+            # A gang whose Skill Access is printed once lists it flat. One that
+            # prints a grid per Archetype lists it per Archetype, because the
+            # answer genuinely depends on which was chosen.
+            grouped: dict[str, list[str]] = {}
+            for a in access:
+                grouped.setdefault(a["variant"], []).append(
+                    f"{a['skill_set']} ({a['access']})")
+            for variant, sets in grouped.items():
+                label = "Skills" if not variant else f"Skills as {variant}"
+                out[-1] += f"\n  {label}: " + ", ".join(sets)
         return "\n\n".join(out)
     finally:
         conn.close()

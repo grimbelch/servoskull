@@ -303,6 +303,25 @@ def get_tools():
         },
     },
 {
+        "name": "necromunda_gang_variant",
+        "description": (
+            "The choices a gang makes when it is founded and what each grants: "
+            "an Outcast gang picks an Affiliation (Clanless, Clan House, "
+            "Aranthian, Mutant) and its Leader an Archetype (Brawler, "
+            "Gunslinger, Mastermind, Survivor, Wyrd). The Archetype decides "
+            "which Skill Sets every model in the gang may take, so a question "
+            "about an Outcast's skills has no single answer until it is known. "
+            "Pass kind to narrow to 'affiliation' or 'archetype'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "gang": {"type": "string", "description": "Gang name, e.g. 'Outcasts'."},
+                "kind": {"type": "string", "enum": ["affiliation", "archetype", "path"]},
+            },
+        },
+    },
+{
         "name": "necromunda_fighter",
         "description": (
             "A gang fighter's datasheet from a gang book: credit cost, full "
@@ -734,6 +753,13 @@ def _tool_necromunda_territory(i):
     return rules_tools.territory(name)
 
 
+def _tool_necromunda_gang_variant(i):
+    from games.necromunda import rules_tools
+    gang, kind = i.get("gang", ""), i.get("kind", "")
+    print(f"[skull] Necromunda gang variant: {gang or 'any'} / {kind or 'all'}")
+    return rules_tools.gang_variants(gang, kind)
+
+
 def _tool_necromunda_fighter(i):
     from games.necromunda import rules_tools
     name, gang = i.get("name", ""), i.get("gang", "")
@@ -922,6 +948,7 @@ def get_handlers():
         "necromunda_setup": _tool_necromunda_setup,
         "necromunda_wound": _tool_necromunda_wound,
         "necromunda_fighter": _tool_necromunda_fighter,
+        "necromunda_gang_variant": _tool_necromunda_gang_variant,
         "warhammer40k_rules": _tool_warhammer40k_rules,
         "netepic_rules": _tool_netepic_rules,
         "netea_rules": _tool_netea_rules,
