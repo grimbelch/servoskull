@@ -200,6 +200,21 @@ def load(conn, path: pathlib.Path) -> dict:
                      mutations.get("page", 0) + offset))
                 counts["mutations"] = counts.get("mutations", 0) + 1
 
+        # Chem-alchemy Elixirs: things a book sells by name, price and rule
+        # rather than as a weapon or a line on an Equipment List. The
+        # mutations above are the same shape under a fixed category, kept
+        # apart only because the Outlands book prints them as mutations.
+        for group in gang.get("priced_items", []):
+            for entry in group["entries"]:
+                conn.execute(
+                    "INSERT INTO rule_equipment (rulebook_id, slug, name,"
+                    " category, creds_text, description, page)"
+                    " VALUES (?,?,?,?,?,?,?)",
+                    (book_id, _slug(entry["name"]), entry["name"],
+                     group["category"], entry.get("cost", ""), entry["text"],
+                     entry.get("page", group.get("page", 0)) + offset))
+                counts["priced_items"] = counts.get("priced_items", 0) + 1
+
         # Something the book sells but never prints a profile for. Recorded
         # so that asking about it returns the gap, rather than nothing at all
         # or -- worse -- an invented statline.
