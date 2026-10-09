@@ -256,6 +256,95 @@ CREATE TABLE IF NOT EXISTS rule_subtypes (
 CREATE INDEX IF NOT EXISTS idx_necro_subtypes_book
     ON rule_subtypes (rulebook_id, applies_to, slug);
 
+-- A gang book is mostly fighter datasheets: a named entry with a full
+-- statline, a credit cost, a Type that carries its Subtypes, and the equipment
+-- it may buy. The core rulebook has nothing of the kind -- it deliberately
+-- leaves every gang's own fighters to their supplement -- so this is the first
+-- table for "what does a Cawdor Word-Keeper cost and what are its stats?".
+CREATE TABLE IF NOT EXISTS rule_fighters (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    rulebook_id  INTEGER NOT NULL,
+    gang_id      INTEGER,
+    slug         TEXT NOT NULL,
+    name         TEXT NOT NULL,
+    cost         INTEGER,
+    type_text    TEXT DEFAULT '',   -- "Fighter (Leader, Pious)" as printed
+    model_type   TEXT DEFAULT '',   -- Fighter|Vehicle
+    subtypes     TEXT DEFAULT '',   -- Leader, Pious
+    m_text       TEXT DEFAULT '',
+    ws_text      TEXT DEFAULT '',
+    bs_text      TEXT DEFAULT '',
+    s_text       TEXT DEFAULT '',
+    t_text       TEXT DEFAULT '',
+    w_text       TEXT DEFAULT '',
+    i_text       TEXT DEFAULT '',
+    a_text       TEXT DEFAULT '',
+    sv_text      TEXT DEFAULT '',
+    ld_text      TEXT DEFAULT '',
+    cl_text      TEXT DEFAULT '',
+    wil_text     TEXT DEFAULT '',
+    int_text     TEXT DEFAULT '',
+    starting_xp  INTEGER,
+    skills_text  TEXT DEFAULT '',
+    equipment_text TEXT DEFAULT '',
+    options_json TEXT DEFAULT '[]',
+    page         INTEGER DEFAULT 0,
+    FOREIGN KEY (rulebook_id) REFERENCES rulebooks (id)  ON DELETE CASCADE,
+    FOREIGN KEY (gang_id)     REFERENCES rule_gangs (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_necro_fighters_book
+    ON rule_fighters (rulebook_id, gang_id, slug);
+
+CREATE TABLE IF NOT EXISTS rule_gangs (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    rulebook_id   INTEGER NOT NULL,
+    slug          TEXT NOT NULL,
+    name          TEXT NOT NULL,
+    special_rules_json TEXT DEFAULT '[]',
+    page          INTEGER DEFAULT 0,
+    FOREIGN KEY (rulebook_id) REFERENCES rulebooks (id) ON DELETE CASCADE
+);
+
+-- Which Skill Sets each of a gang's fighters may take, and at what access.
+-- Printed as a grid of fighters against the six Sets, which is the shape that
+-- survives extraction worst and is asked about constantly ("can a Ghost take
+-- Cunning skills?").
+CREATE TABLE IF NOT EXISTS rule_skill_access (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    rulebook_id INTEGER NOT NULL,
+    gang_id     INTEGER,
+    fighter     TEXT NOT NULL,
+    skill_set   TEXT NOT NULL,
+    access      TEXT NOT NULL DEFAULT '',   -- primary|secondary|none
+    page        INTEGER DEFAULT 0,
+    FOREIGN KEY (rulebook_id) REFERENCES rulebooks (id)  ON DELETE CASCADE,
+    FOREIGN KEY (gang_id)     REFERENCES rule_gangs (id) ON DELETE CASCADE
+);
+
+-- A gang's own Equipment List: what it may buy and for how much. The same item
+-- costs different amounts to different gangs, and some entries are restricted
+-- to one fighter ("Psychomantic claws (Psy-Gheist only)"), so the gang and the
+-- restriction are part of the row.
+CREATE TABLE IF NOT EXISTS rule_gang_equipment (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    rulebook_id INTEGER NOT NULL,
+    gang_id     INTEGER,
+    list_name   TEXT NOT NULL,
+    category    TEXT DEFAULT '',
+    item        TEXT NOT NULL,
+    slug        TEXT NOT NULL DEFAULT '',
+    cost_text   TEXT DEFAULT '',
+    restriction TEXT DEFAULT '',
+    starred     INTEGER DEFAULT 0,
+    page        INTEGER DEFAULT 0,
+    FOREIGN KEY (rulebook_id) REFERENCES rulebooks (id)  ON DELETE CASCADE,
+    FOREIGN KEY (gang_id)     REFERENCES rule_gangs (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_necro_gang_equipment
+    ON rule_gang_equipment (rulebook_id, gang_id, slug);
+
 CREATE TABLE IF NOT EXISTS rule_territories (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     rulebook_id  INTEGER NOT NULL,
@@ -325,6 +414,10 @@ CREATE VIRTUAL TABLE IF NOT EXISTS rule_search USING fts5 (
 CONTENT_TABLES = [
     "rule_table_rows",
     "rule_tables",
+    "rule_gang_equipment",
+    "rule_skill_access",
+    "rule_fighters",
+    "rule_gangs",
     "rule_territories",
     "rule_subtypes",
     "rule_actions",
@@ -350,6 +443,10 @@ _SHAPE_SENTINELS = {
     "rule_conditions": "kind",
     "rule_actions": "cost",
     "rule_territories": "boons_json",
+    "rule_gangs": "special_rules_json",
+    "rule_fighters": "type_text",
+    "rule_skill_access": "access",
+    "rule_gang_equipment": "restriction",
     "rule_subtypes": "applies_to",
     "rule_tables": "dice",
     "rule_table_rows": "roll_min",

@@ -39,6 +39,7 @@ except ImportError:  # pragma: no cover - older wheels only expose fitz
 _NO_PYMUPDF = "PyMuPDF is required to build the rules database: pip install pymupdf"
 
 from .. import db as necro_db
+from .. import gangbook
 from .. import rules_schema
 from . import actions as actions_mod
 from . import conditions as conditions_mod
@@ -420,6 +421,17 @@ def ingest(pdf_path: pathlib.Path, slug: str = DEFAULT_SLUG,
 
             counts.update(_apply_corrections(conn, book_id, pdf_path))
             _build_search_index(conn, book_id)
+            # Gang books are read by eye and loaded from their transcription.
+            # They are built in the same run because the ingest drops every
+            # content table: loaded separately, the next core rebuild would
+            # silently wipe them.
+            for path in gangbook.available(pdf_path):
+                gang_book_id, gang_counts = gangbook.load(conn, path)
+                for key, value in gang_counts.items():
+                    counts[key] = counts.get(key, 0) + value
+                _build_search_index(conn, gang_book_id)
+                print(f"[necromunda] Loaded {path.name}: "
+                      + ", ".join(f"{k} {v}" for k, v in gang_counts.items()))
         return counts
     finally:
         conn.close()
@@ -670,6 +682,36 @@ def _build_search_index(conn, book_id: int) -> None:
                  f"{row['name']} {_readable_extra(row['extra']) if readable else row['extra']}"
                  f" {row['description']}",
                  kind, book_id, table, row["id"], row["page"]))
+
+    # A gang book's datasheets and Equipment Lists. Without these the gang
+    # content loads but nothing can find it, which is the trap the core book's
+    # tables fell into: correct data sitting one tool-choice away from being
+    # answered out of the wrong place.
+    for row in conn.execute(
+            "SELECT f.id, f.name, f.type_text, f.cost, f.skills_text,"
+            " f.equipment_text, f.page, g.name AS gang FROM rule_fighters f"
+            " LEFT JOIN rule_gangs g ON g.id = f.gang_id"
+            " WHERE f.rulebook_id = ?", (book_id,)):
+        conn.execute(
+            "INSERT INTO rule_search (title, body, kind, rulebook_id,"
+            " section_id, ref_table, ref_id, page) VALUES (?,?,?,?,NULL,?,?,?)",
+            (f"{row['name']} ({row['gang']})",
+             f"{row['name']} {row['gang']} {row['type_text']} "
+             f"{row['cost']} credits {row['skills_text']} {row['equipment_text']}",
+             "fighter", book_id, "rule_fighters", row["id"], row["page"]))
+    for row in conn.execute(
+            "SELECT e.id, e.item, e.cost_text, e.category, e.restriction,"
+            " e.page, g.name AS gang FROM rule_gang_equipment e"
+            " LEFT JOIN rule_gangs g ON g.id = e.gang_id"
+            " WHERE e.rulebook_id = ?", (book_id,)):
+        conn.execute(
+            "INSERT INTO rule_search (title, body, kind, rulebook_id,"
+            " section_id, ref_table, ref_id, page) VALUES (?,?,?,?,NULL,?,?,?)",
+            (f"{row['item']} ({row['gang']})",
+             f"{row['item']} {row['gang']} {row['category']} "
+             f"{row['cost_text']} {row['restriction']}",
+             "gang_equipment", book_id, "rule_gang_equipment", row["id"],
+             row["page"]))
 
     # And the tables, row by row. Without this the only searchable copy of a
     # table was the flattened one left in the prose, which for the tables that

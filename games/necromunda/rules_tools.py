@@ -537,3 +537,75 @@ def wound_roll(strength, toughness) -> str:
               else "Strength is half the Toughness or lower" if 2 * s <= t
               else "Strength is lower than the Toughness")
     return f"Strength {s} against Toughness {t} wounds on {need}+ - {reason}.{cite}"
+
+
+def fighter_profile(name: str = "", gang: str = "") -> str:
+    """A gang fighter's datasheet: cost, statline, Type and what it may take.
+
+    This is the question the core rulebook could not answer at all, because it
+    leaves every gang's fighters to their supplement. Asked with a gang and no
+    name it lists that gang's roster with costs.
+    """
+    conn = _open()
+    if conn is None:
+        return _NOT_INSTALLED
+    try:
+        wanted, want_gang = (name or "").strip().lower(), (gang or "").strip().lower()
+        rows = conn.execute(
+            "SELECT f.*, g.name AS gang, b.title AS book, b.page_offset"
+            " FROM rule_fighters f"
+            " JOIN rule_gangs g ON g.id = f.gang_id"
+            " JOIN rulebooks b ON b.id = f.rulebook_id"
+            " WHERE (? = '' OR LOWER(f.name) = ? OR LOWER(f.name) LIKE ?)"
+            "   AND (? = '' OR LOWER(g.name) LIKE ?)"
+            " ORDER BY LENGTH(f.name) LIMIT 6",
+            (wanted, wanted, f"%{wanted}%", want_gang, f"%{want_gang}%")).fetchall()
+        if not rows:
+            installed = [r["name"] for r in conn.execute(
+                "SELECT name FROM rule_gangs ORDER BY name")]
+            if not installed:
+                return ("No gang book is installed on this unit, so this unit "
+                        "has no fighter datasheets. Do not supply one from "
+                        "memory.")
+            listed = ", ".join(installed)
+            return (f"No fighter called '{name}' in the gang books this unit "
+                    f"holds. Do not supply a profile from memory. Installed "
+                    f"gangs: {listed}.")
+        if not wanted:
+            lines = [f"{rows[0]['gang']} roster ({rows[0]['book']}):"]
+            every = conn.execute(
+                "SELECT f.name, f.cost, f.type_text FROM rule_fighters f"
+                " JOIN rule_gangs g ON g.id = f.gang_id"
+                " WHERE LOWER(g.name) LIKE ? ORDER BY f.cost DESC",
+                (f"%{want_gang}%",)).fetchall()
+            for r in every:
+                lines.append(f"  {r['name']} - {r['cost']} credits, {r['type_text']}")
+            return "\n".join(lines)
+        out = []
+        for row in rows[:2]:
+            page = row["page"] - row["page_offset"]
+            out.append(
+                f"{row['name']} - {row['cost']} credits ({row['book']}, p{page})\n"
+                f"  {row['type_text']}, starting XP {row['starting_xp']}\n"
+                f"  M {row['m_text']}  WS {row['ws_text']}  BS {row['bs_text']}  "
+                f"S {row['s_text']}  T {row['t_text']}  W {row['w_text']}  "
+                f"I {row['i_text']}  A {row['a_text']}  Sv {row['sv_text']}\n"
+                f"  Ld {row['ld_text']}  Cl {row['cl_text']}  "
+                f"Wil {row['wil_text']}  Int {row['int_text']}")
+            if row["skills_text"]:
+                out[-1] += f"\n  {row['skills_text']}"
+            if row["equipment_text"]:
+                out[-1] += f"\n  Equipment: {row['equipment_text']}"
+            for option in json.loads(row["options_json"] or "[]"):
+                out[-1] += f"\n    - {option['text']} {option['cost']}"
+            access = conn.execute(
+                "SELECT skill_set, access FROM rule_skill_access"
+                " WHERE gang_id = ? AND (LOWER(?) LIKE '%' || LOWER(fighter) || '%')"
+                " AND access != 'none' ORDER BY access, skill_set",
+                (row["gang_id"], row["name"])).fetchall()
+            if access:
+                out[-1] += "\n  Skills: " + ", ".join(
+                    f"{a['skill_set']} ({a['access']})" for a in access)
+        return "\n\n".join(out)
+    finally:
+        conn.close()

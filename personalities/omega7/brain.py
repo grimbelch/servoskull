@@ -303,6 +303,28 @@ def get_tools():
         },
     },
 {
+        "name": "necromunda_fighter",
+        "description": (
+            "A gang fighter's datasheet from a gang book: credit cost, full "
+            "statline, Type and Subtypes, starting XP, special rules, what "
+            "equipment list they buy from and which Skill Sets they may take. "
+            "Use it for 'what does a Cawdor Word-Keeper cost', 'what are a "
+            "Delaque Nacht-Ghul's stats'. Give a gang and no name to list that "
+            "gang's whole roster. The core rulebook has none of this, so if "
+            "this tool says the gang is not installed, say so and do NOT "
+            "supply a statline from memory."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string",
+                         "description": "Fighter name, e.g. 'Nacht-Ghul'. Omit to list a gang."},
+                "gang": {"type": "string",
+                         "description": "Gang name, e.g. 'House Delaque'."},
+            },
+        },
+    },
+{
         "name": "necromunda_wound",
         "description": (
             "The D6 needed to wound: give the attacker's Strength and the "
@@ -712,6 +734,13 @@ def _tool_necromunda_territory(i):
     return rules_tools.territory(name)
 
 
+def _tool_necromunda_fighter(i):
+    from games.necromunda import rules_tools
+    name, gang = i.get("name", ""), i.get("gang", "")
+    print(f"[skull] Necromunda fighter: {name or '(roster)'} / {gang or 'any'}")
+    return rules_tools.fighter_profile(name, gang)
+
+
 def _tool_necromunda_wound(i):
     from games.necromunda import rules_tools
     print(f"[skull] Necromunda wound: S{i.get('strength')} vs T{i.get('toughness')}")
@@ -892,6 +921,7 @@ def get_handlers():
         "necromunda_subtype": _tool_necromunda_subtype,
         "necromunda_setup": _tool_necromunda_setup,
         "necromunda_wound": _tool_necromunda_wound,
+        "necromunda_fighter": _tool_necromunda_fighter,
         "warhammer40k_rules": _tool_warhammer40k_rules,
         "netepic_rules": _tool_netepic_rules,
         "netea_rules": _tool_netea_rules,

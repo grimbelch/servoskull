@@ -65,7 +65,20 @@ def not_in_book(subject: str, book) -> str:
 
 # A hit of one of these kinds is a rule; anything else may be background.
 _RULES_KINDS = ("trait", "skill", "condition", "action", "equipment",
-                "subtype", "territory", "table")
+                "subtype", "territory", "table", "fighter", "gang_equipment")
+
+
+def installed_gangs(conn) -> set[str]:
+    """The gangs whose book this unit actually holds."""
+    try:
+        return {r[0].lower() for r in conn.execute("SELECT name FROM rule_gangs")}
+    except Exception:
+        return set()
+
+
+def _is_installed(conn, gang: str) -> bool:
+    return any(gang in name or name.endswith(gang)
+               for name in installed_gangs(conn))
 
 
 def _no_match(query: str, book) -> str:
@@ -109,10 +122,12 @@ def _fts_search(conn: sqlite3.Connection, terms: list[str], limit: int,
             continue
         try:
             rows = conn.execute(
-                "SELECT title, body, kind, page, ref_table, ref_id FROM rule_search"
-                " WHERE rule_search MATCH ? AND rulebook_id = ?"
+                "SELECT s.title, s.body, s.kind, s.page, s.ref_table,"
+                " s.ref_id, b.title AS book, b.page_offset"
+                " FROM rule_search s JOIN rulebooks b ON b.id = s.rulebook_id"
+                " WHERE rule_search MATCH ?"
                 " ORDER BY bm25(rule_search, 4.0, 1.0)"
-                " LIMIT ?", (_match_expr(terms, join), book_id, limit)).fetchall()
+                " LIMIT ?", (_match_expr(terms, join), limit)).fetchall()
         except sqlite3.Error:
             return []
         if rows:
@@ -128,10 +143,12 @@ def _like_search(conn: sqlite3.Connection, terms: list[str], limit: int,
     for term in terms:
         args.extend([f"%{term}%", f"%{term}%"])
     return conn.execute(
-        f"SELECT title, body_md AS body, kind, page_start AS page,"
-        f" 'rule_sections' AS ref_table, id AS ref_id FROM rule_sections"
-        f" WHERE rulebook_id = ? AND body_md != '' AND ({clause}) LIMIT ?",
-        (book_id, *args, limit)).fetchall()
+        f"SELECT r.title, r.body_md AS body, r.kind, r.page_start AS page,"
+        f" 'rule_sections' AS ref_table, r.id AS ref_id, b.title AS book,"
+        f" b.page_offset FROM rule_sections r"
+        f" JOIN rulebooks b ON b.id = r.rulebook_id"
+        f" WHERE r.body_md != '' AND ({clause}) LIMIT ?",
+        (*args, limit)).fetchall()
 
 
 def _excerpt(body: str, terms: list[str], max_chars: int) -> str:
@@ -195,15 +212,19 @@ def necromunda_rules(query: str, top_k: int = 3, max_chars: int = 1400) -> str:
             body = _excerpt(row["body"], terms, max_chars)
             if not body:
                 continue
-            parts.append(f"{row['title']} ({book['title']}, "
-                         f"p{printed_page(row['page'], book)})\n\n{body}")
+            source = row["book"] if "book" in row.keys() else book["title"]
+            page = row["page"] - (row["page_offset"] if "page_offset" in row.keys()
+                                  else book["page_offset"])
+            parts.append(f"{row['title']} ({source}, p{page})\n\n{body}")
         if not parts:
             return _no_match(query, book)
         # A question naming a gang that only matched background prose is the
         # dangerous kind: the lore reads like a hit, and the fighter entry or
         # weapon the question was really about is not in this book at all.
         gang = names_a_gang(query)
-        if gang:
+        # A gang whose supplement is loaded is answerable, so the gap notice
+        # would be a lie. Only caution for the ones still missing.
+        if gang and not _is_installed(conn, gang):
             lore_only = all(r["kind"] not in _RULES_KINDS for r in rows)
             parts.insert(0, not_in_book(
                 f"the gang entries, weapons or wargear of the {gang.title()}",
