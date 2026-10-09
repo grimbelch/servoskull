@@ -80,6 +80,16 @@ def build_tools() -> list[dict]:
         },
     },
     {
+        "name": "get_volume",
+        "description": (
+            "Read the skull's current speaker volume from the hardware, as a percentage. "
+            "Use it whenever the user asks how loud it is or what the volume is set to, and "
+            "before stating the volume in a status report — there is no other way to know it, "
+            "and the last value set is not the same as the current one."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "set_volume",
         "description": (
             "Adjust the physical speaker volume level (0-100% or relative shift). "

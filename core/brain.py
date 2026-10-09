@@ -1183,6 +1183,11 @@ def _tool_set_volume(i):
     level = str(i.get("level", "+10")).strip()
     return audio.set_system_volume(level)
 
+
+def _tool_get_volume(i):
+    from core import audio
+    return audio.describe_volume()
+
 def _tool_bluetooth_scan(i):
     from core import bluetooth_ctrl
     from core import display as _display
@@ -1744,6 +1749,7 @@ _TOOL_REGISTRY = {
     
     "set_display_rotation": _tool_set_display_rotation,
     "show_display_alignment": _tool_show_display_alignment,
+    "get_volume": _tool_get_volume,
     "set_audio_sensitivity": _tool_set_audio_sensitivity,
     "set_wake_word_sensitivity": _tool_set_wake_word_sensitivity,
 

@@ -372,7 +372,10 @@ def mic_sensitivity(text: str, ctx: Context) -> Intent | None:
 # The skull's own speaker volume, as opposed to Spotify's, which spotify_volume
 # claims first and which always names the music. "Reduce your volume by 30%" buried
 # in a longer sentence is the form that was reaching the model and being narrated.
-_VOL_REF = re.compile(r"\bvolume\b|\b(?:louder|quieter|softer)\b|turn\s+(?:it|yourself)\s+(?:up|down)")
+_VOL_REF = re.compile(r"\bvolume\b|\b(?:loud|louder|quieter|softer)\b"
+                      r"|turn\s+(?:it|yourself)\s+(?:up|down)")
+# Asking rather than telling: "what's your current volume level?", "how loud are you".
+_VOL_QUERY = re.compile(r"\bwhat(?:'?s)?\b|\bhow\b|\bcurrent\b|\btell me\b|\bstatus\b")
 _VOL_MUSIC = re.compile(r"\b(?:music|spotify|song|track|playlist|tune)\b")
 _VOL_ABS = re.compile(r"(?:volume|it)\s*(?:to|at)\s+(\d{1,3})|\bto\s+(\d{1,3})\s*(?:percent|%)")
 _VOL_REL = re.compile(r"\b(?:by|another)\s+(\d{1,3})\s*(?:percent|%)?")
@@ -397,6 +400,10 @@ def volume(text: str, ctx: Context) -> Intent | None:
         return Intent("volume", {"level": f"-{step}"})
     if _VOL_UP.search(text):
         return Intent("volume", {"level": f"+{step}"})
+    # Nothing to change, so it is a question. Checked last: "turn the volume up"
+    # mentions no number either, and setting beats reporting.
+    if _VOL_QUERY.search(text):
+        return Intent("volume", {"query": True})
     return None
 
 

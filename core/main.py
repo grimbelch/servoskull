@@ -1367,7 +1367,10 @@ def _h_mic_sensitivity(intent, turn: _Turn) -> bool:
 
 
 def _h_volume(intent, turn: _Turn) -> bool:
-    result = audio.set_system_volume(intent.args["level"])
+    if intent.args.get("query"):
+        result = audio.describe_volume()
+    else:
+        result = audio.set_system_volume(intent.args["level"])
     print(f"[skull] {result}")
     _say(turn, result)
     return True

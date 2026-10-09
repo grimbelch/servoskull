@@ -74,6 +74,51 @@ def saved_volume(default: int = 50) -> int:
         return default
 
 
+def get_system_volume() -> int | None:
+    """The current output volume on the spoken 0-100 scale, read from the hardware.
+
+    None when it cannot be read. Asked what its volume was, the skull could only
+    answer "this unit has no sensor that reads its volume back to it" and quote the
+    last value it had set, which is wrong the moment anything else changes it.
+
+    The conversion set_system_volume applies is undone here: a spoken level L is
+    sent to the sink as 100*sqrt(L/100), so a sink sitting at 50% is the spoken 25.
+    Reading the same sink the setter writes to matters as much — the default sink is
+    the echo-cancel filter, whose volume is ignored.
+    """
+    import shutil, sys
+    try:
+        if sys.platform == "darwin":
+            out = subprocess.run(["osascript", "-e", "output volume of (get volume settings)"],
+                                 capture_output=True, text=True, timeout=3).stdout.strip()
+            return int(out) if out.isdigit() else None
+        if shutil.which("pactl"):
+            pct = _sink_percent(_volume_sink())
+            return None if pct is None else round((pct / 100.0) ** 2 * 100)
+        if shutil.which("wpctl"):
+            out = subprocess.run(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"],
+                                 capture_output=True, text=True, timeout=3).stdout
+            m = re.search(r"([0-9]*\.?[0-9]+)", out)
+            return round(float(m.group(1)) * 100) if m else None
+        if shutil.which("amixer"):
+            out = subprocess.run(["amixer", "sget", "Master"],
+                                 capture_output=True, text=True, timeout=3).stdout
+            m = re.search(r"\[(\d+)%\]", out)
+            return int(m.group(1)) if m else None
+    except Exception as e:
+        print(f"[audio] Could not read the volume: {e}")
+    return None
+
+
+def describe_volume() -> str:
+    """A spoken line stating the current volume, or saying plainly that it is unread."""
+    level = get_system_volume()
+    if level is not None:
+        return f"Volume is at {level} percent."
+    return (f"This unit cannot read the sound card back. The last volume it set was "
+            f"{saved_volume()} percent.")
+
+
 def set_system_volume(level: str) -> str:
     """Set or adjust output volume across macOS (osascript) and Linux (wpctl/pactl/amixer)."""
     import shutil, sys, re

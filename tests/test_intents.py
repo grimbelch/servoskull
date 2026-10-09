@@ -512,3 +512,26 @@ def test_the_other_die_names_are_unaffected_by_the_alias():
 def test_an_ammo_check_is_not_a_dice_roll():
     # The Ammo (X+) trait's own D6 is a different thing from the firepower die.
     assert _m(intents.dice, "roll an ammo check") is None
+
+
+def test_asking_the_volume_is_a_question_not_a_command():
+    # "What's your current volume level?" got "this unit has no sensor that reads
+    # its volume back to it" — true at the time, and now not.
+    for said in ("what's your current volume level?", "what is your volume",
+                 "how loud are you", "tell me your volume"):
+        assert _m(intents.volume, said).args == {"query": True}, said
+
+
+def test_setting_the_volume_still_beats_reporting_it():
+    assert _m(intents.volume, "set volume to 50").args == {"level": "50"}
+    assert _m(intents.volume, "turn your volume up").args == {"level": "+15"}
+    assert _m(intents.volume, "reduce your volume by 30%").args == {"level": "-30"}
+
+
+def test_a_volume_question_about_the_music_is_still_spotifys():
+    assert _m(intents.volume, "what's the music volume") is None
+
+
+def test_other_questions_are_not_volume_questions():
+    for said in ("what time is it", "how are you", "what is your name"):
+        assert _m(intents.volume, said) is None, said
