@@ -269,7 +269,7 @@ BAMBU_PRINTER_SERIAL = _cfg("BAMBU_PRINTER_SERIAL", "")
 BAMBU_PRINTER_ACCESS_CODE = _cfg("BAMBU_PRINTER_ACCESS_CODE", "")
 
 # Claude (Anthropic) powers the brain, idle utterances, memory extraction, and vision.
-CLAUDE_MODEL = _cfg("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
+CLAUDE_MODEL = _cfg("CLAUDE_MODEL", "claude-sonnet-5-5")
 # OpenAI speech-to-text model: whisper-1 (default) or gpt-4o-mini-transcribe (faster, more accurate).
 STT_MODEL = _cfg("STT_MODEL", "whisper-1")
 # Stream the recording to a realtime transcription session while it is captured,
