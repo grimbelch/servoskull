@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import pathlib
+import random
 import re
 import time
 import subprocess
@@ -1794,7 +1795,6 @@ def _execute_tool(name: str, tool_input: dict) -> str:
 
 # Artwork retrieval. The eye is a 240x240 circle, so none of this needs to be big.
 _ART_PANEL_SIDE = 240
-_ART_TARGET_SIDE = 480          # twice the panel: detail to spare after the crop
 _ART_MAX_BYTES = 6 * 1024 * 1024
 _ART_FEED_TTL = 600.0           # a search feed is ~480 KB; don't refetch it per ask
 _ART_UA = "Omega-7 servo-skull (Raspberry Pi; +https://github.com/grimbelch/servoskull)"
@@ -1831,19 +1831,55 @@ def _art_parse_feed(content: bytes) -> list[dict]:
     return out
 
 
-def _art_fitness(c: dict):
-    """Rank candidates for a 240 px circle, nearest _ART_TARGET_SIDE first.
+# Words that say nothing about the subject, so a title matching them matches nothing.
+_ART_STOPWORDS = frozenset((
+    "a", "an", "the", "of", "for", "and", "or", "in", "on", "at", "with", "to",
+    "me", "my", "your", "some", "picture", "image", "artwork", "art", "pic", "photo",
+    "show", "display", "fighting", "vs",
+))
 
-    The previous order was largest-first and then weighted the random pick by area
-    again, so it reliably fetched the biggest file on offer in order to throw away
-    better than 99% of its pixels.
+
+def _art_terms(query: str) -> list[str]:
+    """The words of a query that a title could usefully match."""
+    words = re.findall(r"[a-z0-9]+", (query or "").lower())
+    return [w for w in words if len(w) >= 2 and w not in _ART_STOPWORDS]
+
+
+def _art_ranked(candidates: list[dict], query: str) -> list[dict]:
+    """Candidates in the order worth trying them.
+
+    Relevance first, which is mostly the feed's own order -- it is a search engine's
+    answer and was being discarded. The ranking it replaced sorted purely by how
+    close a picture was to 480 px, which for "40k ork warboss" pushed "Warhammer 40K
+    - Ork Warboss" (the first result, 724 px) out of the running altogether and
+    promoted "Thrakas Throne" from position 24 and "Ezekiel, Keeper of the Book of
+    Salvation" from position 9. A title carrying none of the asked-for words is
+    demoted; a size too small to fill the panel is a lesser penalty than being about
+    the wrong thing, and file size is already capped at download.
     """
-    ms = c["min_side"]
-    if ms == 0:
-        return (2, 0)                        # size unstated: a last resort
-    if ms < _ART_PANEL_SIDE:
-        return (1, -ms)                      # too small to fill the panel
-    return (0, abs(ms - _ART_TARGET_SIDE))
+    terms = _art_terms(query)
+
+    def rank(item):
+        pos, c = item
+        title = c["title"].lower()
+        hits = sum(1 for t in terms if t in title)
+        too_small = 0 if (c["min_side"] == 0 or c["min_side"] >= _ART_PANEL_SIDE) else 1
+        return (-hits, too_small, pos)
+
+    ordered = sorted(enumerate(candidates), key=rank)
+    if not ordered:
+        return []
+    best = rank(ordered[0])[:2]
+    if best[0] == 0:
+        # Nothing matched any of the asked-for words, so the feed's own order is the
+        # only relevance signal there is. Keep it exactly rather than shuffling it.
+        return [c for _, c in ordered]
+    # Otherwise shuffle among those that tie with the best, so asking twice gives a
+    # different picture of the same subject rather than a different subject.
+    head = [i for i in ordered if rank(i)[:2] == best]
+    tail = [i for i in ordered if rank(i)[:2] != best]
+    random.shuffle(head)
+    return [c for _, c in head + tail]
 
 
 # A near-white or near-black picture is indistinguishable from a broken panel on a
@@ -1903,7 +1939,6 @@ def _execute_display_art(search_query: str) -> str:
     from core import display
     display.start_image_retrieval()
     try:
-        import random
         import requests
 
         cached = _art_feed_cache.get(search_query)
@@ -1928,11 +1963,11 @@ def _execute_display_art(search_query: str) -> str:
         if not candidates:
             return f"No artwork found matching query: {search_query}"
 
-        # Try a few, so one dead link or one oversized file is not the whole answer.
-        pool = sorted(candidates, key=_art_fitness)[:10]
-        random.shuffle(pool)
+        # Try a few in rank order, so one dead link, one oversized file or one blank
+        # picture is not the whole answer.
+        pool = _art_ranked(candidates, search_query)
         last_why = "no candidate could be fetched"
-        for chosen in pool[:3]:
+        for chosen in pool[:4]:
             img, why = _art_fetch_image(chosen["url"])
             if img is None:
                 last_why = why

@@ -44,19 +44,71 @@ def test_a_feed_with_nothing_in_it_is_empty_not_an_error():
 
 # ── choosing among them ───────────────────────────────────────────────────────
 
-def test_the_best_fit_beats_the_biggest():
-    ranked = sorted(brain._art_parse_feed(FEED), key=brain._art_fitness)
-    assert ranked[0]["title"] == "Just Right"
+RELEVANCE_FEED = b"""<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
+  <channel>
+    <item><title>Warhammer 40K - Ork Warboss</title>
+      <media:content url="http://x/0.jpg" width="724" height="900"/></item>
+    <item><title>Great Warlord Ghazghkull</title>
+      <media:content url="http://x/1.jpg" width="800" height="800"/></item>
+    <item><title>Ezekiel, Keeper of the Book of Salvation</title>
+      <media:content url="http://x/2.jpg" width="670" height="670"/></item>
+    <item><title>Ork Warboss 40k</title>
+      <media:content url="http://x/3.jpg" width="600" height="600"/></item>
+    <item><title>Assault on black reach Ork warboss</title>
+      <media:content url="http://x/4.jpg" width="517" height="517"/></item>
+    <item><title>Tiny Ork Warboss 40k Sketch</title>
+      <media:content url="http://x/5.jpg" width="80" height="60"/></item>
+  </channel>
+</rss>"""
 
 
-def test_too_small_to_fill_the_panel_ranks_below_anything_that_fits():
-    ranked = [c["title"] for c in sorted(brain._art_parse_feed(FEED), key=brain._art_fitness)]
-    assert ranked.index("Enormous") < ranked.index("Tiny")
+def test_the_words_that_matter_are_pulled_out_of_the_query():
+    assert brain._art_terms("show me a picture of a 40k Ork Warboss") == ["40k", "ork", "warboss"]
+    assert brain._art_terms("an Ork fighting a Space Marine") == ["ork", "space", "marine"]
 
 
-def test_an_unstated_size_is_a_last_resort():
-    ranked = [c["title"] for c in sorted(brain._art_parse_feed(FEED), key=brain._art_fitness)]
-    assert ranked[-1] == "Unstated"
+def test_what_was_asked_for_comes_first():
+    # "40k ork warboss" used to return "Ezekiel, Keeper of the Book of Salvation",
+    # because the ranking sorted on pixel size and discarded the feed's relevance.
+    ranked = brain._art_ranked(brain._art_parse_feed(RELEVANCE_FEED), "40k ork warboss")
+    assert all("warboss" in c["title"].lower() for c in ranked[:3])
+
+
+def test_a_title_about_something_else_is_demoted():
+    ranked = [c["title"] for c in
+              brain._art_ranked(brain._art_parse_feed(RELEVANCE_FEED), "40k ork warboss")]
+    for off_topic in ("Ezekiel, Keeper of the Book of Salvation", "Great Warlord Ghazghkull"):
+        assert ranked.index(off_topic) >= 3, off_topic
+
+
+def test_being_the_wrong_subject_costs_more_than_being_small():
+    ranked = [c["title"] for c in
+              brain._art_ranked(brain._art_parse_feed(RELEVANCE_FEED), "40k ork warboss")]
+    # A small picture of the right thing beats a large one of the wrong thing.
+    assert ranked.index("Tiny Ork Warboss 40k Sketch") < ranked.index("Ezekiel, Keeper of the Book of Salvation")
+
+
+def test_a_small_picture_still_ranks_below_a_usable_one_of_the_same_subject():
+    ranked = [c["title"] for c in
+              brain._art_ranked(brain._art_parse_feed(RELEVANCE_FEED), "40k ork warboss")]
+    assert ranked.index("Ork Warboss 40k") < ranked.index("Tiny Ork Warboss 40k Sketch")
+
+
+def test_asking_twice_varies_the_picture_but_not_the_subject():
+    cands = brain._art_parse_feed(RELEVANCE_FEED)
+    firsts = {brain._art_ranked(cands, "40k ork warboss")[0]["title"] for _ in range(30)}
+    assert len(firsts) > 1                                   # it is not always the same one
+    assert all("warboss" in t.lower() for t in firsts)       # and never the wrong subject
+
+
+def test_a_query_nothing_matches_falls_back_to_the_feed_order():
+    ranked = brain._art_ranked(brain._art_parse_feed(RELEVANCE_FEED), "zzzz qqqq")
+    assert ranked[0]["title"] == "Warhammer 40K - Ork Warboss"   # the feed's own first
+
+
+def test_ranking_an_empty_feed_is_empty():
+    assert brain._art_ranked([], "anything") == []
 
 
 # ── fetching one ──────────────────────────────────────────────────────────────
