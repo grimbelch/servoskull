@@ -94,3 +94,44 @@ def test_a_non_rgb_image_reaches_the_panel_as_rgb(monkeypatch):
     monkeypatch.setattr(display, "_poke", lambda *a, **k: None)
     assert display.display_pil_image(Image.new("P", (300, 300))) is True
     assert display._custom_image.mode == "RGB"
+
+
+# ── high bit depth ────────────────────────────────────────────────────────────
+
+def test_a_sixteen_bit_image_is_scaled_not_clipped():
+    """convert("RGB") clips these. A 16-bit greyscale piece measured 100% pure
+    white, mean 254 — which is what a "full white screen" looked like."""
+    import numpy as np
+    arr = np.linspace(0, 65535, 32 * 32).reshape(32, 32).astype(np.uint16)
+    src = Image.fromarray(arr)
+    assert src.mode.startswith("I")
+    out = np.asarray(display.to_rgb(src))
+    assert out.min() == 0 and out.max() == 255
+    assert 100 < out.mean() < 155          # a gradient, not a white wall
+
+
+def test_an_eight_bit_range_integer_image_keeps_its_tones():
+    # Only values past 255 need rescaling; stretching an 8-bit-range image would
+    # silently alter how it looks.
+    src = Image.new("I", (8, 8), 128)
+    assert display.to_rgb(src).getpixel((0, 0)) == (128, 128, 128)
+
+
+def test_a_flat_high_bit_depth_image_does_not_divide_by_zero():
+    import numpy as np
+    src = Image.fromarray(np.full((8, 8), 40000, dtype=np.uint16))
+    assert display.to_rgb(src).getpixel((0, 0)) == (0, 0, 0)
+
+
+# ── what the panel will actually show ─────────────────────────────────────────
+
+def test_fit_to_panel_gives_a_square_rgb_frame():
+    out = display.fit_to_panel(Image.new("P", (900, 300)))
+    assert out.size == (240, 240) and out.mode == "RGB"
+
+
+def test_fit_to_panel_takes_the_middle():
+    # A wide image: red at the edges, green in the middle. The panel shows green.
+    img = Image.new("RGB", (900, 300), (255, 0, 0))
+    img.paste(Image.new("RGB", (300, 300), (0, 255, 0)), (300, 0))
+    assert display.fit_to_panel(img).getpixel((120, 120)) == (0, 255, 0)

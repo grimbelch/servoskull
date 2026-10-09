@@ -165,7 +165,7 @@ def test_the_request_identifies_itself_and_streams(http):
 def test_a_panel_that_refuses_the_image_is_not_a_success(http, panel, monkeypatch):
     http["serve"](_FakeResponse(chunks=[FEED]))
     monkeypatch.setattr(brain, "_art_fetch_image",
-                        lambda url: (Image.new("RGB", (300, 300)), None))
+                        lambda url: (Image.new("RGB", (300, 300), (90, 90, 90)), None))
     panel["accepts"](False)
     out = brain._execute_display_art("anything")
     assert "could not show it" in out and "Successfully projected" not in out
@@ -174,7 +174,7 @@ def test_a_panel_that_refuses_the_image_is_not_a_success(http, panel, monkeypatc
 def test_a_shown_image_is_reported_as_shown(http, panel, monkeypatch):
     http["serve"](_FakeResponse(chunks=[FEED]))
     monkeypatch.setattr(brain, "_art_fetch_image",
-                        lambda url: (Image.new("RGB", (300, 300)), None))
+                        lambda url: (Image.new("RGB", (300, 300), (90, 90, 90)), None))
     panel["accepts"](True)
     assert "Successfully projected" in brain._execute_display_art("anything")
 
@@ -187,7 +187,7 @@ def test_one_bad_link_does_not_end_the_attempt(http, panel, monkeypatch):
         tries["n"] += 1
         if tries["n"] == 1:
             return None, "the image server answered 404"
-        return Image.new("RGB", (300, 300)), None
+        return Image.new("RGB", (300, 300), (90, 90, 90)), None
     monkeypatch.setattr(brain, "_art_fetch_image", flaky)
     panel["accepts"](True)
     assert "Successfully projected" in brain._execute_display_art("anything")
@@ -206,7 +206,7 @@ def test_every_candidate_failing_is_reported_with_the_reason(http, panel, monkey
 def test_the_feed_is_cached_so_asking_twice_downloads_once(http, panel, monkeypatch):
     http["serve"](lambda: _FakeResponse(chunks=[FEED]))
     monkeypatch.setattr(brain, "_art_fetch_image",
-                        lambda url: (Image.new("RGB", (300, 300)), None))
+                        lambda url: (Image.new("RGB", (300, 300), (90, 90, 90)), None))
     panel["accepts"](True)
     brain._execute_display_art("space marine")
     brain._execute_display_art("space marine")
@@ -216,3 +216,57 @@ def test_the_feed_is_cached_so_asking_twice_downloads_once(http, panel, monkeypa
 def test_a_search_that_finds_nothing_says_so(http, panel):
     http["serve"](_FakeResponse(chunks=[b"<rss><channel></channel></rss>"]))
     assert "No artwork found" in brain._execute_display_art("qwertyuiop")
+
+
+# ── pictures that read as a dead panel ────────────────────────────────────────
+
+def _flat(value, size=(600, 600)):
+    return Image.new("RGB", size, (value, value, value))
+
+
+def test_a_near_white_picture_is_judged_blank():
+    # What "an Ork fighting a Space Marine" actually showed: a candidate with 79%
+    # of the shown crop brighter than 200, which reads as a white screen.
+    assert brain._art_looks_blank(_flat(245)) is True
+
+
+def test_a_near_black_picture_is_judged_blank():
+    assert brain._art_looks_blank(_flat(5)) is True
+
+
+def test_an_ordinary_picture_is_not():
+    import numpy as np
+    noise = (np.random.default_rng(0).integers(0, 256, (600, 600, 3))).astype("uint8")
+    assert brain._art_looks_blank(Image.fromarray(noise)) is False
+
+
+def test_it_judges_the_crop_the_panel_shows_not_the_whole_picture():
+    # Busy at the edges, empty in the middle: the panel would show the empty part.
+    img = Image.new("RGB", (1800, 600), (30, 90, 160))
+    img.paste(_flat(250, (600, 600)), (600, 0))
+    assert brain._art_looks_blank(img) is True
+
+
+def test_a_blank_candidate_is_skipped_for_the_next_one(http, panel, monkeypatch):
+    http["serve"](_FakeResponse(chunks=[FEED]))
+    served = {"n": 0}
+
+    def two_candidates(url):
+        served["n"] += 1
+        return (_flat(250) if served["n"] == 1 else _flat(90)), None
+    monkeypatch.setattr(brain, "_art_fetch_image", two_candidates)
+    panel["accepts"](True)
+    assert "Successfully projected" in brain._execute_display_art("anything")
+    assert served["n"] == 2
+    # The one that reached the panel is the second, not the blank first.
+    import numpy as np
+    assert np.asarray(panel["shown"][0]).mean() < 200
+
+
+def test_all_candidates_blank_says_so_rather_than_showing_one(http, panel, monkeypatch):
+    http["serve"](_FakeResponse(chunks=[FEED]))
+    monkeypatch.setattr(brain, "_art_fetch_image", lambda url: (_flat(250), None))
+    panel["accepts"](True)
+    out = brain._execute_display_art("anything")
+    assert "nearly blank" in out
+    assert panel["shown"] == []

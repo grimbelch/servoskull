@@ -1929,12 +1929,40 @@ def to_rgb(img):
     from PIL import Image
     if img.mode == "RGB":
         return img
+    if img.mode in ("I", "I;16", "I;16B", "I;16L", "I;16N", "F"):
+        # These carry values well past 255 and convert("RGB") clips rather than
+        # scales them, so a 16-bit greyscale piece arrives as a pure white panel --
+        # measured at 100% white, mean 254. Normalise the range that is actually
+        # present, and leave an 8-bit-range image alone so its tones are untouched.
+        arr = np.asarray(img).astype("float32")
+        hi, lo = float(arr.max()), float(arr.min())
+        if hi > 255:
+            arr = (arr - lo) * (255.0 / (hi - lo)) if hi > lo else np.zeros_like(arr)
+            return Image.fromarray(arr.astype("uint8"), mode="L").convert("RGB")
+        return img.convert("RGB")
     if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
         rgba = img.convert("RGBA")
         flat = Image.new("RGB", rgba.size, (0, 0, 0))
         flat.paste(rgba, mask=rgba.split()[-1])
         return flat
     return img.convert("RGB")
+
+
+def fit_to_panel(pil_img):
+    """The 240x240 RGB image this panel would show for `pil_img`.
+
+    Centre-cropped to a square and resized. Shared with the artwork chooser, which
+    needs to judge the region that actually gets displayed rather than the whole
+    picture: a wide piece can be full of detail and still have nothing but sky in
+    the middle.
+    """
+    from PIL import Image
+    pil_img = to_rgb(pil_img)
+    w, h = pil_img.size
+    side = min(w, h)
+    left, top = (w - side) // 2, (h - side) // 2
+    cropped = pil_img.crop((left, top, left + side, top + side))
+    return cropped.resize((240, 240), resample=Image.BICUBIC)
 
 
 def display_pil_image(pil_img, duration: float = 10.0) -> bool:
@@ -1949,23 +1977,13 @@ def display_pil_image(pil_img, duration: float = 10.0) -> bool:
         print("[display] No panel available — image not shown.")
         return False
     try:
-        from PIL import Image, ImageOps
+        from PIL import ImageOps
         # A phone-shot piece carries its rotation in EXIF; without this it is sideways.
         try:
             pil_img = ImageOps.exif_transpose(pil_img) or pil_img
         except Exception:
             pass
-        pil_img = to_rgb(pil_img)
-        w, h = pil_img.size
-        min_side = min(w, h)
-        left = (w - min_side) // 2
-        top = (h - min_side) // 2
-        right = left + min_side
-        bottom = top + min_side
-        cropped = pil_img.crop((left, top, right, bottom))
-        resized = cropped.resize((240, 240), resample=Image.BICUBIC)
-        
-        _custom_image = resized
+        _custom_image = fit_to_panel(pil_img)
         _custom_image_seq += 1
         _custom_image_expiry = time.monotonic() + duration
         _showing_custom_image = True

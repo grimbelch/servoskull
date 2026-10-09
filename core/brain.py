@@ -1845,6 +1845,28 @@ def _art_fitness(c: dict):
     return (0, abs(ms - _ART_TARGET_SIDE))
 
 
+# A near-white or near-black picture is indistinguishable from a broken panel on a
+# 240 px circle. "Space Marine vs Ork Warboss" came back with 79% of the shown crop
+# brighter than 200 and read as a blank white screen.
+_ART_PALE = 200          # luminance at or above which a pixel reads as blank white
+_ART_DARK = 25           # and below which it reads as blank black
+_ART_BLANK_FRACTION = 0.70
+
+
+def _art_looks_blank(img) -> bool:
+    """True if the region the panel would show is mostly one flat extreme.
+
+    Judged on display.fit_to_panel, not the whole image: the centre square is what
+    gets shown, and a wide piece can be busy at the edges and empty in the middle.
+    """
+    import numpy as np
+    from core import display
+    lum = np.asarray(display.fit_to_panel(img)).mean(axis=2)
+    pale = float((lum >= _ART_PALE).mean())
+    dark = float((lum <= _ART_DARK).mean())
+    return max(pale, dark) >= _ART_BLANK_FRACTION
+
+
 def _art_fetch_image(url: str):
     """Download an image under a size cap. Returns (PIL image, None) or (None, why)."""
     import requests
@@ -1905,6 +1927,11 @@ def _execute_display_art(search_query: str) -> str:
             if img is None:
                 last_why = why
                 print(f"[art] Skipping '{chosen['title']}': {why}")
+                continue
+            if _art_looks_blank(img):
+                last_why = "every candidate was nearly blank at panel size"
+                print(f"[art] Skipping '{chosen['title']}': almost blank once cropped "
+                      f"to the eye — it would look like a dead panel.")
                 continue
             if not display.display_pil_image(img, duration=15.0):
                 # It used to report success for a picture the panel never took.
