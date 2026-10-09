@@ -118,8 +118,8 @@ def weapons_in_category(category: str) -> str:
         rows = conn.execute(
             "SELECT name, sr_text, lr_text, str_text, ap_text, lethality_text,"
             " creds_text, tp_text, traits, is_variant, page FROM rule_weapons"
-            " WHERE rulebook_id = ? AND LOWER(category) LIKE ? ORDER BY id",
-            (book["id"], f"%{wanted}%")).fetchall()
+            " WHERE LOWER(category) LIKE ? ORDER BY (rulebook_id != ?), id",
+            (f"%{wanted}%", book["id"])).fetchall()
         if not rows:
             cats = conn.execute(
                 "SELECT DISTINCT category FROM rule_weapons WHERE rulebook_id = ?"
@@ -267,12 +267,12 @@ def skills_in_set(skill_set: str) -> str:
         wanted = (skill_set or "").strip().lower()
         rows = conn.execute(
             "SELECT name, skill_set, description, page FROM rule_skills"
-            " WHERE rulebook_id = ? AND LOWER(skill_set) LIKE ? ORDER BY name",
-            (book["id"], f"%{wanted}%")).fetchall()
+            " WHERE LOWER(skill_set) LIKE ?"
+            " ORDER BY (rulebook_id != ?), name", (f"%{wanted}%", book["id"])).fetchall()
         if not rows:
             sets = conn.execute(
-                "SELECT DISTINCT skill_set FROM rule_skills WHERE rulebook_id = ?"
-                " ORDER BY skill_set", (book["id"],)).fetchall()
+                "SELECT DISTINCT skill_set FROM rule_skills"
+                " ORDER BY skill_set").fetchall()
             listed = ", ".join(r["skill_set"] for r in sets)
             return f"No skill set matching '{skill_set}'. The sets are: {listed}."
         lines = [f"{rows[0]['skill_set']} skills ({len(rows)}):"]
@@ -295,10 +295,10 @@ def weapon_traits(traits: str) -> str:
         for printed in [t.strip() for t in (traits or "").split(",") if t.strip()]:
             bare = _strip_value(printed)
             row = conn.execute(
-                "SELECT name, description FROM rule_traits WHERE rulebook_id = ?"
-                " AND (LOWER(name) = ? OR LOWER(name) LIKE ?)"
-                " ORDER BY LENGTH(name) LIMIT 1",
-                (book["id"], printed.lower(), f"{bare.lower()}%")).fetchone()
+                "SELECT name, description FROM rule_traits"
+                " WHERE (LOWER(name) = ? OR LOWER(name) LIKE ?)"
+                " ORDER BY (rulebook_id != ?), LENGTH(name) LIMIT 1",
+                (printed.lower(), f"{bare.lower()}%", book["id"])).fetchone()
             if row:
                 out.append(f"  {printed}: {row['description']}")
         return "\n".join(out)
@@ -334,8 +334,7 @@ def table_result(name: str, roll: int | None = None) -> str:
         if table is None:
             listed = ", ".join(
                 r["title"] for r in conn.execute(
-                    "SELECT title FROM rule_tables WHERE rulebook_id = ?"
-                    " ORDER BY title", (book["id"],)).fetchall()[:12])
+                    "SELECT title FROM rule_tables ORDER BY title").fetchall()[:12])
             return (not_in_book(f"a table called '{name}'", book)
                     + f" The book has: {listed}.")
 
@@ -419,16 +418,15 @@ def actions_available(status: str = "active", cost: str = "") -> str:
         book = current_rulebook(conn)
         wanted = (status or "active").strip().lower().replace(" ", "_")
         sql = ("SELECT name, cost, usable_by, description, page FROM rule_actions"
-               " WHERE rulebook_id = ? AND status LIKE ?")
-        args: list = [book["id"], f"%{wanted}%"]
+               " WHERE status LIKE ?")
+        args: list = [f"%{wanted}%"]
         if cost:
             sql += " AND cost = ?"
             args.append(cost.strip().lower())
         rows = conn.execute(sql + " ORDER BY name", args).fetchall()
         if not rows:
             states = ", ".join(r["status"] for r in conn.execute(
-                "SELECT DISTINCT status FROM rule_actions WHERE rulebook_id = ?",
-                (book["id"],)))
+                "SELECT DISTINCT status FROM rule_actions"))
             return f"No actions for '{status}'. The book covers: {states}."
         lines = [f"{len(rows)} action(s) for a {wanted.replace('_', ' ')} model"
                  + (f", {cost}" if cost else "") + ":"]
@@ -455,19 +453,22 @@ def territory(name: str) -> str:
         wanted = (name or "").strip().lower()
         if not wanted:
             listed = ", ".join(r["name"].title() for r in conn.execute(
-                "SELECT name FROM rule_territories WHERE rulebook_id = ? ORDER BY name",
-                (book["id"],)))
+                "SELECT name FROM rule_territories ORDER BY name"))
             return f"The campaign Territories are: {listed}."
         row = conn.execute(
-            "SELECT * FROM rule_territories WHERE rulebook_id = ? AND"
-            " (LOWER(name) = ? OR LOWER(name) LIKE ?) ORDER BY LENGTH(name) LIMIT 1",
-            (book["id"], wanted, f"%{wanted}%")).fetchone()
+            "SELECT t.*, b.title AS book, b.page_offset FROM rule_territories t"
+            " JOIN rulebooks b ON b.id = t.rulebook_id"
+            " WHERE (LOWER(t.name) = ? OR LOWER(t.name) LIKE ?)"
+            " ORDER BY (t.rulebook_id != ?), LENGTH(t.name) LIMIT 1",
+            (wanted, f"%{wanted}%", book["id"])).fetchone()
+        if row is not None and "book" in row.keys():
+            book = {"title": row["book"], "page_offset": row["page_offset"],
+                    "id": book["id"]}
         if row is None:
             listed = ", ".join(r["name"].title() for r in conn.execute(
-                "SELECT name FROM rule_territories WHERE rulebook_id = ? ORDER BY name",
-                (book["id"],)))
+                "SELECT name FROM rule_territories ORDER BY name"))
             return (not_in_book(f"a Territory called '{name}'", book)
-                    + f" The book has: {listed}.")
+                    + f" The books this unit holds have: {listed}.")
         out = [f"{row['name']} ({book['title']}, p{printed_page(row['page'], book)})"]
         for boon in json.loads(row["boons_json"] or "[]"):
             out.append(f"  {boon['type']} Boon: {boon['text']}")
@@ -502,9 +503,9 @@ def model_subtype(name: str = "", applies_to: str = "") -> str:
 
         def listing(scope: str) -> str:
             rows = conn.execute(
-                "SELECT name FROM rule_subtypes WHERE rulebook_id = ?"
-                " AND (? = '' OR applies_to = ?) ORDER BY applies_to, name",
-                (book["id"], scope, scope)).fetchall()
+                "SELECT name FROM rule_subtypes"
+                " WHERE (? = '' OR applies_to = ?) ORDER BY applies_to, name",
+                (scope, scope)).fetchall()
             return ", ".join(r["name"] for r in rows)
 
         if not wanted:

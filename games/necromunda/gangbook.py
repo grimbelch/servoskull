@@ -193,6 +193,20 @@ def load(conn, path: pathlib.Path) -> dict:
         # Something the book sells but never prints a profile for. Recorded
         # so that asking about it returns the gap, rather than nothing at all
         # or -- worse -- an invented statline.
+        # A gang book may print Territories of its own. They belong in the
+        # same table as the core book's, so "what does the Slug House grant?"
+        # is one question however many books are held.
+        for terr in gang.get("territories", []):
+            conn.execute(
+                "INSERT INTO rule_territories (rulebook_id, slug, name,"
+                " flavour, boons_json, battlefield_effect, page)"
+                " VALUES (?,?,?,?,?,?,?)",
+                (book_id, _slug(terr["name"]), terr["name"],
+                 terr.get("flavour", ""), json.dumps(terr.get("boons", [])),
+                 terr.get("battlefield_effect", ""),
+                 terr.get("page", 0) + offset))
+            counts["gang_territories"] = counts.get("gang_territories", 0) + 1
+
         for defect in gang.get("defects", []):
             conn.execute(
                 "INSERT INTO rule_equipment (rulebook_id, slug, name, category,"

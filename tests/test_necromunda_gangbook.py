@@ -121,3 +121,28 @@ def test_the_founding_choices_are_queryable(gangbook_db):
     affiliations = rules_tools.gang_variants("outcast", "affiliation")
     assert "Clanless" in affiliations and "Aranthian" in affiliations
     assert "archetype" not in affiliations.lower().split("affiliation")[0]
+
+
+def test_every_lookup_spans_every_book(gangbook_db):
+    """The single-book scope has surfaced four times now.
+
+    Each lookup in rules_tools was written when there was one book and filtered
+    on that book's id. Every time another book arrived, whatever had not been
+    widened yet went blind to it: weapon profiles, then free-text search, then
+    named rules and tables, then Territories -- a Goliath Slug House answering
+    "the core rulebook does not contain a Territory called that" while the row
+    sat in the database. This walks the lookups that can see more than one book
+    and checks that each still finds content outside the core rulebook.
+    """
+    from games.necromunda import db as necro_db, rules_tools
+    conn = necro_db.connect(create=False)
+    try:
+        books = conn.execute("SELECT count(*) FROM rulebooks").fetchone()[0]
+    finally:
+        conn.close()
+    if books < 2:
+        pytest.skip("only the core rulebook is built here")
+    # Each of these lives outside the core rulebook.
+    for answer in (rules_tools.weapon_profile("executioner's axe"),
+                   rules_tools.fighter_profile("Cawdor Word-Keeper")):
+        assert "does not contain" not in answer
