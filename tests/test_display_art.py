@@ -282,3 +282,29 @@ def test_artwork_is_shown_as_a_reveal(http, panel, monkeypatch):
     panel['accepts'](True)
     assert 'Successfully projected' in brain._execute_display_art('anything')
     assert panel['kwargs'].get('reveal') is True
+
+
+# ── the model skipping the tool entirely ──────────────────────────────────────
+
+def test_a_picture_request_the_model_ignored_still_gets_fetched(monkeypatch):
+    """The fallback, mirroring the one play_ambient_hymn already had.
+
+    At 20:12:53 the model answered "Omega-7's sacred eye-display now renders
+    blessed imagery upon the screen" and never called display_art.
+    """
+    called = {}
+    monkeypatch.setattr(brain, "_execute_tool",
+                        lambda name, i: called.setdefault(name, i) or "ok")
+    from core import intents
+    pic = intents.show_picture("show me a picture of a 40k ork", intents.Context())
+    assert pic is not None
+    # What the fallback would hand the tool.
+    assert pic.args["subject"] == "40k ork"
+
+
+def test_the_matcher_and_the_fallback_agree_on_the_subject():
+    from core import intents
+    for said, subject in (("Show me a picture of a 40k Ork.", "40k ork"),
+                          ("display an image of a space marine", "space marine")):
+        got = intents.show_picture(said.lower(), intents.Context())
+        assert got.args["subject"] == subject

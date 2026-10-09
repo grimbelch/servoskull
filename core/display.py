@@ -2037,6 +2037,7 @@ def display_pil_image(pil_img, duration: float = 10.0, reveal: bool = False) -> 
     """
     global _showing_custom_image, _custom_image, _custom_image_expiry, _custom_image_seq
     global _custom_reveal_src, _custom_reveal_t0
+    global _retrieving_image, _image_retrieval_until
     if not _available:
         print("[display] No panel available — image not shown.")
         return False
@@ -2060,6 +2061,13 @@ def display_pil_image(pil_img, duration: float = 10.0, reveal: bool = False) -> 
         _custom_image_seq += 1
         _custom_image_expiry = time.monotonic() + duration
         _showing_custom_image = True
+        # The retrieval animation has a three-second minimum, and it outranks the
+        # custom image in the render loop. That was swallowing the reveal's opening
+        # hold: by the time the animation cleared, the zoom was already underway and
+        # the whole picture had never been seen. The picture is what the animation
+        # was waiting for, so its arrival ends it.
+        _retrieving_image = False
+        _image_retrieval_until = 0.0
         _poke()
         return True
     except Exception as e:

@@ -1418,6 +1418,24 @@ def _h_shift_mood(intent, turn: _Turn) -> bool:
     return True
 
 
+_ART_PROJECTED_RE = re.compile(r"artwork: '(?P<title>.+)' on the eye display")
+
+
+def _h_show_picture(intent, turn: _Turn) -> bool:
+    subject = intent.args["subject"]
+    print(f"[skull] Picture requested: '{subject}'.")
+    result = brain._execute_display_art(subject)
+    print(f"[skull] {result}")
+    m = _ART_PROJECTED_RE.search(result)
+    if m:
+        # The title is the only thing known about the picture: the model cannot see
+        # what was fetched, so anything more would be invention.
+        _say(turn, f"Upon the eye: {m.group('title')}.")
+    else:
+        _say(turn, "This unit could not retrieve that image, Master.")
+    return True
+
+
 def _h_honorific(intent, turn: _Turn) -> bool:
     result = config.set_honorific(intent.args["name"])
     print(f"[skull] {result}")
@@ -1529,6 +1547,7 @@ _LOCAL_INTENTS = (
     (intents.sleep_schedule, _h_sleep_schedule),
     (intents.active_game, _h_active_game),
     (intents.shift_mood, _h_shift_mood),
+    (intents.show_picture, _h_show_picture),
     (intents.honorific, _h_honorific),
     (intents.response_length, _h_response_length),
     (intents.maintenance_command, _h_maintenance_command),

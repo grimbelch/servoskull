@@ -217,3 +217,15 @@ def test_text_screens_are_not_revealed(monkeypatch):
     monkeypatch.setattr(display, "_custom_reveal_src", Image.new("RGB", (480, 240)))
     display.display_pil_image(Image.new("RGB", (240, 240)))
     assert display._custom_reveal_src is None
+
+
+def test_the_picture_arriving_ends_the_retrieval_animation(monkeypatch):
+    """The animation outranks the custom image and has a three-second floor, which
+    was swallowing the reveal's opening hold on the whole picture."""
+    monkeypatch.setattr(display, "_available", True)
+    monkeypatch.setattr(display, "_poke", lambda *a, **k: None)
+    monkeypatch.setattr(display, "_retrieving_image", True)
+    monkeypatch.setattr(display, "_image_retrieval_until", 1e18)
+    assert display.display_pil_image(Image.new("RGB", (900, 400)), reveal=True) is True
+    assert display._retrieving_image is False
+    assert display._image_retrieval_until == 0.0

@@ -2259,6 +2259,17 @@ def respond(user_text: str, speaker_name: str | None = None, on_tool_use=None,
         cmds[:] = [c for c in cmds if not (c[0] == "play" and c[1] and _HYMN_INTENT_RE.search(str(c[1])))]
         _exec("play_ambient_hymn", {"track_name": user_text})
 
+    # The same guard for artwork. The matcher in core.intents catches most of these
+    # before the model is consulted; this is for the phrasings it does not, because
+    # the model will otherwise describe a picture it never fetched and cannot see.
+    if "display_art" not in tools_called and user_text:
+        from core import intents as _intents
+        _pic = _intents.show_picture(user_text.lower(), _intents.Context())
+        if _pic is not None:
+            print("[brain] Picture request detected but model skipped tool — "
+                  "triggering display_art fallback.")
+            _exec("display_art", {"search_query": _pic.args["subject"]})
+
     if tool_results.get("play_ambient_hymn", "").startswith("[SUCCESS]"):
         print("[brain] Hymn played successfully — silencing assistant spoken response as requested.")
         spoken = ""

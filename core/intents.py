@@ -520,6 +520,40 @@ def shift_mood(text: str, ctx: Context) -> Intent | None:
     return None
 
 
+# "Show me a picture of a 40k Ork" went to the model, which answered "Omega-7's
+# sacred eye-display now renders blessed imagery upon the screen -- a greenskin Ork
+# in all its savage potency" and never called display_art at all. There is one
+# correct action, so it belongs here with the rest of them.
+_PICTURE_NOUN = re.compile(r"\b(?:picture|image|artwork|art|pic|photo)\b")
+_PICTURE_RE = re.compile(
+    r"\b(?:show|display|put|render|project|find|bring\s+up|let\s+me\s+see)\b[^.?!]*?"
+    r"\b(?:picture|image|artwork|art|pic|photo)\b"
+    r"\s*(?:of|for|showing|with)?\s*(?P<subject>[^.?!]*)"
+)
+# "a picture of A Space Marine" -- the article belongs to the sentence, not the search.
+_PICTURE_LEAD = re.compile(r"^(?:a|an|the|some|me|us|your|his|her|their)\s+")
+
+
+def show_picture(text: str, ctx: Context) -> Intent | None:
+    # An explicit picture word is required, so "show me the rules" and "show me the
+    # next eye" stay with the matchers and the model that already handle them.
+    if not _PICTURE_NOUN.search(text):
+        return None
+    m = _PICTURE_RE.search(text)
+    if not m:
+        return None
+    subject = m.group("subject").strip()
+    while True:
+        trimmed = _PICTURE_LEAD.sub("", subject)
+        if trimmed == subject:
+            break
+        subject = trimmed
+    subject = subject.strip(" ,'\"").strip()
+    if len(subject) < 2:
+        return None
+    return Intent("show_picture", {"subject": subject})
+
+
 _HONORIFIC_RE = re.compile(
     r"(?:set|change|update|make)\s+(?:my\s+)?(?:honorific|title)\s+(?:to\s+)?(?P<a>[a-z0-9' -]+?)"
     r"(?:\s+from\s+now\s+on)?[.!?]*$"

@@ -425,3 +425,38 @@ def test_disposition():
     # A question is not a command, and an unknown mood belongs to the model.
     assert _m(intents.shift_mood, "what mood are you in") is None
     assert _m(intents.shift_mood, "change your mood to peckish") is None
+
+
+# ── showing a picture ─────────────────────────────────────────────────────────
+
+def test_the_request_the_model_described_instead_of_doing():
+    # Spoken at 20:12:53; the reply claimed the eye was rendering a greenskin Ork
+    # and display_art was never called.
+    assert _m(intents.show_picture, "Show me a picture of a 40k Ork.").args == {"subject": "40k ork"}
+
+
+def test_the_subject_is_taken_without_the_sentence_around_it():
+    assert _m(intents.show_picture, "display an image of a space marine").args == {"subject": "space marine"}
+    assert _m(intents.show_picture, "show me artwork of the necromunda escher gang").args == {
+        "subject": "necromunda escher gang"}
+    assert _m(intents.show_picture, "let me see a picture of the emperor").args == {"subject": "emperor"}
+    assert _m(intents.show_picture, "project a picture of an ork warboss").args == {"subject": "ork warboss"}
+
+
+def test_it_requires_an_actual_picture_word():
+    # These belong to other matchers, or to the model.
+    for said in ("show me the next eye", "show me the rules for cover",
+                 "show me my reminders", "what do you see", "show me the memory bank"):
+        assert _m(intents.show_picture, said) is None, said
+
+
+def test_a_request_with_no_subject_goes_to_the_model():
+    assert _m(intents.show_picture, "show me a picture") is None
+    assert _m(intents.show_picture, "take a picture") is None
+
+
+def test_showing_a_picture_does_not_collide_with_the_camera():
+    # capture_and_describe_surroundings is the model's, and must stay that way.
+    for said in ("take a picture of me", "capture an image of the room",
+                 "what can you see right now"):
+        assert _m(intents.show_picture, said) is None, said
