@@ -419,7 +419,8 @@ def get_active_tools_for_game(game_name: str) -> list[dict]:
                    "necromunda_actions", "necromunda_territory",
                    "necromunda_subtype", "necromunda_setup",
                    "necromunda_wound", "necromunda_fighter",
-                   "necromunda_gang_variant",
+                   "necromunda_gang_variant", "necromunda_roster",
+                   "necromunda_equipment_cost",
                    "roll_necromunda_dice"}
     # roll_epic_dice resolves Epic's firefights and close assaults, which has
     # nothing to do with any other game on the shelf. Like roll_dice it is

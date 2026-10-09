@@ -141,14 +141,24 @@ def load(conn, path: pathlib.Path) -> dict:
 
         for listing in gang.get("equipment_lists", []):
             for category, items in listing["sections"].items():
+                parent = ""
                 for item in items:
+                    name = item["item"]
+                    # An entry printed as "- smoke grenades" is an addition to
+                    # the weapon above it, and the list says so only by its
+                    # order. Record it before that ordering is lost.
+                    if name.startswith("-"):
+                        bare = name.lstrip("- ").strip()
+                    else:
+                        bare, parent = name, name
                     conn.execute(
                         "INSERT INTO rule_gang_equipment (rulebook_id, gang_id,"
                         " list_name, category, item, slug, cost_text,"
-                        " restriction, starred, page)"
-                        " VALUES (?,?,?,?,?,?,?,?,?,?)",
+                        " parent_item, restriction, starred, page)"
+                        " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                         (book_id, gang_id, listing["name"], category,
-                         item["item"], _slug(item["item"]), item["cost"],
+                         bare, _slug(bare), item["cost"],
+                         "" if bare == parent else parent,
                          item.get("restriction", ""),
                          int(item.get("starred", False)),
                          listing.get("page", 0) + offset))

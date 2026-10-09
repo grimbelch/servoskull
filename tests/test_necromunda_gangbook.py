@@ -146,3 +146,46 @@ def test_every_lookup_spans_every_book(gangbook_db):
     for answer in (rules_tools.weapon_profile("executioner's axe"),
                    rules_tools.fighter_profile("Cawdor Word-Keeper")):
         assert "does not contain" not in answer
+
+
+# ── answers that depend on which, not just what ───────────────────────────────
+
+def test_a_price_addition_names_the_weapon_it_is_for(gangbook_db):
+    """"- smoke grenades +15" is an addition to the weapon printed above it.
+
+    The Furnace Brutes list prints smoke grenades twice, at +20 on the assault
+    grenade launcher and +15 on the plain one. The list carries which is which
+    only in the order of its rows, so a price quoted without its weapon is not
+    an answer at all.
+    """
+    from games.necromunda import rules_tools
+    answer = rules_tools.equipment_cost("smoke grenades", "furnace brutes")
+    assert "Assault grenade launchers" in answer
+    assert "Grenade launcher with frag & krak" in answer
+    assert "+20 credits" in answer and "+15 credits" in answer
+    # And it should say the question is underdetermined rather than pick.
+    assert "depends on which" in answer
+
+
+def test_a_weapon_with_two_profiles_says_so(gangbook_db):
+    """Nine weapon names in these books carry more than one profile.
+
+    Delaque's ferocious jaws are S+1 where Goliath's are S. Answering with one
+    of them silently answers a different question than the one asked.
+    """
+    from games.necromunda import rules_tools
+    answer = rules_tools.weapon_profile("ferocious jaws")
+    assert "NOTE:" in answer and "different" in answer
+    assert "Say which gang" in answer
+
+
+def test_a_superlative_is_one_query_not_a_roster_crawl(gangbook_db):
+    """Asked the cheapest Leader, Omega-7 read every gang in turn: 25 tool
+    calls for an answer the database can sort in one."""
+    from games.necromunda import rules_tools
+    answer = rules_tools.roster_query(subtype="Leader", order="cost", limit=3)
+    lines = [l for l in answer.splitlines() if l.startswith("  ")]
+    assert len(lines) == 3
+    assert "Ratling Hunt Leader" in lines[0] and "105" in lines[0]
+    costs = [int(l.split(" - ")[1].split()[0]) for l in lines]
+    assert costs == sorted(costs)

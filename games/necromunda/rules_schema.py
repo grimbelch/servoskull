@@ -367,6 +367,12 @@ CREATE TABLE IF NOT EXISTS rule_gang_equipment (
     item        TEXT NOT NULL,
     slug        TEXT NOT NULL DEFAULT '',
     cost_text   TEXT DEFAULT '',
+    -- A price like "+15 credits" belongs to the weapon printed above it, and
+    -- the list carries that only in the order of its rows. Furnace Brutes
+    -- print smoke grenades twice, at +20 under the assault grenade launcher
+    -- and +15 under the plain one; without this the two are indistinguishable
+    -- and "how much are smoke grenades?" has two answers and no way to choose.
+    parent_item TEXT DEFAULT '',
     restriction TEXT DEFAULT '',
     starred     INTEGER DEFAULT 0,
     page        INTEGER DEFAULT 0,
@@ -480,7 +486,7 @@ _SHAPE_SENTINELS = {
     "rule_fighters": "profile",
     "rule_skill_access": "variant",
     "rule_gang_variants": "kind",
-    "rule_gang_equipment": "restriction",
+    "rule_gang_equipment": "parent_item",
     "rule_subtypes": "applies_to",
     "rule_tables": "dice",
     "rule_table_rows": "roll_min",

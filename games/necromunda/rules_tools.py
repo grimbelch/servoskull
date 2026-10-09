@@ -99,9 +99,29 @@ def weapon_profile(name: str) -> str:
         if explained:
             out.append(f"Traits in full:\n{explained}")
         if len(rows) > 1:
-            others = ", ".join(f"{r['name']} (p{printed_page(r['page'], book)})"
-                               for r in rows[1:4])
-            out.append(f"Also printed as: {others}")
+            # Nine weapon names in these books carry more than one profile:
+            # Delaque's ferocious jaws are S+1 where Goliath's are S, and the
+            # Enforcers' combi-bolter lacks the Scarce (4+) that Escher's has.
+            # Picking one silently answers a different question than the one
+            # asked, so where the profiles differ, say so.
+            def shape(row):
+                return (row["str_text"], row["ap_text"], row["lethality_text"],
+                        row["traits"])
+            differing = [r for r in rows[1:] if shape(r) != shape(best)]
+            same = [r for r in rows[1:] if shape(r) == shape(best)]
+            if same:
+                out.append("Also printed as: " + ", ".join(
+                    f"{r['name']} (p{printed_page(r['page'], book)})"
+                    for r in same[:3]))
+            for r in differing[:3]:
+                where = r["category"] or "elsewhere"
+                out.append(
+                    f"NOTE: {where} prints a different {r['name']} - "
+                    f"Str {r['str_text'] or '-'}, AP {r['ap_text'] or '-'}, "
+                    f"Lethality {r['lethality_text'] or '-'}, "
+                    f"{r['traits'] or 'no traits'} "
+                    f"(p{printed_page(r['page'], book)}). Say which gang or "
+                    f"book is meant.")
         return "\n\n".join(out)
     finally:
         conn.close()
@@ -678,5 +698,102 @@ def fighter_profile(name: str = "", gang: str = "") -> str:
                 label = "Skills" if not variant else f"Skills as {variant}"
                 out[-1] += f"\n  {label}: " + ", ".join(sets)
         return "\n\n".join(out)
+    finally:
+        conn.close()
+
+
+def equipment_cost(item: str = "", gang: str = "") -> str:
+    """What a gang pays for an item, and which weapon a price addition is for.
+
+    The same item costs different amounts to different gangs, and a line like
+    "- smoke grenades +15" is an addition to the weapon printed above it. The
+    Furnace Brutes list prints smoke grenades twice, at +20 on the assault
+    grenade launcher and +15 on the plain one, so a price given without its
+    weapon is not an answer.
+    """
+    conn = _open()
+    if conn is None:
+        return _NOT_INSTALLED
+    try:
+        book = current_rulebook(conn)
+        wanted, want_gang = (item or "").strip().lower(), (gang or "").strip().lower()
+        if not wanted:
+            return "Name an item to price."
+        rows = conn.execute(
+            "SELECT e.item, e.cost_text, e.parent_item, e.restriction,"
+            " e.category, e.list_name, e.page, g.name AS gang,"
+            " b.title AS book, b.page_offset"
+            " FROM rule_gang_equipment e"
+            " JOIN rule_gangs g ON g.id = e.gang_id"
+            " JOIN rulebooks b ON b.id = e.rulebook_id"
+            " WHERE (LOWER(e.item) = ? OR LOWER(e.item) LIKE ?)"
+            "   AND (? = '' OR LOWER(g.name) LIKE ?)"
+            " ORDER BY g.name, e.list_name, e.id",
+            (wanted, f"%{wanted}%", want_gang, f"%{want_gang}%")).fetchall()
+        if not rows:
+            return not_in_book(
+                f"an equipment entry for '{item}'"
+                + (f" on a {gang} list" if gang else ""), book)
+        out = []
+        for row in rows:
+            page = row["page"] - row["page_offset"]
+            line = f"{row['item']} - {row['cost_text']}, {row['gang']}"
+            if row["list_name"] and row["list_name"] != f"{row['gang']} Equipment List":
+                line += f" ({row['list_name']})"
+            if row["parent_item"]:
+                line += f", on a {row['parent_item']}"
+            if row["restriction"]:
+                line += f", {row['restriction']}"
+            out.append(f"{line} [{row['book']}, p{page}]")
+        head = (f"{len(out)} entries for '{item}'"
+                + (f" in {gang}" if gang else " across the gangs this unit holds")
+                + (". The price depends on which, so say which gang and which "
+                   "weapon it is going on." if len(out) > 1 else "."))
+        return head + "\n  " + "\n  ".join(out)
+    finally:
+        conn.close()
+
+
+def roster_query(gang: str = "", subtype: str = "", order: str = "cost",
+                 limit: int = 10) -> str:
+    """Fighters filtered and sorted in one call.
+
+    Asked for the cheapest Leader, Omega-7 read every gang's roster in turn and
+    spent twenty-five tool calls arriving at the right answer. Sorting is the
+    database's job.
+    """
+    conn = _open()
+    if conn is None:
+        return _NOT_INSTALLED
+    try:
+        want_gang = (gang or "").strip().lower()
+        want_sub = (subtype or "").strip().lower()
+        column = {"cost": "f.cost", "name": "f.name",
+                  "xp": "f.starting_xp"}.get((order or "cost").lower(), "f.cost")
+        rows = conn.execute(
+            "SELECT f.name, f.cost, f.type_text, g.name AS gang,"
+            " b.title AS book, f.page, b.page_offset"
+            " FROM rule_fighters f"
+            " JOIN rule_gangs g ON g.id = f.gang_id"
+            " JOIN rulebooks b ON b.id = f.rulebook_id"
+            " WHERE (? = '' OR LOWER(g.name) LIKE ?)"
+            "   AND (? = '' OR LOWER(f.subtypes) LIKE ?)"
+            " GROUP BY f.name, f.cost, g.name"
+            f" ORDER BY ({column} IS NULL), {column}"
+            " LIMIT ?",
+            (want_gang, f"%{want_gang}%", want_sub, f"%{want_sub}%",
+             max(1, min(int(limit or 10), 50)))).fetchall()
+        if not rows:
+            return ("No fighter matches"
+                    + (f" gang '{gang}'" if gang else "")
+                    + (f" subtype '{subtype}'" if subtype else "")
+                    + ". Do not supply one from memory.")
+        what = " ".join(x for x in (subtype or "fighter", "entries") if x)
+        head = (f"{what} ordered by {order or 'cost'}"
+                + (f", {gang}" if gang else ", across every gang held") + ":")
+        lines = [f"  {r['name']} - {r['cost']} credits, {r['type_text']}"
+                 f" ({r['gang']}, {r['book']}, p{r['page'] - r['page_offset']})"
+                 for r in rows]
+        return head + "\n" + "\n".join(lines)
     finally:
         conn.close()

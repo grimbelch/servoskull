@@ -303,6 +303,44 @@ def get_tools():
         },
     },
 {
+        "name": "necromunda_roster",
+        "description": (
+            "Fighters filtered and sorted in one call: pass a gang, a subtype "
+            "(Leader, Champion, Ganger, Prospect, Brute, Pet...) or both, and "
+            "order by cost, name or xp. Use this for any 'which is the "
+            "cheapest/most expensive' or 'list the X in Y' question instead "
+            "of reading rosters one gang at a time."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "gang": {"type": "string", "description": "Gang name; omit for all."},
+                "subtype": {"type": "string",
+                            "description": "Subtype to filter by, e.g. 'Leader'."},
+                "order": {"type": "string", "enum": ["cost", "name", "xp"]},
+                "limit": {"type": "integer", "description": "How many, up to 50."},
+            },
+        },
+    },
+{
+        "name": "necromunda_equipment_cost",
+        "description": (
+            "What a gang pays for a weapon or piece of wargear. The same item "
+            "costs different amounts to different gangs, and an entry like "
+            "'smoke grenades +15' is an addition to a particular weapon, so "
+            "this returns every matching entry with its gang and the weapon "
+            "the price is for. Use it for 'how much is X for my gang'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "item": {"type": "string", "description": "Item name, e.g. 'mesh armour'."},
+                "gang": {"type": "string", "description": "Gang name, when known."},
+            },
+            "required": ["item"],
+        },
+    },
+{
         "name": "necromunda_gang_variant",
         "description": (
             "The choices a gang makes when it is founded and what each grants: "
@@ -753,6 +791,20 @@ def _tool_necromunda_territory(i):
     return rules_tools.territory(name)
 
 
+def _tool_necromunda_roster(i):
+    from games.necromunda import rules_tools
+    print(f"[skull] Necromunda roster: {i.get('subtype') or 'any'} / "
+          f"{i.get('gang') or 'all gangs'}")
+    return rules_tools.roster_query(i.get("gang", ""), i.get("subtype", ""),
+                                    i.get("order", "cost"), i.get("limit", 10))
+
+
+def _tool_necromunda_equipment_cost(i):
+    from games.necromunda import rules_tools
+    print(f"[skull] Necromunda price: {i.get('item','')} / {i.get('gang') or 'any gang'}")
+    return rules_tools.equipment_cost(i.get("item", ""), i.get("gang", ""))
+
+
 def _tool_necromunda_gang_variant(i):
     from games.necromunda import rules_tools
     gang, kind = i.get("gang", ""), i.get("kind", "")
@@ -949,6 +1001,8 @@ def get_handlers():
         "necromunda_wound": _tool_necromunda_wound,
         "necromunda_fighter": _tool_necromunda_fighter,
         "necromunda_gang_variant": _tool_necromunda_gang_variant,
+        "necromunda_roster": _tool_necromunda_roster,
+        "necromunda_equipment_cost": _tool_necromunda_equipment_cost,
         "warhammer40k_rules": _tool_warhammer40k_rules,
         "netepic_rules": _tool_netepic_rules,
         "netea_rules": _tool_netea_rules,
