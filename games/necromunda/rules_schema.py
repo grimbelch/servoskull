@@ -285,6 +285,10 @@ CREATE TABLE IF NOT EXISTS rule_fighters (
     wil_text     TEXT DEFAULT '',
     int_text     TEXT DEFAULT '',
     starting_xp  INTEGER,
+    -- A Venator's House entries print four alternative statlines under one
+    -- name and cost, and the player picks one. They are separate rows sharing
+    -- a name, numbered as the book prints them; 0 means the entry has only one.
+    profile      INTEGER DEFAULT 0,
     skills_text  TEXT DEFAULT '',
     equipment_text TEXT DEFAULT '',
     options_json TEXT DEFAULT '[]',
@@ -444,7 +448,7 @@ _SHAPE_SENTINELS = {
     "rule_actions": "cost",
     "rule_territories": "boons_json",
     "rule_gangs": "special_rules_json",
-    "rule_fighters": "type_text",
+    "rule_fighters": "profile",
     "rule_skill_access": "access",
     "rule_gang_equipment": "restriction",
     "rule_subtypes": "applies_to",

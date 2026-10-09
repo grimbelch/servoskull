@@ -76,7 +76,7 @@ def load(conn, path: pathlib.Path) -> dict:
          meta.get("page_offset", 0), "", "read-by-eye")).lastrowid
 
     offset = meta.get("page_offset", 0)
-    sets = data.get("skill_sets", [])
+    skill_sets = data.get("skill_sets", [])
 
     for gang in data.get("gangs", []):
         gang_id = conn.execute(
@@ -94,14 +94,15 @@ def load(conn, path: pathlib.Path) -> dict:
                 "INSERT INTO rule_fighters (rulebook_id, gang_id, slug, name,"
                 " cost, type_text, model_type, subtypes, m_text, ws_text,"
                 " bs_text, s_text, t_text, w_text, i_text, a_text, sv_text,"
-                " ld_text, cl_text, wil_text, int_text, starting_xp,"
+                " ld_text, cl_text, wil_text, int_text, starting_xp, profile,"
                 " skills_text, equipment_text, options_json, page)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (book_id, gang_id, _slug(fighter["name"]), fighter["name"],
                  fighter.get("cost"), fighter.get("type", ""),
                  model_type, subtypes,
                  *[stats.get(k, "") for k in _STAT_KEYS],
-                 fighter.get("starting_xp"), fighter.get("skills", ""),
+                 fighter.get("starting_xp"), fighter.get("profile", 0),
+                 fighter.get("skills", ""),
                  fighter.get("equipment", ""),
                  json.dumps(fighter.get("options", [])),
                  fighter.get("page", 0) + offset))
@@ -109,7 +110,7 @@ def load(conn, path: pathlib.Path) -> dict:
 
         page = gang.get("skill_access_page", 0) + offset
         for fighter, row in gang.get("skill_access", {}).items():
-            for skill_set, access in zip(sets, row):
+            for skill_set, access in zip(skill_sets, row):
                 conn.execute(
                     "INSERT INTO rule_skill_access (rulebook_id, gang_id,"
                     " fighter, skill_set, access, page) VALUES (?,?,?,?,?,?)",
@@ -163,8 +164,30 @@ def load(conn, path: pathlib.Path) -> dict:
                  item.get("page", 0) + offset))
             counts["gang_wargear"] += 1
 
-        powers = gang.get("wyrd_powers")
-        if powers:
+        # A gang may print one rolled table of powers (Delaque's Psychoteric
+        # Whispers) or several named sets that are chosen rather than rolled
+        # (the Enforcers' Psyrender and Bonecrusher).
+        for table in gang.get("tables", []):
+            table_id = conn.execute(
+                "INSERT INTO rule_tables (rulebook_id, slug, title, kind, dice,"
+                " columns_json, notes, page) VALUES (?,?,?,?,?,?,'',?)",
+                (book_id, _slug(table["name"]), table["name"], "reference",
+                 table.get("dice", ""), json.dumps(table.get("columns", [])),
+                 table.get("page", 0) + offset)).lastrowid
+            for ordinal, row in enumerate(table["rows"]):
+                conn.execute(
+                    "INSERT INTO rule_table_rows (table_id, ordinal, roll_min,"
+                    " roll_max, roll_label, result, detail, cells_json)"
+                    " VALUES (?,?,?,?,?,?,'',?)",
+                    (table_id, ordinal, row.get("roll_min"), row.get("roll_max"),
+                     row["roll_label"], row["result"],
+                     json.dumps([row["roll_label"], row["result"]])))
+                counts["gang_tables"] = counts.get("gang_tables", 0) + 1
+
+        power_sets = gang.get("wyrd_power_sets") or []
+        if gang.get("wyrd_powers"):
+            power_sets = [gang["wyrd_powers"]] + power_sets
+        for powers in power_sets:
             table_id = conn.execute(
                 "INSERT INTO rule_tables (rulebook_id, slug, title, kind, dice,"
                 " columns_json, notes, page) VALUES (?,?,?,?,?,?,?,?)",
