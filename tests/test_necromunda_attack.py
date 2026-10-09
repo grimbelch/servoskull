@@ -204,3 +204,34 @@ def test_a_plain_dice_roll_is_still_available_everywhere():
     """"Roll a d20" should work whatever is on the table."""
     for game in ("necromunda", "warhammer 40k", "whfrp"):
         assert "roll_standard_dice" in dice_tools(game)
+
+
+# ── the wound table as a lookup ───────────────────────────────────────────────
+
+@pytest.mark.parametrize("strength,toughness,need", [
+    (8, 4, 2), (9, 4, 2), (5, 4, 3), (4, 4, 4), (3, 4, 5), (2, 4, 6),
+    (2, 5, 6), (1, 2, 6), (3, 5, 5), (6, 3, 2),
+])
+def test_the_wound_table_is_a_lookup_not_a_judgement(strength, toughness, need):
+    """"What do I need to wound T4 with S3?" is the commonest question asked.
+
+    The doubled and halved cases are checked before the simple comparisons: a
+    Strength of 8 against Toughness 4 is both "twice or greater" and
+    "greater", and the table means the former.
+    """
+    assert attack.wound_target(strength, toughness) == need
+
+
+def test_every_strength_and_toughness_pair_matches_the_printed_table():
+    def printed(s, t):
+        if s >= 2 * t:
+            return 2
+        if s > t:
+            return 3
+        if s == t:
+            return 4
+        if 2 * s > t:
+            return 5
+        return 6
+    assert all(attack.wound_target(s, t) == printed(s, t)
+               for s in range(1, 11) for t in range(1, 11))

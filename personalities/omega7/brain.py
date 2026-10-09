@@ -296,6 +296,23 @@ def get_tools():
         },
     },
 {
+        "name": "necromunda_wound",
+        "description": (
+            "The D6 needed to wound: give the attacker's Strength and the "
+            "target's Toughness and this returns the number off the printed "
+            "table. Use it for 'what do I need to wound?' rather than working "
+            "it out, and rather than resolving a whole attack."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "strength": {"type": "integer", "description": "Attacker's Strength."},
+                "toughness": {"type": "integer", "description": "Target's Toughness."},
+            },
+            "required": ["strength", "toughness"],
+        },
+    },
+{
         "name": "necromunda_setup",
         "description": (
             "Walk a player through Necromunda Battlefield Set-Up one stage at "
@@ -683,6 +700,12 @@ def _tool_necromunda_territory(i):
     return rules_tools.territory(name)
 
 
+def _tool_necromunda_wound(i):
+    from games.necromunda import rules_tools
+    print(f"[skull] Necromunda wound: S{i.get('strength')} vs T{i.get('toughness')}")
+    return rules_tools.wound_roll(i.get("strength"), i.get("toughness"))
+
+
 def _tool_necromunda_setup(i):
     from games.necromunda import setup
     action = (i.get("action") or "").strip().lower()
@@ -856,6 +879,7 @@ def get_handlers():
         "necromunda_territory": _tool_necromunda_territory,
         "necromunda_subtype": _tool_necromunda_subtype,
         "necromunda_setup": _tool_necromunda_setup,
+        "necromunda_wound": _tool_necromunda_wound,
         "warhammer40k_rules": _tool_warhammer40k_rules,
         "netepic_rules": _tool_netepic_rules,
         "netea_rules": _tool_netea_rules,

@@ -12,6 +12,7 @@ import re
 import sqlite3
 
 from . import db as necro_db
+from . import attack
 from . import dice
 from .search import _NOT_INSTALLED, _format_weapon, current_rulebook, printed_page
 
@@ -503,3 +504,35 @@ def model_subtype(name: str = "", applies_to: str = "") -> str:
         return "\n\n".join(out)
     finally:
         conn.close()
+
+
+def wound_roll(strength, toughness) -> str:
+    """The D6 needed to wound, looked up rather than reasoned about.
+
+    "What do I need to wound Toughness 4 with Strength 3?" is the question
+    asked most often at the table. The number was only reachable by resolving
+    a whole attack, which rolls dice nobody asked for, or by reading the five
+    rows of the table and doing the comparison in your head -- and a comparison
+    done in your head is exactly the step this database exists to remove.
+    """
+    try:
+        s, t = int(strength), int(toughness)
+    except (TypeError, ValueError):
+        return "Give a Strength and a Toughness, both numbers."
+    if not (1 <= s <= 20 and 1 <= t <= 20):
+        return "Strength and Toughness are between 1 and 20."
+    need = attack.wound_target(s, t)
+    conn = _open()
+    cite = ""
+    if conn is not None:
+        try:
+            book = current_rulebook(conn)
+            cite = f" ({book['title']}, p{printed_page(77, book)})"
+        finally:
+            conn.close()
+    reason = ("Strength is twice the Toughness or greater" if s >= 2 * t
+              else "Strength is greater than the Toughness" if s > t
+              else "Strength is equal to the Toughness" if s == t
+              else "Strength is half the Toughness or lower" if 2 * s <= t
+              else "Strength is lower than the Toughness")
+    return f"Strength {s} against Toughness {t} wounds on {need}+ - {reason}.{cite}"

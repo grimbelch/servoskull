@@ -531,6 +531,35 @@ def _apply_corrections(conn, book_id: int, pdf_path) -> dict:
              tail["id"]))
         conn.execute("DELETE FROM rule_sections WHERE id = ?", (head["id"],))
 
+    # A table that had to be transcribed also left a flattened copy in the
+    # prose, and that copy is the broken one. Two sources of truth means
+    # free-text search answers out of whichever it ranks first, so the prose
+    # keeps its own sentences and points at the table for the rest.
+    for item in data.get("strip_sections", []):
+        row = conn.execute(
+            "SELECT id, body_md FROM rule_sections WHERE rulebook_id = ?"
+            " AND title = ? AND page_start = ? LIMIT 1",
+            (book_id, item["title"], item["printed_page"] + offset)).fetchone()
+        if row is None:
+            continue
+        body = _without_table(row["body_md"], item)
+        conn.execute(
+            "UPDATE rule_sections SET body_md = ?, word_count = ? WHERE id = ?",
+            (body, len(body.split()), row["id"]))
+        counts["stripped"] = counts.get("stripped", 0) + 1
+
+    for item in data.get("strip_subtypes", []):
+        row = conn.execute(
+            "SELECT id, description FROM rule_subtypes WHERE rulebook_id = ?"
+            " AND LOWER(name) = ? LIMIT 1",
+            (book_id, item["name"].lower())).fetchone()
+        if row is None:
+            continue
+        body = _without_table(row["description"], item)
+        conn.execute("UPDATE rule_subtypes SET description = ? WHERE id = ?",
+                     (body, row["id"]))
+        counts["stripped"] = counts.get("stripped", 0) + 1
+
     for old, fields in data.get("rename_equipment", {}).items():
         name = fields.get("name", old)
         conn.execute(
@@ -554,6 +583,23 @@ _CELL_KEYS = ("name", "timing", "effect",
 _CELL_LABELS = {"timing": "Timing", "effect": "Effect",
                 "unengaged": "Unengaged", "engaged": "Engaged",
                 "seriously_injured": "Seriously Injured"}
+
+
+def _without_table(body: str, item: dict) -> str:
+    """Cut the flattened table out of a body and point at the real one."""
+    pointer = (f"[The {item['table']} is held as a table; ask for it by name "
+               f"rather than reading it from this paragraph.]")
+    start = body.find(item["from"]) if item.get("from") else 0
+    if start < 0:
+        return body
+    end = len(body)
+    if item.get("to"):
+        found = body.find(item["to"], start)
+        if found > start:
+            end = found
+    kept = (body[:start].rstrip() + "\n\n" + pointer
+            + ("\n\n" + body[end:].lstrip() if end < len(body) else ""))
+    return kept.strip()
 
 
 def _row_text(row: dict) -> str:
@@ -611,6 +657,25 @@ def _build_search_index(conn, book_id: int) -> None:
                 " section_id, ref_table, ref_id, page) VALUES (?,?,?,?,NULL,?,?,?)",
                 (row["name"], f"{row['name']} {row['extra']} {row['description']}",
                  kind, book_id, table, row["id"], row["page"]))
+
+    # And the tables, row by row. Without this the only searchable copy of a
+    # table was the flattened one left in the prose, which for the tables that
+    # had to be transcribed is precisely the broken version: a search for
+    # "Crossfire" answered out of the interleaved Gang Tactics paragraph while
+    # the correct row sat in rule_table_rows, unreachable by search.
+    for table in conn.execute(
+            "SELECT id, title, dice, page FROM rule_tables WHERE rulebook_id = ?",
+            (book_id,)):
+        for row in conn.execute(
+                "SELECT id, roll_label, result FROM rule_table_rows"
+                " WHERE table_id = ? ORDER BY ordinal", (table["id"],)):
+            label = f"{table['dice']} {row['roll_label']}".strip()
+            conn.execute(
+                "INSERT INTO rule_search (title, body, kind, rulebook_id,"
+                " section_id, ref_table, ref_id, page) VALUES (?,?,?,?,NULL,?,?,?)",
+                (f"{table['title']} {label}",
+                 f"{table['title']} {label} {row['result']}",
+                 "table", book_id, "rule_tables", table["id"], table["page"]))
 
     for row in conn.execute(
             "SELECT id, name, category, traits, sr_text, lr_text, str_text, ap_text,"
