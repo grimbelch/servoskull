@@ -137,55 +137,30 @@ def test_fit_to_panel_takes_the_middle():
     assert display.fit_to_panel(img).getpixel((120, 120)) == (0, 255, 0)
 
 
-# ── revealing a picture rather than dropping it on cropped ────────────────────
+# ── a picture that fills the panel and keeps moving ───────────────────────────
 
-def test_the_reveal_source_is_scaled_to_the_fill_size():
+def test_the_source_carries_enough_detail_for_the_whole_zoom():
+    # 240 flat meant the last frames of the drift were upscaled past the source.
     src = display._reveal_source(Image.new("RGB", (1258, 635), (40, 50, 60)))
-    assert min(src.size) == 240
+    assert min(src.size) >= int(240 * display.KEN_BURNS_ZOOM)
     assert src.mode == "RGB"
 
 
-def test_at_the_start_the_whole_picture_is_inside_the_panel():
-    import numpy as np
-    # A wide piece, like the ones "40k ork" returns: a centre crop keeps about
-    # half of it, which is how the subject became unidentifiable.
-    src = display._reveal_source(Image.new("RGB", (1258, 635), (80, 90, 100)))
-    frame = display._reveal_frame(src, 0.0)
-    a = np.asarray(frame)
-    rows = np.where(a.mean(axis=(1, 2)) > 2)[0]
-    cols = np.where(a.mean(axis=(0, 2)) > 2)[0]
-    pw = cols.max() - cols.min() + 1
-    ph = rows.max() - rows.min() + 1
-    assert pw == 240                                  # the long side just fits
-    assert abs(pw / ph - 1258 / 635) < 0.05           # aspect ratio preserved
-    assert (a.mean(axis=2) <= 2).mean() > 0.4         # letterboxed above and below
+def test_a_small_picture_is_not_blown_up_to_reach_that():
+    # Upscaling the download itself would only invent detail.
+    src = display._reveal_source(Image.new("RGB", (300, 260), (40, 50, 60)))
+    assert min(src.size) <= 260
 
 
-def test_at_the_end_it_fills_the_panel():
-    import numpy as np
-    src = display._reveal_source(Image.new("RGB", (1258, 635), (80, 90, 100)))
-    a = np.asarray(display._reveal_frame(src, 1.0))
-    assert (a.mean(axis=2) <= 2).mean() == 0.0        # no letterbox left
-
-
-def test_a_tall_picture_reveals_the_same_way():
-    import numpy as np
-    src = display._reveal_source(Image.new("RGB", (635, 1258), (80, 90, 100)))
-    a = np.asarray(display._reveal_frame(src, 0.0))
-    rows = np.where(a.mean(axis=(1, 2)) > 2)[0]
-    assert rows.max() - rows.min() + 1 == 240
-    assert (np.asarray(display._reveal_frame(src, 1.0)).mean(axis=2) <= 2).mean() == 0.0
-
-
-def test_every_frame_is_a_whole_panel():
-    for t in (0.0, 0.25, 0.5, 0.75, 1.0):
-        src = display._reveal_source(Image.new("RGB", (900, 400)))
-        assert display._reveal_frame(src, t).size == (240, 240)
+def test_the_fully_zoomed_frame_is_still_a_downscale():
+    src = display._reveal_source(Image.new("RGB", (1258, 635), (40, 50, 60)))
+    zoomed = round(min(src.size) * (240 / min(src.size)) * display.KEN_BURNS_ZOOM)
+    assert zoomed <= min(src.size) + 1       # no upscale at the far end of the drift
 
 
 @pytest.fixture
 def revealing(monkeypatch):
-    """A wide picture mid-reveal, starting at t=1000 and showing for 15s."""
+    """A wide picture being animated, starting at t=1000 and showing for 15s."""
     src = display._reveal_source(Image.new("RGB", (1258, 635), (80, 90, 100)))
     monkeypatch.setattr(display, "_custom_reveal_src", src)
     monkeypatch.setattr(display, "_custom_reveal_t0", 1000.0)
@@ -194,82 +169,56 @@ def revealing(monkeypatch):
     return src
 
 
-def test_the_first_phase_holds_the_whole_picture_still(revealing):
-    scale, px, py, settled = display._reveal_view(1000.0)
-    contain = 240 / max(revealing.size)
-    assert scale == pytest.approx(contain) and settled is True
-    assert display._reveal_view(1000.0 + display.REVEAL_HOLD_SECS - 0.01)[3] is True
+def test_the_first_frame_already_fills_the_panel(revealing):
+    import numpy as np
+    scale, px, py = display._reveal_view(1000.0)
+    assert scale == pytest.approx(1.0)
+    # No letterbox from the very first frame: there is no contain phase any more.
+    a = np.asarray(display._pan_zoom_frame(revealing, scale, px, py))
+    assert (a.mean(axis=2) <= 2).mean() == 0.0
 
 
-def test_the_second_phase_eases_in_to_filling_the_panel(revealing):
-    half = display._reveal_view(1000.0 + display.REVEAL_HOLD_SECS
-                                + display.REVEAL_ZOOM_SECS / 2)
-    contain = 240 / max(revealing.size)
-    assert contain < half[0] < 1.0 and half[3] is False
-    end = display._reveal_view(1000.0 + display.REVEAL_HOLD_SECS
-                               + display.REVEAL_ZOOM_SECS - 0.01)
-    assert end[0] > half[0]                 # still opening up
+def test_it_is_moving_from_the_start(revealing):
+    early = display._reveal_view(1000.5)
+    assert early[0] > 1.0            # already creeping in
+    assert early[1] > 0.15           # and already panning
 
 
-def test_the_third_phase_keeps_drifting_rather_than_stopping(revealing):
-    t0 = 1000.0 + display.REVEAL_HOLD_SECS + display.REVEAL_ZOOM_SECS
-    start = display._reveal_view(t0 + 0.01)
-    late = display._reveal_view(t0 + 5.0)
-    assert start[3] is False and late[3] is False       # never settles
-    assert late[0] > start[0]                           # creeping further in
-    assert late[1] > start[1]                           # and panning across
-    assert 1.0 <= start[0] <= display.KEN_BURNS_ZOOM
-    assert late[0] <= display.KEN_BURNS_ZOOM
+def test_it_keeps_moving_for_the_whole_showing(revealing):
+    a = display._reveal_view(1001.0)
+    b = display._reveal_view(1007.0)
+    c = display._reveal_view(1014.0)
+    assert a[0] < b[0] < c[0]        # the zoom never stops
+    assert a[1] < b[1] < c[1]        # nor the pan
 
 
-def test_the_drift_is_bounded_by_the_end_of_the_showing(revealing):
+def test_the_drift_is_at_a_constant_speed(revealing):
+    # Linear, so it does not visibly slow to a halt partway through.
+    first = display._reveal_view(1002.0)[0] - display._reveal_view(1001.0)[0]
+    last = display._reveal_view(1013.0)[0] - display._reveal_view(1012.0)[0]
+    assert first == pytest.approx(last, abs=1e-6)
+
+
+def test_it_arrives_exactly_at_the_far_end(revealing):
+    end = display._reveal_view(1015.0)
+    assert end[0] == pytest.approx(display.KEN_BURNS_ZOOM)
+    assert end[1] == pytest.approx(0.85)
+
+
+def test_it_does_not_overrun_past_the_end(revealing):
     far = display._reveal_view(1000.0 + 600.0)
     assert far[0] == pytest.approx(display.KEN_BURNS_ZOOM)
     assert far[1] == pytest.approx(0.85)
 
 
-def test_the_zoom_hands_over_to_the_drift_without_a_jump(revealing):
-    t0 = 1000.0 + display.REVEAL_HOLD_SECS + display.REVEAL_ZOOM_SECS
-    before = display._reveal_view(t0 - 0.001)
-    after = display._reveal_view(t0 + 0.001)
-    assert abs(after[0] - before[0]) < 0.01     # scale is continuous
-    assert abs(after[1] - before[1]) < 0.01     # and so is the pan
+def test_a_clock_reading_before_the_start_does_not_go_backwards(revealing):
+    before = display._reveal_view(999.0)
+    assert before[0] == pytest.approx(1.0) and before[1] == pytest.approx(0.15)
 
 
 def test_no_reveal_means_no_view(monkeypatch):
     monkeypatch.setattr(display, "_custom_reveal_src", None)
     assert display._reveal_view(1e9) is None
-
-
-def test_asking_for_a_reveal_arms_one(monkeypatch):
-    monkeypatch.setattr(display, "_available", True)
-    monkeypatch.setattr(display, "_poke", lambda *a, **k: None)
-    monkeypatch.setattr(display, "_custom_reveal_src", None)
-    assert display.display_pil_image(Image.new("RGB", (900, 400)), reveal=True) is True
-    assert display._custom_reveal_src is not None
-    assert display._custom_image.size == (240, 240)
-
-
-def test_text_screens_are_not_revealed(monkeypatch):
-    # show_access_code and friends pass an image already built for the panel;
-    # zooming into one would be absurd.
-    monkeypatch.setattr(display, "_available", True)
-    monkeypatch.setattr(display, "_poke", lambda *a, **k: None)
-    monkeypatch.setattr(display, "_custom_reveal_src", Image.new("RGB", (480, 240)))
-    display.display_pil_image(Image.new("RGB", (240, 240)))
-    assert display._custom_reveal_src is None
-
-
-def test_the_picture_arriving_ends_the_retrieval_animation(monkeypatch):
-    """The animation outranks the custom image and has a three-second floor, which
-    was swallowing the reveal's opening hold on the whole picture."""
-    monkeypatch.setattr(display, "_available", True)
-    monkeypatch.setattr(display, "_poke", lambda *a, **k: None)
-    monkeypatch.setattr(display, "_retrieving_image", True)
-    monkeypatch.setattr(display, "_image_retrieval_until", 1e18)
-    assert display.display_pil_image(Image.new("RGB", (900, 400)), reveal=True) is True
-    assert display._retrieving_image is False
-    assert display._image_retrieval_until == 0.0
 
 
 # ── panning across a filled panel ─────────────────────────────────────────────

@@ -1772,16 +1772,9 @@ def _render_loop():
                         _blit_static(("custom", _custom_image_seq), lambda: _custom_image)
                         pace(config.DISPLAY_STATIC_FPS)
                     else:
-                        scale, px, py, settled = view
-                        src = _custom_reveal_src
-                        if settled:
-                            # Not moving: send it once rather than 30 times a second.
-                            _blit_static(("custom-hold", _custom_image_seq),
-                                         lambda: _pan_zoom_frame(src, scale, px, py))
-                            pace(config.DISPLAY_STATIC_FPS)
-                        else:
-                            _blit(_pan_zoom_frame(src, scale, px, py))
-                            pace(config.DISPLAY_FPS)
+                        scale, px, py = view
+                        _blit(_pan_zoom_frame(_custom_reveal_src, scale, px, py))
+                        pace(config.DISPLAY_FPS)
                 except Exception as e:
                     _render_error("custom image render", e)
                     pace(config.DISPLAY_STATIC_FPS)
@@ -1985,12 +1978,11 @@ def fit_to_panel(pil_img):
 # is shown first, scaled to fit inside the circle, and then it zooms in until it
 # fills the screen. A centre crop alone can cut most of a wide piece away, which is
 # how "40k ork" came out as something unidentifiable.
-REVEAL_HOLD_SECS = 2.0      # the whole picture, held still
-REVEAL_ZOOM_SECS = 2.5      # easing from fitting inside to filling
-# Then it keeps moving, slowly, for as long as the picture is up: a still image on
-# a small round panel reads as a dead screen, and a creeping pan and zoom gives the
-# eye something to follow. 1.18 over ten seconds is about 2% a second.
-KEN_BURNS_ZOOM = 1.18       # how much further in it creeps while the picture holds
+# A still image on a small round panel reads as a dead screen, so a picture fills
+# the panel from its first frame and then keeps moving for as long as it is up:
+# a creeping pan and zoom that gives the eye something to follow. 1.18 over the
+# showing is about 1% a second.
+KEN_BURNS_ZOOM = 1.18       # how much further in it creeps over the whole showing
 KEN_BURNS_PAN = 0.70        # fraction of the available slack it drifts across
 _custom_reveal_src = None   # the source at fill scale; None when not revealing
 _custom_reveal_t0 = 0.0
@@ -1998,43 +1990,45 @@ _custom_reveal_pan = (0.5, 0.5, 0.5, 0.5)
 
 
 def _reveal_source(pil_img):
-    """`pil_img` at the largest size the reveal needs: shorter side exactly 240.
+    """`pil_img` at the largest size the drift needs, and no larger.
 
-    Scaling once, here, means every frame of the zoom is a resize DOWN from a small
-    image rather than from the original download — a 3000 px piece resized per frame
-    would not fit the render budget.
+    Scaling once, here, means every frame is a resize DOWN from a small image rather
+    than from the original download — a 3000 px piece resized per frame would not fit
+    the render budget. The shorter side is 240 times the full zoom rather than 240
+    flat, so the end of the drift is still a downscale: at 240 the last frames were
+    being blown up 18% past the resolution they had.
     """
     from PIL import Image
     img = to_rgb(pil_img)
     w, h = img.size
-    k = 240 / min(w, h)
+    want = int(240 * KEN_BURNS_ZOOM) + 1
+    k = want / min(w, h)
+    # Never upscale the download itself to reach it; a small picture stays small.
+    k = min(k, max(1.0, 240 / min(w, h)))
     return img.resize((max(240, round(w * k)), max(240, round(h * k))), Image.BICUBIC)
 
 
 def _pan_zoom_frame(src, scale: float, px: float = 0.5, py: float = 0.5):
     """A 240x240 view of `src` at `scale`, centred at (px, py) of the slack.
 
-    scale 1.0 fills the panel exactly, since `src` has a 240 px shorter side; below
+    scale 1.0 fills the panel exactly, whatever resolution `src` is held at; below
     that the picture is letterboxed and centred, above it there is room to pan and
     px/py choose where in that room the window sits — 0.0 hard left or top, 1.0
     hard right or bottom.
     """
     from PIL import Image
     sw, sh = src.size
-    w, h = max(1, round(sw * scale)), max(1, round(sh * scale))
+    # `scale` is relative to filling the panel, whatever resolution src happens to
+    # be held at, so the source can carry the extra detail the zoom will want.
+    fill = 240 / min(sw, sh)
+    w = max(1, round(sw * fill * scale))
+    h = max(1, round(sh * fill * scale))
     frame = Image.new("RGB", (240, 240), (0, 0, 0))
     x = (240 - w) // 2 if w <= 240 else -round((w - 240) * min(max(px, 0.0), 1.0))
     y = (240 - h) // 2 if h <= 240 else -round((h - 240) * min(max(py, 0.0), 1.0))
     # paste clips on its own, so an oversized frame simply crops to the window.
     frame.paste(src.resize((w, h), Image.BICUBIC), (x, y))
     return frame
-
-
-def _reveal_frame(src, t: float):
-    """One frame of the opening zoom: t=0 the whole picture, t=1 filling the panel."""
-    sw, sh = src.size
-    contain = 240 / max(sw, sh)
-    return _pan_zoom_frame(src, contain + (1.0 - contain) * t)
 
 
 def _ken_burns_path(size) -> tuple:
@@ -2058,37 +2052,25 @@ def _ken_burns_path(size) -> tuple:
 
 
 def _reveal_view(now: float):
-    """(scale, px, py, settled) for this moment, or None if nothing is revealing.
+    """(scale, px, py) for this moment, or None if no picture is being animated.
 
-    Three phases: the whole picture held still, an eased zoom until it fills the
-    panel, then a slow drift across it — the Ken Burns part — for as long as the
-    picture is up. `settled` marks a phase where the view is not moving, so the
-    frame can be sent once instead of thirty times a second.
+    One phase: the picture fills the panel from the first frame and drifts across
+    itself for the whole showing. There was an opening that held the whole picture
+    letterboxed and then zoomed in to fill, which reads as a slideshow transition
+    rather than a camera move; starting filled and moving at once is what was asked
+    for and is the simpler thing to reason about.
+
+    Linear, deliberately: a constant creep is what reads as Ken Burns, where an
+    eased one visibly slows to a halt partway through the showing.
     """
     if _custom_reveal_src is None:
         return None
-    sw, sh = _custom_reveal_src.size
-    contain = 240 / max(sw, sh)
-    elapsed = now - _custom_reveal_t0
-    if elapsed < REVEAL_HOLD_SECS:
-        return (contain, 0.5, 0.5, True)
-
-    z = (elapsed - REVEAL_HOLD_SECS) / REVEAL_ZOOM_SECS
+    span = max(0.1, _custom_image_expiry - _custom_reveal_t0)
+    u = min(1.0, max(0.0, (now - _custom_reveal_t0) / span))
     px0, py0, px1, py1 = _custom_reveal_pan
-    if z < 1.0:
-        eased = z * z * (3.0 - 2.0 * z)          # smoothstep, easing in and out
-        # Start drifting from where the pan begins, so phase three does not jump.
-        return (contain + (1.0 - contain) * eased, px0, py0, False)
-
-    drift_secs = max(0.1, _custom_image_expiry - _custom_reveal_t0
-                     - REVEAL_HOLD_SECS - REVEAL_ZOOM_SECS)
-    u = min(1.0, (elapsed - REVEAL_HOLD_SECS - REVEAL_ZOOM_SECS) / drift_secs)
-    # Linear from here: a constant creep is what reads as Ken Burns, where an eased
-    # one would visibly slow to a stop halfway through the picture's showing.
     return (1.0 + (KEN_BURNS_ZOOM - 1.0) * u,
             px0 + (px1 - px0) * u,
-            py0 + (py1 - py0) * u,
-            False)
+            py0 + (py1 - py0) * u)
 
 
 def display_pil_image(pil_img, duration: float = 10.0, reveal: bool = False) -> bool:
