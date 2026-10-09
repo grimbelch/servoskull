@@ -55,20 +55,31 @@ def weapon_profile(name: str) -> str:
         wanted = (name or "").strip().lower()
         if not wanted:
             return "Name a weapon to look up."
+        # Across every book this unit holds: a gang's own weapons are in its
+        # supplement, and scoping this to the core rulebook made the whole
+        # gang book invisible to it -- an Executioner's axe came back as
+        # "the core rulebook does not contain a weapon called that".
         rows = conn.execute(
-            "SELECT * FROM rule_weapons WHERE rulebook_id = ? AND LOWER(name) = ?"
-            " ORDER BY needs_review, (creds IS NULL), (category = ?), id",
-            (book["id"], wanted, _EXAMPLE_CATEGORY)).fetchall()
+            "SELECT w.*, b.title AS book, b.page_offset FROM rule_weapons w"
+            " JOIN rulebooks b ON b.id = w.rulebook_id WHERE LOWER(w.name) = ?"
+            " ORDER BY (w.rulebook_id != ?), w.needs_review, (w.creds IS NULL),"
+            " (w.category = ?), w.id",
+            (wanted, book["id"], _EXAMPLE_CATEGORY)).fetchall()
         if not rows:
             rows = conn.execute(
-                "SELECT * FROM rule_weapons WHERE rulebook_id = ? AND LOWER(name) LIKE ?"
-                " ORDER BY needs_review, (creds IS NULL), (category = ?),"
-                " LENGTH(name), id",
-                (book["id"], f"%{wanted}%", _EXAMPLE_CATEGORY)).fetchall()
+                "SELECT w.*, b.title AS book, b.page_offset FROM rule_weapons w"
+                " JOIN rulebooks b ON b.id = w.rulebook_id"
+                " WHERE LOWER(w.name) LIKE ?"
+                " ORDER BY (w.rulebook_id != ?), w.needs_review,"
+                " (w.creds IS NULL), (w.category = ?), LENGTH(w.name), w.id",
+                (f"%{wanted}%", book["id"], _EXAMPLE_CATEGORY)).fetchall()
         if not rows:
             return not_in_book(f"a weapon called '{name}'", book)
 
         best = rows[0]
+        if "book" in best.keys() and best["book"] != book["title"]:
+            book = {"title": best["book"], "page_offset": best["page_offset"],
+                    "id": book["id"]}
         out = [_format_weapon(best, book)]
         # Special-ammunition lines are printed directly beneath their weapon, so
         # they are the rows that immediately follow it -- and they stop at the
@@ -137,16 +148,17 @@ def weapon_lethality(name: str) -> int | None:
     try:
         book = current_rulebook(conn)
         row = conn.execute(
-            "SELECT lethality FROM rule_weapons WHERE rulebook_id = ? AND"
-            " LOWER(name) = ? AND lethality IS NOT NULL"
-            " ORDER BY needs_review, id LIMIT 1",
-            (book["id"], (name or "").strip().lower())).fetchone()
+            "SELECT lethality FROM rule_weapons WHERE LOWER(name) = ?"
+            " AND lethality IS NOT NULL"
+            " ORDER BY (rulebook_id != ?), needs_review, id LIMIT 1",
+            ((name or "").strip().lower(), book["id"])).fetchone()
         if row is None:
             row = conn.execute(
-                "SELECT lethality FROM rule_weapons WHERE rulebook_id = ? AND"
-                " LOWER(name) LIKE ? AND lethality IS NOT NULL"
-                " ORDER BY needs_review, LENGTH(name), id LIMIT 1",
-                (book["id"], f"%{(name or '').strip().lower()}%")).fetchone()
+                "SELECT lethality FROM rule_weapons WHERE LOWER(name) LIKE ?"
+                " AND lethality IS NOT NULL"
+                " ORDER BY (rulebook_id != ?), needs_review, LENGTH(name), id"
+                " LIMIT 1",
+                (f"%{(name or '').strip().lower()}%", book["id"])).fetchone()
         return row["lethality"] if row else None
     finally:
         conn.close()
@@ -211,14 +223,21 @@ def named_rule(name: str) -> str:
         out = []
         for table, label, extra in _NAMED_TABLES:
             rows = conn.execute(
-                f"SELECT name, description, page, {extra} AS extra FROM {table}"
-                f" WHERE rulebook_id = ? AND (LOWER(name) = ? OR LOWER(name) LIKE ?"
-                f" OR LOWER(name) LIKE ?)"
-                f" ORDER BY LENGTH(name) LIMIT 3",
-                (book["id"], wanted, f"{bare}%", f"%{wanted}%")).fetchall()
+                f"SELECT t.name, t.description, t.page, t.{extra} AS extra,"
+                f" b.title AS book, b.page_offset FROM {table} t"
+                f" JOIN rulebooks b ON b.id = t.rulebook_id"
+                f" WHERE (LOWER(t.name) = ? OR LOWER(t.name) LIKE ?"
+                f" OR LOWER(t.name) LIKE ?)"
+                f" ORDER BY (t.rulebook_id != ?), LENGTH(t.name) LIMIT 3",
+                (wanted, f"{bare}%", f"%{wanted}%", book["id"])).fetchall()
             for row in rows:
                 detail = ""
-                if table == "rule_skills":
+                # A gang's own wargear carries no credits here -- its price is
+                # on that gang's Equipment List -- so do not print an empty
+                # bracket for it.
+                if not str(row["extra"] or "").strip():
+                    detail = ""
+                elif table == "rule_skills":
                     detail = f", {row['extra']} skill"
                 elif table == "rule_conditions":
                     detail = f", {row['extra']}"
@@ -226,9 +245,10 @@ def named_rule(name: str) -> str:
                     detail = f", {row['extra']}"
                 elif table == "rule_actions":
                     detail = f", {row['extra']} action"
+                source = {"title": row["book"], "page_offset": row["page_offset"]}
                 out.append(
-                    f"{row['name']} ({label}{detail} — {book['title']}, "
-                    f"p{printed_page(row['page'], book)})\n{row['description']}")
+                    f"{row['name']} ({label}{detail} — {source['title']}, "
+                    f"p{printed_page(row['page'], source)})\n{row['description']}")
         if not out:
             return not_in_book(f"a trait, skill or condition called '{name}'",
                                book)
@@ -291,10 +311,12 @@ def weapon_traits(traits: str) -> str:
 def _find_table(conn, book_id: int, name: str):
     wanted = (name or "").strip().lower()
     return conn.execute(
-        "SELECT id, title, dice, notes, page FROM rule_tables WHERE rulebook_id = ?"
-        " AND (LOWER(title) = ? OR LOWER(title) LIKE ?)"
-        " ORDER BY LENGTH(title) LIMIT 1",
-        (book_id, wanted, f"%{wanted}%")).fetchone()
+        "SELECT t.id, t.title, t.dice, t.notes, t.page, b.title AS book,"
+        " b.page_offset FROM rule_tables t"
+        " JOIN rulebooks b ON b.id = t.rulebook_id"
+        " WHERE (LOWER(t.title) = ? OR LOWER(t.title) LIKE ?)"
+        " ORDER BY (t.rulebook_id != ?), LENGTH(t.title) LIMIT 1",
+        (wanted, f"%{wanted}%", book_id)).fetchone()
 
 
 def table_result(name: str, roll: int | None = None) -> str:
@@ -317,6 +339,9 @@ def table_result(name: str, roll: int | None = None) -> str:
             return (not_in_book(f"a table called '{name}'", book)
                     + f" The book has: {listed}.")
 
+        if "book" in table.keys():
+            book = {"title": table["book"], "page_offset": table["page_offset"],
+                    "id": book["id"]}
         cite = f"{book['title']}, p{printed_page(table['page'], book)}"
         # Not every table is rolled on. The Panicked Pets table is looked up by
         # a Pet's Status, so naming dice it does not use would be wrong.
