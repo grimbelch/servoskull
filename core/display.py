@@ -1473,6 +1473,7 @@ def _loop():
 
 def _render_loop():
     global _rolling_die, _die_step, _showing_omnissiah_glyph, _showing_custom_image, _custom_image, _custom_image_expiry
+    global _custom_reveal_src
     global _showing_alignment, _alignment_until, _showing_game
     global _last_activity_time, _active_idle_anim, _custom_idle_expiry, _requested_idle_anim
     bezel = _make_bezel()
@@ -1763,12 +1764,24 @@ def _render_loop():
             if now >= _custom_image_expiry:
                 _showing_custom_image = False
                 _custom_image = None
+                _custom_reveal_src = None
             else:
                 try:
-                    _blit_static(("custom", _custom_image_seq), lambda: _custom_image)
+                    t = _reveal_progress(now)
+                    if t is None:
+                        _blit_static(("custom", _custom_image_seq), lambda: _custom_image)
+                        pace(config.DISPLAY_STATIC_FPS)
+                    elif t == 0.0:
+                        # Held still: send it once rather than 30 times a second.
+                        _blit_static(("custom-fit", _custom_image_seq),
+                                     lambda: _reveal_frame(_custom_reveal_src, 0.0))
+                        pace(config.DISPLAY_STATIC_FPS)
+                    else:
+                        _blit(_reveal_frame(_custom_reveal_src, t))
+                        pace(config.DISPLAY_FPS)
                 except Exception as e:
                     _render_error("custom image render", e)
-                pace(config.DISPLAY_STATIC_FPS)
+                    pace(config.DISPLAY_STATIC_FPS)
                 continue
 
         if _speaking:
@@ -1965,7 +1978,57 @@ def fit_to_panel(pil_img):
     return cropped.resize((240, 240), resample=Image.BICUBIC)
 
 
-def display_pil_image(pil_img, duration: float = 10.0) -> bool:
+# A picture is revealed rather than dropped on the panel cropped: the whole of it
+# is shown first, scaled to fit inside the circle, and then it zooms in until it
+# fills the screen. A centre crop alone can cut most of a wide piece away, which is
+# how "40k ork" came out as something unidentifiable.
+REVEAL_HOLD_SECS = 2.0      # the whole picture, held still
+REVEAL_ZOOM_SECS = 2.5      # easing from fitting inside to filling
+_custom_reveal_src = None   # the source at fill scale; None when not revealing
+_custom_reveal_t0 = 0.0
+
+
+def _reveal_source(pil_img):
+    """`pil_img` at the largest size the reveal needs: shorter side exactly 240.
+
+    Scaling once, here, means every frame of the zoom is a resize DOWN from a small
+    image rather than from the original download — a 3000 px piece resized per frame
+    would not fit the render budget.
+    """
+    from PIL import Image
+    img = to_rgb(pil_img)
+    w, h = img.size
+    k = 240 / min(w, h)
+    return img.resize((max(240, round(w * k)), max(240, round(h * k))), Image.BICUBIC)
+
+
+def _reveal_frame(src, t: float):
+    """One frame: t=0 is the whole picture inside the circle, t=1 fills the panel."""
+    from PIL import Image
+    sw, sh = src.size
+    contain = 240 / max(sw, sh)
+    f = contain + (1.0 - contain) * t
+    w, h = max(1, round(sw * f)), max(1, round(sh * f))
+    frame = Image.new("RGB", (240, 240), (0, 0, 0))
+    # paste clips on its own, so an oversized frame simply crops to the centre.
+    frame.paste(src.resize((w, h), Image.BICUBIC), ((240 - w) // 2, (240 - h) // 2))
+    return frame
+
+
+def _reveal_progress(now: float):
+    """Eased progress through the reveal, or None once it has settled."""
+    if _custom_reveal_src is None:
+        return None
+    elapsed = now - _custom_reveal_t0
+    if elapsed < REVEAL_HOLD_SECS:
+        return 0.0
+    z = (elapsed - REVEAL_HOLD_SECS) / REVEAL_ZOOM_SECS
+    if z >= 1.0:
+        return None
+    return z * z * (3.0 - 2.0 * z)      # smoothstep, so it eases in and out
+
+
+def display_pil_image(pil_img, duration: float = 10.0, reveal: bool = False) -> bool:
     """Show an image on the eye for `duration`. True if the panel took it.
 
     The return value matters: display_art used to announce "successfully projected"
@@ -1973,6 +2036,7 @@ def display_pil_image(pil_img, duration: float = 10.0) -> bool:
     there is no panel and swallows anything that goes wrong.
     """
     global _showing_custom_image, _custom_image, _custom_image_expiry, _custom_image_seq
+    global _custom_reveal_src, _custom_reveal_t0
     if not _available:
         print("[display] No panel available — image not shown.")
         return False
@@ -1983,6 +2047,15 @@ def display_pil_image(pil_img, duration: float = 10.0) -> bool:
             pil_img = ImageOps.exif_transpose(pil_img) or pil_img
         except Exception:
             pass
+        if reveal:
+            _custom_reveal_src = _reveal_source(pil_img)
+            _custom_reveal_t0 = time.monotonic()
+        else:
+            _custom_reveal_src = None
+        # The settled frame is cropped from the original rather than from the
+        # pre-scaled reveal source: the zoom's last frame and this are the same
+        # view, but this one has not been through an extra resize, so the picture
+        # it holds for the remaining ten seconds is the sharper of the two.
         _custom_image = fit_to_panel(pil_img)
         _custom_image_seq += 1
         _custom_image_expiry = time.monotonic() + duration

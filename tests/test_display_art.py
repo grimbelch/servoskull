@@ -120,8 +120,9 @@ def panel(monkeypatch):
     state = {"shown": []}
 
     def accepts(ok: bool):
-        def show(img, duration=10.0):
+        def show(img, duration=10.0, **kw):
             state["shown"].append(img)
+            state["kwargs"] = kw
             return ok
         monkeypatch.setattr(display, "display_pil_image", show)
     state["accepts"] = accepts
@@ -270,3 +271,14 @@ def test_all_candidates_blank_says_so_rather_than_showing_one(http, panel, monke
     out = brain._execute_display_art("anything")
     assert "nearly blank" in out
     assert panel["shown"] == []
+
+
+def test_artwork_is_shown_as_a_reveal(http, panel, monkeypatch):
+    # The whole picture first, then a zoom in: a centre crop alone keeps only
+    # about half of the wide pieces this search returns.
+    http['serve'](_FakeResponse(chunks=[FEED]))
+    monkeypatch.setattr(brain, '_art_fetch_image',
+                        lambda url: (Image.new('RGB', (1258, 635), (80, 90, 100)), None))
+    panel['accepts'](True)
+    assert 'Successfully projected' in brain._execute_display_art('anything')
+    assert panel['kwargs'].get('reveal') is True

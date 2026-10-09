@@ -135,3 +135,85 @@ def test_fit_to_panel_takes_the_middle():
     img = Image.new("RGB", (900, 300), (255, 0, 0))
     img.paste(Image.new("RGB", (300, 300), (0, 255, 0)), (300, 0))
     assert display.fit_to_panel(img).getpixel((120, 120)) == (0, 255, 0)
+
+
+# ── revealing a picture rather than dropping it on cropped ────────────────────
+
+def test_the_reveal_source_is_scaled_to_the_fill_size():
+    src = display._reveal_source(Image.new("RGB", (1258, 635), (40, 50, 60)))
+    assert min(src.size) == 240
+    assert src.mode == "RGB"
+
+
+def test_at_the_start_the_whole_picture_is_inside_the_panel():
+    import numpy as np
+    # A wide piece, like the ones "40k ork" returns: a centre crop keeps about
+    # half of it, which is how the subject became unidentifiable.
+    src = display._reveal_source(Image.new("RGB", (1258, 635), (80, 90, 100)))
+    frame = display._reveal_frame(src, 0.0)
+    a = np.asarray(frame)
+    rows = np.where(a.mean(axis=(1, 2)) > 2)[0]
+    cols = np.where(a.mean(axis=(0, 2)) > 2)[0]
+    pw = cols.max() - cols.min() + 1
+    ph = rows.max() - rows.min() + 1
+    assert pw == 240                                  # the long side just fits
+    assert abs(pw / ph - 1258 / 635) < 0.05           # aspect ratio preserved
+    assert (a.mean(axis=2) <= 2).mean() > 0.4         # letterboxed above and below
+
+
+def test_at_the_end_it_fills_the_panel():
+    import numpy as np
+    src = display._reveal_source(Image.new("RGB", (1258, 635), (80, 90, 100)))
+    a = np.asarray(display._reveal_frame(src, 1.0))
+    assert (a.mean(axis=2) <= 2).mean() == 0.0        # no letterbox left
+
+
+def test_a_tall_picture_reveals_the_same_way():
+    import numpy as np
+    src = display._reveal_source(Image.new("RGB", (635, 1258), (80, 90, 100)))
+    a = np.asarray(display._reveal_frame(src, 0.0))
+    rows = np.where(a.mean(axis=(1, 2)) > 2)[0]
+    assert rows.max() - rows.min() + 1 == 240
+    assert (np.asarray(display._reveal_frame(src, 1.0)).mean(axis=2) <= 2).mean() == 0.0
+
+
+def test_every_frame_is_a_whole_panel():
+    for t in (0.0, 0.25, 0.5, 0.75, 1.0):
+        src = display._reveal_source(Image.new("RGB", (900, 400)))
+        assert display._reveal_frame(src, t).size == (240, 240)
+
+
+def test_the_progress_holds_then_eases_then_settles(monkeypatch):
+    monkeypatch.setattr(display, "_custom_reveal_src", Image.new("RGB", (480, 240)))
+    monkeypatch.setattr(display, "_custom_reveal_t0", 1000.0)
+    assert display._reveal_progress(1000.0) == 0.0            # held on the whole picture
+    assert display._reveal_progress(1000.0 + display.REVEAL_HOLD_SECS - 0.01) == 0.0
+    mid = display._reveal_progress(1000.0 + display.REVEAL_HOLD_SECS
+                                   + display.REVEAL_ZOOM_SECS / 2)
+    assert 0.4 < mid < 0.6                                     # eased, halfway
+    assert display._reveal_progress(1000.0 + display.REVEAL_HOLD_SECS
+                                    + display.REVEAL_ZOOM_SECS + 0.01) is None
+
+
+def test_no_reveal_means_no_progress(monkeypatch):
+    monkeypatch.setattr(display, "_custom_reveal_src", None)
+    assert display._reveal_progress(1e9) is None
+
+
+def test_asking_for_a_reveal_arms_one(monkeypatch):
+    monkeypatch.setattr(display, "_available", True)
+    monkeypatch.setattr(display, "_poke", lambda *a, **k: None)
+    monkeypatch.setattr(display, "_custom_reveal_src", None)
+    assert display.display_pil_image(Image.new("RGB", (900, 400)), reveal=True) is True
+    assert display._custom_reveal_src is not None
+    assert display._custom_image.size == (240, 240)
+
+
+def test_text_screens_are_not_revealed(monkeypatch):
+    # show_access_code and friends pass an image already built for the panel;
+    # zooming into one would be absurd.
+    monkeypatch.setattr(display, "_available", True)
+    monkeypatch.setattr(display, "_poke", lambda *a, **k: None)
+    monkeypatch.setattr(display, "_custom_reveal_src", Image.new("RGB", (480, 240)))
+    display.display_pil_image(Image.new("RGB", (240, 240)))
+    assert display._custom_reveal_src is None

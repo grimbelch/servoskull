@@ -1854,18 +1854,27 @@ _ART_DARK = 25           # and below which it reads as blank black
 _ART_BLANK_FRACTION = 0.70
 
 
-def _art_looks_blank(img) -> bool:
-    """True if the region the panel would show is mostly one flat extreme.
-
-    Judged on display.fit_to_panel, not the whole image: the centre square is what
-    gets shown, and a wide piece can be busy at the edges and empty in the middle.
-    """
+def _flat_fraction(frame) -> float:
+    """How much of `frame` sits at one flat extreme, pale or dark."""
     import numpy as np
+    lum = np.asarray(frame).mean(axis=2)
+    return max(float((lum >= _ART_PALE).mean()), float((lum <= _ART_DARK).mean()))
+
+
+def _art_looks_blank(img) -> bool:
+    """True if what the viewer will see is mostly one flat extreme.
+
+    Both halves of the reveal are judged. The whole picture is measured from a
+    thumbnail rather than from the letterboxed frame, because those black bars are
+    not part of the picture and would read as a dark screen for anything wide. The
+    centre crop is measured too: the reveal settles there and holds it for most of
+    the fifteen seconds, so a picture that is empty in the middle is still a dead
+    panel for most of its showing.
+    """
     from core import display
-    lum = np.asarray(display.fit_to_panel(img)).mean(axis=2)
-    pale = float((lum >= _ART_PALE).mean())
-    dark = float((lum <= _ART_DARK).mean())
-    return max(pale, dark) >= _ART_BLANK_FRACTION
+    whole = display.to_rgb(img).resize((64, 64))
+    return max(_flat_fraction(whole),
+               _flat_fraction(display.fit_to_panel(img))) >= _ART_BLANK_FRACTION
 
 
 def _art_fetch_image(url: str):
@@ -1934,7 +1943,7 @@ def _execute_display_art(search_query: str) -> str:
                 print(f"[art] Skipping '{chosen['title']}': almost blank once cropped "
                       f"to the eye — it would look like a dead panel.")
                 continue
-            if not display.display_pil_image(img, duration=15.0):
+            if not display.display_pil_image(img, duration=15.0, reveal=True):
                 # It used to report success for a picture the panel never took.
                 return f"Found '{chosen['title']}' but the eye display could not show it."
             return f"Successfully projected artwork: '{chosen['title']}' on the eye display."
