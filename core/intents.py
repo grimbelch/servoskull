@@ -179,7 +179,8 @@ _VOLUME_SET = re.compile(r"(?:music|spotify) volume (?:to )?(\d+)")
 
 
 def spotify_volume(text: str, ctx: Context) -> Intent | None:
-    t = normalize(text)
+    # Same reason as dice: "set the music volume to fifty" carries no numeral.
+    t = normalize(digitize(text))
     if any(p in t for p in _VOLUME_UP):
         return Intent("spotify_volume", {"change": 15})
     if any(p in t for p in _VOLUME_DOWN):
@@ -201,6 +202,10 @@ _DICE_STD = re.compile(r"roll\s+(?:a\s+|an\s+)?(\d+)?\s*d\s*(\d+)(?:\s*(?:needin
 
 
 def dice(text: str, ctx: Context) -> Intent | None:
+    # "Roll three injury dice" reached the model, which described the dice-resolution
+    # apparatus engaging and rolled nothing: all three patterns below want digits,
+    # and speech-to-text writes a small count as a word about as often as a numeral.
+    text = digitize(text)
     m = _DICE_NECRO.search(text)
     if m:
         return Intent("dice", {"game": "necromunda", "count": int(m.group(1) or 1),

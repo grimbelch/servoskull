@@ -460,3 +460,36 @@ def test_showing_a_picture_does_not_collide_with_the_camera():
     for said in ("take a picture of me", "capture an image of the room",
                  "what can you see right now"):
         assert _m(intents.show_picture, said) is None, said
+
+
+def test_dice_counts_spoken_as_words():
+    # "Roll three injury dice" reached the model, which described its blessed
+    # dice-resolution apparatus engaging and rolled nothing.
+    assert _m(intents.dice, "Roll three injury dice.").args == {
+        "game": "necromunda", "count": 3, "dice_type": "injury"}
+    assert _m(intents.dice, "roll two firepower dice").args == {
+        "game": "necromunda", "count": 2, "dice_type": "firepower"}
+    assert _m(intents.dice, "roll six d6").args == {
+        "game": "standard", "count": 6, "sides": 6, "target": None}
+    assert _m(intents.dice, "roll two d6 needing four").args == {
+        "game": "standard", "count": 2, "sides": 6, "target": 4}
+
+
+def test_dice_still_read_numerals_and_bare_rolls():
+    assert _m(intents.dice, "Roll 3 injury dice.").args["count"] == 3
+    assert _m(intents.dice, "roll a d20").args == {
+        "game": "standard", "count": 1, "sides": 20, "target": None}
+    assert _m(intents.dice, "roll a scatter dice").args["dice_type"] == "scatter"
+    assert _m(intents.dice, "roll d66").args["dice_type"] == "d66"
+
+
+def test_a_roll_with_no_dice_in_it_is_not_a_dice_request():
+    for said in ("roll for initiative", "roll with it", "rock and roll"):
+        assert _m(intents.dice, said) is None, said
+
+
+def test_music_volume_spoken_as_a_word():
+    assert _m(intents.spotify_volume, "set the music volume to fifty").args == {"level": 50}
+    assert _m(intents.spotify_volume, "set spotify volume to twenty five").args == {"level": 25}
+    # The wordless forms still work.
+    assert _m(intents.spotify_volume, "turn up the music").args == {"change": 15}
