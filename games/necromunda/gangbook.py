@@ -27,6 +27,9 @@ GANGS_DIRNAME = "gangs"
 
 # "Fighter (Leader, Pious)" -> ("Fighter", "Leader, Pious")
 _TYPE = re.compile(r"^\s*(\w+)\s*\(([^)]*)\)\s*$")
+# A gang list may introduce a Subtype of its own, printed among that gang's
+# special rules as "NEW SUBTYPE: RATLING".
+_NEW_SUBTYPE = re.compile(r"^\s*new\s+subtype\s*:\s*(.+?)\s*$", re.I)
 _STAT_KEYS = ("M", "WS", "BS", "S", "T", "W", "I", "A", "Sv",
               "Ld", "Cl", "Wil", "Int")
 
@@ -60,7 +63,7 @@ def load(conn, path: pathlib.Path) -> dict:
     meta = data["book"]
     counts = {"gangs": 0, "fighters": 0, "skill_access": 0,
               "gang_equipment": 0, "gang_weapons": 0, "gang_wargear": 0,
-              "wyrd_powers": 0}
+              "wyrd_powers": 0, "subtypes": 0}
 
     # The core ingest clears its own book by slug, so a gang book loaded on a
     # previous run is still there. Replace it rather than collide with it.
@@ -86,6 +89,26 @@ def load(conn, path: pathlib.Path) -> dict:
              json.dumps(gang.get("special_rules", [])),
              gang.get("page", 0) + offset)).lastrowid
         counts["gangs"] += 1
+
+        # A Subtype the gang list introduces is printed among the gang's
+        # special rules, but it is a Subtype rule and the Subtype lookup is
+        # where it gets asked for. Record it in both places: left only in the
+        # gang's rules, "what does Sneaking do" has nowhere to land.
+        for rule in gang.get("special_rules", []):
+            found = _NEW_SUBTYPE.match(rule.get("name", ""))
+            if not found:
+                continue
+            sub = found.group(1).strip()
+            sub_slug = _slug(sub)
+            if conn.execute("SELECT 1 FROM rule_subtypes WHERE rulebook_id = ?"
+                            " AND slug = ?", (book_id, sub_slug)).fetchone():
+                continue
+            conn.execute(
+                "INSERT INTO rule_subtypes (rulebook_id, slug, name,"
+                " applies_to, description, page) VALUES (?,?,?,?,?,?)",
+                (book_id, sub_slug, sub, "fighter", rule.get("text", ""),
+                 (rule.get("page") or gang.get("page", 0)) + offset))
+            counts["subtypes"] += 1
 
         for fighter in gang.get("fighters", []):
             stats = fighter["stats"]

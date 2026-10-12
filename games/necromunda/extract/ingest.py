@@ -713,6 +713,21 @@ def _build_search_index(conn, book_id: int) -> None:
              "gang_equipment", book_id, "rule_gang_equipment", row["id"],
              row["page"]))
 
+    # A gang's own special rules, the New Subtype blocks among them. These were
+    # written into rule_gangs and read back by nothing -- 112 rules across the
+    # gang books that neither search nor any tool could reach. A player names
+    # the rule ("Sneaking") and never the gang, so each one is indexed alone.
+    for row in conn.execute(
+            "SELECT id, name, special_rules_json, page FROM rule_gangs"
+            " WHERE rulebook_id = ?", (book_id,)):
+        for rule in json.loads(row["special_rules_json"] or "[]"):
+            conn.execute(
+                "INSERT INTO rule_search (title, body, kind, rulebook_id,"
+                " section_id, ref_table, ref_id, page) VALUES (?,?,?,?,NULL,?,?,?)",
+                (f"{rule['name']} ({row['name']})",
+                 f"{rule['name']} {row['name']} {rule.get('text', '')}",
+                 "gang_rule", book_id, "rule_gangs", row["id"], row["page"]))
+
     # And the tables, row by row. Without this the only searchable copy of a
     # table was the flattened one left in the prose, which for the tables that
     # had to be transcribed is precisely the broken version: a search for

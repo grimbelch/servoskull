@@ -106,6 +106,15 @@ games/necromunda/rules/
 # The page map is the book's own heading structure, read off the scans. It is
 # as much the publisher's text as the rules are, so it stays on the device.
 games/necromunda/extract/pagemap/
+# Photographs of the books, which arrive in a directory named whatever the
+# phone or the shelf called it rather than anything we choose. The pages are
+# the publisher's artwork; only the rules read off them belong on the device,
+# and nothing read off them belongs here.
+games/necromunda/**/*.jpg
+games/necromunda/**/*.jpeg
+games/necromunda/**/*.png
+games/necromunda/**/*.webp
+games/necromunda/**/*.heic
 games/wfrp/rules/*
 !games/wfrp/rules/llm_*.md
 

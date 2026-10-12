@@ -58,6 +58,7 @@ def get_tools():
             "roll or a lookup on any of the book's tables; necromunda_weapon for one "
             "weapon's printed numbers; necromunda_rule for 'what does X do' about a "
             "trait, skill or condition; necromunda_subtype for a model Subtype; "
+            "necromunda_gang_rule for a gang's own special rules; "
             "necromunda_actions for what a model may do; necromunda_territory for a "
             "Territory. If a tool reports that the book does not contain something, "
             "say so - never fill the gap from memory."
@@ -442,6 +443,26 @@ def get_tools():
                          "description": "Subtype name, e.g. 'Mounted'. Omit to list all."},
                 "applies_to": {"type": "string", "enum": ["fighter", "vehicle"],
                                "description": "Which list, when it is known."},
+            },
+        },
+    },
+{
+        "name": "necromunda_gang_rule",
+        "description": (
+            "The special rules a gang list prints for itself - Claiming "
+            "Bounties, a Gang Legacy, and the 'NEW SUBTYPE' blocks a gang "
+            "introduces such as Ratling or Beastman. These sit with the gang "
+            "rather than in the rule tables, so necromunda_rule will not find "
+            "them. Pass rule alone to hunt a named rule across every gang "
+            "held, gang alone to list that gang's rules, or both to narrow."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "gang": {"type": "string",
+                         "description": "Gang list name, e.g. 'Venator'. Omit to search all."},
+                "rule": {"type": "string",
+                         "description": "Rule name, e.g. 'Sneaking'. Omit to list the gang's rules."},
             },
         },
     },
@@ -851,6 +872,14 @@ def _tool_necromunda_subtype(i):
     return rules_tools.model_subtype(name, i.get("applies_to", ""))
 
 
+def _tool_necromunda_gang_rule(i):
+    from games.necromunda import rules_tools
+    gang = i.get("gang", "")
+    rule = i.get("rule", "")
+    print(f"[skull] Necromunda gang rule: {rule or '(all)'} / {gang or '(any gang)'}")
+    return rules_tools.gang_special_rules(gang, rule)
+
+
 def _tool_necromunda_table(i):
     table = i.get("table", "")
     roll = i.get("roll")
@@ -997,6 +1026,7 @@ def get_handlers():
         "necromunda_actions": _tool_necromunda_actions,
         "necromunda_territory": _tool_necromunda_territory,
         "necromunda_subtype": _tool_necromunda_subtype,
+        "necromunda_gang_rule": _tool_necromunda_gang_rule,
         "necromunda_setup": _tool_necromunda_setup,
         "necromunda_wound": _tool_necromunda_wound,
         "necromunda_fighter": _tool_necromunda_fighter,

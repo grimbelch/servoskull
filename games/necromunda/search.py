@@ -58,14 +58,16 @@ def not_in_book(subject: str, book) -> str:
     guards against is not an empty answer, it is a confident invented one.
     """
     return (f"{book['title']} does not contain {subject}. Do not supply it "
-            f"from memory -- say the core rulebook does not cover it. Gang "
-            f"fighters, their own weapons and their own wargear are in that "
-            f"gang's supplement, not this book.")
+            f"from memory -- say the books this unit holds do not cover it. "
+            f"A gang's own fighters, weapons, wargear and special rules are in "
+            f"that gang's supplement: if one is held it has been searched too, "
+            f"and if it is not held, say which supplement would carry it.")
 
 
 # A hit of one of these kinds is a rule; anything else may be background.
 _RULES_KINDS = ("trait", "skill", "condition", "action", "equipment",
-                "subtype", "territory", "table", "fighter", "gang_equipment")
+                "subtype", "territory", "table", "fighter", "gang_equipment",
+                "gang_rule")
 
 
 def installed_gangs(conn) -> set[str]:

@@ -223,6 +223,45 @@ def _strip_value(name: str) -> str:
     return re.sub(r"\s*\(.*\)\s*$", "", name or "").strip()
 
 
+def _inline_named_rule(conn, wanted: str, book) -> str:
+    """A rule printed inside a Subtype block or a gang's special rules.
+
+    A gang list prints several rules inside one block -- "Sniping: ...
+    Sneaking: ..." under NEW SUBTYPE: RATLING -- so they have no row of their
+    own and no table to be looked up in. The player still asks for one by name,
+    and the colon after it is what makes the match exact rather than a
+    substring that would hit any paragraph mentioning the word.
+    """
+    needle = f"%{wanted}:%"
+    out = []
+    for row in conn.execute(
+            "SELECT s.name, s.description, s.applies_to, s.page,"
+            " b.title AS book, b.page_offset FROM rule_subtypes s"
+            " JOIN rulebooks b ON b.id = s.rulebook_id"
+            " WHERE LOWER(s.description) LIKE ? LIMIT 2", (needle,)):
+        source = {"title": row["book"], "page_offset": row["page_offset"]}
+        out.append(f"{wanted.title()} — part of the {row['name']} "
+                   f"{row['applies_to']} Subtype ({source['title']}, "
+                   f"p{printed_page(row['page'], source)})\n{row['description']}")
+    if out:
+        return "\n\n".join(out)
+    for row in conn.execute(
+            "SELECT g.name AS gang, g.special_rules_json, g.page,"
+            " b.title AS book, b.page_offset FROM rule_gangs g"
+            " JOIN rulebooks b ON b.id = g.rulebook_id"
+            " WHERE LOWER(g.special_rules_json) LIKE ? LIMIT 2", (needle,)):
+        source = {"title": row["book"], "page_offset": row["page_offset"]}
+        for rule in json.loads(row["special_rules_json"] or "[]"):
+            if wanted + ":" not in (rule.get("text", "") or "").lower() \
+                    and wanted not in (rule.get("name", "") or "").lower():
+                continue
+            page = rule.get("page") or row["page"]
+            out.append(f"{rule['name']} — {row['gang']} ({source['title']}, "
+                       f"p{printed_page(page, source)})\n"
+                       f"{rule.get('text', '')}")
+    return "\n\n".join(out[:2])
+
+
 def named_rule(name: str) -> str:
     """Look up a weapon trait, skill or condition by name.
 
@@ -270,6 +309,13 @@ def named_rule(name: str) -> str:
                     f"{row['name']} ({label}{detail} — {source['title']}, "
                     f"p{printed_page(row['page'], source)})\n{row['description']}")
         if not out:
+            # "What does Sneaking do" arrives here and not at the Subtype tool:
+            # it is a rule with a name, and nothing tells the player it was
+            # printed inside a gang list's Subtype block. Look there before
+            # reporting a gap that is not one.
+            inline = _inline_named_rule(conn, bare, book)
+            if inline:
+                return inline
             return not_in_book(f"a trait, skill or condition called '{name}'",
                                book)
         return "\n\n".join(out[:3])
@@ -533,22 +579,95 @@ def model_subtype(name: str = "", applies_to: str = "") -> str:
                 return f"The {which} Subtypes are: {listing(which)}."
             return ("The Fighter Subtypes are: " + listing("fighter")
                     + ". The Vehicle Subtypes are: " + listing("vehicle") + ".")
+        # Scoped to the current book this found none of the Subtypes a gang
+        # list introduces, because those belong to the supplement that prints
+        # them. Every book held is searched; the current one still sorts first.
         rows = conn.execute(
-            "SELECT * FROM rule_subtypes WHERE rulebook_id = ?"
-            " AND (? = '' OR applies_to = ?)"
-            " AND (LOWER(name) = ? OR LOWER(name) LIKE ?)"
-            " ORDER BY LENGTH(name) LIMIT 2",
-            (book["id"], which, which, wanted, f"%{wanted}%")).fetchall()
+            "SELECT s.*, b.title AS book, b.page_offset FROM rule_subtypes s"
+            " JOIN rulebooks b ON b.id = s.rulebook_id"
+            " WHERE (? = '' OR s.applies_to = ?)"
+            " AND (LOWER(s.name) = ? OR LOWER(s.name) LIKE ?)"
+            " ORDER BY (s.rulebook_id != ?), LENGTH(s.name) LIMIT 2",
+            (which, which, wanted, f"%{wanted}%", book["id"])).fetchall()
         if not rows:
             return (not_in_book(f"a Subtype called '{name}'", book)
                     + f" The book has: {listing(which)}.")
         out = []
         for row in rows:
             title = f"{row['name']} (X)" if row["takes_value"] else row["name"]
+            source = {"title": row["book"], "page_offset": row["page_offset"]}
             out.append(
-                f"{title} — {row['applies_to']} Subtype ({book['title']}, "
-                f"p{printed_page(row['page'], book)})\n{row['description']}")
+                f"{title} — {row['applies_to']} Subtype ({source['title']}, "
+                f"p{printed_page(row['page'], source)})\n{row['description']}")
         return "\n\n".join(out)
+    finally:
+        conn.close()
+
+
+def gang_special_rules(gang: str = "", rule: str = "") -> str:
+    """The special rules a gang list prints for itself.
+
+    These live with the gang rather than in the rule tables, and they carry the
+    Subtype blocks a gang list introduces ("NEW SUBTYPE: RATLING") along with
+    everything from Claiming Bounties to a Gang Legacy. Named a rule and no
+    gang, it looks across every gang held, because that is how the question
+    arrives: by the rule's name, never the gang's.
+    """
+    conn = _open()
+    if conn is None:
+        return _NOT_INSTALLED
+    try:
+        book = current_rulebook(conn)
+        want_gang = (gang or "").strip().lower()
+        want_rule = (rule or "").strip().lower()
+        rows = conn.execute(
+            "SELECT g.name AS gang, g.special_rules_json, g.page,"
+            " b.title AS book, b.page_offset FROM rule_gangs g"
+            " JOIN rulebooks b ON b.id = g.rulebook_id"
+            " WHERE (? = '' OR LOWER(g.name) LIKE ?)"
+            " ORDER BY (g.rulebook_id != ?), g.name",
+            (want_gang, f"%{want_gang}%", book["id"])).fetchall()
+        if not rows:
+            held = conn.execute(
+                "SELECT name FROM rule_gangs ORDER BY name").fetchall()
+            listed = ", ".join(r["name"] for r in held) or "none"
+            return (f"No gang called '{gang}' is held. The gang lists this "
+                    f"unit holds are: {listed}.")
+
+        out = []
+        for row in rows:
+            source = {"title": row["book"], "page_offset": row["page_offset"]}
+            rules = json.loads(row["special_rules_json"] or "[]")
+
+            def cite(r):
+                # The gang list's own page is the fallback: a transcription
+                # need not record where inside the list a rule was printed.
+                return (f"{source['title']}, "
+                        f"p{printed_page(r.get('page') or row['page'], source)}")
+            hits = [r for r in rules
+                    if not want_rule or want_rule in r.get("name", "").lower()
+                    or want_rule in r.get("text", "").lower()]
+            if not hits:
+                continue
+            if want_rule:
+                for r in hits:
+                    out.append(f"{r['name']} — {row['gang']} ({cite(r)})\n"
+                               f"{r.get('text', '')}")
+            else:
+                body = "\n".join(f"  {r['name']}: {r.get('text', '')}"
+                                 for r in hits)
+                out.append(f"{row['gang']} special rules "
+                           f"({source['title']}, "
+                           f"p{printed_page(row['page'], source)}):\n{body}")
+        if not out:
+            if want_rule and want_gang:
+                return (f"{rows[0]['gang']} has no special rule matching "
+                        f"'{rule}'. Its rules are: "
+                        + ", ".join(r["name"] for r in
+                                    json.loads(rows[0]["special_rules_json"] or "[]"))
+                        + ".")
+            return not_in_book(f"a gang special rule matching '{rule}'", book)
+        return "\n\n".join(out[:6])
     finally:
         conn.close()
 
