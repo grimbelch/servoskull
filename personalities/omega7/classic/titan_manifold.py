@@ -92,36 +92,91 @@ def _box(c, s):
     return [(cx + a * sx, cy + b * sy, cz + e * sz) for a in (-1, 1) for b in (-1, 1) for e in (-1, 1)]
 
 
+def _seg_box(a, b, w, h):
+    """An eight-point box spanning a->b, w across and h fore-aft.
+
+    Corner order matches _box - lateral, then along the axis, then fore-aft -
+    so _BOX_EDGES applies unchanged. Used for the reverse-jointed leg segments,
+    which run diagonally and so cannot be axis-aligned boxes.
+    """
+    ux, uy, uz = b[0] - a[0], b[1] - a[1], b[2] - a[2]
+    L = math.sqrt(ux * ux + uy * uy + uz * uz) or 1.0
+    ux, uy, uz = ux / L, uy / L, uz / L
+    # lateral = u x world_z, which lands on world x for any limb swinging in
+    # the y-z plane; fore-aft = lateral x u completes the frame
+    rx, ry, rz = uy * 1.0 - uz * 0.0, uz * 0.0 - ux * 1.0, 0.0
+    rl = math.sqrt(rx * rx + ry * ry + rz * rz)
+    if rl < 1e-6:
+        rx, ry, rz, rl = 1.0, 0.0, 0.0, 1.0
+    rx, ry, rz = rx / rl, ry / rl, rz / rl
+    fx, fy, fz = ry * uz - rz * uy, rz * ux - rx * uz, rx * uy - ry * ux
+    hw, hh = w / 2, h / 2
+    out = []
+    for ai in (-1, 1):
+        for bi in (-1, 1):
+            base = a if bi < 0 else b
+            for ei in (-1, 1):
+                out.append((base[0] + ai * hw * rx + ei * hh * fx,
+                            base[1] + ai * hw * ry + ei * hh * fy,
+                            base[2] + ai * hw * rz + ei * hh * fz))
+    return out
+
+
 def _model(phase):
-    """Returns list of (points[8 or 2], edges, part index)."""
+    """Returns (list of (points[8 or 4], part index), sway).
+
+    A Warlord-pattern Titan. The carapace is the dominant mass and carries both
+    its weapon mounts up on top; the head is small and sits low and forward in a
+    recess beneath them rather than on top like a man's; both arms are guns (a
+    gatling blaster left, a volcano cannon right); and the legs are
+    reverse-jointed - knee thrown forward, ankle swept back - under a narrow
+    armoured waist. Front is -z, which the renderer draws brightest.
+
+    Kept deliberately spare: the silhouette has to read at 240x240 inside the
+    shield ring, so the massing is suggested with few boxes rather than detailed.
+    """
     items = []
-    bob = 1.5 * abs(math.sin(phase))
+    bob = 1.5 * math.fabs(math.sin(phase))
     sway = 0.03 * math.sin(phase)
     by = bob
-    # static-ish body
-    items.append((_box((0, -50 + by, -6), (12, 10, 12)), 0))                 # head
-    items.append((_box((0, -33 + by, 0), (46, 20, 28)), 1))                  # carapace
-    items.append((_box((-12, -47 + by, 6), (12, 6, 12)), 1))                 # missile pods
-    items.append((_box((12, -47 + by, 6), (12, 6, 12)), 1))
-    items.append((_box((0, -17 + by, 0), (20, 10, 16)), 1))                  # waist
-    # arm weapons
-    items.append((_box((-31, -35 + by, 0), (14, 10, 14)), 2))                # L shoulder
-    items.append((_box((-32, -18 + by, -6), (12, 22, 12)), 2))               # L weapon body
-    items.append((_box((-32, -4 + by, -12), (8, 8, 20)), 2))                 # L barrel
-    items.append((_box((31, -35 + by, 0), (14, 10, 14)), 3))
-    items.append((_box((32, -18 + by, -6), (13, 22, 13)), 3))
-    items.append((_box((32, -5 + by, -12), (10, 10, 16)), 3))
-    # legs (walking)
+
+    # --- carapace: chest, then the wider deck overhanging it
+    items.append((_box((0, -28 + by, -2), (38, 19, 27)), 1))
+    items.append((_box((0, -41 + by, 0), (46, 9, 29)), 1))
+    # --- carapace weapon mounts, raised on the deck, tubes thrust forward
+    for mx in (-15, 15):
+        items.append((_box((mx, -49 + by, 2), (16, 10, 19)), 1))
+        items.append((_box((mx, -49 + by, -13), (11, 8, 10)), 1))
+    # --- head: small, hooded, set low and forward under the deck
+    items.append((_box((0, -35 + by, -26), (12, 10, 12)), 0))
+    items.append((_box((0, -38 + by, -33), (10, 4, 5)), 0))      # brow / visor
+    items.append((_box((0, -30 + by, -31), (8, 4, 7)), 0))       # beaked jaw
+    # --- waist and the plated hip skirt
+    items.append((_box((0, -15 + by, -2), (20, 12, 18)), 1))
+    items.append((_box((0, -7 + by, -2), (30, 8, 23)), 1))
+
+    # --- arms: both are weapons, slung from ball mounts either side
+    items.append((_box((-29, -37 + by, 0), (14, 14, 16)), 2))    # L shoulder ball
+    items.append((_box((-31, -26 + by, -7), (14, 18, 23)), 2))   # gatling body
+    for dx, dy in ((-4, -4), (4, -4), (0, 4)):                   # barrel cluster
+        items.append((_box((-31 + dx, -24 + by + dy, -27), (5, 5, 20)), 2))
+    items.append((_box((29, -37 + by, 0), (14, 14, 16)), 3))     # R shoulder ball
+    items.append((_box((31, -26 + by, -7), (15, 19, 23)), 3))    # volcano body
+    items.append((_box((31, -24 + by, -29), (10, 10, 24)), 3))   # barrel
+    items.append((_box((31, -24 + by, -43), (12, 12, 4)), 3))    # muzzle ring
+
+    # --- legs: hip -> knee (forward) -> ankle (back) -> foot (forward)
     for side, part in ((-1, 4), (1, 5)):
         sw = math.sin(phase + (0 if side < 0 else math.pi))
         lift = max(0.0, math.cos(phase + (0 if side < 0 else math.pi))) * 5
-        hip = (side * 11, -12 + by, 0)
-        knee = (side * 14, 8 + by - lift * 0.5, -6 + sw * 9)
-        ankle = (side * 13, 32 - lift, 2 + sw * 12)
-        for a, b, w in ((hip, knee, 5), (knee, ankle, 4)):
-            items.append(([(a[0] - w, a[1], a[2]), (b[0] - w, b[1], b[2]),
-                           (a[0] + w, a[1], a[2]), (b[0] + w, b[1], b[2])], part))
-        items.append((_box((ankle[0], ankle[1] + 3, ankle[2] - 2), (14, 5, 20)), part))
+        hip = (side * 12, -4 + by, 0)
+        knee = (side * 14, 10 + by - lift * 0.5, -10 + sw * 8)
+        ankle = (side * 13, 27 - lift, 4 + sw * 11)
+        items.append((_seg_box(hip, knee, 12, 14), part))        # thigh
+        items.append((_box((knee[0], knee[1], knee[2] - 2), (14, 9, 12)), part))
+        items.append((_seg_box(knee, ankle, 10, 12), part))      # shin
+        items.append((_box((ankle[0], ankle[1] + 4, ankle[2] - 6), (14, 6, 20)), part))
+        items.append((_box((ankle[0], ankle[1] + 5, ankle[2] - 17), (12, 4, 7)), part))
     return items, sway
 
 
@@ -132,7 +187,7 @@ def _limb_edges(n):
 # ---------------------------------------------------------------- data ---
 _NAMES = ["IMPERIUS DOMINATUS", "INVIGILATA", "MORTIS VULT", "LEX IMPERIALIS",
           "PRAETORIAN ULTIMA", "FIDES PROMETHEUS", "IRA DEI", "VULPINE VIGILANS"]
-_CLASSES = ["WARLORD", "REAVER", "WARLORD", "WARBRINGER"]
+_CLASSES = ["WARLORD", "WARLORD MARS-ALPHA", "WARLORD MARS-BETA", "WARLORD-NEMESIS"]
 _LEGIO = ["LEGIO IGNATUM", "LEGIO METALICA", "LEGIO GRYPHONICUS", "LEGIO TEMPESTUS",
           "LEGIO ASTORUM", "LEGIO SOLARIA"]
 _WEAPONS = [("VOLCANO", 0.09), ("MACRO GAT", 0.28), ("MISSILES", 0.14)]  # name, charge/s
@@ -399,14 +454,14 @@ def render(bezel, mask, now: float) -> Image.Image:
     for i, side in ((0, -1), (1, 1)):
         age = lt - s["fire_t"][i]
         if age < 0.35:
-            x0 = MX + side * 40
-            y0 = MY + 6
+            x0 = MX + side * 41
+            y0 = MY - 32
             L = 20 + age * 120
             d.line([(x0, y0), (x0 + side * L * 0.3, y0 + 4), (x0 + side * L * 0.5, y0 - L)], fill=GREEN_HI)
     if lt - s["fire_t"][2] < 0.6:
         age = lt - s["fire_t"][2]
         for m in (-1, 1):
-            x0, y0 = MX + m * 12, MY - 60 - age * 60
+            x0, y0 = MX + m * 19, MY - 64 - age * 60
             d.line([(x0, y0), (x0, y0 + 8)], fill=GREEN_HI)
 
     # right column: princeps / stride
