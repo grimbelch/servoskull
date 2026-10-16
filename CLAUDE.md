@@ -30,7 +30,9 @@ word → Whisper → Claude with tools → ElevenLabs/Piper speech, plus a round
   phosphor, shared `_phosphor.py`) and `lore/` (full colour, helpers in
   `_common.py`); each exposes `NAME` and `render(bezel, mask, now)` for the
   240×240 round panel at 30 FPS. Register new ones in the package `__init__.py`
-  `_MODULES` list and update the counts in README.md.
+  `_MODULES` list and update the counts in README.md. The Mechanicus cog-skull
+  is a bitmap, `personalities/omega7/cog_skull.png`, lit through `emblem.py`
+  (the boot animation, `glitch`, `cogitator_boot`); use it rather than drawing one.
 - Omega-7's eye designs are one module each in `personalities/omega7/eyes/`
   (`cog` is the original), exposing `render_bezel()` and `render_frame(...)`;
   `personalities/omega7/display.py` delegates to the active one. The choice is

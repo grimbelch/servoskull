@@ -2,8 +2,8 @@
 
 CRT power-on, a BIOS-style mnemonic core test with a counting progress bar and
 subsystem checks, a machine-spirit handshake (packets exchanged between the
-cogitator and its spirit), the Omnissiah cog-skull glyph traced line by line
-as vectors, then a live diagnostic dashboard of sparklines, gauges and bars.
+cogitator and its spirit), the Omnissiah cog-skull glyph received as a
+slow-scan raster, then a live diagnostic dashboard of sparklines, gauges and bars.
 Sometimes the spirit is displeased: the screen glitches, an error box flashes
 and a litany is recited amid incense until it is placated.  Then the cogitator
 reboots and the cycle begins again with different hardware and phosphor.
@@ -17,6 +17,7 @@ import random
 import numpy as np
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
+from .. import emblem
 from ._common import CX, CY, H, W, Session, font, lerp_color, safe_half_width, scale
 
 NAME = "cogitator_boot"
@@ -54,60 +55,6 @@ _SCAN = Image.fromarray((np.repeat(_m[..., None], 3, axis=2) * 255).astype(np.ui
 _BLOOM_LUT = [min(255, int(v * 0.8)) for v in range(256)] * 3
 del _yy, _xx, _rr, _m
 
-
-def _glyph_paths():
-    """The Cult Mechanicus cog-skull as polylines (drawn in order)."""
-    cx, cy = 120.0, 112.0
-    paths = []
-    teeth = 12
-    pts = []
-    for i in range(teeth * 4 + 1):
-        a = 2 * math.pi * i / (teeth * 4) - math.pi / 2
-        r = 66 if (i % 4) in (1, 2) else 57
-        pts.append((cx + r * math.cos(a), cy + r * math.sin(a)))
-    paths.append(pts)
-    paths.append([(cx + 48 * math.cos(2 * math.pi * i / 48), cy + 48 * math.sin(2 * math.pi * i / 48))
-                  for i in range(49)])
-    # skull outline: cranium arc then jaw
-    sk = []
-    for i in range(25):
-        a = math.radians(150 + 240 * i / 24)
-        sk.append((cx + 27 * math.cos(a), cy - 6 + 27 * math.sin(a)))
-    sk += [(cx + 22, cy + 17), (cx + 15, cy + 30), (cx - 15, cy + 30), (cx - 22, cy + 17), sk[0]]
-    paths.append(sk)
-    # organic eye socket (left)
-    paths.append([(cx - 10 + 7 * math.cos(2 * math.pi * i / 16), cy - 3 + 7 * math.sin(2 * math.pi * i / 16))
-                  for i in range(17)])
-    # bionic eye (right)
-    paths.append([(cx + 11 + 8 * math.cos(2 * math.pi * i / 16), cy - 3 + 8 * math.sin(2 * math.pi * i / 16))
-                  for i in range(17)])
-    paths.append([(cx + 11 + 3 * math.cos(2 * math.pi * i / 10), cy - 3 + 3 * math.sin(2 * math.pi * i / 10))
-                  for i in range(11)])
-    paths.append([(cx + 1, cy - 3), (cx + 22, cy - 3)])
-    # nose
-    paths.append([(cx, cy + 7), (cx - 4, cy + 14), (cx + 4, cy + 14), (cx, cy + 7)])
-    # teeth
-    paths.append([(cx - 15, cy + 22), (cx + 15, cy + 22)])
-    for x in (-10, -5, 0, 5, 10):
-        paths.append([(cx + x, cy + 18), (cx + x, cy + 30)])
-    # machine half: circuitry on the cranium
-    paths.append([(cx, cy - 33), (cx + 2, cy - 26), (cx - 2, cy - 20), (cx, cy - 13)])
-    paths.append([(cx + 6, cy - 30), (cx + 6, cy - 22), (cx + 16, cy - 22), (cx + 20, cy - 16)])
-    paths.append([(cx + 12, cy - 30), (cx + 22, cy - 22)])
-    # cog spokes
-    for k in range(4):
-        a = math.pi / 4 + k * math.pi / 2
-        paths.append([(cx + 38 * math.cos(a), cy + 38 * math.sin(a)), (cx + 48 * math.cos(a), cy + 48 * math.sin(a))])
-    segs = []
-    for p in paths:
-        for i in range(len(p) - 1):
-            L = math.hypot(p[i + 1][0] - p[i][0], p[i + 1][1] - p[i][1])
-            segs.append((p[i], p[i + 1], L))
-    return segs
-
-
-_GLYPH = _glyph_paths()
-_GLYPH_LEN = sum(s[2] for s in _GLYPH)
 
 _S: dict = {}
 
@@ -250,7 +197,6 @@ def _phase_bios(d, u, s, col, warn, t):
     for i, (et, text, right, lvl) in enumerate(ev):
         if u < et:
             break
-        nxt = ev[i + 1][0] if i + 1 < len(ev) else 99
         age = u - et
         tcol = col if lvl < 2 else lerp_color(col, (255, 255, 255), 0.5 + 0.5 * math.sin(t * 8))
         if right == "__MEM__":
@@ -328,37 +274,18 @@ def _phase_hand(d, u, s, col, hot, t):
     _log(d, lines, 114, 200, col, dy=12)
 
 
-def _phase_glyph(d, u, col, hot, t):
+def _phase_glyph(img, d, u, col, hot):
+    """The cog-skull received as a slow-scan raster, then pulsing once whole."""
     draw_t = 11.0
     k = min(1.0, u / draw_t)
-    target = k * _GLYPH_LEN
-    acc = 0.0
-    pen = None
-    glow = scale(col, 0.3)
     bright = col
     if k >= 1.0:
         p = 0.5 + 0.5 * math.sin((u - draw_t) * 5)
         bright = lerp_color(col, (255, 255, 255), 0.4 * p)
-        glow = scale(col, 0.35 + 0.3 * p)
-    for a, b, L in _GLYPH:
-        if acc >= target:
-            break
-        if acc + L <= target:
-            e = b
-        else:
-            f = (target - acc) / L
-            e = (a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f)
-            pen = e
-        d.line([a, e], fill=glow, width=3)
-        d.line([a, e], fill=bright, width=1)
-        acc += L
-    if pen is not None:
-        r = 2.5 + 1.5 * math.sin(t * 30)
-        d.ellipse([pen[0] - r, pen[1] - r, pen[0] + r, pen[1] + r], fill=(255, 255, 255))
-        d.line([(CX, 200), pen], fill=scale(col, 0.18))
+    emblem.draw(img, CX, 112, 132, bright, reveal=k, beam=(255, 255, 255))
     _ctext(d, 22, "SANCTIFIED GLYPH", scale(col, 0.8), 10)
     if k < 1.0:
-        _ctext(d, 190, f"VECTOR {int(k * 100):03d}%", scale(col, 0.7), 10)
+        _ctext(d, 190, f"RASTER {int(k * 100):03d}%", scale(col, 0.7), 10)
     else:
         _ctext(d, 188, "PRAISE THE OMNISSIAH", hot, 10)
 
@@ -511,7 +438,7 @@ def render(bezel, mask, now: float) -> Image.Image:
     elif tc < s["T_GLY"]:
         _phase_hand(d, tc - s["T_HS"], s, col, hot, t)
     elif tc < s["T_DASH"]:
-        _phase_glyph(d, tc - s["T_GLY"], col, hot, t)
+        _phase_glyph(img, d, tc - s["T_GLY"], col, hot)
     elif tc < s["T_END"]:
         u = tc - s["T_DASH"]
         e = None

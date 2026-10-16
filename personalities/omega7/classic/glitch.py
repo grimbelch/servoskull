@@ -17,7 +17,8 @@ import random
 import numpy as np
 from PIL import Image, ImageDraw
 
-from ..lore._common import CX, CY, Session, font
+from .. import emblem
+from ..lore._common import CX, Session, font
 from ._phosphor import AMBER, GREEN, GREEN_DIM, GREEN_HI, GREEN_MID, RED, Phosphor, blank
 
 NAME = "glitch"
@@ -64,31 +65,11 @@ def _tw(s, size):
 # --------------------------------------------------------------------- scenes
 
 def _scene_emblem(img, d, t):
-    cx, cy = CX, 110
-    rot = t * 0.25
-    pts = []
-    teeth = 12
-    for i in range(teeth * 4):
-        a = rot + 2 * math.pi * i / (teeth * 4)
-        r = 50 if (i % 4) in (1, 2) else 42
-        pts.append((cx + r * math.cos(a), cy + r * math.sin(a)))
-    d.polygon(pts, outline=GREEN)
-    d.ellipse([cx - 33, cy - 33, cx + 33, cy + 33], outline=GREEN_MID)
-    for k in range(4):
-        a = -rot * 1.7 + k * math.pi / 2
-        d.line([(cx + 33 * math.cos(a), cy + 33 * math.sin(a)),
-                (cx + 27 * math.cos(a), cy + 27 * math.sin(a))], fill=GREEN_MID)
-    # skull
-    d.arc([cx - 17, cy - 22, cx + 17, cy + 10], 160, 380, fill=GREEN_HI)
-    d.line([(cx - 16, cy - 2), (cx - 12, cy + 10), (cx - 8, cy + 18), (cx + 8, cy + 18),
-            (cx + 12, cy + 10), (cx + 16, cy - 2)], fill=GREEN_HI)
-    d.rectangle([cx - 11, cy - 7, cx - 4, cy - 1], fill=GREEN)
+    cx, cy, size = CX, 110, 104
+    emblem.draw(img, cx, cy, size, GREEN_HI)
     blink = 0.5 + 0.5 * math.sin(t * 3)
-    d.ellipse([cx + 3, cy - 8, cx + 12, cy + 1], outline=GREEN_HI)
-    d.ellipse([cx + 6, cy - 5, cx + 9, cy - 2], fill=(int(255 * blink), int(60 * blink), 40))
-    d.line([(cx, cy + 3), (cx - 3, cy + 8), (cx + 3, cy + 8), (cx, cy + 3)], fill=GREEN)
-    for x in (-6, -2, 2, 6):
-        d.line([(cx + x, cy + 12), (cx + x, cy + 17)], fill=GREEN_MID)
+    ex, ey = emblem.eye_centre(cx, cy, size)
+    d.ellipse([ex - 3, ey - 3, ex + 3, ey + 3], fill=(int(255 * blink), int(60 * blink), 40))
     _txt_c(img, 34, "PICT-FEED 07", GREEN, 11)
     _txt_c(img, 168, "OMNISSIAH VIGILANT", GREEN_MID, 10)
     # carrier waveform

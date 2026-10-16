@@ -67,7 +67,7 @@ Omega-7 hosts a responsive, green-phosphor cogitator terminal accessible securel
 
 The circular GC9A01 IPS panel serves as Omega-7's main visual feedback element, dynamically updating across multiple states:
 
-- **Praise the Omnissiah Logo**: High-contrast Mechanicus skull-cog vector rendering expanding on boot and code updates.
+- **Praise the Omnissiah Logo**: The Mechanicus cog-skull struck onto the phosphor raster on boot and code updates, its bionic lens igniting in the mood colour.
 - **UP Alignment Calibration Mode**: Bright green `▲` UP arrow and cyan compass ring pointing to 12 o'clock for real-time visual hardware display rotation.
 - **Auspex Scan**: Concentric Noosphere beacon pulsing waves mapping surroundings.
 - **Targeting Lock-On**: Floating crosshair tracking target focus during vision queries.
