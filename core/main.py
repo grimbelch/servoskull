@@ -1640,6 +1640,7 @@ def _deliver(ann: announcements.Announcement, on_wake) -> bool:
 
 
 def main():
+    audio.wait_for_sound_server()
     brain.register_reload_cb(refresh_voice_cache)
     # Claude's tools only request these; they run after a spoken yes (see request_maintenance).
     brain.register_update_cb(lambda: request_maintenance("update"))

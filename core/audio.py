@@ -28,6 +28,49 @@ def _native_input_rate(device_index: int) -> int:
         return 44100
 
 
+def wait_for_sound_server(timeout: float = 20.0) -> None:
+    """Make sure PortAudio sees PipeWire before the first stream opens.
+
+    omega7 is a system unit and PipeWire a user one, so at boot the skull can
+    start a few seconds before PipeWire does, and its unit cannot order itself
+    after it. PortAudio lists devices once, when it initialises: started too
+    early it finds only the raw card (hw:N,0, 44.1/48 kHz only), so 16 kHz speech
+    fails to open, sink routing is bypassed and the card is held exclusively for
+    the whole run. Wait for PipeWire's socket, then re-list if it was missed."""
+    import sys
+    if not sys.platform.startswith("linux"):
+        return
+    runtime = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+    socket_path = os.path.join(runtime, "pipewire-0")
+    deadline = time.monotonic() + timeout
+    while not os.path.exists(socket_path):
+        if time.monotonic() >= deadline:
+            print(f"[audio] PipeWire socket {socket_path} not found after {timeout:.0f}s; using ALSA devices as found")
+            return
+        time.sleep(0.25)
+
+    def _has_pipewire() -> bool:
+        try:
+            return any(d["name"] in ("pipewire", "pulse", "default") for d in sd.query_devices())
+        except Exception:
+            return False
+
+    while not _has_pipewire():
+        try:
+            sd._terminate()
+            sd._initialize()
+        except Exception as e:
+            print(f"[audio] PortAudio re-initialise failed: {e}")
+            return
+        if _has_pipewire():
+            print("[audio] PipeWire came up after PortAudio; device list refreshed.")
+            return
+        if time.monotonic() >= deadline:
+            print("[audio] PortAudio still sees no PipeWire device; using ALSA devices as found")
+            return
+        time.sleep(0.5)
+
+
 def _volume_sink() -> str:
     """The sink whose volume actually changes how loud the skull is.
 
