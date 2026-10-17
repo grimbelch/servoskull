@@ -72,6 +72,13 @@ _MAX_RETRIES = 2
 _MAX_TOOL_ROUNDS = 8
 # Tool output longer than this is never spoken as a fallback reply.
 _MAX_FALLBACK_TOOL_TEXT = 300
+# simple() and vision() take max_tokens as the length of the visible answer, but
+# the model thinks first (adaptive thinking is on whenever `thinking` is omitted)
+# and those tokens count against the same cap. At 400 the morning briefing came
+# back cut off mid-sentence, or empty when thinking used the lot. Low effort keeps
+# the thinking short on these one-shot jobs; this is room for what remains.
+_THINKING_HEADROOM = 4000
+_ONE_SHOT_CONFIG = {"effort": "low"}
 
 
 def _system_blocks(system: str) -> list[dict]:
@@ -110,6 +117,15 @@ def _log_cache(response, where: str) -> None:
     read = getattr(u, "cache_read_input_tokens", 0) or 0
     write = getattr(u, "cache_creation_input_tokens", 0) or 0
     print(f"[llm] {where} cache: read={read} write={write} uncached_input={u.input_tokens}")
+
+
+def _one_shot_text(response, where: str) -> str:
+    """All the text of a one-shot reply, warning if it was cut off at max_tokens."""
+    if response.stop_reason == "max_tokens":
+        print(f"[llm] {where} reply hit max_tokens ({response.usage.output_tokens} tokens) "
+              "and is cut short.")
+    return " ".join(b.text for b in response.content
+                    if getattr(b, "type", None) == "text" and b.text).strip()
 
 
 # ── Provider (lazy, cached) ──────────────────────────────────────────────────────
@@ -234,21 +250,23 @@ class _ClaudeProvider:
 
     def simple(self, system, user, max_tokens):
         r = self._call_with_retry(
-            model=self._model, max_tokens=max_tokens, system=_system_blocks(system),
+            model=self._model, max_tokens=max_tokens + _THINKING_HEADROOM,
+            output_config=_ONE_SHOT_CONFIG, system=_system_blocks(system),
             messages=[{"role": "user", "content": user}],
         )
         _log_cache(r, "simple")
-        return next((b.text for b in r.content if hasattr(b, "text")), "").strip()
+        return _one_shot_text(r, "simple")
 
     def vision(self, system, jpeg_bytes, prompt, max_tokens):
         import base64
         b64 = base64.standard_b64encode(jpeg_bytes).decode()
         r = self._call_with_retry(
-            model=self._model, max_tokens=max_tokens, system=_system_blocks(system),
+            model=self._model, max_tokens=max_tokens + _THINKING_HEADROOM,
+            output_config=_ONE_SHOT_CONFIG, system=_system_blocks(system),
             messages=[{"role": "user", "content": [
                 {"type": "image", "source": {"type": "base64",
                                              "media_type": "image/jpeg", "data": b64}},
                 {"type": "text", "text": prompt},
             ]}],
         )
-        return next((b.text for b in r.content if hasattr(b, "text")), "").strip()
+        return _one_shot_text(r, "vision")
