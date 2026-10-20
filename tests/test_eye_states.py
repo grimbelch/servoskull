@@ -6,9 +6,19 @@ def frame(**kw):
     return es.Frame(**kw)
 
 
-def test_idle_is_ember_on_both_eyes():
-    left, right = es.resolve(frame())
-    assert left == right == (*es.EMBER, 0)
+def idle(now=100.0):
+    return es.resolve(frame(now=now))
+
+
+def test_idle_is_a_breathing_ember():
+    levels = [idle(t / 10)[0][0] for t in range(60)]
+    assert max(levels) == es.EMBER[0] and 0 < min(levels) < es.EMBER[0] // 2
+    left, right = idle()
+    assert left[3] == right[3] == 0 and left[2] == right[2] == 0
+
+
+def test_idle_eyes_drift_apart():
+    assert any(idle(t / 10)[0] != idle(t / 10)[1] for t in range(60))
 
 
 def test_status_goes_to_its_own_eye():
@@ -30,7 +40,7 @@ def test_wake_flash_uses_white_then_ends():
     left, right = es.resolve(f)
     assert left == right and left[3] == 255 and left[0] == 255
     f.now = 10.0 + es.WAKE_FLASH_SECS
-    assert es.resolve(f)[0] == (*es.EMBER, 0)
+    assert es.resolve(f)[0] == idle(f.now)[0]
 
 
 def test_thinking_ping_pongs_between_the_eyes():
@@ -58,8 +68,8 @@ def test_health_overrides_activity():
 def test_blip_wins_its_eye_until_it_ends():
     blip = es.Blip(es.Light(es.BT_BLUE), "left", until=101.0)
     left, right = es.resolve(frame(now=100.5, blips=[blip]))
-    assert left == (*es.BT_BLUE, 0) and right == (*es.EMBER, 0)
-    assert es.resolve(frame(now=101.5, blips=[blip]))[0] == (*es.EMBER, 0)
+    assert left == (*es.BT_BLUE, 0) and right == idle(100.5)[1]
+    assert es.resolve(frame(now=101.5, blips=[blip]))[0] == idle(101.5)[0]
 
 
 def test_calm_holds_blinkers_steady():
@@ -70,8 +80,9 @@ def test_calm_holds_blinkers_steady():
 
 
 def test_scale_and_fade_dim_the_status_layers():
-    full = es.resolve(frame())[0]
-    dim = es.resolve(frame(scale=0.5))[0]
+    green = es.Light((200, 0, 0))
+    full = es.resolve(frame(links=[green]))[0]
+    dim = es.resolve(frame(links=[green], scale=0.5))[0]
     dark = es.resolve(frame(fade=0.0))[0]
     assert dim[0] == full[0] // 2 and dark == (0, 0, 0, 0)
 

@@ -10,7 +10,7 @@ the world around him. Each frame is resolved from layers, highest first:
     blip      one or both a moment: speaker connected, speaker dropped
     status    per eye     left = links (speaker, cast, network)
                           right = tasks (print, reminders, missed messages)
-    idle      both eyes   a faint fixed ember: alive, nothing to report
+    idle      both eyes   a faint ember, breathing slowly: alive, nothing to report
 
 Several tasks waiting at once take turns on the right eye. Brightness modifiers
 (sleep hours, silent mode, an empty room) scale the status layers; in sleep hours
@@ -113,6 +113,11 @@ class Frame:
     fade: float = 1.0             # boot fade-in / shutdown fade-out, 0-1
 
 
+# Idle: the ember breathes, each eye on its own period so they drift in and out
+# of step, a living gaze rather than a pair of pilot lights.
+IDLE_LEFT = Light(EMBER, "breathe", period=4.2, name="idle")
+IDLE_RIGHT = Light(EMBER, "breathe", period=5.6, since=1.9, name="idle")
+
 WAKE_FLASH_SECS = 0.5
 TASK_TURN_SECS = 3.0
 _PINGPONG_SECS = 1.6
@@ -159,13 +164,12 @@ def resolve(f: Frame) -> tuple[RGBW, RGBW]:
         return _rgbw(c, act_k), _rgbw(c, act_k)
 
     k = f.fade * f.scale
-    idle = _scaled(EMBER, 1.0)
-    left = f.links[0].at(now, f.calm) if f.links else idle
+    left = f.links[0].at(now, f.calm) if f.links else IDLE_LEFT.at(now)
     if f.tasks:
         turn = int(now / TASK_TURN_SECS) % len(f.tasks)
         right = f.tasks[turn].at(now, f.calm)
     else:
-        right = idle
+        right = IDLE_RIGHT.at(now)
 
     for b in f.blips:                 # latest blip wins its eye
         if now < b.until:

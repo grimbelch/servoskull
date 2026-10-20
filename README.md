@@ -78,7 +78,7 @@ The circular GC9A01 IPS panel serves as Omega-7's main visual feedback element, 
 
 ### Optic LEDs
 
-The two RGBW LEDs in the optic tubes leave mood to the display and show the world around Omega-7 instead. The **left eye is links**, the **right eye is tasks**; at rest both glow a faint, fixed ember.
+The two RGBW LEDs in the optic tubes leave mood to the display and show the world around Omega-7 instead. The **left eye is links**, the **right eye is tasks**; at rest both glow a faint ember that breathes slowly, each eye on its own rhythm.
 
 | When | Eyes | Light |
 | :--- | :--- | :--- |
