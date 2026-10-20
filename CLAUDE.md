@@ -107,6 +107,9 @@ word → Whisper → Claude with tools → ElevenLabs/Piper speech, plus a round
 
 ## Deploy
 
-Push to `main`, then on the unit: `cd ~/Servoskull && git pull --ff-only && sudo
-systemctl restart omega7`, and watch `journalctl -u omega7 -f` for errors. The
-voice-triggered self-update does the same plus `pip install -r requirements.txt`.
+Push to `main`, then on the unit: `cd ~/Servoskull && git pull --ff-only && sync &&
+sudo systemctl restart omega7`, and watch `journalctl -u omega7 -f` for errors. The
+`sync` matters: the Pi's supply is marginal and it gets unplugged for hardware work,
+and a power cut soon after a pull has left the pulled files and their git objects
+empty. The voice-triggered self-update does the same plus `pip install -r
+requirements.txt`.

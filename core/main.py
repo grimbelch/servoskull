@@ -205,6 +205,9 @@ def _do_update_async():
             capture_output=True, text=True, check=True, timeout=120, env=git_env
         )
         print(f"[update] Git Pull Output: {pull_res.stdout}")
+        # Flush the new files to the SD card now. A power cut seconds after a pull
+        # once left the files it had just written (and their git objects) empty.
+        os.sync()
 
         display.set_update_progress(50.0, "INSTALLING...")
         venv_pip = pathlib.Path(sys.prefix) / "bin" / "pip"
@@ -235,6 +238,7 @@ def _do_update_async():
                     except Exception:
                         pass
 
+        os.sync()  # and the new packages, before the restart
         display.set_update_progress(100.0, "RESTARTING...")
         time.sleep(2)
         active_svc = _get_active_service()
