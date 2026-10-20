@@ -91,14 +91,14 @@ Only the pins this build uses are annotated. Physical pin 1 is the corner neares
 microSD/Wi-Fi end, with the SD card facing you and USB ports to the right.
 
 ```
-PROX VIN  ●  3V3  (1) (2)  5V    ● ←CANDLE 5V (HV Power)
+PROX VIN  ●  3V3  (1) (2)  5V    ● ←EYE LED 5V (rails + shifter Vin)
 PROX SDA  ● GPIO2 (3) (4)  5V
-PROX SCL  ● GPIO3 (5) (6)  GND
+PROX SCL  ● GPIO3 (5) (6)  GND   ● ←EYE LED GND
 PROX XSHUT● GPIO4 (7) (8)  GPIO14
 PROX GND  ●  GND  (9) (10) GPIO15
-            GPIO17(11) (12) GPIO18● ←CANDLE DATA (LV1 Data)
-EYE RIGHT ● GPIO27(13) (14) GND   ● ←EYE / CANDLE GND
-EYE LEFT  ● GPIO22(15) (16) GPIO23● ←EYE CENTER
+            GPIO17(11) (12) GPIO18● ←EYE LED DATA (shifter Data)
+            GPIO27(13) (14) GND
+            GPIO22(15) (16) GPIO23
 DISP VCC  ●  3V3  (17) (18) GPIO24● ←DISP RES
 DISP SDA  ● GPIO10(19) (20) GND   ● ←DISP GND
             GPIO9 (21) (22) GPIO25● ←DISP DC
@@ -115,27 +115,30 @@ DISP SCL  ● GPIO11(23) (24) GPIO8 ● ←DISP CS (CE0)
 
 There are **no pin conflicts**:
 - **Proximity Sensor (I2C1)**: Pins 1, 3, 5, 7, 9 (contiguous 5-pin block on upper left).
-- **Addressable Candle LEDs**: Pins 2 (5V), 12 (GPIO18 PWM Data), 14 (GND), 17 (3.3V LV).
-- **Eye LEDs**: Pins 13, 15, 16 (GPIO27, 22, 23) + Pin 14 GND.
+- **Eye LEDs**: Pins 2 (5V), 6 (GND), 12 (GPIO18 data).
 - **Round Face Display (SPI0)**: Pins 17 to 26 (contiguous 2x5 dual-row 10-pin header block!).
 
-### 4.2 Eye LEDs (2× Addressable WS2812B RGB LEDs + Level Shifter) — `eyes.py`
+### 4.2 Eye LEDs (2× addressable RGBW pixels + level shifter) — `eyes.py`
 
-The 3rd lens housing is mounted with the camera, so **2 individually addressable WS2812B RGB LEDs** (Left Eye = Index 0, Right Eye = Index 1) are used for the face. A 3.3V-to-5.0V inline level shifter steps up the Raspberry Pi GPIO data signal to 5V logic.
+The 3rd lens housing is mounted with the camera, so **2 addressable RGBW pixels** (SK6812-type, GRBW byte order; Left Eye = Index 0, Right Eye = Index 1) light the optic tubes. A "Smart LED" level shifter steps the Pi's 3.3 V data up to 5 V; it carries data only, and the eyes take +5 V and ground from the harness rails. Full pad map, assembly and bring-up: [EYE_WIRING.md](EYE_WIRING.md).
 
 | Component | Connection | Physical Pin / Destination | Config Var |
 |---|---|---|---|
-| **5V Power** | Pin 2 or 4 | 5V VCC Rail (Level Shifter VCC & LEDs) | N/A |
-| **Ground** | Pin 6 / 9 / 14 | GND Rail (Common Ground) | N/A |
-| **Data Signal** | GPIO18 | Physical Pin 12 (PWM0) ➔ Level Shifter ➔ 330 Ω Resistor ➔ Eye 1 DIN | `EYE_LED_PIN` |
+| **5V Power** | Pin 2 | +5 V rail: shifter `Vin` and both eyes in parallel | — |
+| **Ground** | Pin 6 | GND rail: shifter `GND` and both eyes in parallel | — |
+| **Data Signal** | GPIO18 | Physical Pin 12 ➔ shifter `Data` ➔ `5vData` ➔ 330 Ω ➔ Eye 1 DIN ➔ Eye 1 DOUT ➔ Eye 2 DIN | `EYE_LED_PIN` |
 
 ```text
- Raspberry Pi Header          Dead-Bug Shifter          330Ω           WS2812B Chain
- [Pin 2  (5V)] ───────────────► VCC (5V) ──────────────────────────────┬─► Eye 1 (+5V) ─► Eye 2 (+5V)
- [Pin 12 (GPIO18)] ───────────► Data IN (LV1)                          │
- [Pin 14 (GND)] ──────────────► GND ───────────────────────────────────┼─► Eye 1 (GND)  ─► Eye 2 (GND)
-                                Data OUT (HV1) ───[ 330Ω ]─────────────┴─► Eye 1 (DIN) ──► Eye 1 (DOUT) ──► Eye 2 (DIN)
+ Raspberry Pi Header        Smart LED Shifter        330Ω          RGBW Chain
+ [Pin 2  (5V)] ──┬──────────► Vin                               ┌─► Eye 1 (+5V) ─► Eye 2 (+5V)
+                 └──────────────────────────────────────────────┘
+ [Pin 12 (GPIO18)] ─────────► Data
+                              5vData ───[ 330Ω ]──────────────────► Eye 1 (DIN) ──► Eye 1 (DOUT) ──► Eye 2 (DIN)
+ [Pin 6  (GND)] ──┬─────────► GND                               ┌─► Eye 1 (GND)  ─► Eye 2 (GND)
+                  └─────────────────────────────────────────────┘
 ```
+
+The driver is Adafruit's Pi 5 PIO writer (`adafruit-blinka-raspberry-pi5-neopixel`, in `requirements.txt`); the Pi 4's `rpi_ws281x` cannot reach the Pi 5's GPIO.
 
 
 ### 4.3 Round face display — GC9A01 1.28" (4-wire SPI) — `display.py`
@@ -316,8 +319,8 @@ bash pi_setup.sh
 At the end it prints your **audio device indices** — keep that output, you need it next.
 
 > **Pi 5 GPIO shim (important).** The classic `RPi.GPIO` library does **not** work on the Pi 5
-> (its GPIO chip changed). Both [core/eyes.py](core/eyes.py) and [core/display.py](core/display.py)
-> import `RPi.GPIO`, and without it the eyes/display silently do nothing (`display.py` prints
+> (its GPIO chip changed). [core/display.py](core/display.py) and [core/candles.py](core/candles.py)
+> import `RPi.GPIO`, and without it the display silently does nothing (`display.py` prints
 > "spidev/RPi.GPIO/Pillow unavailable — skipping"). Install the drop-in shim into the venv:
 > ```bash
 > # rpi-lgpio depends on lgpio, which has NO prebuilt wheel for Python 3.13 — it compiles
@@ -328,7 +331,8 @@ At the end it prints your **audio device indices** — keep that output, you nee
 > pip install rpi-lgpio              # provides the RPi.GPIO API on Pi 5
 > ```
 > (If you ever see "RuntimeError: Cannot determine SOC peripheral base address", that's the
-> missing shim. `error: command 'swig' failed` or `cannot find -llgpio` means the build deps
+> missing shim — or the classic `RPi.GPIO` installed over it. `adafruit-blinka` does that, so
+> never install it here; see [EYE_WIRING.md](EYE_WIRING.md). `error: command 'swig' failed` or `cannot find -llgpio` means the build deps
 > above aren't installed.)
 
 ---
@@ -399,9 +403,10 @@ can still reach the wiring.
 
 **Eye LEDs:**
 ```bash
-python -c "from core import eyes, config, time; eyes.setup(config.LED_PIN_LEFT, config.LED_PIN_CENTER, config.LED_PIN_RIGHT); eyes.on(); __import__('time').sleep(2); eyes.off(); eyes.cleanup()"
+python -c "from core import eyes, config; import time; eyes.setup(config.EYE_LED_PIN, config.EYE_LED_COUNT, config.EYE_LED_ORDER); eyes.on(); time.sleep(2); eyes.off(); eyes.cleanup()"
 ```
-All three LEDs should glow for 2 s. If one stays dark, check its LED polarity and resistor.
+Both eyes should glow red for 2 s. If they don't, or the colours differ between them, work
+through the bring-up table in [EYE_WIRING.md](EYE_WIRING.md).
 
 **Round display:**
 ```bash

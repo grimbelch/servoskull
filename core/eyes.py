@@ -1,5 +1,5 @@
 """
-Controls the 2 individually addressable WS2812B face/eye LEDs.
+Controls the 2 individually addressable eye LEDs (RGBW pixels, see EYE_WIRING.md).
 
 On the Pi 5 the RP1 southbridge owns the GPIO pins, so rpi_ws281x (which drives
 the Pi 4's PWM/DMA registers) cannot reach them. The signal is clocked out by

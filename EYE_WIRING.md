@@ -1,221 +1,155 @@
-# 2× Individually Addressable LED Eyes — Inline "Dead Bug" Wiring Guide
+# Optic LED Wiring
 
-This guide details the wiring and assembly for **2 individually addressable WS2812B RGB LED eyes** driven by a Raspberry Pi 4/5, using an inline **"Dead Bug" soldered logic level shifter** to step up the Raspberry Pi's 3.3V GPIO signal to 5.0V logic.
+Two addressable LEDs light the open optic tubes (Left Eye = index 0, Right Eye =
+index 1); the third tube holds the camera. They are driven from GPIO 18 on the
+Raspberry Pi 5 through a solder-pad "Smart LED" level shifter, and clocked out by
+the Pi 5's RP1 PIO block in [core/eyes.py](core/eyes.py).
 
-> [!NOTE]
-> Moving from 3 LEDs to 2 LEDs accounts for the 3rd lens housing being dedicated to the mounted camera. The two remaining eye lenses (Left Eye = Index 0, Right Eye = Index 1) are individually addressable over a single GPIO data line.
-
----
-
-## 🛒 Bill of Materials & Hardware Components
-
-| Component | Description | Amazon / Part Link |
-|---|---|---|
-| **Addressable LEDs** | BTF-LIGHTING WS2812B Pre-Soldered / Diffused 5V RGB LEDs | [Amazon Product Link](https://www.amazon.com/dp/B07C1XGD1X) |
-| **Level Shifter** | 3.3V to 5V Bi-Directional Logic Level Converter Module | [Amazon Product Link](https://www.amazon.com/dp/B08R6BCSYC) |
-| **Protection Resistor** | 330 Ω 1/4W Resistor (placed inline on 5V Data line) | Standard Electronic Component |
-| **Capacitor** | 100 µF to 1000 µF 10V/16V Electrolytic Capacitor (across 5V & GND **at the LED end**) | Optional / Recommended |
-| **Heat Shrink** | 2mm & 6mm Dual-Wall Adhesive Heat Shrink Tubing | Standard Hardware |
+> [!IMPORTANT]
+> The pixels fitted are **RGBW** (SK6812-type): four bytes per pixel, in **GRBW**
+> order, not the three bytes of a WS2812B. Sent three bytes each, the first eye takes
+> the second eye's leading byte as its white channel and the second eye shows the
+> leftovers, which looks exactly like two LEDs with different colour orders.
+> `EYE_LED_ORDER` sets the order (`GRBW` by default; `GRB` for plain WS2812B).
 
 ---
 
-## 🪲 What is "Dead Bug" Wiring?
+## Bill of materials
 
-A **"Dead Bug"** setup means soldering wires directly to the pins of the tiny logic level converter module with its component pins pointing upward (resembling an upside-down dead bug), insulated with heat-shrink tubing, and embedded directly inside the wire harness.
-
-### Why Use Dead Bug Wiring for the Skull?
-* **Zero Space Impact**: Eliminates bulky breadboards or extra PCBs inside the skull chassis.
-* **Inline Protection**: Allows the level shifter to sit invisibly inside the wire loom between the Pi GPIO header and the eye LED harness.
+| Component | Notes |
+|---|---|
+| 2 × addressable RGBW pixels | 5 V, SK6812-type, GRBW byte order |
+| "Smart LED" level shifter & inverter | Solder pads: `Clk`, `Data`, `Vin`, `GND` on the input side; `5vClk`, `5vData`, `Invert Data`, `GND` on the output side |
+| 330 Ω resistor | In series on the shifted 5 V data line, never the 3.3 V side |
+| 1000 µF electrolytic, ≥ 10 V | Across +5 V and GND **at the LED end**, stripe leg to GND |
+| Heat-shrink | 2 mm for joints and the resistor |
 
 ---
 
-## 📌 Level Converter Pinouts & Dead-Bug Connection Maps
+## Why a level shifter
 
-Depending on whether your setup uses the **4-Channel MOSFET Breakout Module** (`B08R6BCSYC`) or the **SN74AHCT125N IC**, use the corresponding pinout map below.
+A WS2812-family pixel wants a logic high of at least 0.7 × V<sub>DD</sub> = 3.5 V. The
+Pi's 3.3 V GPIO is below that and works only by luck, so the data line goes through
+a buffer-type shifter built for an 800 kHz single-wire stream. (The BSS138
+bi-directional modules sold for I²C cannot pass it cleanly.)
 
-### Option A: 4-Channel MOSFET Breakout Module (`B08R6BCSYC`)
+The shifter carries **data only**. Its `Vin` pad powers the board itself (a few mA);
+it has no 5 V power pad on its output side, so the eyes take +5 V and ground straight
+from the harness rails.
 
-| (1) Pi Pin # | (2) Level Shifter Pin (3.3V Side) | (3) Level Shifter Pin (5.0V Side) | (4) Wire Color / Destination |
+---
+
+## Pad map
+
+| From | To | Via | Wire |
 |---|---|---|---|
-| Pin 2 or 4 | — | **HV** | Red / 5V Power Rail (Level Shifter & LEDs) |
-| Pin 1 or 17 | **LV** | — | Orange / 3.3V Power Reference |
-| Pin 6, 9, or 14 | **GND** | **GND** | Black / Common Ground Rail |
-| Pin 12 (GPIO 18) | **LV1** (Data In) | **HV1** (Data Out) | Green ➔ **330 Ω Resistor** ➔ **Eye 1 DIN** |
+| Pi pin 2 — 5 V | +5 V rail | direct | Red |
+| Pi pin 6 — GND | GND rail | direct | Black |
+| Pi pin 12 — GPIO 18 | `Data` | direct, no resistor | Green |
+| +5 V rail | `Vin` | board logic only | Red |
+| GND rail | `GND` (input side) | direct | Black |
+| `5vData` | Eye 1 DIN | 330 Ω in series | White |
+| Eye 1 DOUT | Eye 2 DIN | direct | White |
+| +5 V rail (harness splice) | Eye 1 and Eye 2 +5 V | parallel — never from a shifter pad | Red |
+| GND rail (harness splice) | Eye 1 and Eye 2 GND | parallel; the output-side `GND` pad also works | Black |
+| 1000 µF across the rails | at the LED end | observe polarity | — |
+| `Clk`, `5vClk`, `Invert Data` | no connection | `5vClk` is a shifted clock signal, not a 5 V supply | — |
 
----
-
-### Option B: SN74AHCT125N DIP-14 IC (Dead-Bug Solder Map)
-
-If using the **SN74AHCT125N** high-speed 3.3V-to-5.0V bus buffer IC in DIP-14 format, use the following pinout and dead-bug connection map:
-
-#### DIP-14 Package Pinout Diagram
+Power and ground reach both eyes in **parallel**; data runs in **series**, from the
+shifter through Eye 1 to Eye 2. Everything shares one common ground.
 
 ```text
-               SN74AHCT125N DIP-14 Top View
-                     ┌───┬───┐
-(GND Enable 1)  1OE 1│●  └── │14 VCC (5V Power)
-(3.3V Data IN)   1A 2│       │13 4OE (Tie to GND)
-(5V Data OUT)    1Y 3│       │12 4A  (Unused)
-(Tie to GND)    2OE 4│       │11 4Y  (Unused)
-(Unused)         2A 5│       │10 3OE (Tie to GND)
-(Unused)         2Y 6│       │9  3A  (Unused)
-(Ground)        GND 7│       │8  3Y  (Unused)
-                     └───────┘
-```
-
-#### SN74AHCT125N Dead-Bug Pin Connection Table
-
-| (1) Pi Pin # | (2) Dead Bug Pin # | (3) Dead Bug Pin Name | (4) Selected Wire Color / Destination |
-|---|---|---|---|
-| Pin 2 or 4 | Pin 14 | VCC | Red / Pi 5V & LED 5V Bus |
-| Pin 9 or 14 | Pin 7 | GND | Black / Pi GND & LED GND Bus |
-| — | Pin 1 | 1OE | Bare Solder Bridge (Pin 7) |
-| Pin 12 (GPIO 18) | Pin 2 | 1A | Green / 3.3V Data Line |
-| Eye 1 DIN | Pin 3 | 1Y | White (via 330 Ω resistor) |
-| — | Pins 4, 10, 13 | 2OE, 3OE, 4OE | Bare Solder Bridge (Pin 7) |
-| — | Pins 5, 6, 8, 9, 11, 12 | 2A, 2Y, 3A, 3Y, 4A, 4Y | None |
-
----
-
-## 💡 Resistor Location & Signal Clarification
-
-### 1. Where Does the 330 Ω Resistor Go?
-> [!IMPORTANT]
-> The **330 Ω resistor is placed ONLY on the 5.0V Data Output line** (`1Y` on the IC / `HV1` on the module), **BEFORE Eye 1's `DIN` pin**.
-> - **Input Side (3.3V)**: Connect Raspberry Pi GPIO 18 (Pin 12) **directly** to Data Input (`1A` on the IC / `LV1` on the breakout module). **No resistor is used on the 3.3V input side.**
-> - **Output Side (5.0V)**: Connect Data Output (`1Y` / `HV1`) ➔ **330 Ω Resistor** ➔ **Eye 1 DIN**. (This dampens signal reflections and protects the first LED).
-
-### 2. Why Does Breakout Module Have `LV (3.3V VCC)` While SN74AHCT125N Does Not?
-- **4-Channel MOSFET Breakout Module**: Requires a 3.3V power reference wire connected to its `LV` pin to bias internal transistors.
-- **SN74AHCT125N IC Chip**: Powered **exclusively by 5.0V `VCC` (Pin 14)**. It has TTL-compatible input thresholds ($V_{IH} \ge 2.0\text{V}$), so it recognizes 3.3V GPIO data signals on Pin 2 (`1A`) directly **without needing any 3.3V power wire!**
-
----
-
-## 🔌 Complete Wiring Pinout Table
-
-### 1. Level Converter ➔ WS2812B Eye LED Harness
-
-| Level Converter Output Pin | Connection | Destination |
-|---|---|---|
-| **Pin 3 (1Y / HV1 Data Out)** | 330 Ω Resistor ➔ | **DIN** (Data In) of **Eye 1 (Left Eye)** |
-| **Pin 14 (5V Rail Pass-through)** | Direct ➔ | **+5V** (VCC) of **ALL Eye LEDs** (Parallel Bus) |
-| **Pin 7 (GND Pass-through)** | Direct ➔ | **GND** of **ALL Eye LEDs** (Parallel Bus) |
-
-### 2. Daisy-Chaining Eye LEDs in Series (Data Line)
-
-| Source LED | Signal Out | Destination LED | Signal In |
-|---|---|---|---|
-| **Eye 1 (Left Eye - Index 0)** | **DOUT** (Data Out) | ➔ **Eye 2 (Right Eye - Index 1)** | **DIN** (Data In) |
-
-> [!IMPORTANT]
-> - Power (`+5V`) and **GND** are wired in **parallel** to both Eye LEDs.
-> - Data (`DIN` / `DOUT`) is wired in **series** (daisy-chained) from Eye 1 through Eye 2.
-
----
-
-## 📐 Circuit Schematic Diagram
-
-```mermaid
-graph TD
-    subgraph Pi ["Raspberry Pi 4 / 5 Header"]
-        P5V["5V Power (Pin 2 / 4)"]
-        PGND["GND (Pin 6 / 9 / 14)"]
-        GPIO18["GPIO 18 / PWM0 (Pin 12)"]
-    end
-
-    subgraph DeadBug ["Inline Dead-Bug Level Shifter"]
-        HV["VCC 5V (HV / Pin 14)"]
-        GND_S["GND (Pin 7)"]
-        LV1["LV1 / 1A Input (Pin 2)"]
-        HV1["HV1 / 1Y Output (Pin 3)"]
-    end
-
-    subgraph Protection ["Inline Protection"]
-        R330["330 Ω Resistor"]
-    end
-
-    subgraph Eyes ["Addressable Eye Chain"]
-        E1["Eye 1 - Left Eye (WS2812B)"]
-        E2["Eye 2 - Right Eye (WS2812B)"]
-    end
-
-    P5V -->|Red Wire| HV
-    PGND -->|Black Wire| GND_S
-    GPIO18 -->|Green Wire| LV1
-
-    HV1 --> R330
-    R330 -->|5V Data Line| E1
-
-    P5V -->|+5V Bus| E1
-    P5V -->|+5V Bus| E2
-    PGND -->|GND Bus| E1
-    PGND -->|GND Bus| E2
-
-    E1 -->|DOUT to DIN| E2
+ Pi pin 2  (5V)  ──┬──────────────► Vin              ┌──────────► Eye 1 +5V ── Eye 2 +5V
+                   └─────────────────────────────────┘                     ┊
+ Pi pin 12 (GPIO18) ──────────────► Data                                [1000 µF]
+                                    5vData ──[330Ω]──► Eye 1 DIN           ┊
+                                                       Eye 1 DOUT ──► Eye 2 DIN
+ Pi pin 6  (GND) ──┬──────────────► GND              ┌──────────► Eye 1 GND ── Eye 2 GND
+                   └─────────────────────────────────┘
 ```
 
 ---
 
-## 🛠️ Step-by-Step "Dead Bug" Assembly Instructions
+## Assembly
 
-### Step 1: Prepare the Level Converter
-1. For breakout module: Solder header wires directly to `HV`, `LV`, `GND`, `LV1`, and `HV1`.
-2. For SN74AHCT125N IC: Place chip upside down (pins sticking up like a dead bug) and solder bridge enable pins `1OE` (Pin 1), `2OE` (Pin 4), `3OE` (Pin 10), and `4OE` (Pin 13) directly to `GND` (Pin 7).
-
-### Step 2: Solder the Input Side
-1. Solder a **Red wire** from Raspberry Pi **5V (Pin 2 or 4)** to **HV / Pin 14 (VCC)**.
-2. Solder a **Black wire** from Raspberry Pi **GND (Pin 6, 9, or 14)** to **GND / Pin 7 (GND)**.
-3. Solder a **Green wire** from Raspberry Pi **GPIO 18 (Pin 12)** to **LV1 / Pin 2 (1A)**.
-
-### Step 3: Solder Output Side & Inline Resistor
-1. Solder one leg of the **330 Ω resistor** directly to **HV1 / Pin 3 (1Y)**.
-2. Solder the data wire going to **Eye 1 (DIN)** to the other leg of the 330 Ω resistor.
-3. Solder the **+5V** power wire for Eye 1 directly to the **HV / Pin 14** rail.
-4. Solder the **GND** wire for Eye 1 directly to the **GND / Pin 7** rail.
-
-### Step 4: Insulate the "Dead Bug"
-1. Slide individual 2mm heat-shrink sleeves over each exposed solder joint and resistor leg.
-2. Slide a single 6mm or 8mm piece of dual-wall heat-shrink tubing over the entire level shifter assembly and shrink it with a heat gun to create a sealed inline pod.
-
-### Step 5: Mount & Daisy-Chain the Eye LEDs
-1. Mount Eye 1 into the Left Eye lens position and Eye 2 into the Right Eye lens position.
-2. Connect `+5V` and `GND` from the harness to both LEDs in parallel.
-3. Connect `DOUT` of Eye 1 to `DIN` of Eye 2.
+1. **Rails.** Run a red +5 V line and a black ground line from the Pi header to the
+   optic tubes, with splice points for the shifter, Eye 1 and Eye 2. Solder the
+   1000 µF capacitor across them at the LED end, stripe to ground.
+2. **Resistor.** Solder the white data wire to one leg and sleeve the joint and body.
+   Trim the other leg to about 6 mm and solder it straight into `5vData`.
+3. **Shifter.** `Vin` and input-side `GND` from the rails, `Data` from GPIO 18. Leave
+   `Clk`, `5vClk` and `Invert Data` empty — the silkscreen truncates `5vClk` to
+   "5vCl", which is easy to misread as a supply.
+4. **Eyes.** Eye 1 in the left tube, Eye 2 in the right. +5 V and ground to each from
+   the rails; data from the resistor to Eye 1 DIN, then Eye 1 DOUT to Eye 2 DIN. The
+   arrows on each pixel point away from the Pi.
+5. **Mount the board.** Use its mounting holes rather than burying it in the loom,
+   and insulate the back so the pads cannot touch metal. Sleeve every bare splice.
 
 ---
 
-## 💻 Software & Driver Configuration
+## Software
 
-### Environment Variables (`.env`)
+The Pi 5's GPIO belongs to the RP1 southbridge, so `rpi_ws281x` (which drives the
+Pi 4's PWM/DMA registers) cannot reach it. `core/eyes.py` packs the bytes itself and
+sends them through Adafruit's `/dev/pio0` writer, which `requirements.txt` installs
+on the Pi:
+
+```bash
+.venv/bin/pip install adafruit-blinka-raspberry-pi5-neopixel
+```
+
+> [!WARNING]
+> Install that package **alone**. `adafruit-blinka` (and `adafruit-circuitpython-pixelbuf`,
+> which needs it) pulls in `RPi.GPIO` and `rpi_ws281x`. `RPi.GPIO` overwrites the
+> `rpi-lgpio` shim, after which the display fails with "Cannot determine SOC
+> peripheral base address". If that happens:
+> ```bash
+> .venv/bin/pip uninstall -y adafruit-blinka adafruit-circuitpython-pixelbuf RPi.GPIO rpi_ws281x
+> .venv/bin/pip install --force-reinstall --no-deps rpi-lgpio
+> ```
+
+`/dev/pio0` is `root:gpio`, mode 0660, so the service user needs to be in the `gpio`
+group (`groups | grep gpio`); no root is required.
+
+`.env`:
+
 ```bash
 EYE_LED_PIN=18
 EYE_LED_COUNT=2
+EYE_LED_ORDER=GRBW
 ```
 
-### Driver Integration (`core/eyes.py`)
-```python
-import time
-import math
-from rpi_ws281x import PixelStrip, Color
-
-# Initialize 2 WS2812B eye LEDs on GPIO 18 (PWM0)
-strip = PixelStrip(2, 18, 800000, 10, False, 255, 0)
-strip.begin()
-
-def set_eye_color(r, g, b):
-    for i in range(2):
-        strip.setPixelColor(i, Color(r, g, b))
-    strip.show()
-
-# Set Grimdark Crimson Red
-set_eye_color(255, 0, 0)
-```
+On start the service logs `[eyes] Initialized 2 GRBW eye LEDs on GPIO 18.` If it says
+"mock mode" the writer is not installed.
 
 ---
 
-## 🔍 Verification & Troubleshooting Checklist
+## Bring-up
 
-- [ ] **Data Direction**: Verify `DIN` of Eye 1 is connected to `HV1` (after 330 Ω resistor), NOT `DOUT`.
-- [ ] **Common Ground**: Ensure Raspberry Pi GND, Level Shifter GND, and LED GND are all tied together to a single common ground.
-- [ ] **GPIO Selection**: GPIO 18 (Pin 12) is recommended as it supports hardware PWM0 without CPU timing jitter.
-- [ ] **Resistor Placement**: 330 Ω resistor must be placed on the 5.0V output data line (`HV1` ➔ `DIN`), NOT on the 3.3V input side.
+With the service stopped (`sudo systemctl stop omega7`), each primary in turn, then
+the white channel:
+
+```bash
+cd ~/Servoskull && .venv/bin/python - <<'PY'
+import time
+from types import SimpleNamespace
+from adafruit_raspberry_pi5_neopixel_write import neopixel_write
+pin = SimpleNamespace(id=18)                      # the writer wants an object with .id
+for name, grbw in (("red", (0, 255, 0, 0)), ("green", (255, 0, 0, 0)),
+                   ("blue", (0, 0, 255, 0)), ("white", (0, 0, 0, 255))):
+    neopixel_write(pin, bytes(grbw * 2)); print("both", name); time.sleep(2)
+neopixel_write(pin, bytes(8))
+PY
+```
+
+Both eyes should show the named colour each time.
+
+| What you see | Where the fault is |
+|---|---|
+| Both dark | Writer not installed, wrong GPIO, the `Data` joint, or no power on `Vin`. A meter on `5vData` reads near 0 V at rest and a small steady voltage while the colours cycle. |
+| Signal present, both dark | Downstream: the resistor joint, DIN/DOUT reversed, or the eyes' own +5 V and ground. |
+| Eye 1 right, Eye 2 a different colour or dark, or Eye 1 turns white | Wrong byte count: the pixels are RGBW and are being sent three bytes each, or the reverse. Check `EYE_LED_ORDER`. |
+| Eye 1 only | The DOUT-to-DIN hop between the eyes. |
+| Flicker or sparkle | Common ground first, then the capacitor. |
+| Left and right swapped | Swap the LEDs, not the code — index 0 is the left eye. |

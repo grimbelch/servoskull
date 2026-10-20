@@ -167,7 +167,7 @@ core/                  Python application package
   speech_stream.py     Cuts a streaming reply into speakable sentences
   audio.py             PipeWire audio capture & playback
   camera.py            IMX708 vision & SFace facial recognition
-  eyes.py / candles.py WS2812 eye LEDs; candle transistor control
+  eyes.py / candles.py RGBW eye LEDs (Pi 5 PIO); candle transistor control
   display.py           GC9A01 circular display driver & HUD engines
   spotify_ctrl.py      Spotify Connect integration
   bambu_ctrl.py        Bambu Lab 3D printer MQTT client
