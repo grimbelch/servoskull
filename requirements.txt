@@ -38,9 +38,9 @@ opencv-python>=4.8.0
 Pillow>=10.0.0
 scikit-learn>=1.3            # speaker_id GMM voice profiles
 spidev>=3.5; sys_platform == 'linux'   # GC9A01 round display over SPI
-# WS2812B eye LEDs, clocked out by the Pi 5's RP1 PIO block (core/eyes.py).
-adafruit-blinka>=8; sys_platform == 'linux' and platform_machine == 'aarch64'
-adafruit-circuitpython-pixelbuf>=2; sys_platform == 'linux' and platform_machine == 'aarch64'
+# RGBW eye LEDs, clocked out by the Pi 5's RP1 PIO block (core/eyes.py). The writer
+# alone: never adafruit-blinka or adafruit-circuitpython-pixelbuf, which pull in
+# RPi.GPIO and rpi_ws281x over the rpi-lgpio shim and break the Pi 5's GPIO.
 adafruit-blinka-raspberry-pi5-neopixel>=1.0.0rc2; sys_platform == 'linux' and platform_machine == 'aarch64'
 
 # ── Integrations ─────────────────────────────────────────────────────────────────

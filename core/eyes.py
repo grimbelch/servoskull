@@ -3,8 +3,12 @@ Controls the 2 individually addressable WS2812B face/eye LEDs.
 
 On the Pi 5 the RP1 southbridge owns the GPIO pins, so rpi_ws281x (which drives
 the Pi 4's PWM/DMA registers) cannot reach them. The signal is clocked out by
-RP1's PIO block instead, through Adafruit's /dev/pio0 writer, wrapped in a
-PixelBuf for the colour order and buffering.
+RP1's PIO block instead, through Adafruit's /dev/pio0 writer. Only that writer
+is used: Blinka, which its examples pair it with, depends on RPi.GPIO and
+rpi_ws281x, and installing those over the rpi-lgpio shim breaks every other GPIO
+user on a Pi 5. The handful of bytes is packed here instead.
+
+The pixels fitted are RGBW (SK6812-type, four bytes each, GRBW).
 
 The third eye lens housing is dedicated to the camera mount, so 2 addressable
 RGB LEDs (Left Eye = Index 0, Right Eye = Index 1) are driven in series via a
@@ -21,11 +25,13 @@ import math
 import time
 import threading
 import atexit
+from types import SimpleNamespace
 
 _speaking_lock = threading.Lock()
 
 _ws281x_available = False
-_strip = None
+_gpio = None              # what neopixel_write wants: any object with .id = BCM pin
+_buf = bytearray()        # the frame, already in the pixels' byte order
 _pin: int = 18
 _count: int = 2
 _order: str = "GRBW"       # colour byte order; a fourth letter means an RGBW pixel
@@ -47,20 +53,7 @@ IDLE_MAX = 0.60           # 60% max glow at sine peak
 _BREATH = [(3.2, 0.0), (4.5, 1.8)]  # (period_s, phase_rad) for [Left, Right]
 
 try:
-    import board
-    import adafruit_pixelbuf
     from adafruit_raspberry_pi5_neopixel_write import neopixel_write
-
-    class _Pi5Pixelbuf(adafruit_pixelbuf.PixelBuf):
-        """A PixelBuf that transmits through RP1's PIO block."""
-
-        def __init__(self, pin, size, **kwargs):
-            self._pin = pin
-            super().__init__(size=size, **kwargs)
-
-        def _transmit(self, buf):
-            neopixel_write(self._pin, buf)
-
     _ws281x_available = True
 except (ImportError, RuntimeError, NotImplementedError):
     _ws281x_available = False
@@ -72,7 +65,7 @@ def setup(pin: int = 18, count: int = 2, order: str = "GRBW") -> None:
     `order` is the pixels' colour byte order: "GRBW" for the RGBW pixels fitted,
     "GRB" for plain WS2812B.
     """
-    global _strip, _pin, _count, _order, _anim_thread
+    global _gpio, _buf, _pin, _count, _order, _anim_thread
 
     _pin = int(pin)
     _count = int(count)
@@ -86,25 +79,34 @@ def setup(pin: int = 18, count: int = 2, order: str = "GRBW") -> None:
         return
 
     try:
-        _strip = _Pi5Pixelbuf(getattr(board, f"D{_pin}"), _count,
-                              auto_write=False, byteorder=_order)
+        _buf = bytearray(len(_order) * _count)
+        _gpio = SimpleNamespace(id=_pin)
+        neopixel_write(_gpio, bytes(_buf))
 
         _stop.clear()
         _anim_thread = threading.Thread(target=_breathe_loop, daemon=True)
         _anim_thread.start()
-        print(f"[eyes] Initialized {_count} WS2812B eye LEDs on GPIO {_pin}.")
+        print(f"[eyes] Initialized {_count} {_order} eye LEDs on GPIO {_pin}.")
     except Exception as e:
-        print(f"[eyes] WS2812B init warning ({e}); eye LED animation disabled.")
+        _gpio = None
+        print(f"[eyes] LED init warning ({e}); eye LED animation disabled.")
 
 
 def parse_order(order: str) -> str:
-    """Normalise a PixelBuf byte order ("grbw" -> "GRBW"); anything that is not
+    """Normalise a colour byte order ("grbw" -> "GRBW"); anything that is not
     a permutation of RGB or RGBW falls back to GRBW, the pixels fitted."""
     order = order.strip().upper()
     if sorted(order) not in (["B", "G", "R"], ["B", "G", "R", "W"]):
         print(f"[eyes] Ignoring colour order {order!r}; using GRBW.")
         return "GRBW"
     return order
+
+
+def pixel_bytes(rgb: tuple[int, int, int], order: str) -> bytes:
+    """One pixel's bytes on the wire. The white channel stays dark: the eyes
+    are coloured, never white."""
+    channel = dict(zip("RGB", rgb), W=0)
+    return bytes(channel[c] for c in order)
 
 
 def _breathe_loop() -> None:
@@ -131,19 +133,16 @@ def _set_pixel(index: int, factor: float) -> None:
     g = int(max(0, min(255, _active_color[1] * factor * (_brightness / 255.0))))
     b = int(max(0, min(255, _active_color[2] * factor * (_brightness / 255.0))))
     
-    if _ws281x_available and _strip is not None:
-        try:
-            # The white channel stays dark: the eyes are coloured, never white.
-            _strip[index] = (r, g, b, 0) if len(_order) == 4 else (r, g, b)
-        except Exception:
-            pass
+    if _gpio is not None:
+        n = len(_order)
+        _buf[index * n:(index + 1) * n] = pixel_bytes((r, g, b), _order)
 
 
 def _show() -> None:
     """Flush pixel changes to the physical strip."""
-    if _ws281x_available and _strip is not None:
+    if _gpio is not None:
         try:
-            _strip.show()
+            neopixel_write(_gpio, bytes(_buf))
         except Exception:
             pass
 
@@ -195,10 +194,9 @@ def cleanup() -> None:
             _anim_thread.join(timeout=0.5)
         except Exception:
             pass
-    if _ws281x_available and _strip is not None:
+    if _gpio is not None:
         try:
-            _strip.fill((0,) * len(_order))
-            _strip.show()
+            neopixel_write(_gpio, bytes(len(_buf)))
         except Exception:
             pass
 
