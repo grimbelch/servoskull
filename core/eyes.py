@@ -1,5 +1,10 @@
 """
-Controls the 2 individually addressable WS2812B face/eye LEDs via rpi_ws281x.
+Controls the 2 individually addressable WS2812B face/eye LEDs.
+
+On the Pi 5 the RP1 southbridge owns the GPIO pins, so rpi_ws281x (which drives
+the Pi 4's PWM/DMA registers) cannot reach them. The signal is clocked out by
+RP1's PIO block instead, through Adafruit's /dev/pio0 writer, wrapped in a
+PixelBuf for the colour order and buffering.
 
 The third eye lens housing is dedicated to the camera mount, so 2 addressable
 RGB LEDs (Left Eye = Index 0, Right Eye = Index 1) are driven in series via a
@@ -23,6 +28,7 @@ _ws281x_available = False
 _strip = None
 _pin: int = 18
 _count: int = 2
+_order: str = "GRBW"       # colour byte order; a fourth letter means an RGBW pixel
 
 # Global state
 _stop = threading.Event()
@@ -41,40 +47,47 @@ IDLE_MAX = 0.60           # 60% max glow at sine peak
 _BREATH = [(3.2, 0.0), (4.5, 1.8)]  # (period_s, phase_rad) for [Left, Right]
 
 try:
-    from rpi_ws281x import PixelStrip, Color
+    import board
+    import adafruit_pixelbuf
+    from adafruit_raspberry_pi5_neopixel_write import neopixel_write
+
+    class _Pi5Pixelbuf(adafruit_pixelbuf.PixelBuf):
+        """A PixelBuf that transmits through RP1's PIO block."""
+
+        def __init__(self, pin, size, **kwargs):
+            self._pin = pin
+            super().__init__(size=size, **kwargs)
+
+        def _transmit(self, buf):
+            neopixel_write(self._pin, buf)
+
     _ws281x_available = True
-except (ImportError, RuntimeError):
+except (ImportError, RuntimeError, NotImplementedError):
     _ws281x_available = False
 
 
-def setup(pin: int = 18, count: int = 2, *args, **kwargs) -> None:
+def setup(pin: int = 18, count: int = 2, order: str = "GRBW") -> None:
+    """Initialize the eye LED chain on the given GPIO (BCM) pin.
+
+    `order` is the pixels' colour byte order: "GRBW" for the RGBW pixels fitted,
+    "GRB" for plain WS2812B.
     """
-    Initialize the WS2812B eye LED strip on the specified GPIO pin.
-    Accepts extra positional/keyword arguments for backward compatibility
-    with legacy setup(pin_left, pin_center, pin_right) signatures.
-    """
-    global _strip, _pin, _count, _anim_thread
-    
-    # Handle legacy setup call setup(pin_left, pin_center, pin_right)
-    if len(args) >= 2 or isinstance(pin, int) and pin in (22, 23, 27):
-        # Legacy positional pins passed; default to GPIO 18 for WS2812B
-        _pin = 18
-        _count = 2
-    else:
-        _pin = int(pin)
-        _count = int(count)
+    global _strip, _pin, _count, _order, _anim_thread
+
+    _pin = int(pin)
+    _count = int(count)
+    _order = parse_order(order)
 
     if not _ws281x_available:
-        print("[eyes] rpi_ws281x unavailable (non-Pi host or missing lib); eye animations running in mock mode.")
+        print("[eyes] Pi 5 NeoPixel driver unavailable (non-Pi host or missing lib); eye animations running in mock mode.")
         _stop.clear()
         _anim_thread = threading.Thread(target=_breathe_loop, daemon=True)
         _anim_thread.start()
         return
 
     try:
-        # WS2812B Configuration: 800kHz signal, DMA channel 10, non-inverted logic
-        _strip = PixelStrip(_count, _pin, 800000, 10, False, 255, 0)
-        _strip.begin()
+        _strip = _Pi5Pixelbuf(getattr(board, f"D{_pin}"), _count,
+                              auto_write=False, byteorder=_order)
 
         _stop.clear()
         _anim_thread = threading.Thread(target=_breathe_loop, daemon=True)
@@ -82,6 +95,16 @@ def setup(pin: int = 18, count: int = 2, *args, **kwargs) -> None:
         print(f"[eyes] Initialized {_count} WS2812B eye LEDs on GPIO {_pin}.")
     except Exception as e:
         print(f"[eyes] WS2812B init warning ({e}); eye LED animation disabled.")
+
+
+def parse_order(order: str) -> str:
+    """Normalise a PixelBuf byte order ("grbw" -> "GRBW"); anything that is not
+    a permutation of RGB or RGBW falls back to GRBW, the pixels fitted."""
+    order = order.strip().upper()
+    if sorted(order) not in (["B", "G", "R"], ["B", "G", "R", "W"]):
+        print(f"[eyes] Ignoring colour order {order!r}; using GRBW.")
+        return "GRBW"
+    return order
 
 
 def _breathe_loop() -> None:
@@ -110,7 +133,8 @@ def _set_pixel(index: int, factor: float) -> None:
     
     if _ws281x_available and _strip is not None:
         try:
-            _strip.setPixelColor(index, Color(r, g, b))
+            # The white channel stays dark: the eyes are coloured, never white.
+            _strip[index] = (r, g, b, 0) if len(_order) == 4 else (r, g, b)
         except Exception:
             pass
 
@@ -173,8 +197,7 @@ def cleanup() -> None:
             pass
     if _ws281x_available and _strip is not None:
         try:
-            for i in range(_count):
-                _strip.setPixelColor(i, Color(0, 0, 0))
+            _strip.fill((0,) * len(_order))
             _strip.show()
         except Exception:
             pass

@@ -483,6 +483,10 @@ PROXIMITY_XSHUT_PIN = int(os.getenv("PROXIMITY_XSHUT_PIN", "4"))
 # Data line uses GPIO 18 (Pin 12 / PWM0) stepped up from 3.3V to 5V via level shifter.
 EYE_LED_PIN = int(os.getenv("EYE_LED_PIN", "18"))
 EYE_LED_COUNT = int(os.getenv("EYE_LED_COUNT", "2"))
+# Colour byte order. The eyes fitted are RGBW pixels (SK6812-type, four bytes each,
+# GRBW); a plain 3-byte WS2812B would be "GRB". Getting the byte count wrong shifts
+# every LED after the first, so the second eye shows the first one's leftovers.
+EYE_LED_ORDER = os.getenv("EYE_LED_ORDER", "GRBW")
 
 # Legacy GPIO PWM pins (kept for fallback compatibility)
 LED_PIN_LEFT = int(os.getenv("LED_PIN_LEFT", "22"))

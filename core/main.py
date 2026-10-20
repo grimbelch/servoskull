@@ -1657,7 +1657,7 @@ def main():
     except Exception as e:
         print(f"[skull] Failed to set boot volume: {e}")
 
-    eyes.setup(config.EYE_LED_PIN, config.EYE_LED_COUNT)
+    eyes.setup(config.EYE_LED_PIN, config.EYE_LED_COUNT, config.EYE_LED_ORDER)
     candles.setup(config.CANDLE_PIN)
     candles.on()  # ambient — flicker for as long as the skull is powered
     display.setup()

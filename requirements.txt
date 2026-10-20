@@ -10,7 +10,7 @@
 #
 # Not listed, installed by pi_setup.sh or apt because pip can't build them everywhere
 # (the modules no-op when they are missing): VL53L1X (proximity sensor), picamera2
-# (camera), rpi-ws281x (WS2812 eye LEDs — see CANDLE_WIRING.md), RPi.GPIO/rpi-lgpio.
+# (camera), RPi.GPIO/rpi-lgpio.
 
 # ── Brain, ears and voice ────────────────────────────────────────────────────────
 anthropic>=0.30.0,<1
@@ -38,6 +38,10 @@ opencv-python>=4.8.0
 Pillow>=10.0.0
 scikit-learn>=1.3            # speaker_id GMM voice profiles
 spidev>=3.5; sys_platform == 'linux'   # GC9A01 round display over SPI
+# WS2812B eye LEDs, clocked out by the Pi 5's RP1 PIO block (core/eyes.py).
+adafruit-blinka>=8; sys_platform == 'linux' and platform_machine == 'aarch64'
+adafruit-circuitpython-pixelbuf>=2; sys_platform == 'linux' and platform_machine == 'aarch64'
+adafruit-blinka-raspberry-pi5-neopixel>=1.0.0rc2; sys_platform == 'linux' and platform_machine == 'aarch64'
 
 # ── Integrations ─────────────────────────────────────────────────────────────────
 python-dotenv>=1.0.0
