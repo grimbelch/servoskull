@@ -37,6 +37,7 @@ TICK_SECS = 1.0
 _NET_PROBE = ("api.anthropic.com", 443)
 _NET_EVERY_SECS = 30.0
 _NET_FAILS_OFFLINE = 2
+_NET_BOOT_GRACE_SECS = 180.0   # Wi-Fi can take a minute to come up after boot
 
 
 @dataclass
@@ -109,19 +110,29 @@ def _bt_sink_present() -> bool:
     return "bluez_output" in out
 
 
+def offline_after(fails: int, ever_reached: bool, uptime: float) -> bool:
+    """Whether `fails` failed probes in a row mean offline. Until the network has
+    been reached once, a slow boot is given _NET_BOOT_GRACE_SECS first."""
+    if fails < _NET_FAILS_OFFLINE:
+        return False
+    return ever_reached or uptime >= _NET_BOOT_GRACE_SECS
+
+
 def _probe_network() -> None:
     """Can the API's address be reached? Run off the tick: DNS can hang."""
     global _offline, _net_fails
+    started = time.monotonic()
+    ever_reached = False
     while True:
         try:
             with socket.create_connection(_NET_PROBE, timeout=4):
                 pass
             if _offline:
                 print("[eyes] Network back.")
-            _net_fails, _offline = 0, False
+            _net_fails, _offline, ever_reached = 0, False, True
         except OSError:
             _net_fails += 1
-            if _net_fails >= _NET_FAILS_OFFLINE and not _offline:
+            if not _offline and offline_after(_net_fails, ever_reached, time.monotonic() - started):
                 _offline = True
                 print(f"[eyes] Cannot reach {_NET_PROBE[0]}; showing offline.")
         time.sleep(_NET_EVERY_SECS)

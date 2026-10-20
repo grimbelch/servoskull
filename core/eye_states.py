@@ -29,8 +29,10 @@ RGBW = tuple[int, int, int, int]
 EMBER = (70, 6, 0)            # idle: fixed, never the mood colour
 BT_BLUE = (0, 50, 255)
 CAST_VIOLET = (150, 0, 255)
-AMBER = (255, 110, 0)
-ORANGE = (255, 55, 0)
+# Amber is a warning, so it leans orange: (255, 110, 0) reads yellow-white on these
+# pixels, too close to the white-channel reminders. Overheating sits redder still.
+AMBER = (255, 70, 0)
+ORANGE = (255, 28, 0)
 CYAN = (0, 200, 170)
 GREEN = (0, 255, 40)
 WHITE = (0, 0, 0)             # with white=True: the pixel's own white channel

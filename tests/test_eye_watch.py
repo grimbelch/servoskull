@@ -54,3 +54,10 @@ def test_movement_rule():
 def test_present_without_sensor_is_unknown(monkeypatch):
     monkeypatch.setattr(proximity, "_available", False)
     assert eye_watch.present() is None
+
+
+def test_offline_waits_out_a_slow_boot():
+    assert not eye_watch.offline_after(1, True, 999)
+    assert not eye_watch.offline_after(2, False, 40)        # Wi-Fi still coming up
+    assert eye_watch.offline_after(2, False, 200)           # never came up
+    assert eye_watch.offline_after(2, True, 40)             # was up, now gone
