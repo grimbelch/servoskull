@@ -84,6 +84,19 @@ def start_background() -> bool:
     return _manager() is not None
 
 
+def wanted_speaker() -> str | None:
+    """The speaker the D-Bus manager is keeping connected, if it is running.
+
+    None with the bluetoothctl backend, which has no standing intent to reconnect,
+    so a speaker that is not connected there is simply not connected.
+    """
+    m = _manager_cache or None
+    try:
+        return m.desired.speaker if m is not None and m.available else None
+    except Exception:
+        return None
+
+
 def _as_rows(devices) -> list[dict]:
     return [{"name": d.name or d.mac, "mac": d.mac} for d in devices]
 

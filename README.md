@@ -76,6 +76,30 @@ The circular GC9A01 IPS panel serves as Omega-7's main visual feedback element, 
 - **Vector Digit Projector**: High-tech segment lines drawing physical dice values.
 - **Artwork Projector**: Direct DeviantArt RSS search fetching and displaying 40k and Necromunda fan art inside the mechanical lens aperture.
 
+### Optic LEDs
+
+The two RGBW LEDs in the optic tubes leave mood to the display and show the world around Omega-7 instead. The **left eye is links**, the **right eye is tasks**; at rest both glow a faint, fixed ember.
+
+| When | Eyes | Light |
+| :--- | :--- | :--- |
+| Wake word heard | both | white flash, like an eye opening |
+| Thinking (waiting on Claude, running tools) | both | slow left-right ping-pong in the mood colour |
+| Speaking | both | follows the voice, in the mood colour |
+| Waiting for a spoken yes/no (update, reboot, shutdown) | both | amber blink |
+| Bluetooth speaker connected | left | two quick blue blinks, then dim steady blue |
+| Bluetooth speaker dropped / reconnecting | left | one fading blue blink / slow blue blink |
+| Casting to a Google speaker | left | dim steady violet |
+| Cannot reach the internet | left | amber flicker |
+| Print running / paused | right | cyan breathing / steady cyan |
+| Print finished | right | green pulse, held |
+| Printer fault | right | amber double-blink, held |
+| Reminder due | right | white blink until acknowledged |
+| Announcements withheld in silent mode | right | slow white pulse, held |
+| Overheating | both | orange pulse, over everything |
+| Under-voltage | both | a sharp amber flicker each time it happens |
+
+Several tasks at once take turns on the right eye. A held light clears when you say "acknowledged" (Omega-7 then tells you anything silent mode withheld), or when it is announced while the rangefinder can see someone; announced to an empty room, it is repeated when someone next walks in. A new print clears the last one's light. Sleep hours dim everything to a quarter and stop the blinking; silent mode and an empty room dim it to half.
+
 ---
 
 ## 🗣️ Verbal Command Quick Reference
@@ -168,6 +192,9 @@ core/                  Python application package
   audio.py             PipeWire audio capture & playback
   camera.py            IMX708 vision & SFace facial recognition
   eyes.py / candles.py RGBW eye LEDs (Pi 5 PIO); candle transistor control
+  eye_states.py        What the eye LEDs show: layers, colours, patterns (pure)
+  eye_watch.py         Feeds the eye LEDs the state of speaker, printer, network...
+  notices.py           Things waiting for you (a finished print) until dealt with
   display.py           GC9A01 circular display driver & HUD engines
   spotify_ctrl.py      Spotify Connect integration
   bambu_ctrl.py        Bambu Lab 3D printer MQTT client

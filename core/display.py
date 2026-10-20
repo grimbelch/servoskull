@@ -2231,6 +2231,11 @@ def set_amplitude(amp: float) -> None:
     _poke()
 
 
+def mood_colour(mood: str) -> tuple[int, int, int]:
+    """The iris colour for `mood`; the eye LEDs draw activity in it too."""
+    return _MOOD_COLOURS.get((mood or "").upper(), (255, 40, 30))
+
+
 def set_mood(mood: str) -> None:
     """Tint the iris to match Omega-7's current disposition (see core/mood.py)."""
     global _mood_rgb, _mood_name

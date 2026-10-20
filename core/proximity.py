@@ -24,6 +24,13 @@ _last_poll_time: float = 0.0
 _readings_buffer = collections.deque(maxlen=10)
 _poll_lock = threading.Lock()
 
+# Movement: a reading that differs from the last reference by more than this (or a
+# target appearing or vanishing) counts as someone moving nearby. A static desk or
+# chair holds one distance forever, so distance alone cannot tell a person is there.
+MOVEMENT_DELTA_CM = 15.0
+_movement_ref_cm: float | None = None
+_last_movement_at: float | None = None   # time.monotonic()
+
 
 # Read-error handling: log the first error and then at most once a minute, and
 # after sustained failures close and re-open the sensor (with backoff) instead of
@@ -112,6 +119,30 @@ def _raw_read_cm() -> float | None:
 _stop_event = threading.Event()
 
 
+def moved(ref_cm: float | None, cm: float | None, delta: float = MOVEMENT_DELTA_CM) -> bool:
+    """Whether a reading of `cm` after a reference of `ref_cm` counts as movement."""
+    if (ref_cm is None) != (cm is None):
+        return True
+    return ref_cm is not None and cm is not None and abs(cm - ref_cm) > delta
+
+
+def _note_reading(cm: float | None) -> None:
+    global _movement_ref_cm, _last_movement_at
+    if moved(_movement_ref_cm, cm):
+        _movement_ref_cm = cm
+        _last_movement_at = time.monotonic()
+
+
+def seconds_since_movement() -> float | None:
+    """Seconds since the rangefinder last saw something move, or None without a
+    sensor (or before it has seen anything move)."""
+    if not _available:
+        return None
+    with _poll_lock:
+        at = _last_movement_at
+    return None if at is None else time.monotonic() - at
+
+
 def _continuous_poll_loop() -> None:
     """Background thread continuously polling the rangefinder sensor."""
     global _last_cm, _last_poll_time, _polling_active
@@ -125,9 +156,11 @@ def _continuous_poll_loop() -> None:
                     _last_cm = cm
                     _last_poll_time = now_time
                     _readings_buffer.append(cm)
+                    _note_reading(cm)
                 elif now_time - _last_poll_time > 2.0:
                     _last_cm = None
                     _readings_buffer.clear()
+                    _note_reading(None)
         except Exception as e:
             print(f"[proximity] Error in continuous poll loop: {e}")
         if _stop_event.wait(config.PROXIMITY_POLL_INTERVAL):

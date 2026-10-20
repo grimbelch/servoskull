@@ -1505,9 +1505,17 @@ def _tool_cancel_reminder(i):
     return f"Reminder [{rid}] cancelled." if _reminders.cancel(rid) else f"No reminder found with ID '{rid}'."
 
 def _tool_acknowledge_reminders(i):
+    from core import notices
     count = _reminders.acknowledge_all()
-    print(f"[brain] Acknowledged {count} repeating reminder(s)")
-    return f"Silenced {count} repeating alert(s)." if count else "No repeating alerts were active."
+    held, missed = notices.acknowledge_all()
+    print(f"[brain] Acknowledged {count} repeating reminder(s) and {len(held)} held notice(s)")
+    parts = [f"Silenced {count} repeating alert(s)." if count else "No repeating alerts were active."]
+    done = [n.text for n in held if n.kind != notices.MISSED]
+    if done:
+        parts.append("Also cleared: " + " ".join(done))
+    if missed:
+        parts.append("Withheld while silent mode was on (tell the user briefly): " + " | ".join(missed))
+    return " ".join(parts)
 
 def _tool_set_quiet_mode(i):
     enabled = bool(i.get("enabled", True))
@@ -1651,7 +1659,9 @@ def _tool_set_voice_wait_duration(i):
     return config.set_silence_duration(sec)
 
 def _tool_cancel_printer_alerts(i):
-    from core import bambu_ctrl
+    from core import bambu_ctrl, notices
+    notices.clear(notices.PRINT_DONE, "printer alerts cancelled")
+    notices.clear(notices.PRINT_ERROR, "printer alerts cancelled")
     monitor = bambu_ctrl.get_monitor()
     if monitor:
         monitor.cancel_repeater()

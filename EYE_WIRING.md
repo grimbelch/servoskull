@@ -3,7 +3,9 @@
 Two addressable LEDs light the open optic tubes (Left Eye = index 0, Right Eye =
 index 1); the third tube holds the camera. They are driven from GPIO 18 on the
 Raspberry Pi 5 through a solder-pad "Smart LED" level shifter, and clocked out by
-the Pi 5's RP1 PIO block in [core/eyes.py](core/eyes.py).
+the Pi 5's RP1 PIO block in [core/eyes.py](core/eyes.py). What each colour means is
+in the README ("Optic LEDs"); the rules live in [core/eye_states.py](core/eye_states.py)
+and [core/eye_watch.py](core/eye_watch.py).
 
 > [!IMPORTANT]
 > The pixels fitted are **RGBW** (SK6812-type): four bytes per pixel, in **GRBW**

@@ -476,6 +476,10 @@ PROXIMITY_RANGE_MODE = int(os.getenv("PROXIMITY_RANGE_MODE", "3"))
 PROXIMITY_POLL_INTERVAL = float(os.getenv("PROXIMITY_POLL_INTERVAL", "0.2"))
 # GPIO BCM pin connected to XSHUT/SHDN to enable the sensor (defaults to GPIO 4, Pin 7)
 PROXIMITY_XSHUT_PIN = int(os.getenv("PROXIMITY_XSHUT_PIN", "4"))
+# Someone counts as present while the rangefinder has seen movement within this
+# many seconds. Held notices (a finished print) clear when announced to someone
+# present, and are announced again when someone arrives after an absence.
+PRESENCE_WINDOW_SECS = float(_cfg("PRESENCE_WINDOW_SECS", "300"))
 
 
 # ── Eye LEDs (addressable RGBW pixels — see EYE_WIRING.md) ────────────────────────

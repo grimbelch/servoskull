@@ -1,5 +1,5 @@
 """
-Controls the 2 individually addressable eye LEDs (RGBW pixels, see EYE_WIRING.md).
+Drives the 2 individually addressable eye LEDs (RGBW pixels, see EYE_WIRING.md).
 
 On the Pi 5 the RP1 southbridge owns the GPIO pins, so rpi_ws281x (which drives
 the Pi 4's PWM/DMA registers) cannot reach them. The signal is clocked out by
@@ -8,26 +8,23 @@ is used: Blinka, which its examples pair it with, depends on RPi.GPIO and
 rpi_ws281x, and installing those over the rpi-lgpio shim breaks every other GPIO
 user on a Pi 5. The handful of bytes is packed here instead.
 
-The pixels fitted are RGBW (SK6812-type, four bytes each, GRBW).
+The pixels fitted are RGBW (SK6812-type, four bytes each, GRBW). Left Eye =
+index 0, Right Eye = index 1; the third lens housing holds the camera.
 
-The third eye lens housing is dedicated to the camera mount, so 2 addressable
-RGB LEDs (Left Eye = Index 0, Right Eye = Index 1) are driven in series via a
-single GPIO data line (default GPIO 18) stepped up from 3.3V to 5.0V with a
-logic level shifter.
-
-While idle, the two eye LEDs independently "breathe" with subtle phase-shifted
-sine waves in Warhammer Crimson Red (or custom configured RGB color). During
-speech/attention, the brightness scales with speech amplitude.
+What they show is decided by core/eye_states.py, from the state held here:
+main.py reports activity (wake(), think(), on()/set_amplitude() while speaking,
+off()), core/eye_watch.py the status of the world (set_status(), blip()). A
+50 FPS loop resolves each frame and sends it.
 """
 
 from __future__ import annotations
-import math
+import dataclasses
 import time
 import threading
 import atexit
 from types import SimpleNamespace
 
-_speaking_lock = threading.Lock()
+from core import eye_states as es
 
 _ws281x_available = False
 _gpio = None              # what neopixel_write wants: any object with .id = BCM pin
@@ -36,21 +33,28 @@ _pin: int = 18
 _count: int = 2
 _order: str = "GRBW"       # colour byte order; a fourth letter means an RGBW pixel
 
-# Global state
 _stop = threading.Event()
 _anim_thread: threading.Thread | None = None
-_speaking = False         # True while speech/attention drives the eyes directly
-_brightness = 255.0      # Current master brightness scale (0.0 to 255.0)
+_lock = threading.Lock()
 
-# Colors (R, G, B)
-_active_color = (255, 0, 0) # Default grimdark crimson red
+# What the next frame is resolved from (see eye_states.Frame).
+_mood_rgb = (255, 40, 30)
+_wake_at = -1e9
+_activity = ""
+_activity_since = 0.0
+_amplitude = 1.0
+_confirm_until = 0.0
+_health: es.Light | None = None
+_links: list[es.Light] = []
+_tasks: list[es.Light] = []
+_blips: list[es.Blip] = []
+_scale = 1.0
+_calm = False
+_started_at = 0.0
+_fade_out_at: float | None = None
 
-# Idle breathing parameters: each eye fades between IDLE_MIN and IDLE_MAX
-# (percentages of active color intensity). Offset phases keep Left and Right
-# eyes drifting independently for a living, cybernetic gaze.
-IDLE_MIN = 0.15           # 15% baseline glow at sine trough
-IDLE_MAX = 0.60           # 60% max glow at sine peak
-_BREATH = [(3.2, 0.0), (4.5, 1.8)]  # (period_s, phase_rad) for [Left, Right]
+BOOT_FADE_SECS = 2.0
+SHUTDOWN_FADE_SECS = 0.4
 
 try:
     from adafruit_raspberry_pi5_neopixel_write import neopixel_write
@@ -65,17 +69,15 @@ def setup(pin: int = 18, count: int = 2, order: str = "GRBW") -> None:
     `order` is the pixels' colour byte order: "GRBW" for the RGBW pixels fitted,
     "GRB" for plain WS2812B.
     """
-    global _gpio, _buf, _pin, _count, _order, _anim_thread
+    global _gpio, _buf, _pin, _count, _order, _anim_thread, _started_at
 
     _pin = int(pin)
     _count = int(count)
     _order = parse_order(order)
+    _started_at = time.monotonic()
 
     if not _ws281x_available:
-        print("[eyes] Pi 5 NeoPixel driver unavailable (non-Pi host or missing lib); eye animations running in mock mode.")
-        _stop.clear()
-        _anim_thread = threading.Thread(target=_breathe_loop, daemon=True)
-        _anim_thread.start()
+        print("[eyes] Pi 5 NeoPixel driver unavailable (non-Pi host or missing lib); eye LEDs in mock mode.")
         return
 
     try:
@@ -84,7 +86,7 @@ def setup(pin: int = 18, count: int = 2, order: str = "GRBW") -> None:
         neopixel_write(_gpio, bytes(_buf))
 
         _stop.clear()
-        _anim_thread = threading.Thread(target=_breathe_loop, daemon=True)
+        _anim_thread = threading.Thread(target=_frame_loop, daemon=True)
         _anim_thread.start()
         print(f"[eyes] Initialized {_count} {_order} eye LEDs on GPIO {_pin}.")
     except Exception as e:
@@ -102,92 +104,122 @@ def parse_order(order: str) -> str:
     return order
 
 
-def pixel_bytes(rgb: tuple[int, int, int], order: str) -> bytes:
-    """One pixel's bytes on the wire. The white channel stays dark: the eyes
-    are coloured, never white."""
-    channel = dict(zip("RGB", rgb), W=0)
+def pixel_bytes(rgbw: tuple[int, ...], order: str) -> bytes:
+    """One pixel's bytes on the wire. A 3-tuple leaves the white channel dark."""
+    channel = dict(zip("RGBW", (*rgbw, 0)[:4]))
     return bytes(channel[c] for c in order)
 
 
-def _breathe_loop() -> None:
-    """Animate independent idle breathing for Left and Right eye LEDs."""
-    t0 = time.monotonic()
+def frame(now: float | None = None) -> es.Frame:
+    """The state the next frame is resolved from."""
+    now = time.monotonic() if now is None else now
+    with _lock:
+        _blips[:] = [b for b in _blips if now < b.until]
+        if _fade_out_at is not None:
+            fade = max(0.0, 1.0 - (now - _fade_out_at) / SHUTDOWN_FADE_SECS)
+        else:
+            fade = min(1.0, (now - _started_at) / BOOT_FADE_SECS)
+        return es.Frame(
+            now=now, mood_rgb=_mood_rgb, wake_at=_wake_at, activity=_activity,
+            activity_since=_activity_since, amplitude=_amplitude,
+            confirming=now < _confirm_until, health=_health, blips=list(_blips),
+            links=list(_links), tasks=list(_tasks), scale=_scale, calm=_calm, fade=fade)
+
+
+def _frame_loop() -> None:
     while not _stop.is_set():
-        if not _speaking:
-            now = time.monotonic() - t0
-            for i in range(_count):
-                period, phase = _BREATH[i % len(_BREATH)]
-                frac = 0.5 + 0.5 * math.sin(2 * math.pi * now / period + phase)
-                intensity = IDLE_MIN + (IDLE_MAX - IDLE_MIN) * frac
-                _set_pixel(i, intensity)
-            _show()
-        if _stop.wait(1 / 50): # ~50 FPS refresh
-            break
-
-
-def _set_pixel(index: int, factor: float) -> None:
-    """Set pixel color scaled by a factor (0.0 to 1.0) and master brightness."""
-    if index >= _count:
-        return
-    r = int(max(0, min(255, _active_color[0] * factor * (_brightness / 255.0))))
-    g = int(max(0, min(255, _active_color[1] * factor * (_brightness / 255.0))))
-    b = int(max(0, min(255, _active_color[2] * factor * (_brightness / 255.0))))
-    
-    if _gpio is not None:
+        left, right = es.resolve(frame())
         n = len(_order)
-        _buf[index * n:(index + 1) * n] = pixel_bytes((r, g, b), _order)
-
-
-def _show() -> None:
-    """Flush pixel changes to the physical strip."""
-    if _gpio is not None:
+        for i in range(_count):
+            _buf[i * n:(i + 1) * n] = pixel_bytes(left if i == 0 else right, _order)
         try:
             neopixel_write(_gpio, bytes(_buf))
         except Exception:
             pass
+        if _stop.wait(1 / 50):
+            break
 
 
-def set_color(r: int, g: int, b: int) -> None:
-    """Set active RGB color tuple for the eye LEDs (0–255 each)."""
-    global _active_color
-    _active_color = (max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b)))
+# ── Activity (main.py) ─────────────────────────────────────────────────────────
+
+def _set_activity(name: str) -> None:
+    global _activity, _activity_since
+    with _lock:
+        if _activity != name:
+            _activity, _activity_since = name, time.monotonic()
 
 
-def set_brightness(pct: float) -> None:
-    """Set master brightness percentage (0–100)."""
-    global _brightness
-    pct = max(0.0, min(100.0, pct))
-    _brightness = (pct / 100.0) * 255.0
-    if _speaking:
-        for i in range(_count):
-            _set_pixel(i, 1.0)
-        _show()
+def wake() -> None:
+    """The wake word: a white flash, like an eye opening, then the status lights
+    while he listens."""
+    global _wake_at
+    with _lock:
+        _wake_at = time.monotonic()
+    _set_activity("")
+
+
+def think(active: bool = True) -> None:
+    """Waiting on Claude or running tools: a slow left-right ping-pong."""
+    _set_activity("thinking" if active else "")
 
 
 def on() -> None:
-    """Steady full-intensity gaze (e.g. while attending or executing commands)."""
-    global _speaking
-    _speaking = True
-    set_brightness(100.0)
-
-
-def off() -> None:
-    """Return to the idle breathing glow."""
-    global _speaking
-    _speaking = False
+    """About to speak: full brightness until the voice's amplitude arrives."""
+    global _amplitude
+    _amplitude = 1.0
+    _set_activity("speaking")
 
 
 def set_amplitude(amp: float) -> None:
-    """Map a normalized speech amplitude (0–1) to eye brightness."""
-    global _speaking
-    _speaking = True
-    # Baseline lift so eyes remain lit during speech, scaling sharply with volume
-    pct = 20.0 + 80.0 * min(1.0, amp * 5.0)
-    set_brightness(pct)
+    """Follow a normalized speech amplitude (0-1) while speaking."""
+    global _amplitude
+    _amplitude = 0.2 + 0.8 * min(1.0, amp * 5.0)
+    _set_activity("speaking")
+
+
+def off() -> None:
+    """Done talking: back to the status lights."""
+    _set_activity("")
+
+
+def set_mood_colour(rgb: tuple[int, int, int]) -> None:
+    """The colour activity is drawn in: the display's iris colour for the mood."""
+    global _mood_rgb
+    _mood_rgb = tuple(max(0, min(255, int(c))) for c in rgb[:3])
+
+
+def set_confirming(until: float | None) -> None:
+    """Waiting for a spoken yes/no until time.time() reaches `until` (None: not)."""
+    global _confirm_until
+    _confirm_until = 0.0 if until is None else time.monotonic() + max(0.0, until - time.time())
+
+
+# ── Status (core/eye_watch.py) ─────────────────────────────────────────────────
+
+def set_status(links: list[es.Light], tasks: list[es.Light], health: es.Light | None,
+               scale: float = 1.0, calm: bool = False) -> None:
+    """Replace the status layers: left-eye links (best first), right-eye tasks,
+    a machine-health override, and the room's brightness modifiers."""
+    global _links, _tasks, _health, _scale, _calm
+    with _lock:
+        _links, _tasks, _health = list(links), list(tasks), health
+        _scale, _calm = scale, calm
+
+
+def blip(light: es.Light, eyes: str = "both", secs: float = 1.0) -> None:
+    """Show `light` on `eyes` for `secs`, over the status lights."""
+    now = time.monotonic()
+    with _lock:
+        _blips.append(es.Blip(dataclasses.replace(light, since=now), eyes, now + secs))
 
 
 def cleanup() -> None:
-    """Extinguish LEDs and release hardware resources."""
+    """Fade the LEDs out and release them."""
+    global _fade_out_at
+    if _anim_thread is not None and _anim_thread.is_alive():
+        with _lock:
+            _fade_out_at = time.monotonic()
+        time.sleep(SHUTDOWN_FADE_SECS)
     _stop.set()
     if _anim_thread is not None and _anim_thread.is_alive():
         try:
@@ -201,5 +233,3 @@ def cleanup() -> None:
             pass
 
 atexit.register(cleanup)
-
-

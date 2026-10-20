@@ -26,6 +26,7 @@ from core import db
 db.init_db()
 from core import audio, wake_word, transcribe, brain, tts, eyes, sfx, reminders, mood, speech_stream, watchdog, intents, announcements, vad
 from core import spotify_ctrl, cast_audio, camera, quiet, display, temperature, candles, bambu_ctrl
+from core import eye_watch, notices
 
 
 def shutdown(sig=None, frame=None):
@@ -392,9 +393,26 @@ def is_speech_active() -> bool:
 
 
 def _speak_bambu_notification(event_type: str, text: str) -> None:
-    """Announce a Bambu 3D printer event; the main loop speaks it between turns."""
+    """Announce a Bambu 3D printer event; the main loop speaks it between turns.
+
+    A finish or a fault is also held as a notice, lit on the right eye, until it is
+    acknowledged or announced to someone the rangefinder can see (core/notices.py).
+    """
     print(f"[skull] Bambu notification ({event_type}): {text}")
-    announcements.announce(text, priority=announcements.NOTICE, source=f"printer {event_type}", ping="wake_ping")
+    kind = {"finish": notices.PRINT_DONE, "error": notices.PRINT_ERROR}.get(event_type)
+    then = None
+    if kind:
+        notices.add(kind, text)
+        then = lambda: notices.delivered(kind)  # noqa: E731
+    announcements.announce(text, priority=announcements.NOTICE, source=f"printer {event_type}",
+                           ping="wake_ping", then=then)
+
+
+def _stop_printer_repeats() -> None:
+    """A printer notice was dealt with: its spoken repeats are no longer needed."""
+    monitor = bambu_ctrl.get_monitor()
+    if monitor is not None:
+        monitor.cancel_repeater()
 
 
 def _preload_phrases(show_progress: bool = False) -> None:
@@ -712,7 +730,7 @@ def _speak_clips(clips, on_wake, suppress_barge_in=None) -> bool:
         if _interrupted.is_set():
             global _barge_in_at
             _barge_in_at = time.time()
-            # Leave the eyes lit — on_wake() already turned them on for the next command.
+            # on_wake() has already flashed the eyes for the next command.
             return True
         if played:
             eyes.off()
@@ -1605,6 +1623,10 @@ def _deliver(ann: announcements.Announcement, on_wake) -> bool:
     for the command that is about to be recorded."""
     if quiet.is_silent() and not ann.bypass_silent:
         print(f"[skull] Silent mode — dropping {ann.source} announcement.")
+        # Worth knowing about later (the printer holds its own notice): lit on the
+        # right eye, and read back when the owner acknowledges.
+        if ann.priority <= announcements.NOTICE and ann.text and not ann.source.startswith(("printer", "held")):
+            notices.add_missed(ann.text)
         return False
     if ann.skip_if_music and spotify_ctrl.is_playing():
         print(f"[skull] Music playing — dropping {ann.source} announcement.")
@@ -1670,6 +1692,9 @@ def main():
     temperature.start_power_monitor()
     bambu_ctrl.init(_speak_bambu_notification)
     bambu_ctrl.get_monitor().start()
+    notices.on_clear(notices.PRINT_DONE, _stop_printer_repeats)
+    notices.on_clear(notices.PRINT_ERROR, _stop_printer_repeats)
+    eye_watch.start()
     threading.Thread(target=_spotify_poller_loop, daemon=True).start()
     from core import ambient_music
     # A remembered Bluetooth speaker is reconnected without being asked; this is a
@@ -1797,7 +1822,7 @@ def main():
                 set_speech_active(True)
                 spotify_ctrl.duck()  # dip any playing music for the whole interaction
                 sfx.play_blocking("wake_ping", config.VOICE_OUTPUT_DEVICE)
-                eyes.on()
+                eyes.wake()
 
             ambient_music.register_on_wake_cb(on_wake)
 
@@ -2148,6 +2173,7 @@ def main():
             handled = _run_local_intents(turn)
             _briefing_awaiting_response = turn.briefing_awaiting
             _pending_maintenance = turn.pending_maintenance
+            eyes.set_confirming(_pending_maintenance[2] if _pending_maintenance else None)
             skip_wake_word = skip_wake_word or turn.skip_wake_word
             skip_ack = skip_ack or turn.skip_ack
             if handled:
@@ -2166,6 +2192,7 @@ def main():
 
             print("[skull] Consulting the Machine God...")
             display.think()  # spin the cog while the brain cogitates
+            eyes.think()     # and ping-pong the eyes
             _cancel_cog = threading.Event()
             if _is_hymn_req:
                 _cancel_cog.set()  # suppress cogitation thinking phrases for hymn requests
@@ -2346,6 +2373,7 @@ def main():
             if _requested:
                 _req_action, _req_arg = _requested
                 _pending_maintenance = (_req_action, _req_arg, time.time() + _MAINT_CONFIRM_SECS)
+                eyes.set_confirming(_pending_maintenance[2])
                 try:
                     set_speech_active(True)
                     eyes.on()
@@ -2368,6 +2396,7 @@ def main():
             _pending_maintenance = None
             try:
                 set_speech_active(False)
+                eyes.set_confirming(None)
                 eyes.off()
                 display.stop_noosphere_scan()
                 display.stop_auspex_scan()

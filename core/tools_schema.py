@@ -449,7 +449,9 @@ def build_tools() -> list[dict]:
     {
         "name": "acknowledge_reminders",
         "description": (
-            "Stop all currently repeating timer/reminder alerts. Call this when the user "
+            "Stop all currently repeating timer/reminder alerts, and clear held notices "
+            "(a finished or failed 3D print, announcements withheld in silent mode) that "
+            "the eye LEDs are showing. Call this when the user "
             "acknowledges an alert — e.g. 'got it', 'acknowledged', 'stop', 'I heard you', "
             "'silence', 'ok ok', 'enough'. Only clears timers that have already expired and "
             "are repeating; pending future timers are never affected."
@@ -732,7 +734,7 @@ def build_tools() -> list[dict]:
     },
     {
         "name": "cancel_printer_alerts",
-        "description": "Cancel and stop any repeating verbal alerts/notifications about the 3D printer status (such as completion alerts or health errors).",
+        "description": "Cancel and stop any repeating verbal alerts/notifications about the 3D printer status (such as completion alerts or health errors), and clear the printer light on the eye LEDs.",
         "input_schema": {
             "type": "object",
             "properties": {}

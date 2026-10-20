@@ -50,6 +50,15 @@ word → Whisper → Claude with tools → ElevenLabs/Piper speech, plus a round
   value shifts a column left. Rebuild Necromunda with
   `python -m games.necromunda.extract.ingest <core rulebook PDF>`; the database
   is reproducible, so it is dropped and rebuilt rather than migrated.
+- The optic LEDs (two RGBW pixels, `core/eyes.py`, wiring in `EYE_WIRING.md`) show
+  the world, not the mood, which the display already shows. `core/eye_states.py`
+  resolves each frame from layers (health > activity > confirm > blip > status >
+  ember) and is pure; `core/eye_watch.py` polls speaker, cast, network, printer,
+  reminders, temperature, quiet hours and presence into the status layers (left eye
+  links, right eye tasks); `core/notices.py` holds what waits for the owner until
+  acknowledged or announced to someone the rangefinder sees. main.py reports
+  activity: `eyes.wake()`, `eyes.think()`, `eyes.on()`/`set_amplitude()`, `eyes.off()`.
+  Never install `adafruit-blinka`: it pulls `RPi.GPIO` over the `rpi-lgpio` shim.
 - `core/bt/` — Bluetooth as a desired state rather than a script. `model.py` is the
   data, `plan.py` the only place decisions are made (pure: given a snapshot and a
   desired state, the actions that close the gap), `bluez.py` BlueZ over its own

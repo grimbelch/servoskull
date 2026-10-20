@@ -157,7 +157,8 @@ The Servo Skull includes built-in rules reference engines and random dice genera
 | **`"Turn on candles"`** / **`"Turn off candles"`** | Controls GPIO transistor flicker candles (`CANDLE_PIN`). |
 | **`"Check 3D printer status"`** | Queries Bambu Lab 3D printer status (print % / temp / ETA). |
 | **`"Connect to Bambu printer at [IP]"`** | Configures Bambu MQTT connection. |
-| **`"Cancel printer alerts"`** | Mutes recurring print completion notifications. |
+| **`"Cancel printer alerts"`** | Mutes recurring print completion notifications and clears the printer light on the right eye. |
+| **`"Acknowledged"`** / **`"Got it"`** | Silences repeating reminders and clears every held light (finished print, printer fault, withheld announcements); anything silent mode withheld is read back. |
 
 ---
 
