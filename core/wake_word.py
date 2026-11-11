@@ -219,7 +219,10 @@ def text_contains_wake_word(text: str) -> bool:
     term = wake_term()
     if not term or not text:
         return False
-    return re.search(rf"\b{re.escape(term)}", text.lower()) is not None
+    # Servo_Skull.onnx -> "servo skull", which is said the same written as
+    # "servo-skull" or "servoskull".
+    pattern = r"[\s-]*".join(re.escape(w) for w in term.split())
+    return re.search(rf"\b{pattern}", text.lower()) is not None
 
 
 def wait_for_wake_word(on_detected=None, cancel=None, threshold=None) -> bool:

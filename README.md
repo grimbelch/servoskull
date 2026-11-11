@@ -18,7 +18,7 @@ An AI-powered **Warhammer 40,000 servo skull** that floats on your shelf, glares
 
 Powered by a **Raspberry Pi 5**, Omega-7 sees you through an autofocus camera, hears you through an embedded microphone, and speaks through a real voice. It knows tabletop rulebooks cold, plays music via Spotify Connect, monitors your 3D printer, simulates specialized dice rolls, and remembers your preferences.
 
-Simply speak the wake phrase — **"Servitor"** — and it wakes, ignites its top-mounted candle LEDs, pulses its eye iris in time with its voice, and responds.
+Simply speak the wake phrase — **"Servo-skull"** — and it wakes, ignites its top-mounted candle LEDs, pulses its eye iris in time with its voice, and responds.
 
 ---
 
@@ -26,7 +26,7 @@ Simply speak the wake phrase — **"Servitor"** — and it wakes, ignites its to
 
 | Capability | Description |
 | :--- | :--- |
-| **🗣️ In-Character Voice AI** | Wakes to *"Servitor"*, processing queries with Anthropic Claude and speaking aloud via local Piper or ElevenLabs text-to-speech. Formal, archaic, and devoted to the Emperor. |
+| **🗣️ In-Character Voice AI** | Wakes to *"Servo-skull"*, processing queries with Anthropic Claude and speaking aloud via local Piper or ElevenLabs text-to-speech. Formal, archaic, and devoted to the Emperor. |
 | **👁️ Computer Vision & Biometrics** | Arducam IMX708 autofocus camera for scene description (*"What do you see?"*), SFace facial recognition, and GMM voice profile identification. |
 | **💡 Physical Eye HUD & Candle LEDs** | GC9A01 1.28" circular IPS panel "machine-spirit eye" with 6 dynamic HUD animation states, 48 screensavers, and **Live Visual UP Alignment Mode (`▲`)** for precision rotation. Transistor-switched flame LEDs ignite on wake and extinguish on sleep. |
 | **📖 Offline Tabletop Rules Engine** | Instant lookup for **Warhammer 40,000 (11th ed.)**, **Necromunda**, **NetEpic**, and **Net Epic Armageddon** datasheets, stratagems, weapon traits, skills, and points. |
@@ -185,7 +185,7 @@ core/                  Python application package
   brain.py             Claude conversation & tool dispatch
   tools_schema.py      Claude tool definitions
   llm.py               Anthropic API client (streaming, prompt caching)
-  wake_word.py         openWakeWord engine ("Servitor")
+  wake_word.py         openWakeWord engine ("Servo-skull")
   transcribe.py        Whisper speech-to-text
   tts.py               Piper & ElevenLabs voice engine
   speech_stream.py     Cuts a streaming reply into speakable sentences

@@ -338,14 +338,26 @@ def test_a_dead_parec_is_not_alive(raw_capture):
 
 # ── not rousing itself ────────────────────────────────────────────────────────
 
-def test_the_wake_term_comes_from_the_model_filename():
+def test_the_wake_term_comes_from_the_model_filename(monkeypatch):
+    monkeypatch.setattr(wake_word, "WAKE_WORD_MODEL", "models/servitor.onnx")
     assert wake_word.wake_term() == "servitor"
+    monkeypatch.setattr(wake_word, "WAKE_WORD_MODEL", "models/Servo_Skull.onnx")
+    assert wake_word.wake_term() == "servo skull"
 
 
-def test_a_line_that_says_the_wake_word_is_recognised():
+def test_a_line_that_says_the_wake_word_is_recognised(monkeypatch):
+    monkeypatch.setattr(wake_word, "WAKE_WORD_MODEL", "models/servitor.onnx")
     assert wake_word.text_contains_wake_word("Never call yourself a servitor") is True
     assert wake_word.text_contains_wake_word("SERVITOR, stand down") is True
     assert wake_word.text_contains_wake_word("the servitors of Mars") is True
+
+
+def test_a_two_word_wake_term_matches_however_it_is_written(monkeypatch):
+    monkeypatch.setattr(wake_word, "WAKE_WORD_MODEL", "models/Servo_Skull.onnx")
+    assert wake_word.text_contains_wake_word("An Imperial servo-skull") is True
+    assert wake_word.text_contains_wake_word("this servoskull attends") is True
+    assert wake_word.text_contains_wake_word("Servo Skulls of Mars") is True
+    assert wake_word.text_contains_wake_word("the servitor attends") is False
 
 
 def test_an_ordinary_line_is_not():
